@@ -11,9 +11,16 @@ sudo apt-get install -y -q \
     libxcb-xinerama0 libxcb-xfixes0 postgresql-client
 
 echo "=== [2/4] Installazione dipendenze Python ==="
-pip install --quiet --upgrade pip
-pip install --quiet -r requirements.txt
-pip install --quiet -r tests/requirements-test.txt
+# Se un venv è già attivo (creato da VS Code / Codespaces) lo usiamo,
+# altrimenti installiamo nel Python corrente del devcontainer.
+PYTHON_BIN="${VIRTUAL_ENV:+$VIRTUAL_ENV/bin/python}"
+PYTHON_BIN="${PYTHON_BIN:-python}"
+PIP_BIN="${VIRTUAL_ENV:+$VIRTUAL_ENV/bin/pip}"
+PIP_BIN="${PIP_BIN:-pip}"
+
+"$PIP_BIN" install --quiet --upgrade pip
+"$PIP_BIN" install --quiet -r requirements.txt
+"$PIP_BIN" install --quiet -r tests/requirements-test.txt
 
 echo "=== [3/4] Inizializzazione database di sviluppo ==="
 # Attende che PostgreSQL sia pronto
