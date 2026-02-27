@@ -7,7 +7,7 @@ from logging.handlers import RotatingFileHandler
 # Ora questo import è sicuro, perché app_paths è autonomo
 from app_paths import LOG_DIR, get_log_file_path
 
-from PyQt5.QtCore import QStandardPaths, QCoreApplication
+from PyQt6.QtCore import QStandardPaths, QCoreApplication
 
 # --- CONFIGURAZIONI AMBIENTE E CI/CD (GITHUB ACTIONS) ---
 # GitHub Actions imposta automaticamente le variabili 'CI' e 'GITHUB_ACTIONS' a 'true'.
@@ -61,7 +61,7 @@ def setup_global_logging(log_level=logging.INFO):
     """
     try:
         # Ottiene il percorso standard per i dati dell'applicazione locale.
-        log_directory = QStandardPaths.writableLocation(QStandardPaths.AppLocalDataLocation)
+        log_directory = QStandardPaths.writableLocation(QStandardPaths.StandardLocation.AppLocalDataLocation)
         
         # Se il percorso non esiste, fallback
         if not log_directory:

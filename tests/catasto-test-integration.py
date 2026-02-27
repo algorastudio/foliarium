@@ -16,9 +16,9 @@ from unittest.mock import patch, Mock
 import json
 import time
 
-from PyQt5.QtWidgets import QApplication
-from PyQt5.QtCore import Qt, QTimer
-from PyQt5.QtTest import QTest
+from PyQt6.QtWidgets import QApplication
+from PyQt6.QtCore import Qt, QTimer
+from PyQt6.QtTest import QTest
 
 # Import componenti da testare
 from catasto_db_manager import CatastoDBManager
@@ -85,7 +85,7 @@ class TestDatabaseGUIIntegration:
         # Salva partita
         if hasattr(widget, '_save_partita'):
             # Mock message box per evitare popup durante test
-            with patch('PyQt5.QtWidgets.QMessageBox.information'):
+            with patch('PyQt6.QtWidgets.QMessageBox.information'):
                 widget._save_partita()
         
         # Verifica che la partita sia stata creata
@@ -148,7 +148,7 @@ class TestMainWindowIntegration:
         window.db_manager = db_manager
         
         # Aggiungi alcuni tab di test
-        from PyQt5.QtWidgets import QTabWidget
+        from PyQt6.QtWidgets import QTabWidget
         tabs = QTabWidget()
         
         # Tab 1: Lista comuni
@@ -188,10 +188,10 @@ class TestImportExportIntegration:
         widget = RegistraPossessoreWidget(db)
         
         # Simula selezione file e import
-        with patch('PyQt5.QtWidgets.QFileDialog.getOpenFileName') as mock_dialog:
+        with patch('PyQt6.QtWidgets.QFileDialog.getOpenFileName') as mock_dialog:
             mock_dialog.return_value = (temp_csv_file, 'CSV Files')
             
-            with patch('PyQt5.QtWidgets.QMessageBox.information'):
+            with patch('PyQt6.QtWidgets.QMessageBox.information'):
                 if hasattr(widget, '_import_from_csv'):
                     # Assumendo che il widget abbia un metodo per import
                     widget.comune_id = comune_id  # Set comune context
@@ -222,7 +222,7 @@ class TestImportExportIntegration:
         )
         
         # Mock del file dialog
-        with patch('PyQt5.QtWidgets.QFileDialog.getSaveFileName') as mock_dialog:
+        with patch('PyQt6.QtWidgets.QFileDialog.getSaveFileName') as mock_dialog:
             mock_dialog.return_value = ('/tmp/test_export.pdf', 'PDF Files')
             
             # Test export (assumendo esistenza di funzione export)

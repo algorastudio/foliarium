@@ -169,7 +169,7 @@ deps =
     pytest-xdist
     pytest-qt
     psycopg2-binary
-    PyQt5
+    PyQt6
     
 commands = 
     pytest {posargs}
@@ -266,7 +266,7 @@ pytest-mock>=3.10.0
 psycopg2-binary>=2.9.0
 
 # GUI
-PyQt5>=5.15.0
+PyQt6>=5.15.0
 
 # Linting and formatting
 pylint>=2.15.0
@@ -373,7 +373,7 @@ createdb -U postgres catasto_test 2>/dev/null || echo "Database già esistente"
 echo "✅ Verifica installazione..."
 pytest --version
 python -c "import psycopg2; print('✓ psycopg2 installato')"
-python -c "import PyQt5; print('✓ PyQt5 installato')"
+python -c "import PyQt6; print('✓ PyQt6 installato')"
 
 echo "✨ Ambiente di test pronto!"
 echo "   Per eseguire i test: python tests/run_tests.py"

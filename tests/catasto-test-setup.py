@@ -356,7 +356,7 @@ def mock_file_dialog(monkeypatch):
     mock = Mock()
     mock.getOpenFileName.return_value = ('/path/to/file.csv', 'CSV Files (*.csv)')
     mock.getSaveFileName.return_value = ('/path/to/output.pdf', 'PDF Files (*.pdf)')
-    monkeypatch.setattr('PyQt5.QtWidgets.QFileDialog', mock)
+    monkeypatch.setattr('PyQt6.QtWidgets.QFileDialog', mock)
     return mock
 
 

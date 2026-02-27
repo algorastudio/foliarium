@@ -5,18 +5,18 @@ from typing import Optional, List, Dict, Any, Tuple, TYPE_CHECKING
 from app_utils import BulkReportPDF, FPDF_AVAILABLE, _get_default_export_path, prompt_to_open_file
 import pandas as pd # Importa pandas
 
-# Importazioni PyQt5
-from PyQt5.QtCore import (QDate, QDateTime, QPoint, QProcess, QSettings, 
+# Importazioni PyQt6
+from PyQt6.QtCore import (QDate, QDateTime, QPoint, QProcess, QSettings, 
                           QSize, QStandardPaths, Qt, QTimer, QUrl, 
                           pyqtSignal,QModelIndex,QProcessEnvironment,Qt, QSettings, 
                           pyqtSlot,pyqtSignal ,QThread)
 
-from PyQt5.QtGui import (QCloseEvent, QColor, QDesktopServices, QFont, 
-                         QIcon, QPalette, QPixmap)
+from PyQt6.QtGui import (QCloseEvent, QColor, QDesktopServices, QFont, 
+                         QIcon, QPalette, QPixmap, QAction)
 
-from PyQt5.QtWebEngineWidgets import QWebEngineView
+from PyQt6.QtWebEngineWidgets import QWebEngineView
 
-from PyQt5.QtWidgets import (QAbstractItemView, QAction, QApplication, 
+from PyQt6.QtWidgets import (QAbstractItemView, QApplication, 
                              QCheckBox, QComboBox, QDateEdit, QDateTimeEdit,
                              QDialog, QDialogButtonBox, QDoubleSpinBox,
                              QFileDialog, QFormLayout, QFrame, QGridLayout,
@@ -108,7 +108,7 @@ class ElencoComuniWidget(LazyLoadedWidget):
         self.comuni_table.setSelectionBehavior(QTableWidget.SelectRows)
         self.comuni_table.setSelectionMode(QTableWidget.SingleSelection) # Importante per menu contestuale su una riga
         self.comuni_table.setAlternatingRowColors(True)
-        self.comuni_table.horizontalHeader().setSectionResizeMode(QHeaderView.Stretch)
+        self.comuni_table.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeMode.Stretch)
         self.comuni_table.setSortingEnabled(True)
         # self.comuni_table.itemDoubleClicked.connect(self.mostra_partite_del_comune) # Il doppio click può rimanere
 
@@ -174,7 +174,7 @@ class ElencoComuniWidget(LazyLoadedWidget):
                 self.logger.warning("Nessun comune restituito dal DB manager per la visualizzazione.")
                 self.comuni_table.setRowCount(1)
                 item = QTableWidgetItem("Nessun comune trovato nel database.")
-                item.setTextAlignment(Qt.AlignCenter)
+                item.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
                 self.comuni_table.setItem(0, 0, item)
                 self.comuni_table.setSpan(0, 0, 1, self.comuni_table.columnCount())
                 return
@@ -214,7 +214,7 @@ class ElencoComuniWidget(LazyLoadedWidget):
         """
         self.logger.info(f"Menu contestuale: richiesta modifica per comune ID {comune_id}")
         dialog = ModificaComuneDialog(self.db_manager, comune_id, self)
-        if dialog.exec_() == QDialog.Accepted:
+        if dialog.exec() == QDialog.DialogCode.Accepted:
             self.logger.info(f"Dati del comune ID {comune_id} modificati. Aggiornamento lista comuni.")
             self.load_data()  # <-- CORRETTO
         else:
@@ -336,7 +336,7 @@ class ElencoComuniWidget(LazyLoadedWidget):
                 nome_comune = nome_comune_item.text()
                 dialog = PartiteComuneDialog(
                     self.db_manager, comune_id, nome_comune, self)
-                dialog.exec_()
+                dialog.exec()
         except ValueError:
             QMessageBox.warning(self, "Errore Dati",
                                 "L'ID del comune non è un numero valido.")
@@ -355,13 +355,13 @@ class ElencoComuniWidget(LazyLoadedWidget):
         menu = QMenu(self.comuni_table)
         
        # ... (azioni esistenti per Visualizza Partite, Possessori, Località) ...
-        action_vedi_partite = menu.addAction(QApplication.style().standardIcon(QStyle.SP_FileDialogContentsView), "Visualizza Partite")
+        action_vedi_partite = menu.addAction(QApplication.style().standardIcon(QStyle.StandardPixmap.SP_FileDialogContentsView), "Visualizza Partite")
         action_vedi_partite.triggered.connect(lambda: self._slot_vedi_partite_comune(comune_id_selezionato, nome_comune_selezionato))
         
-        action_vedi_possessori = menu.addAction(QApplication.style().standardIcon(QStyle.SP_DirLinkIcon), "Visualizza Possessori")
+        action_vedi_possessori = menu.addAction(QApplication.style().standardIcon(QStyle.StandardPixmap.SP_DirLinkIcon), "Visualizza Possessori")
         action_vedi_possessori.triggered.connect(lambda: self._slot_vedi_possessori_comune(comune_id_selezionato, nome_comune_selezionato))
 
-        action_vedi_localita = menu.addAction(QApplication.style().standardIcon(QStyle.SP_DirHomeIcon), "Visualizza Località")
+        action_vedi_localita = menu.addAction(QApplication.style().standardIcon(QStyle.StandardPixmap.SP_DirHomeIcon), "Visualizza Località")
         action_vedi_localita.triggered.connect(lambda: self._slot_vedi_localita_comune(comune_id_selezionato, nome_comune_selezionato))
         
         menu.addSeparator()
@@ -379,18 +379,18 @@ class ElencoComuniWidget(LazyLoadedWidget):
     def _slot_vedi_partite_comune(self, comune_id: int, nome_comune: str):
         self.logger.info(f"Azione: Visualizza partite per comune ID {comune_id} ('{nome_comune}')")
         dialog = PartiteComuneDialog(self.db_manager, comune_id, nome_comune, self)
-        dialog.exec_()
+        dialog.exec()
 
     def _slot_vedi_possessori_comune(self, comune_id: int, nome_comune: str):
         self.logger.info(f"Azione: Visualizza possessori per comune ID {comune_id} ('{nome_comune}')")
         dialog = PossessoriComuneDialog(self.db_manager, comune_id, nome_comune, self)
-        dialog.exec_()
+        dialog.exec()
 
     def _slot_vedi_localita_comune(self, comune_id: int, nome_comune: str):
         self.logger.info(f"Azione: Visualizza località per comune ID {comune_id} ('{nome_comune}')")
         dialog = LocalitaSelectionDialog(self.db_manager, comune_id, self, selection_mode=False)
         dialog.setWindowTitle(f"Località del Comune di {nome_comune}")
-        dialog.exec_()
+        dialog.exec()
 
      # Metodi per i pulsanti esterni (possono riutilizzare gli slot)
     def azione_mostra_partite(self):
@@ -510,9 +510,9 @@ class RicercaPartiteWidget(QWidget):
     def select_comune(self):
         """Apre il selettore di comuni."""
         dialog = ComuneSelectionDialog(self.db_manager, self)
-        result = dialog.exec_()
+        result = dialog.exec()
 
-        if result == QDialog.Accepted and dialog.selected_comune_id:
+        if result == QDialog.DialogCode.Accepted and dialog.selected_comune_id:
             self.comune_id = dialog.selected_comune_id
             self.comune_display.setText(dialog.selected_comune_name)
 
@@ -621,7 +621,7 @@ class RicercaPartiteWidget(QWidget):
             if partita:
                 # Crea e mostra una finestra di dialogo per i dettagli
                 details_dialog = PartitaDetailsDialog(partita, self)
-                details_dialog.exec_()
+                details_dialog.exec()
             else:
                 QMessageBox.warning(
                     self, "Errore", f"Non è stato possibile recuperare i dettagli della partita ID {partita_id}.")
@@ -651,7 +651,7 @@ class RicercaPartiteWidget(QWidget):
             QMessageBox.critical(self, "Errore", "Impossibile recuperare i dati dalla riga selezionata.")
             return
             
-        immobile_id = primo_item_nella_riga.data(Qt.UserRole)
+        immobile_id = primo_item_nella_riga.data(Qt.ItemDataRole.UserRole)
 
         # Crea e lancia il dialogo, passando tutti i parametri necessari
         dialog = ModificaImmobileDialog(
@@ -663,7 +663,7 @@ class RicercaPartiteWidget(QWidget):
 
         # Esegui il dialogo. Il codice si ferma qui finché il dialogo non viene chiuso.
         # Usiamo exec_() per compatibilità con tutti i nomi
-        if dialog.exec_() == QDialog.Accepted:
+        if dialog.exec() == QDialog.DialogCode.Accepted:
             # Se l'utente ha premuto "Salva" e le modifiche sono state salvate,
             # aggiorna la tabella per mostrare i nuovi dati.
             print("Modifiche salvate. Aggiornamento della vista in corso...")
@@ -769,7 +769,7 @@ class RicercaAvanzataImmobiliWidget(QWidget):
         self.btn_esegui_ricerca_immobili = QPushButton(
             "Esegui Ricerca Immobili")
         self.btn_esegui_ricerca_immobili.setIcon(
-            QApplication.style().standardIcon(QStyle.SP_DialogApplyButton))
+            QApplication.style().standardIcon(QStyle.StandardPixmap.SP_DialogApplyButton))
         self.btn_esegui_ricerca_immobili.clicked.connect(
             self._esegui_ricerca_effettiva)
         main_layout.addWidget(self.btn_esegui_ricerca_immobili)
@@ -789,7 +789,7 @@ class RicercaAvanzataImmobiliWidget(QWidget):
             QTableWidget.SelectRows)
         self.risultati_immobili_table.setAlternatingRowColors(True)
         self.risultati_immobili_table.horizontalHeader().setSectionResizeMode(
-            QHeaderView.ResizeToContents)  # ResizeToContents
+            QHeaderView.ResizeMode.ResizeToContents)  # ResizeToContents
         self.risultati_immobili_table.horizontalHeader(
         ).setStretchLastSection(True)  # Ultima colonna stretch
         self.risultati_immobili_table.setSortingEnabled(True)
@@ -800,7 +800,7 @@ class RicercaAvanzataImmobiliWidget(QWidget):
 
     def _seleziona_comune_per_ricerca(self):
         dialog = ComuneSelectionDialog(self.db_manager, self)
-        if dialog.exec_() == QDialog.Accepted and dialog.selected_comune_id:
+        if dialog.exec() == QDialog.DialogCode.Accepted and dialog.selected_comune_id:
             self.selected_comune_id = dialog.selected_comune_id
             self.comune_display_label.setText(
                 f"{dialog.selected_comune_name} (ID: {self.selected_comune_id})")
@@ -826,7 +826,7 @@ class RicercaAvanzataImmobiliWidget(QWidget):
         dialog = LocalitaSelectionDialog(self.db_manager, self.selected_comune_id, self,
                                          selection_mode=True)
 
-        if dialog.exec_() == QDialog.Accepted:  # Se l'utente ha premuto "Seleziona" nel dialogo
+        if dialog.exec() == QDialog.DialogCode.Accepted:  # Se l'utente ha premuto "Seleziona" nel dialogo
             if dialog.selected_localita_id is not None and dialog.selected_localita_name is not None:
                 self.selected_localita_id = dialog.selected_localita_id
                 self.localita_display_label.setText(
@@ -1098,8 +1098,8 @@ class GestioneTipiLocalitaWidget(LazyLoadedWidget):
         self.table = QTableWidget()
         self.table.setColumnCount(3)
         self.table.setHorizontalHeaderLabels(["ID", "Nome Tipologia", "Descrizione"])
-        self.table.horizontalHeader().setSectionResizeMode(1, QHeaderView.Stretch)
-        self.table.horizontalHeader().setSectionResizeMode(2, QHeaderView.Stretch)
+        self.table.horizontalHeader().setSectionResizeMode(1, QHeaderView.ResizeMode.Stretch)
+        self.table.horizontalHeader().setSectionResizeMode(2, QHeaderView.ResizeMode.Stretch)
         self.table.setSelectionBehavior(QTableWidget.SelectRows)
         self.table.setEditTriggers(QTableWidget.NoEditTriggers)
         group_layout.addWidget(self.table, 2)
@@ -1113,7 +1113,7 @@ class GestioneTipiLocalitaWidget(LazyLoadedWidget):
         btn_del.clicked.connect(self._delete_item)
         
         # Aggiungiamo un pulsante di refresh manuale per coerenza
-        btn_refresh = QPushButton(QApplication.style().standardIcon(QStyle.SP_BrowserReload), " Aggiorna")
+        btn_refresh = QPushButton(QApplication.style().standardIcon(QStyle.StandardPixmap.SP_BrowserReload), " Aggiorna")
         btn_refresh.clicked.connect(self.load_data)
 
         button_layout.addWidget(btn_add)
@@ -1188,8 +1188,8 @@ class GestioneTipiLocalitaWidget(LazyLoadedWidget):
         tipo_id = int(self.table.item(row, 0).text())
         nome = self.table.item(row, 1).text()
 
-        reply = QMessageBox.question(self, "Conferma Eliminazione", f"Sei sicuro di voler eliminare la tipologia '{nome}'?", QMessageBox.Yes | QMessageBox.No, QMessageBox.No)
-        if reply == QMessageBox.Yes:
+        reply = QMessageBox.question(self, "Conferma Eliminazione", f"Sei sicuro di voler eliminare la tipologia '{nome}'?", QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No, QMessageBox.StandardButton.No)
+        if reply == QMessageBox.StandardButton.Yes:
             try:
                 self.db_manager.elimina_tipo_localita(tipo_id)
                 self.load_data()
@@ -1215,22 +1215,22 @@ class GestionePeriodiStoriciWidget(LazyLoadedWidget):
         self.table = QTableWidget()
         self.table.setColumnCount(4)
         self.table.setHorizontalHeaderLabels(["ID", "Nome Periodo", "Anno Inizio-Fine", "Descrizione"])
-        self.table.horizontalHeader().setSectionResizeMode(0, QHeaderView.ResizeToContents)
-        self.table.horizontalHeader().setSectionResizeMode(1, QHeaderView.Stretch)
-        self.table.horizontalHeader().setSectionResizeMode(2, QHeaderView.ResizeToContents)
-        self.table.horizontalHeader().setSectionResizeMode(3, QHeaderView.Stretch)
+        self.table.horizontalHeader().setSectionResizeMode(0, QHeaderView.ResizeMode.ResizeToContents)
+        self.table.horizontalHeader().setSectionResizeMode(1, QHeaderView.ResizeMode.Stretch)
+        self.table.horizontalHeader().setSectionResizeMode(2, QHeaderView.ResizeMode.ResizeToContents)
+        self.table.horizontalHeader().setSectionResizeMode(3, QHeaderView.ResizeMode.Stretch)
         self.table.setSelectionBehavior(QTableWidget.SelectRows)
         self.table.setEditTriggers(QTableWidget.NoEditTriggers)
         group_layout.addWidget(self.table)
 
         button_layout = QVBoxLayout()
-        btn_refresh = QPushButton(QApplication.style().standardIcon(QStyle.SP_BrowserReload), " Aggiorna Lista")
+        btn_refresh = QPushButton(QApplication.style().standardIcon(QStyle.StandardPixmap.SP_BrowserReload), " Aggiorna Lista")
         btn_refresh.clicked.connect(self.load_data) # Ora si collega al metodo corretto
-        btn_add = QPushButton(QApplication.style().standardIcon(QStyle.SP_FileDialogNewFolder), " Aggiungi...")
+        btn_add = QPushButton(QApplication.style().standardIcon(QStyle.StandardPixmap.SP_FileDialogNewFolder), " Aggiungi...")
         btn_add.clicked.connect(self._add_or_edit_item)
-        btn_edit = QPushButton(QApplication.style().standardIcon(QStyle.SP_FileDialogDetailedView), " Modifica...")
+        btn_edit = QPushButton(QApplication.style().standardIcon(QStyle.StandardPixmap.SP_FileDialogDetailedView), " Modifica...")
         btn_edit.clicked.connect(lambda: self._add_or_edit_item(edit_mode=True))
-        btn_del = QPushButton(QApplication.style().standardIcon(QStyle.SP_TrashIcon), " Elimina")
+        btn_del = QPushButton(QApplication.style().standardIcon(QStyle.StandardPixmap.SP_TrashIcon), " Elimina")
         btn_del.clicked.connect(self._delete_item)
         
         button_layout.addWidget(btn_refresh)
@@ -1258,7 +1258,7 @@ class GestionePeriodiStoriciWidget(LazyLoadedWidget):
             for row, periodo in enumerate(periodi):
                 # Salviamo l'intero dizionario del periodo nell'item ID per un facile accesso
                 id_item = QTableWidgetItem(str(periodo['id']))
-                id_item.setData(Qt.UserRole, periodo)
+                id_item.setData(Qt.ItemDataRole.UserRole, periodo)
                 self.table.setItem(row, 0, id_item)
                 
                 self.table.setItem(row, 1, QTableWidgetItem(periodo['nome']))
@@ -1281,10 +1281,10 @@ class GestionePeriodiStoriciWidget(LazyLoadedWidget):
                 QMessageBox.warning(self, "Selezione Mancante", "Seleziona un periodo da modificare.")
                 return
             # Prendi i dati salvati nell'item
-            periodo_data = self.table.item(selected_items[0].row(), 0).data(Qt.UserRole)
+            periodo_data = self.table.item(selected_items[0].row(), 0).data(Qt.ItemDataRole.UserRole)
         
         dialog = PeriodoStoricoEditDialog(self.db_manager, periodo_data, self)
-        if dialog.exec_() == QDialog.Accepted:
+        if dialog.exec() == QDialog.DialogCode.Accepted:
             self.load_data() # Ricarica la lista dopo la modifica/aggiunta
 
     def _delete_item(self):
@@ -1293,12 +1293,12 @@ class GestionePeriodiStoriciWidget(LazyLoadedWidget):
             QMessageBox.warning(self, "Selezione Mancante", "Seleziona un periodo da eliminare.")
             return
         
-        periodo_data = self.table.item(selected_items[0].row(), 0).data(Qt.UserRole)
+        periodo_data = self.table.item(selected_items[0].row(), 0).data(Qt.ItemDataRole.UserRole)
         periodo_id = periodo_data['id']
         nome = periodo_data['nome']
 
-        reply = QMessageBox.question(self, "Conferma Eliminazione", f"Sei sicuro di voler eliminare il periodo '{nome}'?\nQuesta operazione è possibile solo se il periodo non è utilizzato.", QMessageBox.Yes | QMessageBox.No, QMessageBox.No)
-        if reply == QMessageBox.Yes:
+        reply = QMessageBox.question(self, "Conferma Eliminazione", f"Sei sicuro di voler eliminare il periodo '{nome}'?\nQuesta operazione è possibile solo se il periodo non è utilizzato.", QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No, QMessageBox.StandardButton.No)
+        if reply == QMessageBox.StandardButton.Yes:
             try:
                 self.db_manager.elimina_periodo_storico(periodo_id)
                 self.load_data()
@@ -1332,7 +1332,7 @@ class InserimentoPossessoreWidget(LazyLoadedWidget):
 
         self.btn_genera_nome_completo = QPushButton("Genera Nome Completo")
         self.btn_genera_nome_completo.clicked.connect(self._genera_e_imposta_nome_completo)
-        form_layout.addWidget(self.btn_genera_nome_completo, 2, 1, Qt.AlignLeft)
+        form_layout.addWidget(self.btn_genera_nome_completo, 2, 1, Qt.AlignmentFlag.AlignLeft)
 
         form_layout.addWidget(QLabel("Nome Completo (generato) (*):"), 3, 0)
         self.nome_completo_edit = QLineEdit()
@@ -1595,7 +1595,7 @@ class InserimentoLocalitaWidget(QWidget):
     def select_comune(self):
         # ... (invariato)
         dialog = ComuneSelectionDialog(self.db_manager, self)
-        if dialog.exec_() == QDialog.Accepted and dialog.selected_comune_id:
+        if dialog.exec() == QDialog.DialogCode.Accepted and dialog.selected_comune_id:
             self.comune_id = dialog.selected_comune_id
             self.comune_display.setText(dialog.selected_comune_name)
             self._load_tipi_localita() # Carica i tipi dopo aver selezionato il comune
@@ -1719,12 +1719,12 @@ class InserimentoPartitaWidget(QWidget):
         import_layout = QHBoxLayout(import_group)
         
         import_button = QPushButton("📂 Importa Partite da File CSV...")
-        import_button.setIcon(self.style().standardIcon(QStyle.SP_DialogSaveButton))
+        import_button.setIcon(self.style().standardIcon(QStyle.StandardPixmap.SP_DialogSaveButton))
         import_button.clicked.connect(self.import_csv_requested.emit)
 
         # Creiamo il nuovo pulsante di aiuto
         info_button_partite = QPushButton("Info Formato")
-        info_button_partite.setIcon(self.style().standardIcon(QStyle.SP_MessageBoxQuestion))
+        info_button_partite.setIcon(self.style().standardIcon(QStyle.StandardPixmap.SP_MessageBoxQuestion))
         info_button_partite.clicked.connect(self._mostra_info_formato_csv)
 
         import_layout.addWidget(import_button)
@@ -1871,13 +1871,13 @@ class RegistrazioneProprietaWidget(LazyLoadedWidget):
         possessori_group = QGroupBox("2. Possessori Associati")
         possessori_layout = QVBoxLayout(possessori_group)
         self.possessori_table = QTableWidget(); self.possessori_table.setColumnCount(4); self.possessori_table.setHorizontalHeaderLabels(["ID", "Nome Completo", "Titolo", "Quota"])
-        self.possessori_table.horizontalHeader().setSectionResizeMode(1, QHeaderView.Stretch); self.possessori_table.setMinimumHeight(120)
+        self.possessori_table.horizontalHeader().setSectionResizeMode(1, QHeaderView.ResizeMode.Stretch); self.possessori_table.setMinimumHeight(120)
         self.btn_rem_poss = QPushButton("Rimuovi Selezionato"); self.btn_rem_poss.clicked.connect(self.remove_possessore)
-        possessori_layout.addWidget(self.possessori_table); possessori_layout.addWidget(self.btn_rem_poss, 0, Qt.AlignRight)
+        possessori_layout.addWidget(self.possessori_table); possessori_layout.addWidget(self.btn_rem_poss, 0, Qt.AlignmentFlag.AlignRight)
         
         add_poss_group = QGroupBox("Aggiungi Possessore"); add_poss_layout = QGridLayout(add_poss_group)
         self.possessore_search_combo = QComboBox(); self.possessore_search_combo.setEditable(True); self.possessore_search_combo.setPlaceholderText("Cerca possessore esistente...")
-        self.possessore_search_combo.completer().setCompletionMode(QCompleter.PopupCompletion); self.possessore_search_combo.completer().setFilterMode(Qt.MatchContains)
+        self.possessore_search_combo.completer().setCompletionMode(QCompleter.PopupCompletion); self.possessore_search_combo.completer().setFilterMode(Qt.MatchFlag.MatchContains)
         self.btn_add_selected_poss = QPushButton("Aggiungi Selezionato"); self.btn_add_selected_poss.clicked.connect(self._add_selected_possessore)
         self.btn_create_new_poss = QPushButton("Crea Nuovo..."); self.btn_create_new_poss.clicked.connect(self._create_and_add_new_possessore)
         add_poss_layout.addWidget(QLabel("Cerca:"), 0, 0); add_poss_layout.addWidget(self.possessore_search_combo, 0, 1)
@@ -1887,9 +1887,9 @@ class RegistrazioneProprietaWidget(LazyLoadedWidget):
         # --- 3. IMMOBILI (FLUSSO MIGLIORATO) ---
         immobili_group = QGroupBox("3. Immobili Associati"); immobili_layout = QVBoxLayout(immobili_group)
         self.immobili_table = QTableWidget(); self.immobili_table.setColumnCount(5); self.immobili_table.setHorizontalHeaderLabels(["Natura", "Località", "Classificazione", "Consistenza", "Piani/Vani"])
-        self.immobili_table.horizontalHeader().setSectionResizeMode(0, QHeaderView.Stretch); self.immobili_table.setMinimumHeight(120)
+        self.immobili_table.horizontalHeader().setSectionResizeMode(0, QHeaderView.ResizeMode.Stretch); self.immobili_table.setMinimumHeight(120)
         self.btn_rem_imm = QPushButton("Rimuovi Selezionato"); self.btn_rem_imm.clicked.connect(self.remove_immobile)
-        immobili_layout.addWidget(self.immobili_table); immobili_layout.addWidget(self.btn_rem_imm, 0, Qt.AlignRight)
+        immobili_layout.addWidget(self.immobili_table); immobili_layout.addWidget(self.btn_rem_imm, 0, Qt.AlignmentFlag.AlignRight)
         add_imm_tabs = QTabWidget(); add_imm_tabs.addTab(self._create_add_immobile_esistente_tab(), "Aggiungi Esistente"); add_imm_tabs.addTab(self._create_add_immobile_nuovo_tab(), "Crea Nuovo")
         immobili_layout.addWidget(add_imm_tabs); layout.addWidget(immobili_group)
 
@@ -1928,7 +1928,7 @@ class RegistrazioneProprietaWidget(LazyLoadedWidget):
     def _create_add_immobile_esistente_tab(self):
         widget = QWidget(); layout = QGridLayout(widget)
         self.imm_search_combo = QComboBox(); self.imm_search_combo.setEditable(True); self.imm_search_combo.setPlaceholderText("Seleziona prima un comune...")
-        self.imm_search_combo.setEnabled(False); self.imm_search_combo.completer().setCompletionMode(QCompleter.PopupCompletion); self.imm_search_combo.completer().setFilterMode(Qt.MatchContains)
+        self.imm_search_combo.setEnabled(False); self.imm_search_combo.completer().setCompletionMode(QCompleter.PopupCompletion); self.imm_search_combo.completer().setFilterMode(Qt.MatchFlag.MatchContains)
         self.btn_add_existing_imm = QPushButton("Aggiungi Selezionato"); self.btn_add_existing_imm.clicked.connect(self._add_existing_immobile)
         layout.addWidget(QLabel("Cerca Immobile:"), 0, 0); layout.addWidget(self.imm_search_combo, 0, 1); layout.addWidget(self.btn_add_existing_imm, 0, 2)
         return widget
@@ -1943,7 +1943,7 @@ class RegistrazioneProprietaWidget(LazyLoadedWidget):
         self.imm_piani_spin = QSpinBox(); self.imm_piani_spin.setRange(0, 99); layout.addWidget(QLabel("Piani:"), 2, 0); layout.addWidget(self.imm_piani_spin, 2, 1)
         self.imm_vani_spin = QSpinBox(); self.imm_vani_spin.setRange(0, 99); layout.addWidget(QLabel("Vani:"), 2, 2); layout.addWidget(self.imm_vani_spin, 2, 3)
         self.btn_add_inline_immobile = QPushButton("Aggiungi alla Lista"); self.btn_add_inline_immobile.clicked.connect(self._add_inline_immobile)
-        layout.addWidget(self.btn_add_inline_immobile, 3, 3, Qt.AlignRight)
+        layout.addWidget(self.btn_add_inline_immobile, 3, 3, Qt.AlignmentFlag.AlignRight)
         return widget
 
     def _load_data_on_first_show(self):
@@ -1956,7 +1956,7 @@ class RegistrazioneProprietaWidget(LazyLoadedWidget):
 
     def _select_comune(self):
         dialog = ComuneSelectionDialog(self.db_manager, self)
-        if dialog.exec_() == QDialog.Accepted and dialog.selected_comune_id:
+        if dialog.exec() == QDialog.DialogCode.Accepted and dialog.selected_comune_id:
             self.comune_id = dialog.selected_comune_id
             self.comune_display.setText(f"{dialog.selected_comune_name} (ID: {self.comune_id})")
             self.logger.info(f"Comune selezionato ID: {self.comune_id}. Caricamento dati dipendenti...")
@@ -2029,7 +2029,7 @@ class RegistrazioneProprietaWidget(LazyLoadedWidget):
 
     def _create_and_add_new_possessore(self):
         dialog = CreatePossessoreDialog(self.db_manager, self)
-        if dialog.exec_() == QDialog.Accepted and dialog.nuovo_possessore_dati:
+        if dialog.exec() == QDialog.DialogCode.Accepted and dialog.nuovo_possessore_dati:
             poss_info = dialog.nuovo_possessore_dati
             self._load_possessori_for_combo() # Ricarica la lista per includere il nuovo
             # Aggiungi direttamente alla lista della partita corrente
@@ -2177,9 +2177,9 @@ class RegistrazioneProprietaWidget(LazyLoadedWidget):
 
                 reply = QMessageBox.question(self, "Registrazione Completata",
                                              f"{msg_success}\n\nVuoi procedere con operazioni collegate (es. Duplicazione) su questa o un'altra partita?",
-                                             QMessageBox.Yes | QMessageBox.No, QMessageBox.No)
+                                             QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No, QMessageBox.StandardButton.No)
 
-                if reply == QMessageBox.Yes:
+                if reply == QMessageBox.StandardButton.Yes:
                     self.partita_creata_per_operazioni_collegate.emit(nuova_partita_id, self.comune_id)
 
                 self._pulisci_form_registrazione()
@@ -2204,7 +2204,7 @@ class RegistrazioneProprietaWidget(LazyLoadedWidget):
         dialog_sel_poss = PossessoreSelectionDialog(self.db_manager, comune_id=None, parent=self)
         # --- FINE MODIFICA ---
 
-        if dialog_sel_poss.exec() == QDialog.Accepted and dialog_sel_poss.selected_possessore:
+        if dialog_sel_poss.exec() == QDialog.DialogCode.Accepted and dialog_sel_poss.selected_possessore:
             selected_possessore_info = dialog_sel_poss.selected_possessore
         
         # 2. Dialogo per chiedere i dettagli del LEGAME (Titolo, Quota)
@@ -2237,9 +2237,9 @@ class RegistrazioneProprietaWidget(LazyLoadedWidget):
     def add_immobile(self):
        
         dialog = ImmobileDialog(self.db_manager, self.comune_id, self)
-        result = dialog.exec_()
+        result = dialog.exec()
 
-        if result == QDialog.Accepted and dialog.immobile_data:
+        if result == QDialog.DialogCode.Accepted and dialog.immobile_data:
             self.immobili_data.append(dialog.immobile_data)
             self.update_immobili_table()
 
@@ -2328,7 +2328,7 @@ class OperazioniPartitaWidget(QWidget):
         source_partita_layout.addWidget(self.source_partita_id_spinbox, 0, 1)
 
         self.btn_cerca_source_partita = QPushButton(QApplication.style().standardIcon(
-            QStyle.SP_FileDialogContentsView), " Cerca Partita...")
+            QStyle.StandardPixmap.SP_FileDialogContentsView), " Cerca Partita...")
         self.btn_cerca_source_partita.setToolTip(
             "Cerca una partita esistente da usare come sorgente")
         self.btn_cerca_source_partita.clicked.connect(
@@ -2336,7 +2336,7 @@ class OperazioniPartitaWidget(QWidget):
         source_partita_layout.addWidget(self.btn_cerca_source_partita, 0, 2)
 
         # Pulsante per caricare la partita dall'ID inserito nello SpinBox
-        self.btn_load_source_partita_from_id = QPushButton(QApplication.style().standardIcon(QStyle.SP_ArrowRight), " Carica da ID")
+        self.btn_load_source_partita_from_id = QPushButton(QApplication.style().standardIcon(QStyle.StandardPixmap.SP_ArrowRight), " Carica da ID")
         self.btn_load_source_partita_from_id.setToolTip("Carica i dettagli della partita usando l'ID inserito")
         self.btn_load_source_partita_from_id.clicked.connect(self._load_partita_sorgente_from_spinbox)
         source_partita_layout.addWidget(self.btn_load_source_partita_from_id, 0, 3)
@@ -2397,9 +2397,9 @@ class OperazioniPartitaWidget(QWidget):
 
         # Riga 3: Pulsante
         self.btn_esegui_duplicazione = QPushButton(QApplication.style().standardIcon(
-            QStyle.SP_DialogApplyButton), " Esegui Duplicazione")
+            QStyle.StandardPixmap.SP_DialogApplyButton), " Esegui Duplicazione")
         self.btn_esegui_duplicazione.clicked.connect(self._esegui_duplicazione_partita)
-        duplica_form_layout.addWidget(self.btn_esegui_duplicazione, 3, 0, 1, 4, Qt.AlignRight)
+        duplica_form_layout.addWidget(self.btn_esegui_duplicazione, 3, 0, 1, 4, Qt.AlignmentFlag.AlignRight)
 
         duplica_main_layout.addWidget(duplica_group)
         duplica_main_layout.addStretch(1)
@@ -2483,7 +2483,7 @@ class OperazioniPartitaWidget(QWidget):
         transfer_form_layout.addRow(self.transfer_registra_var_check)
 
         self.btn_esegui_trasferimento = QPushButton(QApplication.style().standardIcon(
-            QStyle.SP_DialogApplyButton), " Esegui Trasferimento Immobile")
+            QStyle.StandardPixmap.SP_DialogApplyButton), " Esegui Trasferimento Immobile")
         self.btn_esegui_trasferimento.clicked.connect(
             self._esegui_trasferimento_immobile)
         self.btn_esegui_trasferimento.setEnabled(False)  # Inizia disabilitato
@@ -2623,14 +2623,14 @@ class OperazioniPartitaWidget(QWidget):
         self.pp_nuovi_possessori_table.setSelectionMode(
             QTableWidget.SingleSelection)
         self.pp_nuovi_possessori_table.horizontalHeader(
-        ).setSectionResizeMode(QHeaderView.ResizeToContents)
+        ).setSectionResizeMode(QHeaderView.ResizeMode.ResizeToContents)
         self.pp_nuovi_possessori_table.horizontalHeader().setStretchLastSection(True)
         self.pp_nuovi_possessori_table.setFixedHeight(150)
         nuovi_poss_layout.addWidget(self.pp_nuovi_possessori_table)
         nuovi_poss_buttons_layout = QHBoxLayout()
         self.pp_btn_aggiungi_nuovo_possessore = QPushButton(
-            # O QStyle.SP_FileLinkIcon o QStyle.SP_ToolBarAddButton
-            QApplication.style().standardIcon(QStyle.SP_FileDialogNewFolder),
+            # O QStyle.StandardPixmap.SP_FileLinkIcon o QStyle.StandardPixmap.SP_ToolBarAddButton
+            QApplication.style().standardIcon(QStyle.StandardPixmap.SP_FileDialogNewFolder),
             " Aggiungi Possessore..."
         )
         self.pp_btn_aggiungi_nuovo_possessore.setToolTip(
@@ -2642,13 +2642,13 @@ class OperazioniPartitaWidget(QWidget):
 
        # CORREZIONE ICONA QUI:
         self.pp_btn_rimuovi_nuovo_possessore = QPushButton(
-            # O QStyle.SP_DialogDiscardButton
-            QApplication.style().standardIcon(QStyle.SP_TrashIcon),
+            # O QStyle.StandardPixmap.SP_DialogDiscardButton
+            QApplication.style().standardIcon(QStyle.StandardPixmap.SP_TrashIcon),
             " Rimuovi Selezionato"
         )
         self.pp_btn_rimuovi_nuovo_possessore = QPushButton(QApplication.style(
             # Esempio Icona
-        ).standardIcon(QStyle.SP_TrashIcon), " Rimuovi Selezionato")
+        ).standardIcon(QStyle.StandardPixmap.SP_TrashIcon), " Rimuovi Selezionato")
         self.pp_btn_rimuovi_nuovo_possessore.clicked.connect(
             self._pp_rimuovi_nuovo_possessore_selezionato)
         nuovi_poss_buttons_layout.addWidget(
@@ -2658,11 +2658,11 @@ class OperazioniPartitaWidget(QWidget):
         passaggio_main_layout_scroll.addWidget(nuovi_poss_group)
 
         self.pp_btn_esegui_passaggio = QPushButton(QApplication.style().standardIcon(
-            QStyle.SP_DialogApplyButton), " Esegui Passaggio Proprietà")
+            QStyle.StandardPixmap.SP_DialogApplyButton), " Esegui Passaggio Proprietà")
         self.pp_btn_esegui_passaggio.clicked.connect(
             self._esegui_passaggio_proprieta)
         passaggio_main_layout_scroll.addWidget(
-            self.pp_btn_esegui_passaggio, 0, Qt.AlignRight)
+            self.pp_btn_esegui_passaggio, 0, Qt.AlignmentFlag.AlignRight)
         passaggio_main_layout_scroll.addStretch(1)
 
         passaggio_scroll.setWidget(passaggio_scroll_content_widget)
@@ -2709,7 +2709,7 @@ class OperazioniPartitaWidget(QWidget):
 
     def _cerca_partita_destinazione(self):
         dialog = PartitaSearchDialog(self.db_manager, self)
-        if dialog.exec_() == QDialog.Accepted and dialog.selected_partita_id:
+        if dialog.exec() == QDialog.DialogCode.Accepted and dialog.selected_partita_id:
             selected_id = dialog.selected_partita_id
             self.dest_partita_id_spinbox.setValue(
                 selected_id)  # Imposta lo spinbox
@@ -2795,7 +2795,7 @@ class OperazioniPartitaWidget(QWidget):
         """Apre il dialogo per cercare una partita sorgente."""
         # ... (suo codice esistente)
         dialog = PartitaSearchDialog(self.db_manager, self)
-        if dialog.exec_() == QDialog.Accepted and dialog.selected_partita_id:
+        if dialog.exec() == QDialog.DialogCode.Accepted and dialog.selected_partita_id:
             self.source_partita_id_spinbox.setValue(
                 dialog.selected_partita_id)  # Imposta lo spinbox
             self.selected_partita_id_source = dialog.selected_partita_id   # Imposta l'ID
@@ -2994,14 +2994,14 @@ class OperazioniPartitaWidget(QWidget):
 
             table.resizeColumnsToContents()  # Adatta dopo aver popolato
             # O imposta larghezze specifiche per una migliore leggibilità
-            # table.horizontalHeader().setSectionResizeMode(0, QHeaderView.ResizeToContents) # ID
-            # table.horizontalHeader().setSectionResizeMode(1, QHeaderView.Interactive) # Natura
-            # table.horizontalHeader().setSectionResizeMode(4, QHeaderView.Stretch) # Località
+            # table.horizontalHeader().setSectionResizeMode(0, QHeaderView.ResizeMode.ResizeToContents) # ID
+            # table.horizontalHeader().setSectionResizeMode(1, QHeaderView.ResizeMode.Interactive) # Natura
+            # table.horizontalHeader().setSectionResizeMode(4, QHeaderView.ResizeMode.Stretch) # Località
         else:
             table.setRowCount(1)
             no_imm_item = QTableWidgetItem(
                 "Nessun immobile associato a questa partita sorgente.")
-            no_imm_item.setTextAlignment(Qt.AlignCenter)
+            no_imm_item.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
             table.setItem(0, 0, no_imm_item)
             # Occupa tutte le colonne
             table.setSpan(0, 0, 1, table.columnCount())
@@ -3087,18 +3087,18 @@ class OperazioniPartitaWidget(QWidget):
                 loc_i.setFlags(loc_i.flags() & ~Qt.ItemIsEditable)
                 table.setItem(row, 3, loc_i)
             # Configurazione resize mode per le colonne
-            table.horizontalHeader().setSectionResizeMode(0, QHeaderView.Fixed)  # Checkbox
+            table.horizontalHeader().setSectionResizeMode(0, QHeaderView.ResizeMode.Fixed)  # Checkbox
             table.setColumnWidth(0, 35)
             table.horizontalHeader().setSectionResizeMode(
-                1, QHeaderView.ResizeToContents)  # ID
-            table.horizontalHeader().setSectionResizeMode(2, QHeaderView.Stretch)  # Natura
+                1, QHeaderView.ResizeMode.ResizeToContents)  # ID
+            table.horizontalHeader().setSectionResizeMode(2, QHeaderView.ResizeMode.Stretch)  # Natura
             table.horizontalHeader().setSectionResizeMode(
-                3, QHeaderView.Stretch)  # Località
+                3, QHeaderView.ResizeMode.Stretch)  # Località
         else:
             table.setRowCount(1)
             msg_item = QTableWidgetItem(
                 "Nessun immobile disponibile nella partita sorgente per la selezione.")
-            msg_item.setTextAlignment(Qt.AlignCenter)
+            msg_item.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
             table.setItem(0, 0, msg_item)
             table.setSpan(0, 0, 1, table.columnCount())
         table.setSortingEnabled(True)
@@ -3113,7 +3113,7 @@ class OperazioniPartitaWidget(QWidget):
         dialog_sel_poss.setWindowTitle(
             "Seleziona o Crea Nuovo Possessore per Nuova Partita")
         possessore_info_completa_sel = None
-        if dialog_sel_poss.exec_() == QDialog.Accepted:
+        if dialog_sel_poss.exec() == QDialog.DialogCode.Accepted:
             if hasattr(dialog_sel_poss, 'selected_possessore') and dialog_sel_poss.selected_possessore:
                 poss_id_sel = dialog_sel_poss.selected_possessore.get('id')
                 if poss_id_sel:
@@ -3462,18 +3462,18 @@ class EsportazioniWidget(LazyLoadedWidget):
         format_layout.setSpacing(10)
         format_layout.setContentsMargins(10, 10, 10, 10)
         self.btn_export_csv = QPushButton("Esporta in CSV")
-        self.btn_export_csv.setIcon(self.style().standardIcon(QStyle.SP_DialogSaveButton))
+        self.btn_export_csv.setIcon(self.style().standardIcon(QStyle.StandardPixmap.SP_DialogSaveButton))
         self.btn_export_csv.clicked.connect(self._handle_export_csv)
         format_layout.addWidget(self.btn_export_csv)
         
         # --- NUOVI PULSANTI ---
         self.btn_export_xls = QPushButton("Esporta in XLS (Excel)")
-        self.btn_export_xls.setIcon(self.style().standardIcon(QStyle.SP_DialogSaveButton))
+        self.btn_export_xls.setIcon(self.style().standardIcon(QStyle.StandardPixmap.SP_DialogSaveButton))
         self.btn_export_xls.clicked.connect(self._handle_export_xls)
         format_layout.addWidget(self.btn_export_xls)
 
         self.btn_export_pdf = QPushButton("Esporta in PDF")
-        self.btn_export_pdf.setIcon(self.style().standardIcon(QStyle.SP_DialogSaveButton))
+        self.btn_export_pdf.setIcon(self.style().standardIcon(QStyle.StandardPixmap.SP_DialogSaveButton))
         self.btn_export_pdf.clicked.connect(self._handle_export_pdf)
         self.btn_export_pdf.setEnabled(FPDF_AVAILABLE)
         format_layout.addWidget(self.btn_export_pdf)
@@ -3989,19 +3989,19 @@ class ReportisticaWidget(LazyLoadedWidget):
 
     def search_partita_prop(self):
         dialog = PartitaSearchDialog(self.db_manager, self)
-        if dialog.exec_() == QDialog.Accepted and dialog.selected_partita_id:
+        if dialog.exec() == QDialog.DialogCode.Accepted and dialog.selected_partita_id:
             self.partita_id_edit.setValue(dialog.selected_partita_id)
             self._update_partita_info_label(self.partita_info_label_prop, dialog.selected_partita_id)
 
     def search_partita_gen(self):
         dialog = PartitaSearchDialog(self.db_manager, self)
-        if dialog.exec_() == QDialog.Accepted and dialog.selected_partita_id:
+        if dialog.exec() == QDialog.DialogCode.Accepted and dialog.selected_partita_id:
             self.partita_id_gen_edit.setValue(dialog.selected_partita_id)
             self._update_partita_info_label(self.partita_info_label_gen, dialog.selected_partita_id)
 
     def search_possessore(self):
         dialog = PossessoreSelectionDialog(db_manager=self.db_manager, comune_id=None, parent=self)
-        if dialog.exec_() == QDialog.Accepted and dialog.selected_possessore:
+        if dialog.exec() == QDialog.DialogCode.Accepted and dialog.selected_possessore:
             self.possessore_id_edit.setValue(dialog.selected_possessore.get('id', 0))
 
     def generate_report_proprieta(self):
@@ -4080,10 +4080,10 @@ class ReportisticaWidget(LazyLoadedWidget):
                     self, 
                     "File Salvato", 
                     f"Report salvato con successo!\n\nVuoi aprire il file ora?",
-                    QMessageBox.Yes | QMessageBox.No,
-                    QMessageBox.No
+                    QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+                    QMessageBox.StandardButton.No
                 )
-                if reply == QMessageBox.Yes:
+                if reply == QMessageBox.StandardButton.Yes:
                     QDesktopServices.openUrl(QUrl.fromLocalFile(filename))
                 
                 break  # Esci dal loop se tutto è andato bene
@@ -4111,12 +4111,12 @@ class ReportisticaWidget(LazyLoadedWidget):
                         f"Il file '{base_name}' sembra essere in uso.\n\n"
                         f"Vuoi salvare con un nome diverso?\n"
                         f"Nuovo nome proposto: {os.path.basename(new_filename)}",
-                        QMessageBox.Yes | QMessageBox.No | QMessageBox.Cancel
+                        QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No | QMessageBox.StandardButton.Cancel
                     )
                     
-                    if reply == QMessageBox.Yes:
+                    if reply == QMessageBox.StandardButton.Yes:
                         filename = new_filename
-                    elif reply == QMessageBox.No:
+                    elif reply == QMessageBox.StandardButton.No:
                         # Riprova con lo stesso nome
                         QMessageBox.information(
                             self,
@@ -4157,7 +4157,7 @@ class ReportisticaWidget(LazyLoadedWidget):
 
         # Progress dialog per PDF (può richiedere tempo)
         progress = QProgressDialog("Generazione PDF in corso...", "Annulla", 0, 100, self)
-        progress.setWindowModality(Qt.WindowModal)
+        progress.setWindowModality(Qt.WindowModality.WindowModal)
         progress.setMinimumDuration(0)
         progress.setValue(10)
         
@@ -4195,10 +4195,10 @@ class ReportisticaWidget(LazyLoadedWidget):
                     self, 
                     "PDF Creato", 
                     f"PDF creato con successo!\n\nVuoi aprire il file ora?",
-                    QMessageBox.Yes | QMessageBox.No,
-                    QMessageBox.No
+                    QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+                    QMessageBox.StandardButton.No
                 )
-                if reply == QMessageBox.Yes:
+                if reply == QMessageBox.StandardButton.Yes:
                     QDesktopServices.openUrl(QUrl.fromLocalFile(filename))
                     
                 break
@@ -4229,11 +4229,11 @@ class ReportisticaWidget(LazyLoadedWidget):
                         f"• Salvare con nome: {os.path.basename(new_filename)}\n"
                         f"• Chiudere il PDF e riprovare\n"
                         f"• Annullare l'operazione",
-                        QMessageBox.Save | QMessageBox.Retry | QMessageBox.Cancel,
-                        QMessageBox.Save
+                        QMessageBox.StandardButton.Save | QMessageBox.Retry | QMessageBox.StandardButton.Cancel,
+                        QMessageBox.StandardButton.Save
                     )
                     
-                    if reply == QMessageBox.Save:
+                    if reply == QMessageBox.StandardButton.Save:
                         filename = new_filename
                     elif reply == QMessageBox.Retry:
                         continue
@@ -4311,7 +4311,7 @@ class StatisticheWidget(LazyLoadedWidget):
         self.stats_comune_table.setColumnCount(7)
         self.stats_comune_table.setHorizontalHeaderLabels(["Comune", "Provincia", "Totale Partite", "Partite Attive", "Partite Inattive", "Totale Possessori", "Totale Immobili"])
         self.stats_comune_table.setAlternatingRowColors(True)
-        self.stats_comune_table.horizontalHeader().setSectionResizeMode(QHeaderView.Stretch)
+        self.stats_comune_table.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeMode.Stretch)
         layout.addWidget(refresh_button)
         layout.addWidget(self.stats_comune_table)
         return widget
@@ -4337,7 +4337,7 @@ class StatisticheWidget(LazyLoadedWidget):
         self.immobili_table.setColumnCount(6)
         self.immobili_table.setHorizontalHeaderLabels(["Comune", "Classificazione", "Numero Immobili", "Totale Piani", "Totale Vani", "Media Vani/Immobile"])
         self.immobili_table.setAlternatingRowColors(True)
-        self.immobili_table.horizontalHeader().setSectionResizeMode(QHeaderView.Stretch)
+        self.immobili_table.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeMode.Stretch)
         layout.addWidget(self.immobili_table)
         return widget
 
@@ -4396,7 +4396,7 @@ class StatisticheWidget(LazyLoadedWidget):
 
     def filter_immobili_per_comune(self):
         dialog = ComuneSelectionDialog(self.db_manager, self)
-        if dialog.exec_() == QDialog.Accepted and dialog.selected_comune_id:
+        if dialog.exec() == QDialog.DialogCode.Accepted and dialog.selected_comune_id:
             self.comune_filter_id = dialog.selected_comune_id
             self.comune_filter_display.setText(f"Comune: {dialog.selected_comune_name}")
             self.refresh_immobili_tipologia()
@@ -4434,7 +4434,7 @@ class StatisticheWidget(LazyLoadedWidget):
 
     def update_all_views(self):
         self.log_status("Avvio aggiornamento di tutte le viste materializzate...")
-        QApplication.setOverrideCursor(Qt.WaitCursor)
+        QApplication.setOverrideCursor(Qt.CursorShape.WaitCursor)
         try:
             if self.db_manager.refresh_materialized_views():
                 self.log_status("Aggiornamento viste completato con successo.")
@@ -4474,10 +4474,10 @@ class GestioneUtentiWidget(LazyLoadedWidget):
 
         # Pulsanti Azioni
         action_layout = QHBoxLayout()
-        self.btn_crea_utente = QPushButton(QApplication.style().standardIcon(QStyle.SP_FileDialogNewFolder), " Crea Nuovo Utente")
+        self.btn_crea_utente = QPushButton(QApplication.style().standardIcon(QStyle.StandardPixmap.SP_FileDialogNewFolder), " Crea Nuovo Utente")
         self.btn_crea_utente.clicked.connect(self.crea_nuovo_utente)
         self.btn_crea_utente.setEnabled(self.is_admin)
-        self.btn_refresh_list = QPushButton(QApplication.style().standardIcon(QStyle.SP_BrowserReload), " Aggiorna Lista")
+        self.btn_refresh_list = QPushButton(QApplication.style().standardIcon(QStyle.StandardPixmap.SP_BrowserReload), " Aggiorna Lista")
         self.btn_refresh_list.clicked.connect(self.refresh_user_list)
         
         action_layout.addWidget(self.btn_crea_utente)
@@ -4492,7 +4492,7 @@ class GestioneUtentiWidget(LazyLoadedWidget):
         self.user_table.setSelectionBehavior(QTableWidget.SelectRows)
         self.user_table.setSelectionMode(QTableWidget.SingleSelection)
         self.user_table.setEditTriggers(QTableWidget.NoEditTriggers)
-        self.user_table.horizontalHeader().setSectionResizeMode(QHeaderView.Stretch)
+        self.user_table.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeMode.Stretch)
         self.user_table.itemSelectionChanged.connect(self._update_action_buttons_state)
         layout.addWidget(self.user_table)
 
@@ -4558,7 +4558,7 @@ class GestioneUtentiWidget(LazyLoadedWidget):
     def crea_nuovo_utente(self):
         # CreateUserDialog come definito prima
         dialog = CreateUserDialog(self.db_manager, self)
-        if dialog.exec_() == QDialog.Accepted:
+        if dialog.exec() == QDialog.DialogCode.Accepted:
             self.refresh_user_list()
             QMessageBox.information(self, "Successo", "Nuovo utente creato.")
 
@@ -4680,9 +4680,9 @@ class GestioneUtentiWidget(LazyLoadedWidget):
         reply = QMessageBox.question(self, "Conferma Stato",
                                      f"L'utente '{utente_target['username']}' è attualmente {'ATTIVO' if utente_target['attivo'] else 'NON ATTIVO'}.\n"
                                      f"Vuoi {azione_str} questo utente?",
-                                     QMessageBox.Yes | QMessageBox.No, QMessageBox.No)
+                                     QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No, QMessageBox.StandardButton.No)
 
-        if reply == QMessageBox.Yes:
+        if reply == QMessageBox.StandardButton.Yes:
             success = False
             if nuovo_stato_attivo:
                 success = self.db_manager.activate_user(user_id)
@@ -4715,8 +4715,8 @@ class GestioneUtentiWidget(LazyLoadedWidget):
                                     f"ATTENZIONE: Stai per eliminare PERMANENTEMENTE l'utente '{utente_target['username']}' (ID: {user_id}).\n"
                                     "Questa operazione è IRREVERSIBILE e i riferimenti nei log verranno impostati a NULL (se configurato).\n"
                                     "Sei assolutamente sicuro?",
-                                    QMessageBox.Yes | QMessageBox.No, QMessageBox.No)
-        if reply == QMessageBox.Yes:
+                                    QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No, QMessageBox.StandardButton.No)
+        if reply == QMessageBox.StandardButton.Yes:
             # Ulteriore conferma digitando lo username
             confirm_username, ok = QInputDialog.getText(self, "Conferma Finale",
                                                         f"Per confermare l'eliminazione permanente di '{utente_target['username']}', riscrivi il suo username:")
@@ -4807,13 +4807,13 @@ class AuditLogViewerWidget(LazyLoadedWidget):
         
         # Pulsanti filtro
         self.search_button = QPushButton("Applica")
-        self.search_button.setIcon(self.style().standardIcon(QStyle.SP_DialogApplyButton))
+        self.search_button.setIcon(self.style().standardIcon(QStyle.StandardPixmap.SP_DialogApplyButton))
         self.search_button.clicked.connect(self._apply_filters_and_search)
         self.search_button.setMaximumWidth(100)
         filters_row2.addWidget(self.search_button)
         
         self.reset_button = QPushButton("Reset")
-        self.reset_button.setIcon(self.style().standardIcon(QStyle.SP_DialogResetButton))
+        self.reset_button.setIcon(self.style().standardIcon(QStyle.StandardPixmap.SP_DialogResetButton))
         self.reset_button.clicked.connect(self._reset_filters)
         self.reset_button.setMaximumWidth(100)
         filters_row2.addWidget(self.reset_button)
@@ -4847,7 +4847,7 @@ class AuditLogViewerWidget(LazyLoadedWidget):
         cleanup_layout.addWidget(self.days_unit_combo)
         
         self.btn_cleanup_logs = QPushButton("Pulisci")
-        self.btn_cleanup_logs.setIcon(self.style().standardIcon(QStyle.SP_TrashIcon))
+        self.btn_cleanup_logs.setIcon(self.style().standardIcon(QStyle.StandardPixmap.SP_TrashIcon))
         self.btn_cleanup_logs.clicked.connect(self._confirm_and_cleanup_logs)
         cleanup_layout.addWidget(self.btn_cleanup_logs)
         
@@ -4861,12 +4861,12 @@ class AuditLogViewerWidget(LazyLoadedWidget):
         export_layout.setContentsMargins(10, 5, 10, 5)
         
         self.export_csv_button = QPushButton("CSV")
-        self.export_csv_button.setIcon(self.style().standardIcon(QStyle.SP_FileDialogDetailedView))
+        self.export_csv_button.setIcon(self.style().standardIcon(QStyle.StandardPixmap.SP_FileDialogDetailedView))
         self.export_csv_button.clicked.connect(self._handle_export_csv)
         export_layout.addWidget(self.export_csv_button)
         
         self.export_xls_button = QPushButton("Excel")
-        self.export_xls_button.setIcon(self.style().standardIcon(QStyle.SP_FileDialogDetailedView))
+        self.export_xls_button.setIcon(self.style().standardIcon(QStyle.StandardPixmap.SP_FileDialogDetailedView))
         self.export_xls_button.clicked.connect(self._handle_export_xls)
         export_layout.addWidget(self.export_xls_button)
         
@@ -4874,7 +4874,7 @@ class AuditLogViewerWidget(LazyLoadedWidget):
         main_layout.addLayout(actions_toolbar)
 
         # === SEZIONE 3: SPLITTER per tabella e dettagli ===
-        splitter = QSplitter(Qt.Vertical)
+        splitter = QSplitter(Qt.Orientation.Vertical)
         
         # Parte superiore: Tabella con paginazione
         table_widget = QWidget()
@@ -4893,14 +4893,14 @@ class AuditLogViewerWidget(LazyLoadedWidget):
         
         # Configurazione colonne
         header = self.log_table.horizontalHeader()
-        header.setSectionResizeMode(0, QHeaderView.ResizeToContents)  # ID
-        header.setSectionResizeMode(1, QHeaderView.ResizeToContents)  # Data/Ora
-        header.setSectionResizeMode(2, QHeaderView.Interactive)       # Utente
-        header.setSectionResizeMode(3, QHeaderView.ResizeToContents)  # Sessione
-        header.setSectionResizeMode(4, QHeaderView.Stretch)          # Tabella
-        header.setSectionResizeMode(5, QHeaderView.ResizeToContents)  # Azione
-        header.setSectionResizeMode(6, QHeaderView.ResizeToContents)  # Record
-        header.setSectionResizeMode(7, QHeaderView.ResizeToContents)  # IP
+        header.setSectionResizeMode(0, QHeaderView.ResizeMode.ResizeToContents)  # ID
+        header.setSectionResizeMode(1, QHeaderView.ResizeMode.ResizeToContents)  # Data/Ora
+        header.setSectionResizeMode(2, QHeaderView.ResizeMode.Interactive)       # Utente
+        header.setSectionResizeMode(3, QHeaderView.ResizeMode.ResizeToContents)  # Sessione
+        header.setSectionResizeMode(4, QHeaderView.ResizeMode.Stretch)          # Tabella
+        header.setSectionResizeMode(5, QHeaderView.ResizeMode.ResizeToContents)  # Azione
+        header.setSectionResizeMode(6, QHeaderView.ResizeMode.ResizeToContents)  # Record
+        header.setSectionResizeMode(7, QHeaderView.ResizeMode.ResizeToContents)  # IP
         
         self.log_table.itemSelectionChanged.connect(self._display_log_details)
         table_layout.addWidget(self.log_table)
@@ -4923,7 +4923,7 @@ class AuditLogViewerWidget(LazyLoadedWidget):
         self.btn_prev_page.clicked.connect(self._go_to_previous_page)
         
         self.page_info_label = QLabel("Pagina 1 / 1")
-        self.page_info_label.setAlignment(Qt.AlignCenter)
+        self.page_info_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
         self.page_info_label.setMinimumWidth(150)
         
         self.btn_next_page = QPushButton(">")
@@ -4957,7 +4957,7 @@ class AuditLogViewerWidget(LazyLoadedWidget):
         details_label.setStyleSheet("font-weight: bold; padding: 5px;")
         details_layout.addWidget(details_label)
         
-        details_splitter = QSplitter(Qt.Horizontal)
+        details_splitter = QSplitter(Qt.Orientation.Horizontal)
         
         # Prima colonna
         before_widget = QWidget()
@@ -5022,14 +5022,14 @@ class AuditLogViewerWidget(LazyLoadedWidget):
             f"Sei sicuro di voler eliminare DEFINITIVAMENTE tutti i log di audit "
             f"più vecchi di {days_to_keep} giorni?\n\n"
             "Questa operazione non può essere annullata.",
-            QMessageBox.Yes | QMessageBox.No,
-            QMessageBox.No
+            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+            QMessageBox.StandardButton.No
         )
 
-        if reply == QMessageBox.Yes:
+        if reply == QMessageBox.StandardButton.Yes:
             try:
                 self.logger.info(f"Avvio pulizia log di audit più vecchi di {days_to_keep} giorni.")
-                QApplication.setOverrideCursor(Qt.WaitCursor)
+                QApplication.setOverrideCursor(Qt.CursorShape.WaitCursor)
                 deleted_count = self.db_manager.cleanup_audit_logs(days_to_keep)
                 QApplication.restoreOverrideCursor()
 
@@ -5091,7 +5091,7 @@ class AuditLogViewerWidget(LazyLoadedWidget):
             
             self.log_table.setRowCount(len(logs))
             for row_idx, log in enumerate(logs):
-                item_id = QTableWidgetItem(str(log.get('id', ''))); item_id.setData(Qt.UserRole, log)
+                item_id = QTableWidgetItem(str(log.get('id', ''))); item_id.setData(Qt.ItemDataRole.UserRole, log)
                 ts = log.get('timestamp'); ts_str = ts.strftime("%Y-%m-%d %H:%M:%S") if ts else "N/D"
                 session_id = log.get('session_id', ''); session_display = (session_id[:8] + '...') if session_id else ''
                 self.log_table.setItem(row_idx, 0, item_id); self.log_table.setItem(row_idx, 1, QTableWidgetItem(ts_str))
@@ -5117,7 +5117,7 @@ class AuditLogViewerWidget(LazyLoadedWidget):
     def _display_log_details(self):
         selected = self.log_table.selectedItems()
         if not selected: self.details_before_text.clear(); self.details_after_text.clear(); return
-        log_entry = self.log_table.item(selected[0].row(), 0).data(Qt.UserRole)
+        log_entry = self.log_table.item(selected[0].row(), 0).data(Qt.ItemDataRole.UserRole)
         d_before = log_entry.get('dati_prima'); d_after = log_entry.get('dati_dopo')
         self.details_before_text.setText(json.dumps(d_before, indent=4, ensure_ascii=False) if d_before else "")
         self.details_after_text.setText(json.dumps(d_after, indent=4, ensure_ascii=False) if d_after else "")
@@ -5221,7 +5221,7 @@ class BackupWidget(QWidget):
             "Percorso pg_dump (opz.C:\\Program Files\\PostgreSQL\\17\\bin\\pg_dump.exe):", self.pg_dump_path_edit)
 
         self.backup_button = QPushButton(QApplication.style().standardIcon(
-            QStyle.SP_DialogSaveButton), "Esegui Backup")
+            QStyle.StandardPixmap.SP_DialogSaveButton), "Esegui Backup")
         self.backup_button.clicked.connect(self._start_backup)
         backup_layout.addRow(self.backup_button)
 
@@ -5250,7 +5250,7 @@ class BackupWidget(QWidget):
             "Percorso pg_restore/psql (opz.):", self.pg_restore_path_edit)
 
         self.restore_button = QPushButton(QApplication.style().standardIcon(
-            QStyle.SP_DialogApplyButton), "Esegui Ripristino")
+            QStyle.StandardPixmap.SP_DialogApplyButton), "Esegui Ripristino")
         self.restore_button.clicked.connect(self._start_restore)
         restore_layout.addRow(self.restore_button)
         restore_layout.addRow(QLabel(
@@ -5344,7 +5344,7 @@ class BackupWidget(QWidget):
         
         user_message_title = f"Esito {operation_name_display}"
         user_message_text = ""
-        message_box_type = QMessageBox.Information
+        message_box_type = QMessageBox.Icon.Information
 
         if exitStatus == QProcess.CrashExit:
             user_message_title = f"Errore Grave durante il {operation_name_display}"
@@ -5354,7 +5354,7 @@ class BackupWidget(QWidget):
                 "Controllare attentamente i dettagli nell'area 'Output Operazione' per informazioni tecniche. "
                 "Si consiglia di riprovare l'operazione."
             )
-            message_box_type = QMessageBox.Critical
+            message_box_type = QMessageBox.Icon.Critical
             self._log_to_output_box(
                 f"ERRORE CRITICO: Il processo di {operation_name_display.lower()} è terminato inaspettatamente (crash).", "CRITICAL")
             
@@ -5365,7 +5365,7 @@ class BackupWidget(QWidget):
                 "Ciò indica che il comando esterno non è stato completato correttamente. "
                 "Controllare i messaggi in rosso nell'area 'Output Operazione' per capire la causa dell'errore (ad es., password errata, permessi mancanti, file non trovato)."
             )
-            message_box_type = QMessageBox.Warning
+            message_box_type = QMessageBox.Icon.Warning
             self._log_to_output_box(
                 f"FALLITO: Il processo di {operation_name_display.lower()} è terminato con codice d'errore: {exitCode}.", "ERROR")
         else: # exitCode == 0, il processo stesso ha terminato con successo
@@ -5374,7 +5374,7 @@ class BackupWidget(QWidget):
                 f"L'operazione di {operation_name_display} è stata completata con successo. "
                 "Si consiglia di controllare l'area 'Output Operazione' per eventuali messaggi informativi o di avviso da parte dello strumento."
             )
-            message_box_type = QMessageBox.Information
+            message_box_type = QMessageBox.Icon.Information
             self._log_to_output_box(
                 f"Comando di {operation_name_display.lower()} terminato (exit code 0).", "SUCCESS")
             
@@ -5385,11 +5385,11 @@ class BackupWidget(QWidget):
 
             if self.db_manager and self.db_manager.reconnect_pool_if_needed():
                 self._log_to_output_box("Connessioni dell'applicazione al database ripristinate con successo.", "INFO")
-                if message_box_type == QMessageBox.Information:
+                if message_box_type == QMessageBox.Icon.Information:
                     user_message_text += "\nLe connessioni dell'applicazione al database sono state ripristinate. L'applicazione è ora pronta all'uso."
                 else:
                     user_message_text += "\nATTENZIONE: Le connessioni dell'applicazione sono state ripristinate, ma si sono verificati errori durante il ripristino stesso. Verificare l'integrità dei dati."
-                QMessageBox(message_box_type, user_message_title, user_message_text, QMessageBox.Ok, self).exec_()
+                QMessageBox(message_box_type, user_message_title, user_message_text, QMessageBox.StandardButton.Ok, self).exec()
                 QMessageBox.information(self, "Verifica Importante",
                                          "Dopo un ripristino, si consiglia sempre di verificare l'integrità dei dati nel database. Se si riscontrano problemi, riavviare l'applicazione.")
 
@@ -5401,10 +5401,10 @@ class BackupWidget(QWidget):
                     f"L'operazione di {operation_name_display} è terminata, ma l'applicazione non è riuscita a riconnettersi al database. "
                     "Questo è un errore critico. Si prega di chiudere e riavviare l'applicazione immediatamente."
                 )
-                QMessageBox.critical(self, user_message_title, user_message_text, QMessageBox.Ok, self).exec_()
+                QMessageBox.critical(self, user_message_title, user_message_text, QMessageBox.StandardButton.Ok, self).exec()
 
         else: # Non è un'operazione di ripristino (es. Backup)
-            QMessageBox(message_box_type, user_message_title, user_message_text, QMessageBox.Ok, self).exec_()
+            QMessageBox(message_box_type, user_message_title, user_message_text, QMessageBox.StandardButton.Ok, self).exec()
 
 
     # --- Modificato: Utilizza _log_to_output_box ---
@@ -5418,8 +5418,8 @@ class BackupWidget(QWidget):
         if os.path.exists(backup_file):
             reply = QMessageBox.question(self, "Conferma Sovrascrittura",
                                         f"Il file '{os.path.basename(backup_file)}' esiste già.\nVuoi sovrascriverlo?",
-                                        QMessageBox.Yes | QMessageBox.No, QMessageBox.No)
-            if reply == QMessageBox.No:
+                                        QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No, QMessageBox.StandardButton.No)
+            if reply == QMessageBox.StandardButton.No:
                 return
 
         db_user_for_prompt = self.db_manager.get_current_user() or "N/Utente"
@@ -5509,8 +5509,8 @@ class BackupWidget(QWidget):
                                      "<b>Questa operazione SOVRASCRIVERÀ tutti i dati correnti nel database di destinazione e NON PUÒ ESSERE ANNULLATA.</b>\n\n"
                                      "Si raccomanda VIVAMENTE di aver effettuato un backup recente e verificato del database corrente prima di procedere.\n\n"
                                      "Sei assolutamente sicuro di voler continuare?",
-                                     QMessageBox.Yes | QMessageBox.Cancel, QMessageBox.Cancel)
-        if reply == QMessageBox.Cancel:
+                                     QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.Cancel, QMessageBox.StandardButton.Cancel)
+        if reply == QMessageBox.StandardButton.Cancel:
             self._log_to_output_box("Ripristino annullato dall'utente (prima conferma).", "INFO")
             return
 
@@ -5728,7 +5728,7 @@ class UnifiedFuzzySearchWidget(QWidget):
         # --- BLOCCO "CONTROLLI AVANZATI" DA SOSTITUIRE ---
         controls_row = QHBoxLayout()
         controls_row.addWidget(QLabel("Soglia:"))
-        self.precision_slider = QSlider(Qt.Horizontal)
+        self.precision_slider = QSlider(Qt.Orientation.Horizontal)
         self.precision_slider.setRange(10, 90)
         self.precision_slider.setValue(30)
         self.precision_slider.setMaximumWidth(100)
@@ -5835,9 +5835,9 @@ class UnifiedFuzzySearchWidget(QWidget):
         header = table.horizontalHeader()
         for i in range(len(headers)):
             if i in stretch_columns:
-                header.setSectionResizeMode(i, QHeaderView.Stretch)
+                header.setSectionResizeMode(i, QHeaderView.ResizeMode.Stretch)
             else:
-                header.setSectionResizeMode(i, QHeaderView.ResizeToContents)
+                header.setSectionResizeMode(i, QHeaderView.ResizeMode.ResizeToContents)
         
         # Salva l'indice della colonna di similarità per usi futuri (es. colorazione)
         table.setProperty("similarity_col", similarity_col_index)
@@ -5977,7 +5977,7 @@ class UnifiedFuzzySearchWidget(QWidget):
             for col_idx, cell_text in enumerate(row_content):
                 item = QTableWidgetItem(str(cell_text))
                 if col_idx == 0: # Salva i dati completi nel primo item della riga
-                    item.setData(Qt.UserRole, item_data)
+                    item.setData(Qt.ItemDataRole.UserRole, item_data)
                 
                 # Applica colorazione alla colonna di similarità
                 if similarity_col is not None and col_idx == similarity_col:
@@ -6005,7 +6005,7 @@ class UnifiedFuzzySearchWidget(QWidget):
                 
                 # ["Tipo", "Nome/Descrizione", "Dettagli", "Similarità", "Campo"]
                 self.unified_table.setItem(row, 0, QTableWidgetItem(f"{icon} {entity_type.title()}"))
-                self.unified_table.item(row,0).setData(Qt.UserRole, {'type': entity_type, 'data': entity}) # Salva dati per doppio click
+                self.unified_table.item(row,0).setData(Qt.ItemDataRole.UserRole, {'type': entity_type, 'data': entity}) # Salva dati per doppio click
                 
                 self.unified_table.setItem(row, 1, QTableWidgetItem(entity.get('display_text', '')))
                 self.unified_table.setItem(row, 2, QTableWidgetItem(entity.get('detail_text', '')))
@@ -6119,7 +6119,7 @@ class UnifiedFuzzySearchWidget(QWidget):
         item_con_dati = self.unified_table.item(index.row(), 0)
         if not item_con_dati: return
 
-        full_item_data = item_con_dati.data(Qt.UserRole)
+        full_item_data = item_con_dati.data(Qt.ItemDataRole.UserRole)
         if not isinstance(full_item_data, dict): return
 
         entity_type = full_item_data.get('type')
@@ -6226,7 +6226,7 @@ class UnifiedFuzzySearchWidget(QWidget):
         if not item_con_dati:
             return None
             
-        entity_data_wrapper = item_con_dati.data(Qt.UserRole)
+        entity_data_wrapper = item_con_dati.data(Qt.ItemDataRole.UserRole)
         if not isinstance(entity_data_wrapper, dict):
             return None
 
@@ -6243,7 +6243,7 @@ class UnifiedFuzzySearchWidget(QWidget):
         entity_id = self._get_entity_id_from_table(self.possessori_table, index)
         if entity_id:
             dialog = ModificaPossessoreDialog(self.db_manager, entity_id, self)
-            if dialog.exec_() == QDialog.Accepted:
+            if dialog.exec() == QDialog.DialogCode.Accepted:
                 self._perform_search() # Aggiorna i risultati se ci sono state modifiche
 
     def _on_localita_double_click(self, index):
@@ -6252,7 +6252,7 @@ class UnifiedFuzzySearchWidget(QWidget):
             localita_details = self.db_manager.get_localita_details(entity_id)
             if localita_details and localita_details.get('comune_id'):
                 dialog = ModificaLocalitaDialog(self.db_manager, entity_id, localita_details.get('comune_id'), self)
-                if dialog.exec_() == QDialog.Accepted:
+                if dialog.exec() == QDialog.DialogCode.Accepted:
                     self._perform_search()
             else:
                 QMessageBox.warning(self, "Errore Dati", f"Impossibile caricare i dettagli per la località ID {entity_id}.")
@@ -6265,7 +6265,7 @@ class UnifiedFuzzySearchWidget(QWidget):
                 partita_details = self.db_manager.get_partita_details(immobile_details.get('partita_id'))
                 if partita_details and partita_details.get('comune_id'):
                     dialog = ModificaImmobileDialog(self.db_manager, entity_id, partita_details.get('comune_id'), self)
-                    if dialog.exec_() == QDialog.Accepted:
+                    if dialog.exec() == QDialog.DialogCode.Accepted:
                         self._perform_search()
                 else:
                     QMessageBox.warning(self, "Errore Dati", f"Impossibile determinare il comune per l'immobile ID {entity_id}.")
@@ -6278,7 +6278,7 @@ class UnifiedFuzzySearchWidget(QWidget):
             full_details = self.db_manager.get_partita_details(entity_id)
             if full_details:
                 dialog = PartitaDetailsDialog(full_details, self)
-                dialog.exec_()
+                dialog.exec()
             else:
                 QMessageBox.warning(self, "Errore Dati", f"Impossibile caricare i dettagli per la partita ID {entity_id}.")
 
@@ -6286,7 +6286,7 @@ class UnifiedFuzzySearchWidget(QWidget):
         """Mostra un popup leggibile per entità senza un dialogo di dettaglio dedicato."""
         item_con_dati = table.item(index.row(), 0)
         if not item_con_dati: return
-        entity_data = item_con_dati.data(Qt.UserRole)
+        entity_data = item_con_dati.data(Qt.ItemDataRole.UserRole)
         entity_id = entity_data.get('entity_id', 'N/A')
 
         testo_formattato = f"<h3>Dettagli - {entity_type_name.title()} ID: {entity_id}</h3>"
@@ -6371,11 +6371,11 @@ class RegistraConsultazioneWidget(QWidget):
 
         button_layout = QHBoxLayout()
         self.btn_registra_consultazione = QPushButton(QApplication.style(
-        ).standardIcon(QStyle.SP_DialogSaveButton), " Registra Consultazione")
+        ).standardIcon(QStyle.StandardPixmap.SP_DialogSaveButton), " Registra Consultazione")
         self.btn_registra_consultazione.clicked.connect(
             self._salva_consultazione)
         self.btn_pulisci_campi = QPushButton(QApplication.style().standardIcon(
-            QStyle.SP_DialogDiscardButton), " Pulisci Campi")
+            QStyle.StandardPixmap.SP_DialogDiscardButton), " Pulisci Campi")
         self.btn_pulisci_campi.clicked.connect(self._pulisci_campi)
         button_layout.addStretch()
         button_layout.addWidget(self.btn_registra_consultazione)
@@ -6493,7 +6493,7 @@ class DashboardWidget(QWidget):
         # 1. Intestazione
         nome_utente = self.current_user_info.get('nome_completo', 'Utente') if self.current_user_info else 'Utente'
         header_label = QLabel(f"<h2>Benvenuto in Meridiana 1.2, {nome_utente}</h2>")
-        header_label.setAlignment(Qt.AlignCenter)
+        header_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
         main_layout.addWidget(header_label)
 
         # 2. Ricerca Globale
@@ -6531,7 +6531,7 @@ class DashboardWidget(QWidget):
         # --- FINE MODIFICA ---
 
         self.audit_table.setEditTriggers(QTableWidget.NoEditTriggers)
-        self.audit_table.horizontalHeader().setSectionResizeMode(QHeaderView.Stretch)
+        self.audit_table.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeMode.Stretch)
         recent_activity_layout.addWidget(self.audit_table)
         bottom_layout.addWidget(recent_activity_group, 2)
 
@@ -6550,7 +6550,7 @@ class DashboardWidget(QWidget):
             actions_layout.addSpacing(15)
 
             # Creiamo un pulsante specifico per il backup
-            btn_backup = QPushButton(QApplication.style().standardIcon(QStyle.SP_DialogSaveButton), " Esegui Backup")
+            btn_backup = QPushButton(QApplication.style().standardIcon(QStyle.StandardPixmap.SP_DialogSaveButton), " Esegui Backup")
             #btn_backup.setStyleSheet("background-color: #ffeeba; border: 1px solid #ffc107;")
 
             # Collega il segnale per andare al tab "Sistema" e al sotto-tab "Backup/Ripristino DB"
@@ -6567,7 +6567,7 @@ class DashboardWidget(QWidget):
         
     def _create_stat_card(self, title, value, style):
         card = QLabel(f"<h3>{title}</h3><p style='font-size: 24pt; font-weight: bold;'>{value}</p>")
-        card.setAlignment(Qt.AlignCenter)
+        card.setAlignment(Qt.AlignmentFlag.AlignCenter)
         card.setStyleSheet(f"QLabel {{ border: 1px solid; border-radius: 8px; padding: 10px; {style} }}")
         card.setMinimumHeight(100)
         return card
@@ -6624,7 +6624,7 @@ class WelcomeScreen(QDialog):
         self.setWindowTitle("Benvenuto - Meridiana 1.2")
         self.setModal(True)
         self.setFixedSize(1024, 768)
-        self.setWindowFlags(Qt.FramelessWindowHint | Qt.WindowStaysOnTopHint)
+        self.setWindowFlags(Qt.WindowType.FramelessWindowHint | Qt.WindowStaysOnTopHint)
         self.setAttribute(Qt.WA_DeleteOnClose)
 
         self.help_url = help_url
@@ -6648,21 +6648,21 @@ class WelcomeScreen(QDialog):
         if self.logo_path and os.path.exists(self.logo_path):
             pixmap = QPixmap(str(self.logo_path))
             # Riduciamo leggermente le dimensioni massime per garantire più spazio
-            scaled_pixmap = pixmap.scaled(750, 450, Qt.KeepAspectRatio, Qt.SmoothTransformation)
+            scaled_pixmap = pixmap.scaled(750, 450, Qt.AspectRatioMode.KeepAspectRatio, Qt.SmoothTransformation)
             logo_label.setPixmap(scaled_pixmap)
         logo_layout.addWidget(logo_label)
         logo_layout.addStretch(1)
         main_layout.addLayout(logo_layout)
 
         # Titolo e Sottotitolo
-        title_label = QLabel("Meridiana 1.2"); title_label.setFont(QFont("Segoe UI", 28, QFont.Bold)); title_label.setAlignment(Qt.AlignCenter)
+        title_label = QLabel("Meridiana 1.2"); title_label.setFont(QFont("Segoe UI", 28, QFont.Bold)); title_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
         main_layout.addWidget(title_label)
         
-        subtitle_label = QLabel("Gestionale Catasto Storico - Archivio di Stato di Savona"); subtitle_label.setFont(QFont("Segoe UI", 14)); subtitle_label.setAlignment(Qt.AlignCenter)
+        subtitle_label = QLabel("Gestionale Catasto Storico - Archivio di Stato di Savona"); subtitle_label.setFont(QFont("Segoe UI", 14)); subtitle_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
         main_layout.addWidget(subtitle_label)
 
         # Crediti
-        credits_label = QLabel("Sviluppato da: Marco Santoro\nCopyright © 2025 - Tutti i diritti riservati\nConcesso in comodato d'uso gratuito all'Archivio di Stato di Savona"); credits_label.setFont(QFont("Segoe UI", 9)); credits_label.setAlignment(Qt.AlignCenter)
+        credits_label = QLabel("Sviluppato da: Marco Santoro\nCopyright © 2025 - Tutti i diritti riservati\nConcesso in comodato d'uso gratuito all'Archivio di Stato di Savona"); credits_label.setFont(QFont("Segoe UI", 9)); credits_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
         credits_label.setStyleSheet("color: #6c757d;")
         main_layout.addWidget(credits_label)
         main_layout.addSpacing(20)

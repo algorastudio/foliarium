@@ -3,16 +3,16 @@
 """
 Test per GUI Widgets
 ===================
-Test per i widget PyQt5 del sistema catasto
+Test per i widget PyQt6 del sistema catasto
 """
 
 # tests/test_gui_widgets.py
 
 import pytest
 from unittest.mock import Mock, patch, MagicMock
-from PyQt5.QtWidgets import QApplication, QWidget, QTableWidget, QMessageBox
-from PyQt5.QtCore import Qt, QEvent
-from PyQt5.QtTest import QTest
+from PyQt6.QtWidgets import QApplication, QWidget, QTableWidget, QMessageBox
+from PyQt6.QtCore import Qt, QEvent
+from PyQt6.QtTest import QTest
 import sys
 
 # Import dei widget da testare
@@ -123,7 +123,7 @@ class TestComuneManagerWidget:
         if hasattr(widget, 'table'):
             assert widget.table.rowCount() == 2
     
-    @patch('PyQt5.QtWidgets.QInputDialog.getText')
+    @patch('PyQt6.QtWidgets.QInputDialog.getText')
     def test_add_comune(self, mock_dialog, qapp, mock_db_manager):
         """Test aggiunta nuovo comune"""
         # Setup mock dialog
@@ -246,7 +246,7 @@ class TestRegistraPartitaWidget:
         if hasattr(widget, '_validate_form'):
             assert widget._validate_form() is True
     
-    @patch('PyQt5.QtWidgets.QMessageBox.information')
+    @patch('PyQt6.QtWidgets.QMessageBox.information')
     def test_save_partita(self, mock_msgbox, qapp, mock_db_manager):
         """Test salvataggio partita"""
         mock_db_manager.create_partita.return_value = 1
@@ -331,7 +331,7 @@ class TestWidgetInteractions:
         # Verifica ricezione
         receiver.assert_called_once()
     
-    @patch('PyQt5.QtWidgets.QFileDialog.getOpenFileName')
+    @patch('PyQt6.QtWidgets.QFileDialog.getOpenFileName')
     def test_file_import_dialog(self, mock_file_dialog, qapp, mock_db_manager):
         """Test dialog import file"""
         mock_file_dialog.return_value = ('/path/to/file.csv', 'CSV Files')
@@ -349,7 +349,7 @@ class TestWidgetInteractions:
 class TestErrorHandlingGUI:
     """Test gestione errori nell'interfaccia"""
     
-    @patch('PyQt5.QtWidgets.QMessageBox.critical')
+    @patch('PyQt6.QtWidgets.QMessageBox.critical')
     def test_database_error_display(self, mock_msgbox, qapp, mock_db_manager):
         """Test visualizzazione errori database"""
         # Simula errore DB

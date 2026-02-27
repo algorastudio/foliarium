@@ -2,22 +2,22 @@
 import os,csv,sys,logging,json,bcrypt
 from datetime import date, datetime
 from typing import Optional, List, Dict, Any, Tuple, TYPE_CHECKING
-# Importazioni PyQt5
-from PyQt5.QtCore import (QDate, QDateTime, QPoint, QProcess, QSettings, 
+# Importazioni PyQt6
+from PyQt6.QtCore import (QDate, QDateTime, QPoint, QProcess, QSettings, 
                           QSize, QStandardPaths, Qt, QTimer, QUrl, 
                           pyqtSignal,pyqtSlot)
 
-from PyQt5.QtGui import (QCloseEvent, QColor, QDesktopServices, QFont, 
-                         QIcon, QPalette, QPixmap)
+from PyQt6.QtGui import (QCloseEvent, QColor, QDesktopServices, QFont, 
+                         QIcon, QPalette, QPixmap, QAction)
 
 try:
-    from PyQt5.QtWebEngineWidgets import QWebEngineView
+    from PyQt6.QtWebEngineWidgets import QWebEngineView
     WEB_ENGINE_AVAILABLE = True
 except ImportError:
     QWebEngineView = None
     WEB_ENGINE_AVAILABLE = False
 
-from PyQt5.QtWidgets import (QAbstractItemView, QAction, QApplication, 
+from PyQt6.QtWidgets import (QAbstractItemView, QApplication, 
                              QCheckBox, QComboBox, QDateEdit, QDateTimeEdit,
                              QDialog, QDialogButtonBox, QDoubleSpinBox,
                              QFileDialog, QFormLayout, QFrame, QGridLayout,
@@ -31,14 +31,14 @@ from PyQt5.QtWidgets import (QAbstractItemView, QAction, QApplication,
                              QGraphicsScene, QGraphicsView, QDialog, QVBoxLayout, 
                              QTextBrowser, QDialogButtonBox, QRadioButton)
 
-from PyQt5.QtGui import QPainter
+from PyQt6.QtGui import QPainter
 from app_paths import get_resource_path
 
 
 
 
 # Importazione commentata (da abilitare se necessario)
-# from PyQt5.QtSvgWidgets import QSvgWidget
+# from PyQt6.QtSvgWidgets import QSvgWidget
 from config import (
     SETTINGS_DB_TYPE, SETTINGS_DB_HOST, SETTINGS_DB_PORT, 
     SETTINGS_DB_NAME, SETTINGS_DB_USER, SETTINGS_DB_SCHEMA,SETTINGS_DB_PASSWORD
@@ -155,7 +155,7 @@ class DBConfigDialog(QDialog):
         emergency_label = QLabel("Usare solo se il database principale è corrotto o inaccessibile.")
         emergency_label.setWordWrap(True)
 
-        self.btn_emergency_restore = QPushButton(QApplication.style().standardIcon(QStyle.SP_DialogResetButton), " Ripristina Database da Backup...")
+        self.btn_emergency_restore = QPushButton(QApplication.style().standardIcon(QStyle.StandardPixmap.SP_DialogResetButton), " Ripristina Database da Backup...")
         self.btn_emergency_restore.clicked.connect(self._handle_emergency_restore)
 
         emergency_layout.addWidget(emergency_label, 1)
@@ -307,7 +307,7 @@ class DBConfigDialog(QDialog):
     def _handle_cancel(self):
         """Gestisce il click su 'Annulla'."""
         # Non è necessaria alcuna logica di salvataggio qui
-        # Chiudi il dialogo con QDialog.Rejected.
+        # Chiudi il dialogo con QDialog.DialogCode.Rejected.
         super().reject()
     # --- FINE NUOVI METODI WRAPPER ---
     
@@ -421,10 +421,10 @@ class DBConfigDialog(QDialog):
             "Stai per CANCELLARE il database corrente e sostituirlo con un backup.\n"
             "Questa operazione è irreversibile e va usata solo se il database è corrotto o inaccessibile.\n\n"
             "Sei assolutamente sicuro di voler procedere?",
-            QMessageBox.Yes | QMessageBox.No,
-            QMessageBox.No
+            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+            QMessageBox.StandardButton.No
         )
-        if reply != QMessageBox.Yes:
+        if reply != QMessageBox.StandardButton.Yes:
             self.logger.info("Ripristino di emergenza annullato dall'utente.")
             return
 
@@ -444,9 +444,9 @@ class DBConfigDialog(QDialog):
         # Conferma finale
         reply2 = QMessageBox.question(self, "Conferma Finale",
             f"Confermi di voler CANCELLARE il database '{config['dbname']}' e ripristinarlo dal file:\n{os.path.basename(backup_file)}?",
-            QMessageBox.Yes | QMessageBox.No, QMessageBox.No)
+            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No, QMessageBox.StandardButton.No)
 
-        if reply2 != QMessageBox.Yes:
+        if reply2 != QMessageBox.StandardButton.Yes:
             return
 
         # Crea un DB Manager temporaneo per l'operazione
@@ -457,7 +457,7 @@ class DBConfigDialog(QDialog):
         )
 
         # Esegui l'operazione
-        QApplication.setOverrideCursor(Qt.WaitCursor)
+        QApplication.setOverrideCursor(Qt.CursorShape.WaitCursor)
         try:
             success, message = emergency_db_manager.execute_restore_from_file_emergency(backup_file)
             if success:
@@ -569,8 +569,8 @@ class DocumentViewerDialog(QDialog):
                 raise ValueError(f"Impossibile caricare immagine da: {self.file_path}")
 
             self.pixmap_item = self.graphics_scene.addPixmap(pixmap)
-            self.graphics_view.fitInView(self.pixmap_item, Qt.KeepAspectRatio)
-            self.graphics_view.setAlignment(Qt.AlignCenter)
+            self.graphics_view.fitInView(self.pixmap_item, Qt.AspectRatioMode.KeepAspectRatio)
+            self.graphics_view.setAlignment(Qt.AlignmentFlag.AlignCenter)
 
             self.zoom_factor = 1.0
             self.graphics_view.wheelEvent = self._image_wheel_event
@@ -683,12 +683,12 @@ class PartitaDetailsDialog(QDialog):
         # Aggiungi queste righe per gestire il ridimensionamento delle colonne
         header_possessori = possessori_table.horizontalHeader()
         # La colonna "ID" (indice 0) si adatta al contenuto
-        header_possessori.setSectionResizeMode(0, QHeaderView.ResizeToContents)
+        header_possessori.setSectionResizeMode(0, QHeaderView.ResizeMode.ResizeToContents)
         # La colonna "Nome Completo" (indice 1) si espande per riempire lo spazio
-        header_possessori.setSectionResizeMode(1, QHeaderView.Stretch)
+        header_possessori.setSectionResizeMode(1, QHeaderView.ResizeMode.Stretch)
         # Le colonne "Titolo" e "Quota" (indici 2 e 3) si adattano al contenuto
-        header_possessori.setSectionResizeMode(2, QHeaderView.ResizeToContents)
-        header_possessori.setSectionResizeMode(3, QHeaderView.ResizeToContents)
+        header_possessori.setSectionResizeMode(2, QHeaderView.ResizeMode.ResizeToContents)
+        header_possessori.setSectionResizeMode(3, QHeaderView.ResizeMode.ResizeToContents)
 # --- FINE MODIFICA ---
         if self.partita.get('possessori'):
             possessori_table.setRowCount(len(self.partita['possessori']))
@@ -778,7 +778,7 @@ class PartitaDetailsDialog(QDialog):
         self.documents_tab_layout.addWidget(self.documents_table)
         
         doc_buttons_layout = QHBoxLayout()
-        self.btn_apri_doc_details_dialog = QPushButton(QApplication.style().standardIcon(QStyle.SP_DialogOpenButton), "Apri Documento")
+        self.btn_apri_doc_details_dialog = QPushButton(QApplication.style().standardIcon(QStyle.StandardPixmap.SP_DialogOpenButton), "Apri Documento")
         self.btn_apri_doc_details_dialog.clicked.connect(self._apri_documento_selezionato_from_details_dialog)
         self.btn_apri_doc_details_dialog.setEnabled(False)
         doc_buttons_layout.addWidget(self.btn_apri_doc_details_dialog)
@@ -822,7 +822,7 @@ class PartitaDetailsDialog(QDialog):
             # Popola la tabella con un messaggio di errore o lascia vuota
             self.documents_table.setRowCount(1)
             item_msg = QTableWidgetItem("DB Manager non disponibile. Impossibile caricare documenti.")
-            item_msg.setTextAlignment(Qt.AlignCenter)
+            item_msg.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
             self.documents_table.setItem(0, 0, item_msg)
             self.documents_table.setSpan(0, 0, 1, self.documents_table.columnCount())
             return
@@ -848,14 +848,14 @@ class PartitaDetailsDialog(QDialog):
                     # Salva il percorso completo nell'UserRole per il pulsante "Apri"
                     percorso_file_full = doc_data.get('percorso_file', '')
                     path_item = QTableWidgetItem(os.path.basename(percorso_file_full) if percorso_file_full else "N/D")
-                    path_item.setData(Qt.UserRole, percorso_file_full)  # Assicurati che questo sia sempre una stringa valida
+                    path_item.setData(Qt.ItemDataRole.UserRole, percorso_file_full)  # Assicurati che questo sia sempre una stringa valida
                     self.documents_table.setItem(row, 5, path_item)
                 self.documents_table.resizeColumnsToContents()
             else:
                 self.logger.info(f"Nessun documento allegato per la partita ID {self.partita['id']}.")
                 self.documents_table.setRowCount(1)
                 no_docs_item = QTableWidgetItem("Nessun documento allegato a questa partita.")
-                no_docs_item.setTextAlignment(Qt.AlignCenter)
+                no_docs_item.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
                 self.documents_table.setItem(0, 0, no_docs_item)
                 self.documents_table.setSpan(0, 0, 1, self.documents_table.columnCount())
         except Exception as e:
@@ -863,7 +863,7 @@ class PartitaDetailsDialog(QDialog):
             QMessageBox.critical(self, "Errore Caricamento Documenti", f"Si è verificato un errore durante il caricamento dei documenti: {e}")
             self.documents_table.setRowCount(1)
             error_item = QTableWidgetItem("Errore nel caricamento dei documenti.")
-            error_item.setTextAlignment(Qt.AlignCenter)
+            error_item.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
             self.documents_table.setItem(0, 0, error_item)
             self.documents_table.setSpan(0, 0, 1, self.documents_table.columnCount())
         finally:
@@ -920,7 +920,7 @@ class PartitaDetailsDialog(QDialog):
         # Usa la classe generica per l'esportazione PDF (che include l'anteprima)
         # Nota: PDFApreviewDialog e GenericTextReportPDF sono in app_utils
         preview_dialog = PDFApreviewDialog(text_content, self, title=f"Anteprima: {pdf_report_title}")
-        if preview_dialog.exec_() != QDialog.Accepted:
+        if preview_dialog.exec() != QDialog.DialogCode.Accepted:
             self.logger.info(f"Esportazione PDF per '{pdf_report_title}' annullata dall'utente dopo anteprima.")
             return
 
@@ -1121,11 +1121,11 @@ class PartitaDetailsDialog(QDialog):
         row = self.documents_table.currentRow()
         percorso_file_item = self.documents_table.item(row, 5) 
         if percorso_file_item:
-            percorso_file_completo = percorso_file_item.data(Qt.UserRole) # Recupera il percorso completo salvato
+            percorso_file_completo = percorso_file_item.data(Qt.ItemDataRole.UserRole) # Recupera il percorso completo salvato
             
             if os.path.exists(percorso_file_completo):
-                from PyQt5.QtGui import QDesktopServices
-                from PyQt5.QtCore import QUrl
+                from PyQt6.QtGui import QDesktopServices
+                from PyQt6.QtCore import QUrl
                 success = QDesktopServices.openUrl(QUrl.fromLocalFile(percorso_file_completo))
                 if not success:
                     QMessageBox.warning(self, "Errore Apertura", f"Impossibile aprire il file:\n{percorso_file_completo}\nVerificare che sia installata un'applicazione associata o che i permessi siano corretti.")
@@ -1194,11 +1194,11 @@ class ModificaPartitaDialog(QDialog):
         
         # Logica per l'espansione delle colonne
         header_possessori = self.possessori_table.horizontalHeader()
-        header_possessori.setSectionResizeMode(0, QHeaderView.ResizeToContents)
-        header_possessori.setSectionResizeMode(1, QHeaderView.ResizeToContents)
-        header_possessori.setSectionResizeMode(2, QHeaderView.Stretch) # Espande "Nome Completo"
-        header_possessori.setSectionResizeMode(3, QHeaderView.ResizeToContents)
-        header_possessori.setSectionResizeMode(4, QHeaderView.ResizeToContents)
+        header_possessori.setSectionResizeMode(0, QHeaderView.ResizeMode.ResizeToContents)
+        header_possessori.setSectionResizeMode(1, QHeaderView.ResizeMode.ResizeToContents)
+        header_possessori.setSectionResizeMode(2, QHeaderView.ResizeMode.Stretch) # Espande "Nome Completo"
+        header_possessori.setSectionResizeMode(3, QHeaderView.ResizeMode.ResizeToContents)
+        header_possessori.setSectionResizeMode(4, QHeaderView.ResizeMode.ResizeToContents)
         
         possessori_layout.addWidget(self.possessori_table)
 
@@ -1304,7 +1304,7 @@ class ModificaPartitaDialog(QDialog):
         
         self.documents_table.setAcceptDrops(True)
         self.documents_table.setDropIndicatorShown(True)
-        self.documents_table.setDragDropMode(QAbstractItemView.DropOnly)
+        self.documents_table.setDragDropMode(QAbstractItemView.DragDropMode.DragDropMode.DropOnly)
         self.documents_table.dragEnterEvent = self.documents_table_dragEnterEvent
         self.documents_table.dragMoveEvent = self.documents_table_dragMoveEvent
         self.documents_table.dropEvent = self.documents_table_dropEvent
@@ -1312,16 +1312,16 @@ class ModificaPartitaDialog(QDialog):
         layout_documenti.addWidget(self.documents_table)
 
         doc_buttons_layout = QHBoxLayout()
-        self.btn_allega_nuovo = QPushButton(QApplication.style().standardIcon(QStyle.SP_FileLinkIcon), "Allega Nuovo Documento...")
+        self.btn_allega_nuovo = QPushButton(QApplication.style().standardIcon(QStyle.StandardPixmap.SP_FileLinkIcon), "Allega Nuovo Documento...")
         self.btn_allega_nuovo.clicked.connect(self._allega_nuovo_documento_a_partita)
         doc_buttons_layout.addWidget(self.btn_allega_nuovo)
 
-        self.btn_apri_doc_details_dialog = QPushButton(QApplication.style().standardIcon(QStyle.SP_DialogOpenButton), "Apri Documento Selezionato")
+        self.btn_apri_doc_details_dialog = QPushButton(QApplication.style().standardIcon(QStyle.StandardPixmap.SP_DialogOpenButton), "Apri Documento Selezionato")
         self.btn_apri_doc_details_dialog.clicked.connect(self._apri_documento_selezionato_from_details_dialog)
         self.btn_apri_doc_details_dialog.setEnabled(False)
         doc_buttons_layout.addWidget(self.btn_apri_doc_details_dialog)
         
-        self.btn_scollega_doc = QPushButton(QApplication.style().standardIcon(QStyle.SP_TrashIcon), "Scollega Documento")
+        self.btn_scollega_doc = QPushButton(QApplication.style().standardIcon(QStyle.StandardPixmap.SP_TrashIcon), "Scollega Documento")
         self.btn_scollega_doc.clicked.connect(self._scollega_documento_selezionato)
         self.btn_scollega_doc.setEnabled(False)
         doc_buttons_layout.addWidget(self.btn_scollega_doc)
@@ -1333,7 +1333,7 @@ class ModificaPartitaDialog(QDialog):
 
         # --- Blocco Pulsanti Finale ---
         buttons_layout = QHBoxLayout()
-        self.btn_duplica_partita = QPushButton(self.style().standardIcon(QStyle.SP_FileDialogNewFolder), " Duplica questa Partita...")
+        self.btn_duplica_partita = QPushButton(self.style().standardIcon(QStyle.StandardPixmap.SP_FileDialogNewFolder), " Duplica questa Partita...")
         self.save_button = QPushButton("Salva Modifiche Dati Generali")
         self.close_dialog_button = QPushButton("Chiudi")
         self.btn_duplica_partita.clicked.connect(self._handle_duplica_partita)
@@ -1386,10 +1386,10 @@ class ModificaPartitaDialog(QDialog):
         self.numero_partita_spinbox.setValue(partita.get('numero_partita', 0))
         self.suffisso_partita_edit.setText(partita.get('suffisso_partita', '') or '')
 
-        tipo_idx = self.tipo_combo.findText(partita.get('tipo', ''), Qt.MatchFixedString)
+        tipo_idx = self.tipo_combo.findText(partita.get('tipo', ''), Qt.MatchFlag.MatchFixedString)
         if tipo_idx >= 0: self.tipo_combo.setCurrentIndex(tipo_idx)
 
-        stato_idx = self.stato_combo.findText(partita.get('stato', ''), Qt.MatchFixedString)
+        stato_idx = self.stato_combo.findText(partita.get('stato', ''), Qt.MatchFlag.MatchFixedString)
         if stato_idx >= 0: self.stato_combo.setCurrentIndex(stato_idx)
 
         self.data_impianto_edit.setDate(datetime_to_qdate(partita.get('data_impianto')))
@@ -1423,7 +1423,7 @@ class ModificaPartitaDialog(QDialog):
                 for row_idx, poss_data in enumerate(possessori):
                     id_rel_val = poss_data.get('id_relazione_partita_possessore', '')
                     id_rel_item = QTableWidgetItem(str(id_rel_val))
-                    id_rel_item.setData(Qt.UserRole, id_rel_val) # Salva l'ID relazione
+                    id_rel_item.setData(Qt.ItemDataRole.UserRole, id_rel_val) # Salva l'ID relazione
                     self.possessori_table.setItem(row_idx, 0, id_rel_item)
 
                     self.possessori_table.setItem(row_idx, 1, QTableWidgetItem(str(poss_data.get('possessore_id', ''))))
@@ -1435,7 +1435,7 @@ class ModificaPartitaDialog(QDialog):
                 self.logger.info(f"Nessun possessore trovato per la partita ID {self.partita_id}.")
                 self.possessori_table.setRowCount(1)
                 item = QTableWidgetItem("Nessun possessore associato a questa partita.")
-                item.setTextAlignment(Qt.AlignCenter)
+                item.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
                 self.possessori_table.setItem(0, 0, item)
                 self.possessori_table.setSpan(0, 0, 1, self.possessori_table.columnCount())
         except Exception as e:
@@ -1477,7 +1477,7 @@ class ModificaPartitaDialog(QDialog):
                 self.logger.info(f"Nessun immobile trovato per la partita ID {self.partita_id}.")
                 self.immobili_table.setRowCount(1)
                 item = QTableWidgetItem("Nessun immobile associato a questa partita.")
-                item.setTextAlignment(Qt.AlignCenter)
+                item.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
                 self.immobili_table.setItem(0, 0, item)
                 self.immobili_table.setSpan(0, 0, 1, self.immobili_table.columnCount())
         except Exception as e:
@@ -1542,7 +1542,7 @@ class ModificaPartitaDialog(QDialog):
                 self.logger.info(f"Nessuna variazione trovata per la partita ID {self.partita_id}.")
                 self.variazioni_table.setRowCount(1)
                 item = QTableWidgetItem("Nessuna variazione associata a questa partita.")
-                item.setTextAlignment(Qt.AlignCenter)
+                item.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
                 self.variazioni_table.setItem(0, 0, item)
                 self.variazioni_table.setSpan(0, 0, 1, self.variazioni_table.columnCount())
         except Exception as e:
@@ -1561,7 +1561,7 @@ class ModificaPartitaDialog(QDialog):
 
         # Apri il dialogo delle opzioni
         options_dialog = DuplicaPartitaOptionsDialog(self)
-        if options_dialog.exec_() != QDialog.Accepted:
+        if options_dialog.exec() != QDialog.DialogCode.Accepted:
             self.logger.info("Duplicazione annullata dall'utente.")
             return
             
@@ -1621,12 +1621,12 @@ class ModificaPartitaDialog(QDialog):
 
                     # L'item nella prima colonna conterrà tutti i dati per la riga
                     item_doc_id = QTableWidgetItem(str(doc.get('documento_id', '')))
-                    item_doc_id.setData(Qt.UserRole, rel_data)
+                    item_doc_id.setData(Qt.ItemDataRole.UserRole, rel_data)
                     self.documents_table.setItem(row, 0, item_doc_id)
             # --- FINE CORREZIONE ---
                     # Salviamo l'ID del documento storico e l'ID della partita per la rimozione del legame
-                    item_doc_id.setData(Qt.UserRole + 1, doc.get("dp_documento_id")) # ID del documento storico nella relazione
-                    item_doc_id.setData(Qt.UserRole + 2, doc.get("dp_partita_id")) # ID della partita nella relazione (che è self.partita_id)
+                    item_doc_id.setData(Qt.ItemDataRole.UserRole + 1, doc.get("dp_documento_id")) # ID del documento storico nella relazione
+                    item_doc_id.setData(Qt.ItemDataRole.UserRole + 2, doc.get("dp_partita_id")) # ID della partita nella relazione (che è self.partita_id)
                     
                     
                     self.documents_table.setItem(row, 1, QTableWidgetItem(doc.get("titolo") or ''))
@@ -1637,7 +1637,7 @@ class ModificaPartitaDialog(QDialog):
                     # CORREZIONE: Assicurati che il percorso sia salvato correttamente nell'UserRole
                     percorso_file_full = doc.get("percorso_file") or ''
                     path_item = QTableWidgetItem(os.path.basename(percorso_file_full) if percorso_file_full else "N/D")
-                    path_item.setData(Qt.UserRole, percorso_file_full) # Salva percorso completo per l'apertura
+                    path_item.setData(Qt.ItemDataRole.UserRole, percorso_file_full) # Salva percorso completo per l'apertura
                     self.documents_table.setItem(row, 5, path_item)
                 
                 self.documents_table.resizeColumnsToContents()
@@ -1645,7 +1645,7 @@ class ModificaPartitaDialog(QDialog):
                 self.logger.info(f"Nessun documento trovato per la partita ID {self.partita_id}.")
                 self.documents_table.setRowCount(1)
                 no_docs_item = QTableWidgetItem("Nessun documento allegato a questa partita.")
-                no_docs_item.setTextAlignment(Qt.AlignCenter)
+                no_docs_item.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
                 self.documents_table.setItem(0, 0, no_docs_item)
                 self.documents_table.setSpan(0, 0, 1, self.documents_table.columnCount())
 
@@ -1655,7 +1655,7 @@ class ModificaPartitaDialog(QDialog):
             # Mostra messaggio di errore nella tabella
             self.documents_table.setRowCount(1)
             error_item = QTableWidgetItem(f"Errore nel caricamento dei documenti: {e}")
-            error_item.setTextAlignment(Qt.AlignCenter)
+            error_item.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
             self.documents_table.setItem(0, 0, error_item)
             self.documents_table.setSpan(0, 0, 1, self.documents_table.columnCount())
         finally:
@@ -1705,7 +1705,7 @@ class ModificaPartitaDialog(QDialog):
         selected_possessore_id = None
         selected_possessore_nome = None
 
-        if possessore_dialog.exec_() == QDialog.Accepted:
+        if possessore_dialog.exec() == QDialog.DialogCode.Accepted:
             if hasattr(possessore_dialog, 'selected_possessore') and possessore_dialog.selected_possessore:
                 selected_possessore_id = possessore_dialog.selected_possessore.get('id')
                 selected_possessore_nome = possessore_dialog.selected_possessore.get('nome_completo')
@@ -1750,7 +1750,7 @@ class ModificaPartitaDialog(QDialog):
             return
 
         current_row = selected_items[0].row()
-        id_relazione_pp = self.possessori_table.item(current_row, 0).data(Qt.UserRole)
+        id_relazione_pp = self.possessori_table.item(current_row, 0).data(Qt.ItemDataRole.UserRole)
         if id_relazione_pp is None:
             QMessageBox.critical(self, "Errore Interno", "ID relazione non trovato per il possessore selezionato.")
             return
@@ -1796,7 +1796,7 @@ class ModificaPartitaDialog(QDialog):
             QMessageBox.warning(self, "Nessuna Selezione", "Seleziona un legame possessore dalla tabella da rimuovere.")
             return
 
-        id_relazione_pp = selected_items[0].data(Qt.UserRole)
+        id_relazione_pp = selected_items[0].data(Qt.ItemDataRole.UserRole)
         nome_possessore = self.possessori_table.item(selected_items[0].row(), 2).text()
 
         if id_relazione_pp is None:
@@ -1805,8 +1805,8 @@ class ModificaPartitaDialog(QDialog):
 
         reply = QMessageBox.question(self, "Conferma Rimozione Legame",
                                      f"Sei sicuro di voler rimuovere il legame con il possessore '{nome_possessore}' (ID Relazione: {id_relazione_pp}) da questa partita?",
-                                     QMessageBox.Yes | QMessageBox.No, QMessageBox.No)
-        if reply == QMessageBox.Yes:
+                                     QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No, QMessageBox.StandardButton.No)
+        if reply == QMessageBox.StandardButton.Yes:
             self.logger.debug(f"Richiesta rimozione legame ID {id_relazione_pp}")
             try:
                 success = self.db_manager.rimuovi_possessore_da_partita(id_relazione_pp)
@@ -1838,7 +1838,7 @@ class ModificaPartitaDialog(QDialog):
             return
 
         dialog = ImmobileDialog(self.db_manager, comune_id_partita, self)
-        if dialog.exec_() == QDialog.Accepted and dialog.immobile_data:
+        if dialog.exec() == QDialog.DialogCode.Accepted and dialog.immobile_data:
             immobile_data = dialog.immobile_data
             try:
                 # La procedura SQL inserisci_immobile in db_manager deve essere aggiornata
@@ -1894,7 +1894,7 @@ class ModificaPartitaDialog(QDialog):
         # Assicurati che sia importata o creata
         dialog = ModificaImmobileDialog(self.db_manager, immobile_id, self.partita_id, self) # Passa immobile_id, partita_id
         
-        if dialog.exec_() == QDialog.Accepted:
+        if dialog.exec() == QDialog.DialogCode.Accepted:
             QMessageBox.information(self, "Successo", "Immobile modificato con successo.")
             self._load_immobili_associati() # Ricarica la tabella immobili
         else:
@@ -1912,8 +1912,8 @@ class ModificaPartitaDialog(QDialog):
         reply = QMessageBox.question(self, "Conferma Rimozione",
                                      f"Sei sicuro di voler rimuovere l'immobile ID {immobile_id} da questa partita?\n"
                                      "Questa azione non cancella l'immobile dal database, ma lo scollega dalla partita attuale, impostando il suo partita_id a NULL.",
-                                     QMessageBox.Yes | QMessageBox.No, QMessageBox.No)
-        if reply == QMessageBox.Yes:
+                                     QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No, QMessageBox.StandardButton.No)
+        if reply == QMessageBox.StandardButton.Yes:
             try:
                 # Il metodo delete_immobile in db_manager deve essere aggiornato
                 # per supportare la rimozione/scollegamento senza cancellare
@@ -1965,7 +1965,7 @@ class ModificaPartitaDialog(QDialog):
         from gui_widgets import ModificaVariazioneDialog # Assicurati che sia importata o creata
         dialog = ModificaVariazioneDialog(self.db_manager, variazione_id, self.partita_id, self) # Passa variazione_id, partita_id
         
-        if dialog.exec_() == QDialog.Accepted:
+        if dialog.exec() == QDialog.DialogCode.Accepted:
             QMessageBox.information(self, "Successo", "Variazione modificata con successo.")
             self._load_variazioni_associati() # Ricarica la tabella
         else:
@@ -1983,8 +1983,8 @@ class ModificaPartitaDialog(QDialog):
         reply = QMessageBox.question(self, "Conferma Eliminazione",
                                      f"Sei sicuro di voler eliminare la variazione ID {variazione_id}?\n"
                                      "Questa azione potrebbe avere effetti sulle partite collegate (es. riattivare la partita origine se chiusa).",
-                                     QMessageBox.Yes | QMessageBox.No, QMessageBox.No)
-        if reply == QMessageBox.Yes:
+                                     QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No, QMessageBox.StandardButton.No)
+        if reply == QMessageBox.StandardButton.Yes:
             try:
                 # Il metodo delete_variazione in db_manager ha flag force e restore_partita
                 success = self.db_manager.delete_variazione(variazione_id, force=True, restore_partita=False) # Decidi la politica
@@ -2071,7 +2071,7 @@ class ModificaPartitaDialog(QDialog):
         # Questo richiede una modifica in AggiungiDocumentoDialog per avere un metodo set_initial_file_path
         dialog.set_initial_file_path(file_path)
 
-        if dialog.exec_() == QDialog.Accepted and dialog.document_data:
+        if dialog.exec() == QDialog.DialogCode.Accepted and dialog.document_data:
             doc_info = dialog.document_data
             percorso_originale = doc_info["percorso_file_originale"] # Ora sarà file_path pre-selezionato
             
@@ -2153,11 +2153,11 @@ class ModificaPartitaDialog(QDialog):
         
         if percorso_file_item:
             # Recupera il percorso completo salvato nell'UserRole
-            percorso_file_completo = percorso_file_item.data(Qt.UserRole)
+            percorso_file_completo = percorso_file_item.data(Qt.ItemDataRole.UserRole)
             
             if percorso_file_completo and os.path.exists(percorso_file_completo):
-                from PyQt5.QtGui import QDesktopServices
-                from PyQt5.QtCore import QUrl
+                from PyQt6.QtGui import QDesktopServices
+                from PyQt6.QtCore import QUrl
                 
                 self.logger.info(f"Tentativo di aprire il documento: {percorso_file_completo}")
                 success = QDesktopServices.openUrl(QUrl.fromLocalFile(percorso_file_completo))
@@ -2197,7 +2197,7 @@ class ModificaPartitaDialog(QDialog):
             QMessageBox.critical(self, "Errore Interno", "Impossibile recuperare i dati del documento selezionato.")
             return
         # --- INIZIO CORREZIONE: Recupero dati robusto ---
-        rel_data = id_doc_item.data(Qt.UserRole)
+        rel_data = id_doc_item.data(Qt.ItemDataRole.UserRole)
         if not isinstance(rel_data, dict) or not rel_data.get('doc_id') or not rel_data.get('partita_id'):
             self.logger.error(f"Dati di relazione mancanti o corrotti per la riga {row}: {rel_data}")
             QMessageBox.critical(self, "Errore Dati", "Informazioni sulla relazione documento-partita non trovate.")
@@ -2216,9 +2216,9 @@ class ModificaPartitaDialog(QDialog):
         reply = QMessageBox.question(self, "Conferma Scollegamento",
                                      f"Sei sicuro di voler scollegare il documento '{titolo_doc}' (ID: {documento_id_da_scollegare}) "
                                      f"dalla partita corrente (ID: {partita_id_da_cui_scollegare})?",
-                                     QMessageBox.Yes | QMessageBox.No, QMessageBox.No)
+                                     QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No, QMessageBox.StandardButton.No)
 
-        if reply == QMessageBox.Yes:
+        if reply == QMessageBox.StandardButton.Yes:
             try:
                 self.logger.info(f"Tentativo di scollegare doc ID {documento_id_da_scollegare} da partita ID {partita_id_da_cui_scollegare}")
                 
@@ -2327,10 +2327,10 @@ class DettagliLegamePossessoreDialog(QDialog):
         # ... (pulsanti OK/Annulla e metodo _accept_details come prima) ...
         buttons_layout = QHBoxLayout()
         self.ok_button = QPushButton(
-            QApplication.style().standardIcon(QStyle.SP_DialogOkButton), "OK")
+            QApplication.style().standardIcon(QStyle.StandardPixmap.SP_DialogOkButton), "OK")
         self.ok_button.clicked.connect(self._accept_details)
         self.cancel_button = QPushButton(QApplication.style().standardIcon(
-            QStyle.SP_DialogCancelButton), "Annulla")
+            QStyle.StandardPixmap.SP_DialogCancelButton), "Annulla")
         self.cancel_button.clicked.connect(self.reject)
         buttons_layout.addStretch()
         buttons_layout.addWidget(self.ok_button)
@@ -2364,7 +2364,7 @@ class DettagliLegamePossessoreDialog(QDialog):
             # quindi __init__ userà i loro valori di default (None)
             parent=parent
         )
-        if dialog.exec_() == QDialog.Accepted:
+        if dialog.exec() == QDialog.DialogCode.Accepted:
             return {
                 "titolo": dialog.titolo,
                 "quota": dialog.quota,
@@ -2383,7 +2383,7 @@ class DettagliLegamePossessoreDialog(QDialog):
                                                 parent=parent)
         # Titolo specifico per modifica
         dialog.setWindowTitle(f"Modifica Legame per {nome_possessore}")
-        if dialog.exec_() == QDialog.Accepted:
+        if dialog.exec() == QDialog.DialogCode.Accepted:
             return {
                 "titolo": dialog.titolo,
                 "quota": dialog.quota,
@@ -2457,10 +2457,10 @@ class ModificaPossessoreDialog(QDialog):
         # Pulsanti
         buttons_layout = QHBoxLayout()
         self.save_button = QPushButton(QApplication.style().standardIcon(
-            QStyle.SP_DialogSaveButton), "Salva Modifiche")
+            QStyle.StandardPixmap.SP_DialogSaveButton), "Salva Modifiche")
         self.save_button.clicked.connect(self._save_changes)
         self.cancel_button = QPushButton(QApplication.style().standardIcon(
-            QStyle.SP_DialogCancelButton), "Annulla")
+            QStyle.StandardPixmap.SP_DialogCancelButton), "Annulla")
         self.cancel_button.clicked.connect(self.reject)
 
         buttons_layout.addStretch()
@@ -2500,7 +2500,7 @@ class ModificaPossessoreDialog(QDialog):
             QMessageBox.critical(self, "Errore Caricamento",
                                  f"Impossibile caricare i dati per il possessore ID: {self.possessore_id}.\n"
                                  "Il dialogo verrà chiuso.")
-            from PyQt5.QtCore import QTimer
+            from PyQt6.QtCore import QTimer
             # Chiudi dopo che il messaggio è stato processato
             QTimer.singleShot(0, self.reject)
             return
@@ -2525,7 +2525,7 @@ class ModificaPossessoreDialog(QDialog):
         # Usa ComuneSelectionDialog per cambiare il comune di riferimento
         dialog = ComuneSelectionDialog(
             self.db_manager, self, title="Seleziona Nuovo Comune di Riferimento")
-        if dialog.exec_() == QDialog.Accepted and dialog.selected_comune_id:
+        if dialog.exec() == QDialog.DialogCode.Accepted and dialog.selected_comune_id:
             self.selected_comune_ref_id = dialog.selected_comune_id
             self.comune_ref_label.setText(
                 f"{dialog.selected_comune_name} (ID: {self.selected_comune_ref_id})")
@@ -2574,7 +2574,7 @@ class ModificaPossessoreDialog(QDialog):
             logging.getLogger("CatastoGUI").info(
                 # NUOVA STAMPA
                 f"DEBUG: db_manager.update_possessore completato per ID {self.possessore_id}")
-            self.accept()  # Chiude il dialogo e restituisce QDialog.Accepted
+            self.accept()  # Chiude il dialogo e restituisce QDialog.DialogCode.Accepted
 
         # Gestione eccezioni simile a quella di update_partita (DBUniqueConstraintError, DBDataError, DBMError, etc.)
         # Ad esempio, se nome_completo + comune_id deve essere univoco, o altri vincoli.
@@ -2615,7 +2615,7 @@ class ModificaComuneDialog(QDialog):
         main_layout = QVBoxLayout(self)
         form_layout = QFormLayout()
         form_layout.setRowWrapPolicy(QFormLayout.WrapAllRows)
-        form_layout.setLabelAlignment(Qt.AlignLeft)
+        form_layout.setLabelAlignment(Qt.AlignmentFlag.AlignLeft)
 
         self.id_label = QLabel(str(self.comune_id))
         form_layout.addRow("ID Comune:", self.id_label)
@@ -2820,7 +2820,7 @@ class PossessoriComuneDialog(QDialog):
         self.possessori_table.setSelectionMode(QTableWidget.SingleSelection)
         self.possessori_table.setAlternatingRowColors(True)
         self.possessori_table.horizontalHeader().setSectionResizeMode(
-            QHeaderView.Stretch)  # o ResizeToContents
+            QHeaderView.ResizeMode.Stretch)  # o ResizeToContents
         self.possessori_table.setSortingEnabled(True)
         self.possessori_table.itemSelectionChanged.connect(
             self._aggiorna_stato_pulsanti_azione)  # NUOVO
@@ -2832,7 +2832,7 @@ class PossessoriComuneDialog(QDialog):
         # --- NUOVI Pulsanti di Azione ---
         action_layout = QHBoxLayout()
         self.btn_modifica_possessore = QPushButton(QApplication.style().standardIcon(
-            QStyle.SP_FileDialogDetailedView), "Modifica Selezionato")
+            QStyle.StandardPixmap.SP_FileDialogDetailedView), "Modifica Selezionato")
         self.btn_modifica_possessore.setToolTip(
             "Modifica i dati del possessore selezionato")
         self.btn_modifica_possessore.clicked.connect(
@@ -2886,12 +2886,12 @@ class PossessoriComuneDialog(QDialog):
             dialog = ModificaPossessoreDialog(
                 self.db_manager, possessore_id, self)
 
-            dialog_result = dialog.exec_()  # Salva il risultato
+            dialog_result = dialog.exec()  # Salva il risultato
             logging.getLogger("CatastoGUI").debug(
                 # NUOVA STAMPA
-                f"DEBUG: ModificaPossessoreDialog.exec_() restituito: {dialog_result} (Accepted è {QDialog.Accepted})")
+                f"DEBUG: ModificaPossessoreDialog.exec() restituito: {dialog_result} (Accepted è {QDialog.DialogCode.Accepted})")
 
-            if dialog_result == QDialog.Accepted:
+            if dialog_result == QDialog.DialogCode.Accepted:
                 logging.getLogger("CatastoGUI").info(
                     "DEBUG: ModificaPossessoreDialog accettato. Ricaricamento dati possessori...")  # NUOVA STAMPA
                 QMessageBox.information(self, "Modifica Possessore",
@@ -2947,7 +2947,7 @@ class PossessoriComuneDialog(QDialog):
                 # Visualizza un messaggio nella tabella se nessun risultato
                 self.possessori_table.setRowCount(1)
                 item = QTableWidgetItem("Nessun possessore trovato con i criteri specificati.")
-                item.setTextAlignment(Qt.AlignCenter)
+                item.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
                 self.possessori_table.setItem(0, 0, item)
                 self.possessori_table.setSpan(0, 0, 1, self.possessori_table.columnCount())
 
@@ -2957,7 +2957,7 @@ class PossessoriComuneDialog(QDialog):
             # Visualizza un messaggio di errore nella tabella
             self.possessori_table.setRowCount(1)
             item = QTableWidgetItem(f"Errore nel caricamento dei dati: {e}")
-            item.setTextAlignment(Qt.AlignCenter)
+            item.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
             self.possessori_table.setItem(0, 0, item)
             self.possessori_table.setSpan(0, 0, 1, self.possessori_table.columnCount())
         finally:
@@ -3005,7 +3005,7 @@ class PartiteComuneDialog(QDialog):
         self.partite_table.setSelectionBehavior(QTableWidget.SelectRows)
         self.partite_table.setSelectionMode(QTableWidget.SingleSelection)
         self.partite_table.setAlternatingRowColors(True)
-        self.partite_table.horizontalHeader().setSectionResizeMode(QHeaderView.Stretch)
+        self.partite_table.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeMode.Stretch)
         self.partite_table.setSortingEnabled(True)
         self.partite_table.itemDoubleClicked.connect(self.apri_dettaglio_partita_selezionata)
         self.partite_table.itemSelectionChanged.connect(self._aggiorna_stato_pulsante_modifica)
@@ -3014,7 +3014,7 @@ class PartiteComuneDialog(QDialog):
 
         action_buttons_layout = QHBoxLayout()
         self.btn_apri_dettaglio = QPushButton(QApplication.style().standardIcon(
-            QStyle.SP_FileDialogInfoView), "Vedi Dettagli")
+            QStyle.StandardPixmap.SP_FileDialogInfoView), "Vedi Dettagli")
         self.btn_apri_dettaglio.clicked.connect(self.apri_dettaglio_partita_selezionata_da_pulsante)
         self.btn_apri_dettaglio.setEnabled(False)
         action_buttons_layout.addWidget(self.btn_apri_dettaglio)
@@ -3072,7 +3072,7 @@ class PartiteComuneDialog(QDialog):
                 self.logger.info(f"Nessuna partita trovata per il comune ID: {self.comune_id} con filtro '{filter_text}'.")
                 self.partite_table.setRowCount(1)
                 item = QTableWidgetItem("Nessuna partita trovata con i criteri specificati.")
-                item.setTextAlignment(Qt.AlignCenter)
+                item.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
                 self.partite_table.setItem(0, 0, item)
                 self.partite_table.setSpan(0, 0, 1, self.partite_table.columnCount())
 
@@ -3081,7 +3081,7 @@ class PartiteComuneDialog(QDialog):
             QMessageBox.critical(self, "Errore Caricamento Dati", f"Si è verificato un errore: {e}")
             self.partite_table.setRowCount(1)
             item = QTableWidgetItem(f"Errore nel caricamento dei dati: {e}")
-            item.setTextAlignment(Qt.AlignCenter)
+            item.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
             self.partite_table.setItem(0, 0, item)
             self.partite_table.setSpan(0, 0, 1, self.partite_table.columnCount())
         finally:
@@ -3111,7 +3111,7 @@ class PartiteComuneDialog(QDialog):
             partita_details_data = self.db_manager.get_partita_details(partita_id)
             if partita_details_data:
                 details_dialog = PartitaDetailsDialog(partita_details_data, self)
-                details_dialog.exec_()
+                details_dialog.exec()
             else:
                 QMessageBox.warning(self, "Errore Dati", f"Impossibile recuperare i dettagli per la partita ID {partita_id}.")
         else:
@@ -3121,7 +3121,7 @@ class PartiteComuneDialog(QDialog):
         partita_id = self._get_selected_partita_id()
         if partita_id is not None:
             dialog = ModificaPartitaDialog(self.db_manager, partita_id, self)
-            if dialog.exec_() == QDialog.Accepted:
+            if dialog.exec() == QDialog.DialogCode.Accepted:
                 self.load_partite_data()
                 QMessageBox.information(self, "Modifica Partita", "Modifiche alla partita salvate con successo.")
         else:
@@ -3135,7 +3135,7 @@ class PartiteComuneDialog(QDialog):
             partita_details_data = self.db_manager.get_partita_details(partita_id)
             if partita_details_data:
                 details_dialog = PartitaDetailsDialog(partita_details_data, self)
-                details_dialog.exec_()
+                details_dialog.exec()
             else:
                 QMessageBox.warning(self, "Errore Dati", f"Impossibile recuperare i dettagli per la partita ID {partita_id}.")
 
@@ -3307,7 +3307,7 @@ class PeriodoStoricoDetailsDialog(QDialog):
                                  f"Impossibile caricare i dettagli per il periodo ID: {self.periodo_id}.")
             # Chiudi il dialogo se i dati non possono essere caricati
             # Usiamo QTimer per permettere al messaggio di essere processato prima di chiudere
-            from PyQt5.QtCore import QTimer
+            from PyQt6.QtCore import QTimer
             QTimer.singleShot(0, self.reject)
             return
 
@@ -3433,7 +3433,7 @@ class LocalitaSelectionDialog(QDialog):
 
         select_action_layout = QHBoxLayout()
         self.btn_modifica_localita = QPushButton(QApplication.style().standardIcon(
-            QStyle.SP_FileDialogDetailedView), "Modifica Selezionata")
+            QStyle.StandardPixmap.SP_FileDialogDetailedView), "Modifica Selezionata")
         self.btn_modifica_localita.setToolTip("Modifica i dati della località selezionata")
         self.btn_modifica_localita.clicked.connect(self.apri_modifica_localita_selezionata)
         if self.selection_mode:
@@ -3456,7 +3456,7 @@ class LocalitaSelectionDialog(QDialog):
             create_form_layout.addRow(QLabel("Nome località (*):"), self.nome_edit_nuova)
             create_form_layout.addRow(QLabel("Tipo (*):"), self.tipo_combo_nuova)
             create_form_layout.addRow(QLabel("Numero Civico (0 se assente):"), self.civico_spinbox_nuova)
-            self.btn_salva_nuova_localita = QPushButton(QApplication.style().standardIcon(QStyle.SP_DialogSaveButton) ,"Salva Nuova Località")
+            self.btn_salva_nuova_localita = QPushButton(QApplication.style().standardIcon(QStyle.StandardPixmap.SP_DialogSaveButton) ,"Salva Nuova Località")
             self.btn_salva_nuova_localita.clicked.connect(self._salva_nuova_localita_da_tab)
             create_form_layout.addRow(self.btn_salva_nuova_localita)
             self.tabs.addTab(create_tab, "Crea Nuova Località")
@@ -3464,7 +3464,7 @@ class LocalitaSelectionDialog(QDialog):
         buttons_layout = QHBoxLayout()
 
         self.select_button = QPushButton(QApplication.style().standardIcon(
-            QStyle.SP_DialogApplyButton), "Seleziona")
+            QStyle.StandardPixmap.SP_DialogApplyButton), "Seleziona")
         self.select_button.setToolTip("Conferma la località selezionata")
         self.select_button.clicked.connect(self._handle_selection_or_creation)
         buttons_layout.addWidget(self.select_button)
@@ -3472,7 +3472,7 @@ class LocalitaSelectionDialog(QDialog):
         buttons_layout.addStretch()
 
         self.chiudi_button = QPushButton(QApplication.style().standardIcon(
-            QStyle.SP_DialogCloseButton), "Chiudi")
+            QStyle.StandardPixmap.SP_DialogCloseButton), "Chiudi")
         self.chiudi_button.clicked.connect(self.reject)
         buttons_layout.addWidget(self.chiudi_button)
 
@@ -3521,7 +3521,7 @@ class LocalitaSelectionDialog(QDialog):
                     # Mostra un messaggio nella tabella se nessun risultato
                     self.localita_table.setRowCount(1)
                     item = QTableWidgetItem("Nessuna località trovata con i criteri specificati.")
-                    item.setTextAlignment(Qt.AlignCenter)
+                    item.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
                     self.localita_table.setItem(0, 0, item)
                     self.localita_table.setSpan(0, 0, 1, self.localita_table.columnCount())
 
@@ -3531,14 +3531,14 @@ class LocalitaSelectionDialog(QDialog):
                     self, "Errore Caricamento", f"Impossibile caricare le località:\n{e}")
                 self.localita_table.setRowCount(1)
                 item = QTableWidgetItem(f"Errore caricamento: {e}")
-                item.setTextAlignment(Qt.AlignCenter)
+                item.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
                 self.localita_table.setItem(0, 0, item)
                 self.localita_table.setSpan(0, 0, 1, self.localita_table.columnCount())
         else:
             self.logger.warning("Comune ID non disponibile per caricare località.")
             self.localita_table.setRowCount(1)
             item = QTableWidgetItem("ID Comune non disponibile per caricare località.")
-            item.setTextAlignment(Qt.AlignCenter)
+            item.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
             self.localita_table.setItem(0, 0, item)
             self.localita_table.setSpan(0, 0, 1, self.localita_table.columnCount())
 
@@ -3608,7 +3608,7 @@ class LocalitaSelectionDialog(QDialog):
             # Istanzia e apre ModificaLocalitaDialog, passando il comune_id_parent
             dialog = ModificaLocalitaDialog(
                 self.db_manager, localita_id_sel, self.comune_id, self) # comune_id qui è il comune_id_parent
-            if dialog.exec_() == QDialog.Accepted:
+            if dialog.exec() == QDialog.DialogCode.Accepted:
                 self.logger.info(f"Modifiche a località ID {localita_id_sel} salvate. Ricarico l'elenco.")
                 self.load_localita(self.filter_edit.text().strip() or None) # Ricarica con il filtro corrente
                 QMessageBox.information(self, "Modifica Località", "Modifiche alla località salvate con successo.")
@@ -3979,8 +3979,8 @@ class PossessoreSelectionDialog(QDialog):
         self.possessori_table.setHorizontalHeaderLabels(["ID", "Nome Completo", "Paternità", "Comune Riferimento", "Stato"])
         self.possessori_table.setSelectionBehavior(QTableWidget.SelectRows)
         self.possessori_table.setEditTriggers(QTableWidget.NoEditTriggers)
-        self.possessori_table.horizontalHeader().setSectionResizeMode(1, QHeaderView.Stretch)
-        self.possessori_table.horizontalHeader().setSectionResizeMode(3, QHeaderView.Stretch)
+        self.possessori_table.horizontalHeader().setSectionResizeMode(1, QHeaderView.ResizeMode.Stretch)
+        self.possessori_table.horizontalHeader().setSectionResizeMode(3, QHeaderView.ResizeMode.Stretch)
         self.possessori_table.itemDoubleClicked.connect(self.handle_selection)
         select_layout.addWidget(self.possessori_table)
         self.tabs.addTab(select_tab, "Seleziona Esistente")
@@ -4204,12 +4204,12 @@ class ImmobileDialog(QDialog):
         # Imposta il titolo del dialogo per riflettere la possibilità di gestione/creazione
         dialog.setWindowTitle(f"Seleziona o Crea Località per Comune ID: {self.comune_id}")
 
-        result = dialog.exec_()
+        result = dialog.exec()
 
         # Il LocalitaSelectionDialog, se modificato per get_selected_or_created_localita,
         # dovrebbe restituire un dizionario con id e nome (compreso il civico).
         # Ad esempio: { 'id': 1, 'nome': 'Via Roma, 12 (Via)' }
-        if result == QDialog.Accepted:
+        if result == QDialog.DialogCode.Accepted:
             if dialog.selected_localita_id is not None and dialog.selected_localita_name is not None:
                 self.localita_id = dialog.selected_localita_id
                 self.localita_display.setText(dialog.selected_localita_name)
@@ -4276,7 +4276,7 @@ class ComuneSelectionDialog(QDialog):
         search_layout.addWidget(self.search_edit)
 
         self.search_button = QPushButton(
-            QApplication.style().standardIcon(QStyle.SP_BrowserReload), "")
+            QApplication.style().standardIcon(QStyle.StandardPixmap.SP_BrowserReload), "")
         self.search_button.setToolTip("Aggiorna lista comuni")
         self.search_button.clicked.connect(
             self.filter_comuni)  # Usa self.filter_comuni
@@ -4313,9 +4313,9 @@ class ComuneSelectionDialog(QDialog):
                 for comune in comuni:
                     item = QListWidgetItem(
                         f"{comune['nome']} (ID: {comune['id']}, {comune['provincia']})")
-                    item.setData(Qt.UserRole, comune['id'])
+                    item.setData(Qt.ItemDataRole.UserRole, comune['id'])
                     # Per recuperare il nome facilmente
-                    item.setData(Qt.UserRole + 1, comune['nome'])
+                    item.setData(Qt.ItemDataRole.UserRole + 1, comune['nome'])
                     self.comuni_list.addItem(item)
             else:
                 self.comuni_list.addItem("Nessun comune trovato.")
@@ -4330,10 +4330,10 @@ class ComuneSelectionDialog(QDialog):
 
     def handle_select(self):
         current_item = self.comuni_list.currentItem()
-        if current_item and current_item.data(Qt.UserRole) is not None:
-            self.selected_comune_id = current_item.data(Qt.UserRole)
+        if current_item and current_item.data(Qt.ItemDataRole.UserRole) is not None:
+            self.selected_comune_id = current_item.data(Qt.ItemDataRole.UserRole)
             self.selected_comune_name = current_item.data(
-                Qt.UserRole + 1)  # Salva anche il nome
+                Qt.ItemDataRole.UserRole + 1)  # Salva anche il nome
             self.accept()
         else:
             QMessageBox.warning(self, "Attenzione",
@@ -4449,7 +4449,7 @@ class PartitaSearchDialog(QDialog):
 
     def select_comune(self):
         dialog = ComuneSelectionDialog(self.db_manager, self)
-        if dialog.exec_() == QDialog.Accepted and dialog.selected_comune_id:
+        if dialog.exec() == QDialog.DialogCode.Accepted and dialog.selected_comune_id:
             self.comune_id = dialog.selected_comune_id
             self.comune_display.setText(dialog.selected_comune_name)
 
@@ -4517,12 +4517,12 @@ class CreateUserDialog(QDialog):
 
         buttons_layout = QHBoxLayout()
         self.create_button = QPushButton(QApplication.style().standardIcon(
-            QStyle.SP_DialogSaveButton), "Crea Utente")
+            QStyle.StandardPixmap.SP_DialogSaveButton), "Crea Utente")
         self.create_button.clicked.connect(self.handle_create_user)
         self.create_button.setDefault(True)
 
         self.cancel_button = QPushButton(QApplication.style().standardIcon(
-            QStyle.SP_DialogCancelButton), "Annulla")
+            QStyle.StandardPixmap.SP_DialogCancelButton), "Annulla")
         self.cancel_button.clicked.connect(self.reject)
 
         buttons_layout.addStretch()
@@ -4700,7 +4700,7 @@ class LocalitaSelectionDialog(QDialog):
 
         select_action_layout = QHBoxLayout()
         self.btn_modifica_localita = QPushButton(QApplication.style().standardIcon(
-            QStyle.SP_FileDialogDetailedView), "Modifica Selezionata")
+            QStyle.StandardPixmap.SP_FileDialogDetailedView), "Modifica Selezionata")
         self.btn_modifica_localita.setToolTip("Modifica i dati della località selezionata")
         self.btn_modifica_localita.clicked.connect(self.apri_modifica_localita_selezionata)
         if self.selection_mode:
@@ -4723,7 +4723,7 @@ class LocalitaSelectionDialog(QDialog):
             create_form_layout.addRow(QLabel("Nome località (*):"), self.nome_edit_nuova)
             create_form_layout.addRow(QLabel("Tipo (*):"), self.tipo_combo_nuova)
             create_form_layout.addRow(QLabel("Numero Civico (0 se assente):"), self.civico_spinbox_nuova)
-            self.btn_salva_nuova_localita = QPushButton(QApplication.style().standardIcon(QStyle.SP_DialogSaveButton) ,"Salva Nuova Località")
+            self.btn_salva_nuova_localita = QPushButton(QApplication.style().standardIcon(QStyle.StandardPixmap.SP_DialogSaveButton) ,"Salva Nuova Località")
             self.btn_salva_nuova_localita.clicked.connect(self._salva_nuova_localita_da_tab)
             create_form_layout.addRow(self.btn_salva_nuova_localita)
             self.tabs.addTab(create_tab, "Crea Nuova Località")
@@ -4731,7 +4731,7 @@ class LocalitaSelectionDialog(QDialog):
         buttons_layout = QHBoxLayout()
 
         self.select_button = QPushButton(QApplication.style().standardIcon(
-            QStyle.SP_DialogApplyButton), "Seleziona")
+            QStyle.StandardPixmap.SP_DialogApplyButton), "Seleziona")
         self.select_button.setToolTip("Conferma la località selezionata")
         self.select_button.clicked.connect(self._handle_selection_or_creation)
         buttons_layout.addWidget(self.select_button)
@@ -4739,7 +4739,7 @@ class LocalitaSelectionDialog(QDialog):
         buttons_layout.addStretch()
 
         self.chiudi_button = QPushButton(QApplication.style().standardIcon(
-            QStyle.SP_DialogCloseButton), "Chiudi")
+            QStyle.StandardPixmap.SP_DialogCloseButton), "Chiudi")
         self.chiudi_button.clicked.connect(self.reject)
         buttons_layout.addWidget(self.chiudi_button)
 
@@ -4788,7 +4788,7 @@ class LocalitaSelectionDialog(QDialog):
                     # Mostra un messaggio nella tabella se nessun risultato
                     self.localita_table.setRowCount(1)
                     item = QTableWidgetItem("Nessuna località trovata con i criteri specificati.")
-                    item.setTextAlignment(Qt.AlignCenter)
+                    item.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
                     self.localita_table.setItem(0, 0, item)
                     self.localita_table.setSpan(0, 0, 1, self.localita_table.columnCount())
 
@@ -4798,14 +4798,14 @@ class LocalitaSelectionDialog(QDialog):
                     self, "Errore Caricamento", f"Impossibile caricare le località:\n{e}")
                 self.localita_table.setRowCount(1)
                 item = QTableWidgetItem(f"Errore caricamento: {e}")
-                item.setTextAlignment(Qt.AlignCenter)
+                item.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
                 self.localita_table.setItem(0, 0, item)
                 self.localita_table.setSpan(0, 0, 1, self.localita_table.columnCount())
         else:
             self.logger.warning("Comune ID non disponibile per caricare località.")
             self.localita_table.setRowCount(1)
             item = QTableWidgetItem("ID Comune non disponibile per caricare località.")
-            item.setTextAlignment(Qt.AlignCenter)
+            item.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
             self.localita_table.setItem(0, 0, item)
             self.localita_table.setSpan(0, 0, 1, self.localita_table.columnCount())
 
@@ -4872,7 +4872,7 @@ class LocalitaSelectionDialog(QDialog):
             # Istanzia e apre ModificaLocalitaDialog, passando il comune_id_parent
             dialog = ModificaLocalitaDialog(
                 self.db_manager, localita_id_sel, self.comune_id, self) # comune_id qui è il comune_id_parent
-            if dialog.exec_() == QDialog.Accepted:
+            if dialog.exec() == QDialog.DialogCode.Accepted:
                 self.logger.info(f"Modifiche a località ID {localita_id_sel} salvate. Ricarico l'elenco.")
                 self.load_localita(self.filter_edit.text().strip() or None) # Ricarica con il filtro corrente
                 QMessageBox.information(self, "Modifica Località", "Modifiche alla località salvate con successo.")
@@ -5088,10 +5088,10 @@ class DettagliLegamePossessoreDialog(QDialog):
         # ... (pulsanti OK/Annulla e metodo _accept_details come prima) ...
         buttons_layout = QHBoxLayout()
         self.ok_button = QPushButton(
-            QApplication.style().standardIcon(QStyle.SP_DialogOkButton), "OK")
+            QApplication.style().standardIcon(QStyle.StandardPixmap.SP_DialogOkButton), "OK")
         self.ok_button.clicked.connect(self._accept_details)
         self.cancel_button = QPushButton(QApplication.style().standardIcon(
-            QStyle.SP_DialogCancelButton), "Annulla")
+            QStyle.StandardPixmap.SP_DialogCancelButton), "Annulla")
         self.cancel_button.clicked.connect(self.reject)
         buttons_layout.addStretch()
         buttons_layout.addWidget(self.ok_button)
@@ -5125,7 +5125,7 @@ class DettagliLegamePossessoreDialog(QDialog):
             # quindi __init__ userà i loro valori di default (None)
             parent=parent
         )
-        if dialog.exec_() == QDialog.Accepted:
+        if dialog.exec() == QDialog.DialogCode.Accepted:
             return {
                 "titolo": dialog.titolo,
                 "quota": dialog.quota,
@@ -5144,7 +5144,7 @@ class DettagliLegamePossessoreDialog(QDialog):
                                                 parent=parent)
         # Titolo specifico per modifica
         dialog.setWindowTitle(f"Modifica Legame per {nome_possessore}")
-        if dialog.exec_() == QDialog.Accepted:
+        if dialog.exec() == QDialog.DialogCode.Accepted:
             return {
                 "titolo": dialog.titolo,
                 "quota": dialog.quota,
@@ -5243,7 +5243,7 @@ class UserSelectionDialog(QDialog):
         self.user_table.setSelectionBehavior(QTableWidget.SelectRows)
         self.user_table.setSelectionMode(QTableWidget.SingleSelection)
         self.user_table.setEditTriggers(QTableWidget.NoEditTriggers)
-        self.user_table.horizontalHeader().setSectionResizeMode(QHeaderView.Stretch)
+        self.user_table.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeMode.Stretch)
         self.user_table.itemDoubleClicked.connect(self._accept_selection)
         layout.addWidget(self.user_table)
 

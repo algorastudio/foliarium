@@ -1,7 +1,7 @@
 import logging,socket ,bcrypt,json, csv, os
 import sys
-from PyQt5.QtCore import QStandardPaths
-from PyQt5.QtWidgets import QMessageBox
+from PyQt6.QtCore import QStandardPaths
+from PyQt6.QtWidgets import QMessageBox
 logger = logging.getLogger("CatastoGUI.app_utils")
 
 from config import DEVELOPMENT_MODE # Rimuovi 'logger' da questa riga
@@ -12,10 +12,10 @@ from config import DEVELOPMENT_MODE # Rimuovi 'logger' da questa riga
 from datetime import date, datetime
 from typing import Optional, List, Dict, Any
 
-# Importazioni PyQt5
-from PyQt5.QtCore import QDate
-from PyQt5.QtGui import QFont # QFont serve per i report
-from PyQt5.QtWidgets import (QDialog, QVBoxLayout, QTextEdit, QDialogButtonBox,
+# Importazioni PyQt6
+from PyQt6.QtCore import QDate
+from PyQt6.QtGui import QFont # QFont serve per i report
+from PyQt6.QtWidgets import (QDialog, QVBoxLayout, QTextEdit, QDialogButtonBox,
                              QTableWidget, QTableWidgetItem, QAbstractItemView,
                              QMessageBox, QFileDialog)
 from catasto_db_manager import CatastoDBManager
@@ -272,14 +272,14 @@ def check_network_environment(allowed_subnet="192.168.1."):
     else:
         # Mostra un messaggio di errore chiaro all'utente
         msg = QMessageBox()
-        msg.setIcon(QMessageBox.Critical)
+        msg.setIcon(QMessageBox.Icon.Critical)
         msg.setText("Accesso non autorizzato.")
         msg.setInformativeText(
             f"Questo applicativo non è autorizzato a funzionare da questo indirizzo IP ({ip_address}).\n"
             "L'uso è consentito esclusivamente all'interno della rete dell'Archivio di Stato di Savona."
         )
         msg.setWindowTitle("Errore di Sicurezza")
-        msg.exec_()
+        msg.exec()
         return False
 def _get_default_export_path(default_filename: str) -> str:
     export_dir_name = "esportazioni"
@@ -378,7 +378,7 @@ def gui_esporta_partita_csv(parent_widget, db_manager: CatastoDBManager, partita
     preview_dialog = CSVApreviewDialog(preview_headers, preview_data_rows, parent_widget,
                                        title=f"Anteprima CSV - Partita ID {partita_id}")
     pdf.alias_nb_pages()
-    if preview_dialog.exec_() != QDialog.Accepted:
+    if preview_dialog.exec() != QDialog.DialogCode.Accepted:
         logging.getLogger("CatastoGUI").info(f"Esportazione CSV per partita ID {partita_id} annullata dall'utente dopo anteprima.")
         return
     # --- FINE LOGICA ANTEPRIMA CSV ---
@@ -476,7 +476,7 @@ def gui_esporta_partita_pdf(parent_widget, db_manager: CatastoDBManager, partita
 
     preview_dialog = PDFApreviewDialog(preview_text_content, parent_widget,
                                        title=f"Anteprima PDF - Partita ID {partita_id}")
-    if preview_dialog.exec_() != QDialog.Accepted:
+    if preview_dialog.exec() != QDialog.DialogCode.Accepted:
         logging.getLogger("CatastoGUI").info(f"Esportazione PDF per partita ID {partita_id} annullata dall'utente dopo anteprima.")
         return
     # --- FINE LOGICA ANTEPRIMA TESTUALE PDF ---
@@ -600,7 +600,7 @@ def gui_esporta_possessore_csv(parent_widget, db_manager: CatastoDBManager, poss
     preview_dialog = CSVApreviewDialog(preview_headers, preview_data_rows, parent_widget,
                                        title=f"Anteprima CSV - Possessore ID {possessore_id}")
     pdf.alias_nb_pages()
-    if preview_dialog.exec_() != QDialog.Accepted:
+    if preview_dialog.exec() != QDialog.DialogCode.Accepted:
         logging.getLogger("CatastoGUI").info(f"Esportazione CSV per possessore ID {possessore_id} annullata dall'utente.")
         return
     # --- FINE Logica di Anteprima ---
@@ -681,7 +681,7 @@ def gui_esporta_possessore_pdf(parent_widget, db_manager: CatastoDBManager, poss
     
     preview_dialog = PDFApreviewDialog(preview_text_content, parent_widget,
                                        title=f"Anteprima PDF - Possessore ID {possessore_id}")
-    if preview_dialog.exec_() != QDialog.Accepted:
+    if preview_dialog.exec() != QDialog.DialogCode.Accepted:
         logging.getLogger("CatastoGUI").info(f"Esportazione PDF per possessore ID {possessore_id} annullata dall'utente.")
         return
     # --- FINE Logica di Anteprima ---
@@ -760,7 +760,7 @@ def _get_default_export_path(default_filename: str) -> str:
     il percorso completo per il file di default.
     """
     # 1. Trova la cartella "Documenti" ufficiale dell'utente di Windows
-    cartella_documenti = QStandardPaths.writableLocation(QStandardPaths.DocumentsLocation)
+    cartella_documenti = QStandardPaths.writableLocation(QStandardPaths.StandardLocation.DocumentsLocation)
     
     # Fallback di sicurezza se per caso QStandardPaths fallisce
     if not cartella_documenti:
@@ -805,14 +805,14 @@ def prompt_to_open_file(parent_widget, filename: str):
         parent_widget,
         "Esportazione Completata",
         f"File salvato con successo.\n\nVuoi aprirlo ora?",
-        QMessageBox.Yes | QMessageBox.No,
-        QMessageBox.Yes  # Il pulsante 'Sì' è preselezionato
+        QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+        QMessageBox.StandardButton.Yes  # Il pulsante 'Sì' è preselezionato
     )
 
-    if reply == QMessageBox.Yes:
+    if reply == QMessageBox.StandardButton.Yes:
         try:
-            from PyQt5.QtCore import QUrl
-            from PyQt5.QtGui import QDesktopServices
+            from PyQt6.QtCore import QUrl
+            from PyQt6.QtGui import QDesktopServices
             
             QDesktopServices.openUrl(QUrl.fromLocalFile(filename))
         except Exception as e:
@@ -937,8 +937,8 @@ class CSVApreviewDialog(QDialog):
         self.table_preview.setColumnCount(len(headers))
         self.table_preview.setHorizontalHeaderLabels(headers)
         self.table_preview.setAlternatingRowColors(True)
-        self.table_preview.setEditTriggers(QAbstractItemView.NoEditTriggers)
-        self.table_preview.setSelectionBehavior(QAbstractItemView.SelectRows)
+        self.table_preview.setEditTriggers(QAbstractItemView.EditTrigger.NoEditTriggers)
+        self.table_preview.setSelectionBehavior(QAbstractItemView.SelectionBehavior.SelectRows)
 
         self.table_preview.setRowCount(len(data_rows))
         for row_idx, row_data in enumerate(data_rows):

@@ -14,15 +14,14 @@ import os
 import logging
 from datetime import datetime
 from typing import Optional, Dict
-# Importazioni PyQt5
-from PyQt5.QtCore import (QSettings,
+# Importazioni PyQt6
+from PyQt6.QtCore import (QSettings,
                           QStandardPaths, Qt, QUrl,
-                          pyqtSlot,QCoreApplication)
+                          pyqtSlot, QCoreApplication)
 
-from PyQt5.QtGui import (QCloseEvent, QDesktopServices)
+from PyQt6.QtGui import (QCloseEvent, QDesktopServices, QAction, QActionGroup)
 
-
-from PyQt5.QtWidgets import (QAction, QActionGroup, QApplication, # <-- AGGIUNTO QActionGroup
+from PyQt6.QtWidgets import (QApplication,
                              QDialog, QFileDialog, QFrame, QGridLayout,
                              QHBoxLayout, QInputDialog,
                              QLabel, QLineEdit, QMainWindow, QMessageBox, QPushButton, QStyle, QTabWidget,
@@ -470,8 +469,8 @@ class CatastoMainWindow(QMainWindow):
         if show_reminder:
             reply = QMessageBox.question(self, "Promemoria Backup",
                                         f"{reason}\nÈ fortemente consigliato eseguire un backup dei dati.\n\nVuoi andare alla sezione di backup ora?",
-                                        QMessageBox.Yes | QMessageBox.No, QMessageBox.Yes)
-            if reply == QMessageBox.Yes:
+                                        QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No, QMessageBox.StandardButton.Yes)
+            if reply == QMessageBox.StandardButton.Yes:
                 self.activate_tab_and_sub_tab("Sistema", "Backup/Ripristino DB")
 
     def create_menu_bar(self):
@@ -493,7 +492,7 @@ class CatastoMainWindow(QMainWindow):
         import_possessori_action.triggered.connect(self._import_possessori_csv)
         import_partite_action = QAction("Importa Partite da CSV...", self)
         import_partite_action.triggered.connect(self._import_partite_csv)
-        exit_action = QAction(self.style().standardIcon(QStyle.SP_DialogCloseButton), "&Esci", self)
+        exit_action = QAction(self.style().standardIcon(QStyle.StandardPixmap.SP_DialogCloseButton), "&Esci", self)
         exit_action.triggered.connect(self.close)
         
         file_menu.addAction(import_possessori_action)
@@ -502,7 +501,7 @@ class CatastoMainWindow(QMainWindow):
         file_menu.addAction(exit_action)
         
         # --- Azioni per il menu Impostazioni ---
-        config_db_action = QAction(self.style().standardIcon(QStyle.SP_ComputerIcon), "Configurazione &Database...", self)
+        config_db_action = QAction(self.style().standardIcon(QStyle.StandardPixmap.SP_ComputerIcon), "Configurazione &Database...", self)
         config_db_action.triggered.connect(self._apri_dialogo_configurazione_db)
         
         config_refresh_action = QAction("Impostazioni di Aggiornamento Dati...", self)
@@ -568,7 +567,7 @@ class CatastoMainWindow(QMainWindow):
     def _show_about_eula_dialog(self):
         """Apre la finestra di dialogo con le informazioni su versione e licenza (EULA)."""
         dialog = EulaDialog(self)
-        dialog.exec_()
+        dialog.exec()
 
     # --- FINE AGGIUNTA METODO MANCANTE -
     def create_status_bar_content(self):
@@ -581,7 +580,7 @@ class CatastoMainWindow(QMainWindow):
         self.user_status_label = QLabel("Utente: Nessuno")
 
         self.logout_button = QPushButton(QApplication.style(
-        ).standardIcon(QStyle.SP_DialogCloseButton), "Logout")
+        ).standardIcon(QStyle.StandardPixmap.SP_DialogCloseButton), "Logout")
         self.logout_button.setToolTip(
             "Effettua il logout dell'utente corrente")
         self.logout_button.clicked.connect(self.handle_logout)
@@ -1089,7 +1088,7 @@ class CatastoMainWindow(QMainWindow):
 
         dialog = InserimentoComuneWidget(
             self.db_manager, utente_login_username, self)  # Passa 'self' come parent
-        if dialog.exec_() == QDialog.Accepted:
+        if dialog.exec() == QDialog.DialogCode.Accepted:
             logging.getLogger("CatastoGUI").info(
                 f"Dialogo inserimento comune chiuso con successo da utente '{utente_login_username}'.")
             QMessageBox.information(
@@ -1125,7 +1124,7 @@ class CatastoMainWindow(QMainWindow):
         # Passa il dizionario di configurazione usando il nome corretto del parametro
         config_dialog = DBConfigDialog(self, initial_config=current_config)
 
-        if config_dialog.exec_() == QDialog.Accepted:
+        if config_dialog.exec() == QDialog.DialogCode.Accepted:
             QMessageBox.information(
                 self, "Riavvio Necessario",
                 "Le nuove impostazioni del database sono state salvate.\n"
@@ -1165,7 +1164,7 @@ class CatastoMainWindow(QMainWindow):
             self.statusBar().showMessage("Logout effettuato. L'applicazione verrà chiusa.")
 
             # Chiude l'applicazione dopo un breve ritardo per permettere all'utente di leggere il messaggio
-            from PyQt5.QtCore import QTimer
+            from PyQt6.QtCore import QTimer
             QTimer.singleShot(1500, self.close)  # Chiude dopo 1.5 secondi
 
         else:
@@ -1247,7 +1246,7 @@ class CatastoMainWindow(QMainWindow):
                 return
 
             # --- PASSO 3: Avvia l'importazione e mostra il nuovo dialogo di riepilogo ---
-            QApplication.setOverrideCursor(Qt.WaitCursor)
+            QApplication.setOverrideCursor(Qt.CursorShape.WaitCursor)
             
             # --- MODIFICA CHIAVE QUI ---
             # Chiamiamo il metodo del db_manager che ora restituisce un dizionario dettagliato.
@@ -1262,7 +1261,7 @@ class CatastoMainWindow(QMainWindow):
                 import_results.get('errors', []),
                 self
             )
-            result_dialog.exec_()
+            result_dialog.exec()
             # --- FINE MODIFICA ---
 
             # Dopo l'importazione, aggiorniamo la vista dei comuni per riflettere eventuali
@@ -1307,7 +1306,7 @@ class CatastoMainWindow(QMainWindow):
             if not file_path:
                 return
 
-            QApplication.setOverrideCursor(Qt.WaitCursor)
+            QApplication.setOverrideCursor(Qt.CursorShape.WaitCursor)
             
             import_results = self.db_manager.import_partite_from_csv(file_path, comune_id_selezionato, nome_comune_selezionato)
             
@@ -1326,7 +1325,7 @@ class CatastoMainWindow(QMainWindow):
                 self
             )
             result_dialog.setWindowTitle("Riepilogo Importazione Partite")
-            result_dialog.exec_()
+            result_dialog.exec()
             
             if self.elenco_comuni_widget_ref:
                 self.elenco_comuni_widget_ref.load_data() 
@@ -1464,7 +1463,7 @@ class CatastoMainWindow(QMainWindow):
             
     def _show_backup_settings_dialog(self):
         dialog = BackupReminderSettingsDialog(self)
-        dialog.exec_()
+        dialog.exec()
 
 
 
@@ -1475,7 +1474,7 @@ def setup_logging():
     QCoreApplication.setApplicationName("Meridiana")
 
     # Trova la cartella standard e scrivibile per i dati dell'applicazione
-    app_data_path = QStandardPaths.writableLocation(QStandardPaths.AppLocalDataLocation)
+    app_data_path = QStandardPaths.writableLocation(QStandardPaths.StandardLocation.AppLocalDataLocation)
 
     # Assicurati che la cartella esista
     os.makedirs(app_data_path, exist_ok=True)
@@ -1506,7 +1505,7 @@ def setup_global_logging():
     QCoreApplication.setApplicationName("Meridiana")
     
     # Ottieni il percorso standard e scrivibile per i dati dell'applicazione
-    app_data_path = QStandardPaths.writableLocation(QStandardPaths.AppLocalDataLocation)
+    app_data_path = QStandardPaths.writableLocation(QStandardPaths.StandardLocation.AppLocalDataLocation)
     
     # Assicurati che la cartella esista
     os.makedirs(app_data_path, exist_ok=True)
@@ -1564,7 +1563,7 @@ def run_gui_app():
 
         if not eula_accepted:
             eula_dialog = EulaDialog()
-            if eula_dialog.exec_() == QDialog.Accepted:
+            if eula_dialog.exec() == QDialog.DialogCode.Accepted:
                 # L'utente ha accettato, salva l'impostazione e procedi
                 settings.setValue("EULA/accepted", True)
                 settings.sync()
@@ -1633,7 +1632,7 @@ def run_gui_app():
                 db_password = get_password_from_keyring(db_host, db_user)
                 # --- FINE MODIFICA ---
                 
-                if config_dialog.exec_() != QDialog.Accepted:
+                if config_dialog.exec() != QDialog.DialogCode.Accepted:
                     gui_logger.info("Configurazione manuale annullata. Uscita.")
                     sys.exit(0)
 
@@ -1684,7 +1683,7 @@ def run_gui_app():
         # Passiamo la variabile 'client_ip_address_gui' al costruttore del LoginDialog
         login_dialog = LoginDialog(db_manager_gui, client_ip_address_gui, parent=main_window_instance)
         # --- FINE MODIFICA ---
-        if login_dialog.exec_() != QDialog.Accepted:
+        if login_dialog.exec() != QDialog.DialogCode.Accepted:
             gui_logger.info("Login utente annullato. Uscita.")
             sys.exit(0)
 
@@ -1705,7 +1704,7 @@ def run_gui_app():
             ]
 
         welcome_screen = WelcomeScreen(parent=None, logo_path=logo_path, help_url=manuale_path)
-        if welcome_screen.exec_() != QDialog.Accepted:
+        if welcome_screen.exec() != QDialog.DialogCode.Accepted:
             gui_logger.info("Welcome screen chiusa. Uscita.")
             sys.exit(0)
             
@@ -1717,7 +1716,7 @@ def run_gui_app():
         )
         
         gui_logger.info("Setup completato. Avvio loop eventi.")
-        sys.exit(app.exec_())
+        sys.exit(app.exec())
 
     except Exception as e:
         # Blocco di gestione crash (invariato)
@@ -1743,7 +1742,7 @@ if __name__ == "__main__":
         
         # Mostra messaggio di errore all'utente
         try:
-            from PyQt5.QtWidgets import QApplication, QMessageBox
+            from PyQt6.QtWidgets import QApplication, QMessageBox
             if not QApplication.instance():
                 app = QApplication(sys.argv)
             QMessageBox.critical(None, "Errore Critico", 

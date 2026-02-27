@@ -26,7 +26,7 @@ import uuid
 import os
 import shutil # Per trovare i percorsi degli eseguibili
 from contextlib import contextmanager
-from PyQt5.QtWidgets import (QAbstractItemView, QAction, QApplication, 
+from PyQt6.QtWidgets import (QAbstractItemView, QApplication, 
                              QCheckBox, QComboBox, QDateEdit, QDateTimeEdit,
                              QDialog, QDialogButtonBox, QDoubleSpinBox,
                              QFileDialog, QFormLayout, QFrame, QGridLayout,
@@ -37,9 +37,10 @@ from PyQt5.QtWidgets import (QAbstractItemView, QAction, QApplication,
                              QSpinBox, QStyle, QStyleFactory, QTabWidget,
                              QTableWidget, QTableWidgetItem, QTextEdit,
                              QVBoxLayout,QProgressDialog)
-from PyQt5.QtCore import (QDate, QDateTime, QPoint, QProcess, QSettings, 
+from PyQt6.QtCore import (QDate, QDateTime, QPoint, QProcess, QSettings, 
                           QSize, QStandardPaths, Qt, QTimer, QUrl, 
                           pyqtSignal,QProcessEnvironment,QObject)
+from PyQt6.QtGui import QAction
 
 
 
@@ -4257,7 +4258,7 @@ class CatastoDBManager:
 
     def create_clean_environment(self) -> 'QProcessEnvironment':
         """Crea un ambiente pulito per QProcess, ereditando le variabili di sistema."""
-        from PyQt5.QtCore import QProcessEnvironment
+        from PyQt6.QtCore import QProcessEnvironment
         env = QProcessEnvironment.systemEnvironment()
         return env
 
