@@ -11,7 +11,7 @@ jobs:
   # ==========================================
   test-database-and-code:
     runs-on: ubuntu-latest
-    
+
     services:
       postgres:
         image: postgres:14
@@ -52,25 +52,44 @@ jobs:
         PGPASSWORD: testpassword
       run: |
         sudo apt-get install -y postgresql-client
-        # Esegue i SUOI script originali per creare la struttura del db temporaneo
         psql -h localhost -U postgres -d catasto_storico -f sql_scripts/02_creazione-schema-tabelle.sql
         psql -h localhost -U postgres -d catasto_storico -f sql_scripts/03_funzioni-procedure.sql
-        # Aggiunga qui altri script se necessario (es. viste o dati di test)
 
     - name: Esecuzione Test Automatici (Pytest)
       env:
-        # Queste variabili verranno lette dal suo nuovo config.py e conftest.py
         CI: true
         DB_HOST: localhost
         DB_USER: postgres
         DB_PASS: testpassword
         DB_NAME: catasto_storico
         DB_PORT: 5432
-        # PyQt6 su Linux richiede un platform plugin: offscreen evita errori
-        # su runner senza display fisico (GitHub Actions headless)
         QT_QPA_PLATFORM: offscreen
       run: |
         python -m pytest tests/
+
+    # ----------------------------------------------------------
+    # SCREENSHOT AUTOMATICI: avvia la GUI headless e cattura
+    # immagini consultabili direttamente su GitHub come artifact
+    # ----------------------------------------------------------
+    - name: Acquisizione Screenshot GUI
+      env:
+        CI: true
+        DB_HOST: localhost
+        DB_USER: postgres
+        DB_PASS: testpassword
+        DB_NAME: catasto_storico
+        DB_PORT: 5432
+        QT_QPA_PLATFORM: offscreen
+      run: |
+        python tests/take_screenshots.py || true
+
+    - name: Caricamento Screenshot
+      uses: actions/upload-artifact@v4
+      if: always()
+      with:
+        name: Meridiana-Screenshots
+        path: screenshots/*.png
+        if-no-files-found: ignore
 
   # ==========================================
   # FASE 2: BUILD (su Windows per Inno Setup)
@@ -96,7 +115,21 @@ jobs:
 
     - name: Compilazione Eseguibile con PyInstaller
       run: pyinstaller meridiana.spec
-      
+
+    # ----------------------------------------------------------
+    # BUILD PORTABILE: zip della cartella dist\Meridiana
+    # Estraibile ed eseguibile senza installazione (no admin)
+    # ----------------------------------------------------------
+    - name: Creazione Build Portabile (ZIP)
+      run: |
+        Compress-Archive -Path dist\Meridiana\* -DestinationPath Meridiana_Portabile.zip
+
+    - name: Caricamento Build Portabile
+      uses: actions/upload-artifact@v4
+      with:
+        name: Meridiana-Portabile-Windows
+        path: Meridiana_Portabile.zip
+
     - name: Compilazione Installer con Inno Setup
       run: iscc Meridiana_Installer.iss
 
@@ -104,5 +137,4 @@ jobs:
       uses: actions/upload-artifact@v4
       with:
         name: Meridiana-Setup-Windows
-        # Ora puntiamo alla cartella corretta definita nel file .iss!
         path: Installer\*.exe
