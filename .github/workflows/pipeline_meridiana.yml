@@ -2,7 +2,7 @@ name: CI/CD Meridiana (Test & Build)
 
 on:
   push:
-    branches: [ "main", "master" ]
+    branches: [ "main", "master", "claude/review-program-uOikt" ]
   workflow_dispatch: # Permette di avviare l'azione manualmente da GitHub
 
 jobs:
@@ -55,12 +55,15 @@ jobs:
     - name: Esecuzione Test Automatici (Pytest)
       env:
         # Queste variabili verranno lette dal suo nuovo config.py e conftest.py
-        CI: true 
+        CI: true
         DB_HOST: localhost
         DB_USER: postgres
         DB_PASS: testpassword
         DB_NAME: catasto_storico
         DB_PORT: 5432
+        # PyQt6 su Linux richiede un platform plugin: offscreen evita errori
+        # su runner senza display fisico (GitHub Actions headless)
+        QT_QPA_PLATFORM: offscreen
       run: |
         python -m pytest tests/
 
