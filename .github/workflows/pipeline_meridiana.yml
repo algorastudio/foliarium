@@ -36,6 +36,11 @@ jobs:
       with:
         python-version: '3.12'
 
+    - name: Installazione librerie di sistema per Qt6
+      run: |
+        sudo apt-get update -y
+        sudo apt-get install -y libegl1 libgl1 libnss3 libnspr4
+
     - name: Installazione Dipendenze
       run: |
         python -m pip install --upgrade pip
