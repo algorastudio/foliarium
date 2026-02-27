@@ -6,9 +6,6 @@
     "ghcr.io/devcontainers/features/desktop-lite:1": {
       "password": "meridiana",
       "webPort": 6080
-    },
-    "ghcr.io/devcontainers/features/postgresql:1": {
-      "version": "14"
     }
   },
 

@@ -8,19 +8,48 @@ step()  { echo -e "\n${GREEN}==>${NC} $*"; }
 warn()  { echo -e "${YELLOW}[WARN]${NC} $*"; }
 die()   { echo -e "${RED}[ERR ]${NC} $*" >&2; exit 1; }
 
-# ── 1. Librerie di sistema per Qt6 ────────────────────────────────────────────
-step "[1/4] Installazione librerie di sistema per Qt6"
+# ── 1. PostgreSQL 14 via PGDG ─────────────────────────────────────────────────
+step "[1/5] Installazione PostgreSQL 14"
 sudo apt-get update -y -q
+sudo apt-get install -y -q gnupg curl
+
+# Aggiunge il repository ufficiale PGDG (più affidabile della devcontainer feature)
+curl -fsSL https://www.postgresql.org/media/keys/ACCC4CF8.asc \
+    | sudo gpg --dearmor -o /usr/share/keyrings/postgresql-keyring.gpg
+echo "deb [signed-by=/usr/share/keyrings/postgresql-keyring.gpg] \
+    https://apt.postgresql.org/pub/repos/apt bullseye-pgdg main" \
+    | sudo tee /etc/apt/sources.list.d/pgdg.list > /dev/null
+
+sudo apt-get update -y -q
+sudo apt-get install -y -q postgresql-14 postgresql-client-14
+
+# Configura autenticazione trust per localhost (dev environment)
+sudo bash -c 'cat > /etc/postgresql/14/main/pg_hba.conf <<HBA
+# Autenticazione locale – trust per sviluppo (Codespaces)
+local   all   all                trust
+host    all   all   127.0.0.1/32 trust
+host    all   all   ::1/128      trust
+HBA'
+
+# Avvia PostgreSQL e verifica
+sudo service postgresql start
+pg_isready -h localhost -U postgres -q \
+    || die "PostgreSQL non si è avviato correttamente"
+
+echo "  PostgreSQL $(psql -h localhost -U postgres -Atc 'SELECT version()' | cut -d' ' -f1-2)"
+
+# ── 2. Librerie di sistema per Qt6 ────────────────────────────────────────────
+step "[2/5] Installazione librerie di sistema per Qt6"
 sudo apt-get install -y -q \
     libegl1 libgl1 libnss3 libnspr4 \
     libxkbcommon-x11-0 \
     libxcb-icccm4 libxcb-image0 libxcb-keysyms1 \
     libxcb-randr0 libxcb-render-util0 \
     libxcb-xinerama0 libxcb-xfixes0 \
-    postgresql-client libpq-dev
+    libpq-dev
 
-# ── 2. Dipendenze Python ──────────────────────────────────────────────────────
-step "[2/4] Installazione dipendenze Python"
+# ── 3. Dipendenze Python ──────────────────────────────────────────────────────
+step "[3/5] Installazione dipendenze Python"
 
 # Rileva venv creato da VS Code / Codespaces, altrimenti usa il Python globale
 if [[ -n "${VIRTUAL_ENV:-}" ]]; then
@@ -38,25 +67,17 @@ fi
 echo "  Python: $($PYTHON --version)"
 echo "  Pip:    $($PIP --version)"
 
-# ── 3. Attesa PostgreSQL ──────────────────────────────────────────────────────
-step "[3/4] Inizializzazione database"
-echo "  Attendo che PostgreSQL sia pronto..."
-for i in $(seq 1 30); do
-    pg_isready -h localhost -U postgres -q && break
-    sleep 1
-done
-pg_isready -h localhost -U postgres -q || die "PostgreSQL non risponde dopo 30s"
+# ── 4. Inizializzazione database ──────────────────────────────────────────────
+step "[4/5] Inizializzazione database"
 
-export PGPASSWORD="${PGPASSWORD:-postgres}"
+DB="${PGDATABASE:-catasto_storico}"
 
 # Crea il database se non esiste
-DB="${PGDATABASE:-catasto_storico}"
 psql -h localhost -U postgres -tc \
     "SELECT 1 FROM pg_database WHERE datname='$DB'" \
     | grep -q 1 \
     || psql -h localhost -U postgres -c "CREATE DATABASE \"$DB\";"
 
-# ── 4. Applica gli script SQL in ordine ───────────────────────────────────────
 run_sql() {
     local f="$1"
     if [[ -f "$f" ]]; then
@@ -75,7 +96,7 @@ run_sql sql_scripts/07_user-management.sql
 run_sql sql_scripts/07a_bootstrap_admin.sql
 
 # ── Completato ─────────────────────────────────────────────────────────────────
-step "[4/4] Setup completato"
+step "[5/5] Setup completato"
 cat <<'EOF'
 
   ┌─────────────────────────────────────────────────┐
