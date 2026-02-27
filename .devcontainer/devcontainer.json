@@ -28,6 +28,11 @@
   "containerEnv": {
     "DISPLAY": ":1",
     "QT_QPA_PLATFORM": "xcb",
+    "PGHOST": "localhost",
+    "PGPORT": "5432",
+    "PGUSER": "postgres",
+    "PGPASSWORD": "postgres",
+    "PGDATABASE": "catasto_storico",
     "DB_HOST": "localhost",
     "DB_USER": "postgres",
     "DB_PASS": "postgres",
