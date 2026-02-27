@@ -8,7 +8,8 @@ sudo apt-get install -y -q \
     libegl1 libgl1 libnss3 libnspr4 \
     libxkbcommon-x11-0 libxcb-icccm4 libxcb-image0 \
     libxcb-keysyms1 libxcb-randr0 libxcb-render-util0 \
-    libxcb-xinerama0 libxcb-xfixes0 postgresql-client
+    libxcb-xinerama0 libxcb-xfixes0 postgresql-client \
+    libpq-dev
 
 echo "=== [2/4] Installazione dipendenze Python ==="
 # Se un venv è già attivo (creato da VS Code / Codespaces) lo usiamo,
