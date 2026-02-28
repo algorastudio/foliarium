@@ -2501,7 +2501,7 @@ class CatastoDBManager:
             return False
         
         progress_dialog = QProgressDialog("Aggiornamento viste materializzate in corso...", "Annulla", 0, 0, None)
-        progress_dialog.setWindowModality(Qt.WindowModal)
+        progress_dialog.setWindowModality(Qt.WindowModality.WindowModal)
         progress_dialog.setCancelButton(None)
         progress_dialog.show()
         QApplication.processEvents()

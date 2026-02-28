@@ -919,8 +919,8 @@ class PDFApreviewDialog(QDialog):
         self.text_preview.setPlainText(text_content)
         layout.addWidget(self.text_preview)
 
-        self.button_box = QDialogButtonBox(QDialogButtonBox.Ok | QDialogButtonBox.Cancel)
-        self.button_box.button(QDialogButtonBox.Ok).setText("Procedi con Esportazione PDF")
+        self.button_box = QDialogButtonBox(QDialogButtonBox.StandardButton.Ok | QDialogButtonBox.StandardButton.Cancel)
+        self.button_box.button(QDialogButtonBox.StandardButton.Ok).setText("Procedi con Esportazione PDF")
         self.button_box.accepted.connect(self.accept)
         self.button_box.rejected.connect(self.reject)
         layout.addWidget(self.button_box)
@@ -948,8 +948,8 @@ class CSVApreviewDialog(QDialog):
         self.table_preview.resizeColumnsToContents()
         layout.addWidget(self.table_preview)
 
-        self.button_box = QDialogButtonBox(QDialogButtonBox.Ok | QDialogButtonBox.Cancel)
-        self.button_box.button(QDialogButtonBox.Ok).setText("Procedi con Esportazione")
+        self.button_box = QDialogButtonBox(QDialogButtonBox.StandardButton.Ok | QDialogButtonBox.StandardButton.Cancel)
+        self.button_box.button(QDialogButtonBox.StandardButton.Ok).setText("Procedi con Esportazione")
         self.button_box.accepted.connect(self.accept)
         self.button_box.rejected.connect(self.reject)
         layout.addWidget(self.button_box)

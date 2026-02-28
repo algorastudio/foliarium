@@ -142,8 +142,8 @@ class DBConfigDialog(QDialog):
         form_layout.addRow("Password Database:", self.password_edit)
         form_layout.addRow(self.save_password_check)
         
-        buttons = QDialogButtonBox(QDialogButtonBox.Ok | QDialogButtonBox.Cancel, self)
-        buttons.button(QDialogButtonBox.Ok).setText("Testa e Salva")
+        buttons = QDialogButtonBox(QDialogButtonBox.StandardButton.Ok | QDialogButtonBox.StandardButton.Cancel, self)
+        buttons.button(QDialogButtonBox.StandardButton.Ok).setText("Testa e Salva")
         buttons.accepted.connect(self._handle_save_and_connect)
         buttons.rejected.connect(self.reject)
         layout.addWidget(buttons)
@@ -558,11 +558,11 @@ class DocumentViewerDialog(QDialog):
         try:
             self.graphics_scene = QGraphicsScene(self)
             self.graphics_view = QGraphicsView(self.graphics_scene, self)
-            self.graphics_view.setRenderHint(QPainter.Antialiasing)
-            self.graphics_view.setRenderHint(QPainter.SmoothPixmapTransform)
-            self.graphics_view.setCacheMode(QGraphicsView.CacheBackground)
-            self.graphics_view.setViewportUpdateMode(QGraphicsView.BoundingRectViewportUpdate)
-            self.graphics_view.setDragMode(QGraphicsView.ScrollHandDrag)
+            self.graphics_view.setRenderHint(QPainter.RenderHint.Antialiasing)
+            self.graphics_view.setRenderHint(QPainter.RenderHint.SmoothPixmapTransform)
+            self.graphics_view.setCacheMode(QGraphicsView.CacheModeFlag.CacheBackground)
+            self.graphics_view.setViewportUpdateMode(QGraphicsView.ViewportUpdateMode.BoundingRectViewportUpdate)
+            self.graphics_view.setDragMode(QGraphicsView.DragMode.ScrollHandDrag)
 
             pixmap = QPixmap(str(self.file_path))
             if pixmap.isNull():
@@ -721,7 +721,7 @@ class PartitaDetailsDialog(QDialog):
         ])
         variazioni_table.setAlternatingRowColors(True)
         variazioni_table.horizontalHeader().setStretchLastSection(True) # Per far espandere l'ultima colonna
-        variazioni_table.setEditTriggers(QTableWidget.NoEditTriggers)
+        variazioni_table.setEditTriggers(QAbstractItemView.EditTrigger.NoEditTriggers)
 
         if self.partita.get('variazioni'):
             variazioni_table.setRowCount(len(self.partita['variazioni']))
@@ -770,8 +770,8 @@ class PartitaDetailsDialog(QDialog):
         self.documents_table = QTableWidget()
         self.documents_table.setColumnCount(6)
         self.documents_table.setHorizontalHeaderLabels(["ID Doc.", "Titolo", "Tipo Doc.", "Anno", "Rilevanza", "Percorso"])
-        self.documents_table.setEditTriggers(QTableWidget.NoEditTriggers)
-        self.documents_table.setSelectionBehavior(QTableWidget.SelectRows)
+        self.documents_table.setEditTriggers(QAbstractItemView.EditTrigger.NoEditTriggers)
+        self.documents_table.setSelectionBehavior(QAbstractItemView.SelectionBehavior.SelectRows)
         self.documents_table.horizontalHeader().setStretchLastSection(True)
         self.documents_table.setSortingEnabled(True)
         self.documents_table.itemSelectionChanged.connect(self._update_details_doc_buttons_state)
@@ -1187,9 +1187,9 @@ class ModificaPartitaDialog(QDialog):
         self.possessori_table = QTableWidget()
         self.possessori_table.setColumnCount(5)
         self.possessori_table.setHorizontalHeaderLabels(["ID Rel.", "ID Poss.", "Nome Completo Possessore", "Titolo", "Quota"])
-        self.possessori_table.setEditTriggers(QTableWidget.NoEditTriggers)
-        self.possessori_table.setSelectionBehavior(QTableWidget.SelectRows)
-        self.possessori_table.setSelectionMode(QTableWidget.SingleSelection)
+        self.possessori_table.setEditTriggers(QAbstractItemView.EditTrigger.NoEditTriggers)
+        self.possessori_table.setSelectionBehavior(QAbstractItemView.SelectionBehavior.SelectRows)
+        self.possessori_table.setSelectionMode(QAbstractItemView.SelectionMode.SingleSelection)
         self.possessori_table.setAlternatingRowColors(True)
         
         # Logica per l'espansione delle colonne
@@ -1231,8 +1231,8 @@ class ModificaPartitaDialog(QDialog):
         layout_immobili = QVBoxLayout(self.tab_immobili)
 
         self.immobili_table = ImmobiliTableWidget()
-        self.immobili_table.setSelectionMode(QTableWidget.SingleSelection)
-        self.immobili_table.setSelectionBehavior(QTableWidget.SelectRows)
+        self.immobili_table.setSelectionMode(QAbstractItemView.SelectionMode.SingleSelection)
+        self.immobili_table.setSelectionBehavior(QAbstractItemView.SelectionBehavior.SelectRows)
         self.immobili_table.itemSelectionChanged.connect(self._aggiorna_stato_pulsanti_immobili)
         layout_immobili.addWidget(self.immobili_table)
 
@@ -1263,9 +1263,9 @@ class ModificaPartitaDialog(QDialog):
         self.variazioni_table.setHorizontalHeaderLabels([
             "ID Var.", "Tipo", "Data Var.", "Partita Origine", "Partita Destinazione", "Contratto"
         ])
-        self.variazioni_table.setEditTriggers(QTableWidget.NoEditTriggers)
-        self.variazioni_table.setSelectionBehavior(QTableWidget.SelectRows)
-        self.variazioni_table.setSelectionMode(QTableWidget.SingleSelection)
+        self.variazioni_table.setEditTriggers(QAbstractItemView.EditTrigger.NoEditTriggers)
+        self.variazioni_table.setSelectionBehavior(QAbstractItemView.SelectionBehavior.SelectRows)
+        self.variazioni_table.setSelectionMode(QAbstractItemView.SelectionMode.SingleSelection)
         self.variazioni_table.horizontalHeader().setStretchLastSection(True)
         self.variazioni_table.setAlternatingRowColors(True)
         self.variazioni_table.itemSelectionChanged.connect(self._aggiorna_stato_pulsanti_variazioni)
@@ -1295,16 +1295,16 @@ class ModificaPartitaDialog(QDialog):
         self.documents_table.setHorizontalHeaderLabels([
             "ID Doc.", "Titolo", "Tipo Doc.", "Anno", "Rilevanza", "Percorso/Azione"
         ])
-        self.documents_table.setEditTriggers(QTableWidget.NoEditTriggers)
-        self.documents_table.setSelectionBehavior(QTableWidget.SelectRows)
-        self.documents_table.setSelectionMode(QTableWidget.SingleSelection)
+        self.documents_table.setEditTriggers(QAbstractItemView.EditTrigger.NoEditTriggers)
+        self.documents_table.setSelectionBehavior(QAbstractItemView.SelectionBehavior.SelectRows)
+        self.documents_table.setSelectionMode(QAbstractItemView.SelectionMode.SingleSelection)
         self.documents_table.horizontalHeader().setStretchLastSection(True)
         self.documents_table.setSortingEnabled(True)
         self.documents_table.itemSelectionChanged.connect(self._update_details_doc_buttons_state)
         
         self.documents_table.setAcceptDrops(True)
         self.documents_table.setDropIndicatorShown(True)
-        self.documents_table.setDragDropMode(QAbstractItemView.DragDropMode.DragDropMode.DropOnly)
+        self.documents_table.setDragDropMode(QAbstractItemView.DragDropMode.DropOnly)
         self.documents_table.dragEnterEvent = self.documents_table_dragEnterEvent
         self.documents_table.dragMoveEvent = self.documents_table_dragMoveEvent
         self.documents_table.dropEvent = self.documents_table_dropEvent
@@ -2612,7 +2612,7 @@ class ModificaComuneDialog(QDialog):
     def _initUI(self):
         main_layout = QVBoxLayout(self)
         form_layout = QFormLayout()
-        form_layout.setRowWrapPolicy(QFormLayout.WrapAllRows)
+        form_layout.setRowWrapPolicy(QFormLayout.RowWrapPolicy.WrapAllRows)
         form_layout.setLabelAlignment(Qt.AlignmentFlag.AlignLeft)
 
         self.id_label = QLabel(str(self.comune_id))
@@ -2658,7 +2658,7 @@ class ModificaComuneDialog(QDialog):
 
         main_layout.addLayout(form_layout)
 
-        self.button_box = QDialogButtonBox(QDialogButtonBox.Save | QDialogButtonBox.Cancel)
+        self.button_box = QDialogButtonBox(QDialogButtonBox.StandardButton.Save | QDialogButtonBox.StandardButton.Cancel)
         self.button_box.accepted.connect(self._save_changes)
         self.button_box.rejected.connect(self.reject)
         main_layout.addWidget(self.button_box)
@@ -2766,7 +2766,7 @@ class DuplicaPartitaOptionsDialog(QDialog):
         self.mantieni_immobili_check.setChecked(False)
         layout.addRow(self.mantieni_immobili_check)
         
-        self.button_box = QDialogButtonBox(QDialogButtonBox.Ok | QDialogButtonBox.Cancel)
+        self.button_box = QDialogButtonBox(QDialogButtonBox.StandardButton.Ok | QDialogButtonBox.StandardButton.Cancel)
         self.button_box.accepted.connect(self.accept)
         self.button_box.rejected.connect(self.reject)
         layout.addRow(self.button_box)
@@ -2813,9 +2813,9 @@ class PossessoriComuneDialog(QDialog):
         self.possessori_table.setHorizontalHeaderLabels([
             "ID Poss.", "Nome Completo", "Cognome Nome", "Paternità", "Stato"
         ])
-        self.possessori_table.setEditTriggers(QTableWidget.NoEditTriggers)
-        self.possessori_table.setSelectionBehavior(QTableWidget.SelectRows)
-        self.possessori_table.setSelectionMode(QTableWidget.SingleSelection)
+        self.possessori_table.setEditTriggers(QAbstractItemView.EditTrigger.NoEditTriggers)
+        self.possessori_table.setSelectionBehavior(QAbstractItemView.SelectionBehavior.SelectRows)
+        self.possessori_table.setSelectionMode(QAbstractItemView.SelectionMode.SingleSelection)
         self.possessori_table.setAlternatingRowColors(True)
         self.possessori_table.horizontalHeader().setSectionResizeMode(
             QHeaderView.ResizeMode.Stretch)  # o ResizeToContents
@@ -2998,9 +2998,9 @@ class PartiteComuneDialog(QDialog):
             "Data Impianto", "Num. Possessori", "Num. Immobili", "Num. Documenti"
         ])
 
-        self.partite_table.setEditTriggers(QTableWidget.NoEditTriggers)
-        self.partite_table.setSelectionBehavior(QTableWidget.SelectRows)
-        self.partite_table.setSelectionMode(QTableWidget.SingleSelection)
+        self.partite_table.setEditTriggers(QAbstractItemView.EditTrigger.NoEditTriggers)
+        self.partite_table.setSelectionBehavior(QAbstractItemView.SelectionBehavior.SelectRows)
+        self.partite_table.setSelectionMode(QAbstractItemView.SelectionMode.SingleSelection)
         self.partite_table.setAlternatingRowColors(True)
         self.partite_table.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeMode.Stretch)
         self.partite_table.setSortingEnabled(True)
@@ -3170,7 +3170,7 @@ class ModificaLocalitaDialog(QDialog):
         self.civico_spinbox.setSpecialValueText("Nessuno")
         form_layout.addRow("Numero Civico (0 se assente):", self.civico_spinbox)
         layout.addLayout(form_layout)
-        buttons = QDialogButtonBox(QDialogButtonBox.Save | QDialogButtonBox.Cancel, self)
+        buttons = QDialogButtonBox(QDialogButtonBox.StandardButton.Save | QDialogButtonBox.StandardButton.Cancel, self)
         buttons.accepted.connect(self._save_changes)
         buttons.rejected.connect(self.reject)
         layout.addWidget(buttons)
@@ -3288,7 +3288,7 @@ class PeriodoStoricoDetailsDialog(QDialog):
 
         # Pulsanti
         self.button_box = QDialogButtonBox(
-            QDialogButtonBox.Save | QDialogButtonBox.Cancel)
+            QDialogButtonBox.StandardButton.Save | QDialogButtonBox.StandardButton.Cancel)
         self.button_box.accepted.connect(self._save_changes)
         self.button_box.rejected.connect(self.reject)
         main_layout.addWidget(self.button_box)
@@ -3421,9 +3421,9 @@ class LocalitaSelectionDialog(QDialog):
         self.localita_table = QTableWidget()
         self.localita_table.setColumnCount(4)
         self.localita_table.setHorizontalHeaderLabels(["ID", "Nome", "Tipo", "Civico"])
-        self.localita_table.setEditTriggers(QTableWidget.NoEditTriggers)
-        self.localita_table.setSelectionBehavior(QTableWidget.SelectRows)
-        self.localita_table.setSelectionMode(QTableWidget.SingleSelection)
+        self.localita_table.setEditTriggers(QAbstractItemView.EditTrigger.NoEditTriggers)
+        self.localita_table.setSelectionBehavior(QAbstractItemView.SelectionBehavior.SelectRows)
+        self.localita_table.setSelectionMode(QAbstractItemView.SelectionMode.SingleSelection)
         self.localita_table.itemSelectionChanged.connect(self._aggiorna_stato_pulsanti_action_localita) # Qui si collega il segnale
         self.localita_table.itemDoubleClicked.connect(self._handle_double_click)
         select_layout.addWidget(self.localita_table)
@@ -3842,7 +3842,7 @@ class ModificaImmobileDialog(QDialog):
         main_layout.addLayout(form_layout)
 
         # --- Pulsanti Salva e Annulla ---
-        self.button_box = QDialogButtonBox(QDialogButtonBox.Save | QDialogButtonBox.Cancel)
+        self.button_box = QDialogButtonBox(QDialogButtonBox.StandardButton.Save | QDialogButtonBox.StandardButton.Cancel)
         self.button_box.accepted.connect(self.accept)
         self.button_box.rejected.connect(self.reject)
         
@@ -3872,7 +3872,7 @@ class ModificaImmobileDialog(QDialog):
             if not self.dati_originali:
                 QMessageBox.critical(self, "Errore", "Impossibile trovare i dati per l'immobile specificato.")
                 # Disabilita i campi e il pulsante salva
-                self.button_box.button(QDialogButtonBox.Save).setEnabled(False)
+                self.button_box.button(QDialogButtonBox.StandardButton.Save).setEnabled(False)
                 for i in range(self.layout().count()):
                     widget = self.layout().itemAt(i).widget()
                     if widget: widget.setEnabled(False)
@@ -3974,8 +3974,8 @@ class PossessoreSelectionDialog(QDialog):
         # Aggiungiamo il comune di riferimento alla tabella
         self.possessori_table.setColumnCount(5)
         self.possessori_table.setHorizontalHeaderLabels(["ID", "Nome Completo", "Paternità", "Comune Riferimento", "Stato"])
-        self.possessori_table.setSelectionBehavior(QTableWidget.SelectRows)
-        self.possessori_table.setEditTriggers(QTableWidget.NoEditTriggers)
+        self.possessori_table.setSelectionBehavior(QAbstractItemView.SelectionBehavior.SelectRows)
+        self.possessori_table.setEditTriggers(QAbstractItemView.EditTrigger.NoEditTriggers)
         self.possessori_table.horizontalHeader().setSectionResizeMode(1, QHeaderView.ResizeMode.Stretch)
         self.possessori_table.horizontalHeader().setSectionResizeMode(3, QHeaderView.ResizeMode.Stretch)
         self.possessori_table.itemDoubleClicked.connect(self.handle_selection)
@@ -4395,10 +4395,10 @@ class PartitaSearchDialog(QDialog):
         self.results_table.setHorizontalHeaderLabels(["ID", "Comune", "Numero", "Suffisso", "Tipo", "Stato"])
         
         self.results_table.setAlternatingRowColors(True)
-        self.results_table.setSelectionBehavior(QTableWidget.SelectRows)
-        self.results_table.setSelectionMode(QTableWidget.SingleSelection)
+        self.results_table.setSelectionBehavior(QAbstractItemView.SelectionBehavior.SelectRows)
+        self.results_table.setSelectionMode(QAbstractItemView.SelectionMode.SingleSelection)
         self.results_table.itemDoubleClicked.connect(self.select_partita)
-        self.results_table.setEditTriggers(QTableWidget.NoEditTriggers)
+        self.results_table.setEditTriggers(QAbstractItemView.EditTrigger.NoEditTriggers)
         results_layout.addWidget(self.results_table)
         results_group.setLayout(results_layout)
         layout.addWidget(results_group)
@@ -4600,7 +4600,7 @@ class CreatePossessoreDialog(QDialog):
         layout.addRow("Comune di Riferimento (*):", self.comune_combo)
         layout.addRow(self.attivo_check)
 
-        self.button_box = QDialogButtonBox(QDialogButtonBox.Ok | QDialogButtonBox.Cancel)
+        self.button_box = QDialogButtonBox(QDialogButtonBox.StandardButton.Ok | QDialogButtonBox.StandardButton.Cancel)
         layout.addRow(self.button_box)
 
         # Connessioni e caricamento dati
@@ -4688,9 +4688,9 @@ class LocalitaSelectionDialog(QDialog):
         self.localita_table = QTableWidget()
         self.localita_table.setColumnCount(4)
         self.localita_table.setHorizontalHeaderLabels(["ID", "Nome", "Tipo", "Civico"])
-        self.localita_table.setEditTriggers(QTableWidget.NoEditTriggers)
-        self.localita_table.setSelectionBehavior(QTableWidget.SelectRows)
-        self.localita_table.setSelectionMode(QTableWidget.SingleSelection)
+        self.localita_table.setEditTriggers(QAbstractItemView.EditTrigger.NoEditTriggers)
+        self.localita_table.setSelectionBehavior(QAbstractItemView.SelectionBehavior.SelectRows)
+        self.localita_table.setSelectionMode(QAbstractItemView.SelectionMode.SingleSelection)
         self.localita_table.itemSelectionChanged.connect(self._aggiorna_stato_pulsanti_action_localita) # Qui si collega il segnale
         self.localita_table.itemDoubleClicked.connect(self._handle_double_click)
         select_layout.addWidget(self.localita_table)
@@ -5190,7 +5190,7 @@ class PeriodoStoricoEditDialog(QDialog):
         layout.addRow("Anno Fine (0 se Aperto):", self.anno_fine_spin)
         layout.addRow("Descrizione:", self.descrizione_edit)
 
-        buttons = QDialogButtonBox(QDialogButtonBox.Save | QDialogButtonBox.Cancel)
+        buttons = QDialogButtonBox(QDialogButtonBox.StandardButton.Save | QDialogButtonBox.StandardButton.Cancel)
         buttons.accepted.connect(self.save_and_accept)
         buttons.rejected.connect(self.reject)
         layout.addRow(buttons)
@@ -5237,9 +5237,9 @@ class UserSelectionDialog(QDialog):
         self.user_table.setColumnCount(5)
         self.user_table.setHorizontalHeaderLabels(
             ["ID", "Username", "Nome Completo", "Ruolo", "Stato"])
-        self.user_table.setSelectionBehavior(QTableWidget.SelectRows)
-        self.user_table.setSelectionMode(QTableWidget.SingleSelection)
-        self.user_table.setEditTriggers(QTableWidget.NoEditTriggers)
+        self.user_table.setSelectionBehavior(QAbstractItemView.SelectionBehavior.SelectRows)
+        self.user_table.setSelectionMode(QAbstractItemView.SelectionMode.SingleSelection)
+        self.user_table.setEditTriggers(QAbstractItemView.EditTrigger.NoEditTriggers)
         self.user_table.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeMode.Stretch)
         self.user_table.itemDoubleClicked.connect(self._accept_selection)
         layout.addWidget(self.user_table)
@@ -5343,8 +5343,8 @@ class AggiungiDocumentoDialog(QDialog):
 
         layout.addLayout(form)
 
-        self.button_box = QDialogButtonBox(QDialogButtonBox.Ok | QDialogButtonBox.Cancel)
-        self.button_box.button(QDialogButtonBox.Ok).setText("Salva Allegato")
+        self.button_box = QDialogButtonBox(QDialogButtonBox.StandardButton.Ok | QDialogButtonBox.StandardButton.Cancel)
+        self.button_box.button(QDialogButtonBox.StandardButton.Ok).setText("Salva Allegato")
         self.button_box.accepted.connect(self._salva_allegato)
         self.button_box.rejected.connect(self.reject)
         layout.addWidget(self.button_box)
@@ -5459,7 +5459,7 @@ class CSVImportResultDialog(QDialog):
         main_layout.addWidget(tabs)
 
         # Pulsante OK
-        button_box = QDialogButtonBox(QDialogButtonBox.Ok)
+        button_box = QDialogButtonBox(QDialogButtonBox.StandardButton.Ok)
         button_box.accepted.connect(self.accept)
         main_layout.addWidget(button_box)
 
@@ -5470,7 +5470,7 @@ class CSVImportResultDialog(QDialog):
             table.setItem(row_idx, 0, QTableWidgetItem(str(row_data.get('id', 'N/A'))))
             table.setItem(row_idx, 1, QTableWidgetItem(row_data.get('nome_completo', '')))
             table.setItem(row_idx, 2, QTableWidgetItem(row_data.get('comune_nome', '')))
-        table.setEditTriggers(QTableWidget.NoEditTriggers)
+        table.setEditTriggers(QAbstractItemView.EditTrigger.NoEditTriggers)
         table.resizeColumnsToContents()
         table.horizontalHeader().setStretchLastSection(True)
         return table
@@ -5483,7 +5483,7 @@ class CSVImportResultDialog(QDialog):
             table.setItem(row_idx, 0, QTableWidgetItem(str(line_num)))
             table.setItem(row_idx, 1, QTableWidgetItem(str(row_data)))
             table.setItem(row_idx, 2, QTableWidgetItem(error_msg))
-        table.setEditTriggers(QTableWidget.NoEditTriggers)
+        table.setEditTriggers(QAbstractItemView.EditTrigger.NoEditTriggers)
         table.resizeColumnsToContents()
         table.horizontalHeader().setStretchLastSection(True)
         return table
@@ -5510,7 +5510,7 @@ class BackupReminderSettingsDialog(QDialog):
         info_label.setStyleSheet("font-style: italic; color: #555;")
         layout.addRow(info_label)
 
-        buttons = QDialogButtonBox(QDialogButtonBox.Save | QDialogButtonBox.Cancel)
+        buttons = QDialogButtonBox(QDialogButtonBox.StandardButton.Save | QDialogButtonBox.StandardButton.Cancel)
         buttons.accepted.connect(self.accept)
         buttons.rejected.connect(self.reject)
         layout.addRow(buttons)
@@ -5544,11 +5544,11 @@ class EulaDialog(QDialog):
 
         # --- INIZIO CORREZIONE ---
         # Usiamo i pulsanti standard 'Ok' e 'Cancel'
-        button_box = QDialogButtonBox(QDialogButtonBox.Ok | QDialogButtonBox.Cancel)
+        button_box = QDialogButtonBox(QDialogButtonBox.StandardButton.Ok | QDialogButtonBox.StandardButton.Cancel)
 
         # E poi ne personalizziamo il testo
-        button_box.button(QDialogButtonBox.Ok).setText("Accetto i Termini")
-        button_box.button(QDialogButtonBox.Cancel).setText("Rifiuto ed Esci")
+        button_box.button(QDialogButtonBox.StandardButton.Ok).setText("Accetto i Termini")
+        button_box.button(QDialogButtonBox.StandardButton.Cancel).setText("Rifiuto ed Esci")
 
         # Le connessioni ai segnali 'accepted' e 'rejected' funzionano correttamente
         # perché si basano sul "ruolo" del pulsante (AcceptRole, RejectRole), non sul testo.

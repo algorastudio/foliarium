@@ -95,7 +95,7 @@ class TestLandingPageWidget:
         # Simula click sul pulsante (assumendo che esista btn_gestione_comuni)
         # Nota: questo richiede conoscenza della struttura interna del widget
         if hasattr(widget, 'btn_gestione_comuni'):
-            QTest.mouseClick(widget.btn_gestione_comuni, Qt.LeftButton)
+            QTest.mouseClick(widget.btn_gestione_comuni, Qt.MouseButton.LeftButton)
             signal_mock.assert_called_once()
 
 
@@ -306,7 +306,7 @@ class TestTableWidgets:
         widget.populate_table(test_data)
         
         # Test ordinamento per nome
-        widget.sortItems(1, Qt.AscendingOrder)
+        widget.sortItems(1, Qt.SortOrder.AscendingOrder)
         
         # Verifica ordine
         assert widget.item(0, 1).text() == 'BIANCHI ANNA'
@@ -387,7 +387,7 @@ class TestAccessibility:
         # Verifica che i widget principali siano nel tab order
         if hasattr(widget, 'numero_input') and hasattr(widget, 'tipo_combo'):
             # Simula pressione tab
-            QTest.keyClick(widget.numero_input, Qt.Key_Tab)
+            QTest.keyClick(widget.numero_input, Qt.Key.Key_Tab)
             
             # Il focus dovrebbe spostarsi al prossimo widget
             assert widget.tipo_combo.hasFocus() or \
@@ -402,5 +402,5 @@ class TestAccessibility:
         
         # Esempio generico
         if hasattr(widget, 'shortcut_new'):
-            QTest.keyClick(widget, Qt.Key_N, Qt.ControlModifier)
+            QTest.keyClick(widget, Qt.Key.Key_N, Qt.KeyboardModifier.ControlModifier)
             # Verifica azione eseguita

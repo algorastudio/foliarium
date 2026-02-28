@@ -103,9 +103,9 @@ class ElencoComuniWidget(LazyLoadedWidget):
             "ID", "Nome Comune", "Cod. Catastale", "Provincia",
             "Data Istituzione", "Data Soppressione", "Note"
         ])
-        self.comuni_table.setEditTriggers(QTableWidget.NoEditTriggers)
-        self.comuni_table.setSelectionBehavior(QTableWidget.SelectRows)
-        self.comuni_table.setSelectionMode(QTableWidget.SingleSelection) # Importante per menu contestuale su una riga
+        self.comuni_table.setEditTriggers(QAbstractItemView.EditTrigger.NoEditTriggers)
+        self.comuni_table.setSelectionBehavior(QAbstractItemView.SelectionBehavior.SelectRows)
+        self.comuni_table.setSelectionMode(QAbstractItemView.SelectionMode.SingleSelection) # Importante per menu contestuale su una riga
         self.comuni_table.setAlternatingRowColors(True)
         self.comuni_table.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeMode.Stretch)
         self.comuni_table.setSortingEnabled(True)
@@ -492,7 +492,7 @@ class RicercaPartiteWidget(QWidget):
             ["ID", "Comune", "Numero", "Tipo", "Stato"])
         self.results_table.setAlternatingRowColors(True)
         self.results_table.horizontalHeader().setStretchLastSection(True)
-        self.results_table.setSelectionBehavior(QTableWidget.SelectRows)
+        self.results_table.setSelectionBehavior(QAbstractItemView.SelectionBehavior.SelectRows)
 
         results_layout.addWidget(self.results_table)
 
@@ -783,9 +783,9 @@ class RicercaAvanzataImmobiliWidget(QWidget):
             "Class.", "Consist.", "Piani", "Vani", "Possessori"
         ])
         self.risultati_immobili_table.setEditTriggers(
-            QTableWidget.NoEditTriggers)
+            QAbstractItemView.EditTrigger.NoEditTriggers)
         self.risultati_immobili_table.setSelectionBehavior(
-            QTableWidget.SelectRows)
+            QAbstractItemView.SelectionBehavior.SelectRows)
         self.risultati_immobili_table.setAlternatingRowColors(True)
         self.risultati_immobili_table.horizontalHeader().setSectionResizeMode(
             QHeaderView.ResizeMode.ResizeToContents)  # ResizeToContents
@@ -1088,8 +1088,8 @@ class GestioneTipiLocalitaWidget(LazyLoadedWidget):
         self.table.setHorizontalHeaderLabels(["ID", "Nome Tipologia", "Descrizione"])
         self.table.horizontalHeader().setSectionResizeMode(1, QHeaderView.ResizeMode.Stretch)
         self.table.horizontalHeader().setSectionResizeMode(2, QHeaderView.ResizeMode.Stretch)
-        self.table.setSelectionBehavior(QTableWidget.SelectRows)
-        self.table.setEditTriggers(QTableWidget.NoEditTriggers)
+        self.table.setSelectionBehavior(QAbstractItemView.SelectionBehavior.SelectRows)
+        self.table.setEditTriggers(QAbstractItemView.EditTrigger.NoEditTriggers)
         group_layout.addWidget(self.table, 2)
 
         button_layout = QVBoxLayout()
@@ -1207,8 +1207,8 @@ class GestionePeriodiStoriciWidget(LazyLoadedWidget):
         self.table.horizontalHeader().setSectionResizeMode(1, QHeaderView.ResizeMode.Stretch)
         self.table.horizontalHeader().setSectionResizeMode(2, QHeaderView.ResizeMode.ResizeToContents)
         self.table.horizontalHeader().setSectionResizeMode(3, QHeaderView.ResizeMode.Stretch)
-        self.table.setSelectionBehavior(QTableWidget.SelectRows)
-        self.table.setEditTriggers(QTableWidget.NoEditTriggers)
+        self.table.setSelectionBehavior(QAbstractItemView.SelectionBehavior.SelectRows)
+        self.table.setEditTriggers(QAbstractItemView.EditTrigger.NoEditTriggers)
         group_layout.addWidget(self.table)
 
         button_layout = QVBoxLayout()
@@ -1865,7 +1865,7 @@ class RegistrazioneProprietaWidget(LazyLoadedWidget):
         
         add_poss_group = QGroupBox("Aggiungi Possessore"); add_poss_layout = QGridLayout(add_poss_group)
         self.possessore_search_combo = QComboBox(); self.possessore_search_combo.setEditable(True); self.possessore_search_combo.setPlaceholderText("Cerca possessore esistente...")
-        self.possessore_search_combo.completer().setCompletionMode(QCompleter.PopupCompletion); self.possessore_search_combo.completer().setFilterMode(Qt.MatchFlag.MatchContains)
+        self.possessore_search_combo.completer().setCompletionMode(QCompleter.CompletionMode.PopupCompletion); self.possessore_search_combo.completer().setFilterMode(Qt.MatchFlag.MatchContains)
         self.btn_add_selected_poss = QPushButton("Aggiungi Selezionato"); self.btn_add_selected_poss.clicked.connect(self._add_selected_possessore)
         self.btn_create_new_poss = QPushButton("Crea Nuovo..."); self.btn_create_new_poss.clicked.connect(self._create_and_add_new_possessore)
         add_poss_layout.addWidget(QLabel("Cerca:"), 0, 0); add_poss_layout.addWidget(self.possessore_search_combo, 0, 1)
@@ -1915,7 +1915,7 @@ class RegistrazioneProprietaWidget(LazyLoadedWidget):
     def _create_add_immobile_esistente_tab(self):
         widget = QWidget(); layout = QGridLayout(widget)
         self.imm_search_combo = QComboBox(); self.imm_search_combo.setEditable(True); self.imm_search_combo.setPlaceholderText("Seleziona prima un comune...")
-        self.imm_search_combo.setEnabled(False); self.imm_search_combo.completer().setCompletionMode(QCompleter.PopupCompletion); self.imm_search_combo.completer().setFilterMode(Qt.MatchFlag.MatchContains)
+        self.imm_search_combo.setEnabled(False); self.imm_search_combo.completer().setCompletionMode(QCompleter.CompletionMode.PopupCompletion); self.imm_search_combo.completer().setFilterMode(Qt.MatchFlag.MatchContains)
         self.btn_add_existing_imm = QPushButton("Aggiungi Selezionato"); self.btn_add_existing_imm.clicked.connect(self._add_existing_immobile)
         layout.addWidget(QLabel("Cerca Immobile:"), 0, 0); layout.addWidget(self.imm_search_combo, 0, 1); layout.addWidget(self.btn_add_existing_imm, 0, 2)
         return widget
@@ -2405,11 +2405,11 @@ class OperazioniPartitaWidget(QWidget):
         self.immobili_partita_sorgente_table = QTableWidget()
         # Rimuovere setColumnCount e setHorizontalHeaderLabels da qui se _carica_immobili_partita_sorgente lo fa dinamicamente
         self.immobili_partita_sorgente_table.setSelectionMode(
-            QTableWidget.SingleSelection)
+            QAbstractItemView.SelectionMode.SingleSelection)
         self.immobili_partita_sorgente_table.setSelectionBehavior(
-            QTableWidget.SelectRows)
+            QAbstractItemView.SelectionBehavior.SelectRows)
         self.immobili_partita_sorgente_table.setEditTriggers(
-            QTableWidget.NoEditTriggers)
+            QAbstractItemView.EditTrigger.NoEditTriggers)
         self.immobili_partita_sorgente_table.setFixedHeight(180)
         self.immobili_partita_sorgente_table.itemSelectionChanged.connect(
             self._immobile_sorgente_selezionato)
@@ -2590,9 +2590,9 @@ class OperazioniPartitaWidget(QWidget):
         self.pp_immobili_da_selezionare_table.setHorizontalHeaderLabels(
             ["Sel.", "ID Imm.", "Natura", "Località"])
         self.pp_immobili_da_selezionare_table.setSelectionMode(
-            QTableWidget.NoSelection)
+            QAbstractItemView.SelectionMode.NoSelection)
         self.pp_immobili_da_selezionare_table.setEditTriggers(
-            QTableWidget.NoEditTriggers)
+            QAbstractItemView.EditTrigger.NoEditTriggers)
         self.pp_immobili_da_selezionare_table.setFixedHeight(150)
         self.pp_immobili_da_selezionare_table.setVisible(False)
         immobili_transfer_layout_pp.addWidget(
@@ -2606,9 +2606,9 @@ class OperazioniPartitaWidget(QWidget):
         self.pp_nuovi_possessori_table.setHorizontalHeaderLabels(
             ["ID Poss.", "Nome Completo", "Titolo (*)", "Quota"])
         self.pp_nuovi_possessori_table.setEditTriggers(
-            QTableWidget.NoEditTriggers)
+            QAbstractItemView.EditTrigger.NoEditTriggers)
         self.pp_nuovi_possessori_table.setSelectionMode(
-            QTableWidget.SingleSelection)
+            QAbstractItemView.SelectionMode.SingleSelection)
         self.pp_nuovi_possessori_table.horizontalHeader(
         ).setSectionResizeMode(QHeaderView.ResizeMode.ResizeToContents)
         self.pp_nuovi_possessori_table.horizontalHeader().setStretchLastSection(True)
@@ -4475,9 +4475,9 @@ class GestioneUtentiWidget(LazyLoadedWidget):
         self.user_table = QTableWidget()
         self.user_table.setColumnCount(6)
         self.user_table.setHorizontalHeaderLabels(["ID", "Username", "Nome Completo", "Email", "Ruolo", "Stato"])
-        self.user_table.setSelectionBehavior(QTableWidget.SelectRows)
-        self.user_table.setSelectionMode(QTableWidget.SingleSelection)
-        self.user_table.setEditTriggers(QTableWidget.NoEditTriggers)
+        self.user_table.setSelectionBehavior(QAbstractItemView.SelectionBehavior.SelectRows)
+        self.user_table.setSelectionMode(QAbstractItemView.SelectionMode.SingleSelection)
+        self.user_table.setEditTriggers(QAbstractItemView.EditTrigger.NoEditTriggers)
         self.user_table.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeMode.Stretch)
         self.user_table.itemSelectionChanged.connect(self._update_action_buttons_state)
         layout.addWidget(self.user_table)
@@ -4623,10 +4623,10 @@ class GestioneUtentiWidget(LazyLoadedWidget):
             return
 
         new_password, ok = QInputDialog.getText(
-            self, "Reset Password", "Inserisci la nuova password temporanea:", QLineEdit.Password)
+            self, "Reset Password", "Inserisci la nuova password temporanea:", QLineEdit.EchoMode.Password)
         if ok and new_password:
             new_password_confirm, ok_confirm = QInputDialog.getText(
-                self, "Conferma Password", "Conferma la nuova password temporanea:", QLineEdit.Password)
+                self, "Conferma Password", "Conferma la nuova password temporanea:", QLineEdit.EchoMode.Password)
             if ok_confirm and new_password == new_password_confirm:
                 try:
                     new_hash = _hash_password(new_password)
@@ -4872,9 +4872,9 @@ class AuditLogViewerWidget(LazyLoadedWidget):
         self.log_table = QTableWidget()
         self.log_table.setColumnCount(8)
         self.log_table.setHorizontalHeaderLabels(["ID", "Data/Ora", "Utente", "Sessione", "Tabella", "Azione", "Record", "IP"])
-        self.log_table.setEditTriggers(QTableWidget.NoEditTriggers)
-        self.log_table.setSelectionBehavior(QTableWidget.SelectRows)
-        self.log_table.setSelectionMode(QTableWidget.SingleSelection)
+        self.log_table.setEditTriggers(QAbstractItemView.EditTrigger.NoEditTriggers)
+        self.log_table.setSelectionBehavior(QAbstractItemView.SelectionBehavior.SelectRows)
+        self.log_table.setSelectionMode(QAbstractItemView.SelectionMode.SingleSelection)
         self.log_table.setAlternatingRowColors(True)
         
         # Configurazione colonne
@@ -5249,7 +5249,7 @@ class BackupWidget(QWidget):
         self.output_text_edit = QTextEdit()
         self.output_text_edit.setReadOnly(True)
         self.output_text_edit.setLineWrapMode(
-            QTextEdit.NoWrap)
+            QTextEdit.LineWrapMode.NoWrap)
         self.progress_bar = QProgressBar()
         self.progress_bar.setVisible(False)
 
@@ -5331,7 +5331,7 @@ class BackupWidget(QWidget):
         user_message_text = ""
         message_box_type = QMessageBox.Icon.Information
 
-        if exitStatus == QProcess.CrashExit:
+        if exitStatus == QProcess.ExitStatus.CrashExit:
             user_message_title = f"Errore Grave durante il {operation_name_display}"
             user_message_text = (
                 f"Si è verificato un errore inaspettato e grave durante il {operation_name_display}. "
@@ -5413,7 +5413,7 @@ class BackupWidget(QWidget):
         password, ok = QInputDialog.getText(self, "Autenticazione Database per Backup",
                                             f"Inserisci la password per l'utente '{db_user_for_prompt}' "
                                             f"sul database '{db_name_for_prompt}':",
-                                            QLineEdit.Password)
+                                            QLineEdit.EchoMode.Password)
         if not ok:
             self._log_to_output_box("Backup annullato dall'utente (dialogo password chiuso).", "INFO")
             return
@@ -5515,7 +5515,7 @@ class BackupWidget(QWidget):
         password, ok = QInputDialog.getText(self, "Autenticazione Database per Ripristino",
                                             f"Inserisci la password per l'utente '{db_user_for_prompt}' "
                                             f"per il database '{dbname_to_restore}':",
-                                            QLineEdit.Password)
+                                            QLineEdit.EchoMode.Password)
         if not ok:
             self._log_to_output_box("Ripristino annullato (dialogo password chiuso).", "INFO")
             return
@@ -5815,8 +5815,8 @@ class UnifiedFuzzySearchWidget(QWidget):
         table.setColumnCount(len(headers))
         table.setHorizontalHeaderLabels(headers)
         table.setAlternatingRowColors(True)
-        table.setSelectionBehavior(QTableWidget.SelectRows)
-        table.setEditTriggers(QTableWidget.NoEditTriggers)
+        table.setSelectionBehavior(QAbstractItemView.SelectionBehavior.SelectRows)
+        table.setEditTriggers(QAbstractItemView.EditTrigger.NoEditTriggers)
         header = table.horizontalHeader()
         for i in range(len(headers)):
             if i in stretch_columns:
@@ -6302,7 +6302,7 @@ class RegistraConsultazioneWidget(QWidget):
         form_group = QGroupBox("Registra Nuova Consultazione")
         form_layout = QFormLayout(form_group)
         form_layout.setSpacing(10)
-        form_layout.setFieldGrowthPolicy(QFormLayout.ExpandingFieldsGrow)
+        form_layout.setFieldGrowthPolicy(QFormLayout.FieldGrowthPolicy.ExpandingFieldsGrow)
 
         self.data_consultazione_edit = QDateEdit(
             calendarPopup=True)  # Nome UI: data_consultazione_edit
@@ -6515,7 +6515,7 @@ class DashboardWidget(QWidget):
         self.audit_table.setHorizontalHeaderLabels(["Data/Ora", "Utente", "Azione", "Esito", "Indirizzo IP"])
         # --- FINE MODIFICA ---
 
-        self.audit_table.setEditTriggers(QTableWidget.NoEditTriggers)
+        self.audit_table.setEditTriggers(QAbstractItemView.EditTrigger.NoEditTriggers)
         self.audit_table.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeMode.Stretch)
         recent_activity_layout.addWidget(self.audit_table)
         bottom_layout.addWidget(recent_activity_group, 2)
