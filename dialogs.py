@@ -2470,7 +2470,6 @@ class ModificaPossessoreDialog(QDialog):
 
         self.setLayout(layout)
         
-    # --- NUOVO METODO: per generare il nome completo ---
     def _genera_nome_completo(self):
         """
         Genera il campo 'Nome Completo' dalla concatenazione di 'Cognome e Nome' e 'Paternità'.
@@ -2487,7 +2486,6 @@ class ModificaPossessoreDialog(QDialog):
 
         self.nome_completo_edit.setText(full_name)
         self.logger.debug(f"Nome completo generato: '{full_name}'")
-    # --- FINE NUOVO METODO ---
 
     def _load_possessore_data(self):
         # Metodo da creare in CatastoDBManager: get_possessore_details(possessore_id)
@@ -2853,12 +2851,11 @@ class PossessoriComuneDialog(QDialog):
         self.setLayout(layout)
         self.load_possessori_data()
 
-    def _aggiorna_stato_pulsanti_azione(self):  # NUOVO METODO
+    def _aggiorna_stato_pulsanti_azione(self):
         """Abilita/disabilita i pulsanti di azione in base alla selezione nella tabella."""
         has_selection = bool(self.possessori_table.selectedItems())
         self.btn_modifica_possessore.setEnabled(has_selection)
 
-    # NUOVO METODO HELPER
     def _get_selected_possessore_id(self) -> Optional[int]:
         """Restituisce l'ID del possessore attualmente selezionato nella tabella."""
         selected_items = self.possessori_table.selectedItems()
@@ -5353,7 +5350,6 @@ class AggiungiDocumentoDialog(QDialog):
         layout.addWidget(self.button_box)
         self.setLayout(layout)
         
-    # --- NUOVO METODO PER IMPOSTARE IL PERCORSO INIZIALE DEL FILE ---
     def set_initial_file_path(self, file_path: str):
         """Imposta un percorso file iniziale e aggiorna la label di visualizzazione."""
         if os.path.exists(file_path) and os.path.isfile(file_path):
@@ -5365,7 +5361,6 @@ class AggiungiDocumentoDialog(QDialog):
             self.logger.warning(f"Tentativo di impostare un percorso file iniziale non valido in AggiungiDocumentoDialog: {file_path}")
             self.selected_file_path = None
             self.file_selezionato_label.setText("Nessun file selezionato (iniziale non valido).")
-    # --- FINE NUOVO METODO ---
 
     def _seleziona_file(self):
         filePath, _ = QFileDialog.getOpenFileName(self, "Seleziona Documento", "", 

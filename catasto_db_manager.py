@@ -349,11 +349,9 @@ class CatastoDBManager:
             return params_copy
         self.logger.warning("Tentativo di accesso ai parametri di connessione fallito: _main_db_conn_params non definito.")
         return {}
-    # --- AGGIUNGERE QUESTO NUOVO METODO ALLA CLASSE ---
     def get_last_connect_error_details(self) -> Optional[Dict[str, str]]:
         """Restituisce i dettagli dell'ultimo errore di connessione occorso."""
         return self.last_connection_error
-    # -------------------------------------------------
     
 
     
@@ -997,7 +995,6 @@ class CatastoDBManager:
             # Incapsula l'errore per dare più contesto al chiamante GUI
             raise DBMError(f"Impossibile recuperare l'elenco delle variazioni: {e}") from e
 
-    # --- NUOVO METODO: Aggiungi questo metodo alla classe CatastoDBManager ---
     def get_comune_by_id(self, comune_id: int) -> Optional[Dict[str, Any]]:
         """Recupera i dettagli di un comune tramite il suo ID."""
         if not isinstance(comune_id, int) or comune_id <= 0:

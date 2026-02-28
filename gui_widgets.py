@@ -1889,7 +1889,6 @@ class RegistrazioneProprietaWidget(LazyLoadedWidget):
         
         self._update_registra_button_state()
 
-    # --- NUOVO METODO PER AGGIORNARE LO STATO DEL PULSANTE ---
     def _update_registra_button_state(self):
         """
         Abilita il pulsante di registrazione finale solo se tutte le 
@@ -3367,7 +3366,6 @@ class OperazioniPartitaWidget(QWidget):
             QMessageBox.critical(self, "Errore Critico Imprevisto",
                                  f"Si è verificato un errore di sistema inatteso durante l'operazione:\n{type(e_gen).__name__}: {str(e_gen)}")
 
-    # --- NUOVO METODO: Per pulire i campi del tab Passaggio Proprietà dopo il successo ---
     def _pulisci_campi_passaggio_proprieta(self):
         self.pp_nuova_partita_numero_spinbox.setValue(self.pp_nuova_partita_numero_spinbox.minimum())
         self.pp_tipo_variazione_combo.setCurrentIndex(0)
@@ -5150,7 +5148,6 @@ class BackupWidget(QWidget):
 
         self._init_ui()
 
-    # --- NUOVO METODO: Gestisce l'output con colori ---
     def _log_to_output_box(self, message: str, level: str = "INFO"):
         """
         Scrive un messaggio nella casella di output con un colore basato sul livello.
