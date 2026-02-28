@@ -33,6 +33,14 @@ SETTINGS_DB_SCHEMA = "Database/Schema"
 # Non salviamo la password in QSettings (Corretto! Ottima pratica di sicurezza)
 SETTINGS_DB_PASSWORD = "Database/Password"
 
+# --- Nomi per le chiavi UI in QSettings ---
+SETTINGS_UI_CURRENT_STYLE = "UI/CurrentStyle"
+SETTINGS_UI_AUTO_THEME = "UI/AutoTheme"
+
+# --- Temi usati dall'auto-rilevamento dark/light del sistema operativo ---
+AUTO_THEME_DARK = "dark_mode_stylesheet.qss"
+AUTO_THEME_LIGHT = "meridiana_styles.qss"
+
 # --- COSTANTI TABELLE INTERFACCIA ---
 COLONNE_POSSESSORI_DETTAGLI_NUM = 6
 COLONNE_POSSESSORI_DETTAGLI_LABELS = [

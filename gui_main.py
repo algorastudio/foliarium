@@ -19,7 +19,7 @@ from PyQt6.QtCore import (QSettings,
                           QStandardPaths, Qt, QUrl,
                           pyqtSlot, QCoreApplication)
 
-from PyQt6.QtGui import (QCloseEvent, QDesktopServices, QAction, QActionGroup)
+from PyQt6.QtGui import (QCloseEvent, QDesktopServices, QAction, QActionGroup, QGuiApplication)
 
 from PyQt6.QtWidgets import (QApplication,
                              QDialog, QFileDialog, QFrame, QGridLayout,
@@ -53,8 +53,9 @@ from custom_widgets import QPasswordLineEdit
 
 
 from config import (
-    SETTINGS_DB_TYPE, SETTINGS_DB_HOST, SETTINGS_DB_PORT, 
-    SETTINGS_DB_NAME, SETTINGS_DB_USER, SETTINGS_DB_SCHEMA,SETTINGS_DB_PASSWORD)
+    SETTINGS_DB_TYPE, SETTINGS_DB_HOST, SETTINGS_DB_PORT,
+    SETTINGS_DB_NAME, SETTINGS_DB_USER, SETTINGS_DB_SCHEMA, SETTINGS_DB_PASSWORD,
+    SETTINGS_UI_CURRENT_STYLE, SETTINGS_UI_AUTO_THEME, AUTO_THEME_DARK, AUTO_THEME_LIGHT)
 
 try:
     from fpdf import FPDF
@@ -434,7 +435,10 @@ class CatastoMainWindow(QMainWindow):
         self.show()
         logging.getLogger("CatastoGUI").info(
             ">>> CatastoMainWindow: self.show() completato. Fine perform_initial_setup")
-         # --- AGGIUNGERE QUESTA CHIAMATA ALLA FINE ---
+
+        # Connette il segnale OS dark/light mode per aggiornare il tema in tempo reale
+        QGuiApplication.styleHints().colorSchemeChanged.connect(self._on_color_scheme_changed)
+
         self.check_mv_refresh_status()
         # --- FINE AGGIUNTA ---
 # In gui_main.py, SOSTITUISCI il metodo _check_backup_reminder
@@ -511,27 +515,32 @@ class CatastoMainWindow(QMainWindow):
         settings_menu.addAction(config_refresh_action)
         settings_menu.addSeparator()
 
-        # --- NUOVA SEZIONE: Menu dinamico per i temi ---
+        # --- Menu dinamico per i temi ---
         style_menu = settings_menu.addMenu("Cambia Tema Grafico")
-        
-        self.style_action_group = QActionGroup(self) # Garantisce che solo un'opzione sia selezionata
+
+        self.style_action_group = QActionGroup(self)
         self.style_action_group.setExclusive(True)
 
-        available_styles = get_available_styles()
         settings = QSettings()
-        current_style = settings.value("UI/CurrentStyle", "meridiana_style.qss", type=str)
+        auto_theme_enabled = settings.value(SETTINGS_UI_AUTO_THEME, False, type=bool)
+        current_style = settings.value(SETTINGS_UI_CURRENT_STYLE, AUTO_THEME_LIGHT, type=str)
 
-        for style_file in available_styles:
+        # Voce speciale: segue la preferenza del sistema operativo
+        self.auto_theme_action = QAction("Tema Automatico (Segue Sistema)", self, checkable=True)
+        self.auto_theme_action.setChecked(auto_theme_enabled)
+        self.auto_theme_action.triggered.connect(self._enable_auto_theme)
+        style_menu.addAction(self.auto_theme_action)
+        self.style_action_group.addAction(self.auto_theme_action)
+        style_menu.addSeparator()
+
+        for style_file in get_available_styles():
             style_name = style_file.replace('_', ' ').replace('.qss', '').title()
             action = QAction(style_name, self, checkable=True)
-            action.triggered.connect(lambda checked, file=style_file: self._change_stylesheet(file))
-            
-            if style_file == current_style:
-                action.setChecked(True) # Seleziona il tema attualmente in uso
-
+            action.triggered.connect(lambda _, file=style_file: self._change_stylesheet(file))
+            if style_file == current_style and not auto_theme_enabled:
+                action.setChecked(True)
             style_menu.addAction(action)
             self.style_action_group.addAction(action)
-        # --- FINE NUOVA SEZIONE ---
 
         # --- Azione per il menu Help ---
         show_manual_action = QAction("Visualizza Manuale Utente...", self)
@@ -546,23 +555,42 @@ class CatastoMainWindow(QMainWindow):
         # --- FINE MODIFICA ---
 
     def _change_stylesheet(self, filename: str):
-        """Carica, applica e salva il nuovo stylesheet selezionato."""
+        """Carica, applica e salva il nuovo stylesheet selezionato. Disabilita il tema automatico."""
         self.logger.info(f"Cambio tema grafico richiesto: {filename}")
-        
-        # 'load_stylesheet' è già definita in gui_main.py
         new_stylesheet = load_stylesheet(filename)
-        
         if new_stylesheet:
-            # Applica lo stile all'intera applicazione
             QApplication.instance().setStyleSheet(new_stylesheet)
-            
-            # Salva la scelta nelle impostazioni per caricarla al prossimo avvio
             settings = QSettings()
-            settings.setValue("UI/CurrentStyle", filename)
-            
+            settings.setValue(SETTINGS_UI_CURRENT_STYLE, filename)
+            settings.setValue(SETTINGS_UI_AUTO_THEME, False)
+            self.auto_theme_action.setChecked(False)
             QMessageBox.information(self, "Cambio Tema", f"Tema '{filename.replace('.qss', '').title()}' applicato con successo.")
         else:
             QMessageBox.warning(self, "Errore Tema", f"Impossibile caricare il file di stile '{filename}'.")
+
+    def _enable_auto_theme(self):
+        """Attiva il tema automatico basato sulla preferenza dark/light del sistema operativo."""
+        settings = QSettings()
+        settings.setValue(SETTINGS_UI_AUTO_THEME, True)
+        self._apply_auto_theme()
+        self.logger.info("Tema automatico attivato.")
+
+    def _apply_auto_theme(self):
+        """Applica il tema chiaro o scuro in base allo schema colori del sistema operativo."""
+        scheme = QGuiApplication.styleHints().colorScheme()
+        theme_file = AUTO_THEME_DARK if scheme == Qt.ColorScheme.Dark else AUTO_THEME_LIGHT
+        stylesheet = load_stylesheet(theme_file)
+        if stylesheet:
+            QApplication.instance().setStyleSheet(stylesheet)
+            self.logger.info(f"Tema automatico applicato: {theme_file} (schema OS: {scheme.name})")
+
+    @pyqtSlot(Qt.ColorScheme)
+    def _on_color_scheme_changed(self, scheme: Qt.ColorScheme):
+        """Slot: aggiorna il tema quando l'utente cambia la modalità dark/light in Windows."""
+        settings = QSettings()
+        if settings.value(SETTINGS_UI_AUTO_THEME, False, type=bool):
+            self._apply_auto_theme()
+            self.logger.info(f"Schema OS cambiato a {scheme.name}, tema aggiornato automaticamente.")
             
     def _show_about_eula_dialog(self):
         """Apre la finestra di dialogo con le informazioni su versione e licenza (EULA)."""
@@ -1552,7 +1580,11 @@ def run_gui_app():
         gui_logger.info(f"Indirizzo IP locale identificato: {client_ip_address_gui}")
 
         settings = QSettings()
-        current_style_file = settings.value("UI/CurrentStyle", "meridiana_style.qss", type=str)
+        if settings.value(SETTINGS_UI_AUTO_THEME, False, type=bool):
+            scheme = QGuiApplication.styleHints().colorScheme()
+            current_style_file = AUTO_THEME_DARK if scheme == Qt.ColorScheme.Dark else AUTO_THEME_LIGHT
+        else:
+            current_style_file = settings.value(SETTINGS_UI_CURRENT_STYLE, AUTO_THEME_LIGHT, type=str)
         stylesheet = load_stylesheet(current_style_file)
         if stylesheet:
             app.setStyleSheet(stylesheet)
