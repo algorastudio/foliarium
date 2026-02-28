@@ -331,7 +331,6 @@ class CatastoMainWindow(QMainWindow):
         self.stale_data_label.setStyleSheet("color: #664D03;")
         
         self.stale_data_refresh_btn = QPushButton("Aggiorna Ora")
-        self.stale_data_refresh_btn.setFixedWidth(100)
         self.stale_data_refresh_btn.clicked.connect(self._handle_stale_data_refresh_click)
         
         stale_data_layout.addWidget(self.stale_data_label)

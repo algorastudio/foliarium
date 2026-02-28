@@ -996,7 +996,7 @@ class InserimentoComuneWidget(LazyLoadedWidget): # Eredita da LazyLoadedWidget
         data_soppressione_layout = QHBoxLayout(); data_soppressione_layout.addWidget(self.data_soppressione_check); data_soppressione_layout.addWidget(self.data_soppressione_edit)
         form_layout.addRow("Data Soppressione:", data_soppressione_layout)
         self.note_edit = QTextEdit()
-        self.note_edit.setFixedHeight(60)
+        self.note_edit.setMinimumHeight(60)
         form_layout.addRow("Note:", self.note_edit)
         self.periodo_combo = QComboBox()
         form_layout.addRow("Periodo Storico:", self.periodo_combo)
@@ -2410,7 +2410,7 @@ class OperazioniPartitaWidget(QWidget):
             QAbstractItemView.SelectionBehavior.SelectRows)
         self.immobili_partita_sorgente_table.setEditTriggers(
             QAbstractItemView.EditTrigger.NoEditTriggers)
-        self.immobili_partita_sorgente_table.setFixedHeight(180)
+        self.immobili_partita_sorgente_table.setMinimumHeight(180)
         self.immobili_partita_sorgente_table.itemSelectionChanged.connect(
             self._immobile_sorgente_selezionato)
         transfer_form_layout.addRow(self.immobili_partita_sorgente_table)
@@ -2570,7 +2570,7 @@ class OperazioniPartitaWidget(QWidget):
         passaggio_form_layout.addRow(
             "N. Repertorio/Protocollo:", self.pp_repertorio_edit)
         self.pp_note_variazione_edit = QTextEdit()
-        self.pp_note_variazione_edit.setFixedHeight(60)
+        self.pp_note_variazione_edit.setMinimumHeight(60)
         passaggio_form_layout.addRow(
             "Note Variazione:", self.pp_note_variazione_edit)
         passaggio_main_layout_scroll.addWidget(dati_atto_group)
@@ -2593,7 +2593,7 @@ class OperazioniPartitaWidget(QWidget):
             QAbstractItemView.SelectionMode.NoSelection)
         self.pp_immobili_da_selezionare_table.setEditTriggers(
             QAbstractItemView.EditTrigger.NoEditTriggers)
-        self.pp_immobili_da_selezionare_table.setFixedHeight(150)
+        self.pp_immobili_da_selezionare_table.setMinimumHeight(150)
         self.pp_immobili_da_selezionare_table.setVisible(False)
         immobili_transfer_layout_pp.addWidget(
             self.pp_immobili_da_selezionare_table)
@@ -2612,7 +2612,7 @@ class OperazioniPartitaWidget(QWidget):
         self.pp_nuovi_possessori_table.horizontalHeader(
         ).setSectionResizeMode(QHeaderView.ResizeMode.ResizeToContents)
         self.pp_nuovi_possessori_table.horizontalHeader().setStretchLastSection(True)
-        self.pp_nuovi_possessori_table.setFixedHeight(150)
+        self.pp_nuovi_possessori_table.setMinimumHeight(150)
         nuovi_poss_layout.addWidget(self.pp_nuovi_possessori_table)
         nuovi_poss_buttons_layout = QHBoxLayout()
         self.pp_btn_aggiungi_nuovo_possessore = QPushButton(
@@ -4967,13 +4967,15 @@ class AuditLogViewerWidget(LazyLoadedWidget):
         
         details_splitter.addWidget(before_widget)
         details_splitter.addWidget(after_widget)
-        details_splitter.setSizes([400, 400])
+        details_splitter.setStretchFactor(0, 1)
+        details_splitter.setStretchFactor(1, 1)
         
         details_layout.addWidget(details_splitter)
         splitter.addWidget(details_widget)
         
         # Imposta proporzioni iniziali (70% tabella, 30% dettagli)
-        splitter.setSizes([500, 200])
+        splitter.setStretchFactor(0, 7)
+        splitter.setStretchFactor(1, 3)
         
         main_layout.addWidget(splitter)
 
@@ -6326,14 +6328,14 @@ class RegistraConsultazioneWidget(QWidget):
         self.motivazione_edit = QTextEdit()
         self.motivazione_edit.setPlaceholderText(
             "Motivazione della richiesta di consultazione")
-        self.motivazione_edit.setFixedHeight(80)
+        self.motivazione_edit.setMinimumHeight(80)
         # Colonna DB: motivazione
         form_layout.addRow("Motivazione (opz.):", self.motivazione_edit)
 
         self.materiale_edit = QTextEdit()
         self.materiale_edit.setPlaceholderText(
             "Descrizione dettagliata del materiale consultato (es. Partita N. 123 Comune X, Mappa Foglio Y)")
-        self.materiale_edit.setFixedHeight(120)
+        self.materiale_edit.setMinimumHeight(120)
         # Colonna DB: materiale_consultato
         form_layout.addRow("Materiale Consultato (*):", self.materiale_edit)
 
@@ -6608,7 +6610,8 @@ class WelcomeScreen(QDialog):
         self.logger = logging.getLogger(f"CatastoGUI.{self.__class__.__name__}")
         self.setWindowTitle("Benvenuto - Meridiana 1.2")
         self.setModal(True)
-        self.setFixedSize(1024, 768)
+        self.setMinimumSize(800, 600)
+        self.resize(1024, 768)
         self.setWindowFlags(Qt.WindowType.FramelessWindowHint | Qt.WindowType.WindowStaysOnTopHint)
         self.setAttribute(Qt.WidgetAttribute.WA_DeleteOnClose)
 
@@ -6654,7 +6657,7 @@ class WelcomeScreen(QDialog):
 
         # Pulsante Guida
         if self.help_url:
-            help_button = QPushButton("Apri Manuale Utente"); help_button.setFont(QFont("Segoe UI", 11)); help_button.setFixedSize(220, 40)
+            help_button = QPushButton("Apri Manuale Utente"); help_button.setFont(QFont("Segoe UI", 11)); help_button.setMinimumHeight(40)
             help_button.clicked.connect(self._open_help_url)
             help_button_layout = QHBoxLayout(); help_button_layout.addStretch(); help_button_layout.addWidget(help_button); help_button_layout.addStretch()
             main_layout.addLayout(help_button_layout)

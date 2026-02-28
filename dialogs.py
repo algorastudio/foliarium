@@ -2653,7 +2653,7 @@ class ModificaComuneDialog(QDialog):
         form_layout.addRow("Data Soppressione:", self.data_soppressione_edit)
 
         self.note_edit = QTextEdit()
-        self.note_edit.setFixedHeight(80)
+        self.note_edit.setMinimumHeight(80)
         form_layout.addRow("Note:", self.note_edit)
 
         main_layout.addLayout(form_layout)
@@ -3278,7 +3278,7 @@ class PeriodoStoricoDetailsDialog(QDialog):
         form_layout.addRow("Anno Fine (0 se aperto):", self.anno_fine_spinbox)
 
         self.descrizione_edit = QTextEdit()
-        self.descrizione_edit.setFixedHeight(100)
+        self.descrizione_edit.setMinimumHeight(100)
         form_layout.addRow("Descrizione:", self.descrizione_edit)
 
         form_layout.addRow("Data Creazione:", self.data_creazione_label)
@@ -5183,7 +5183,7 @@ class PeriodoStoricoEditDialog(QDialog):
         self.anno_fine_spin.setSpecialValueText("Aperto")
         self.anno_fine_spin.setValue(anno_fine_default)
         self.descrizione_edit = QTextEdit(descrizione_default)
-        self.descrizione_edit.setFixedHeight(80)
+        self.descrizione_edit.setMinimumHeight(80)
 
         layout.addRow("Nome (*):", self.nome_edit)
         layout.addRow("Anno Inizio (*):", self.anno_inizio_spin)
@@ -5311,7 +5311,7 @@ class AggiungiDocumentoDialog(QDialog):
         form.addRow("Titolo Documento (*):", self.titolo_edit)
 
         self.descrizione_edit = QTextEdit()
-        self.descrizione_edit.setFixedHeight(60)
+        self.descrizione_edit.setMinimumHeight(60)
         form.addRow("Descrizione:", self.descrizione_edit)
 
         self.tipo_documento_combo = QComboBox()
@@ -5338,7 +5338,7 @@ class AggiungiDocumentoDialog(QDialog):
         
         # self.metadati_edit = QTextEdit() # Per JSONB - semplice input testuale per ora
         # self.metadati_edit.setPlaceholderText("Opzionale: Inserire metadati aggiuntivi in formato JSON, es. {\"risoluzione\": \"300dpi\"}")
-        # self.metadati_edit.setFixedHeight(60)
+        # self.metadati_edit.setMinimumHeight(60)
         # form.addRow("Metadati JSON (opz.):", self.metadati_edit)
 
         layout.addLayout(form)
