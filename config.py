@@ -36,6 +36,7 @@ SETTINGS_DB_PASSWORD = "Database/Password"
 # --- Nomi per le chiavi UI in QSettings ---
 SETTINGS_UI_CURRENT_STYLE = "UI/CurrentStyle"
 SETTINGS_UI_AUTO_THEME = "UI/AutoTheme"
+SETTINGS_UI_WIN11_STYLE = "UI/Win11NativeStyle"
 
 # --- Temi usati dall'auto-rilevamento dark/light del sistema operativo ---
 AUTO_THEME_DARK = "dark_mode_stylesheet.qss"

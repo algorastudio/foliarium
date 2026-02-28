@@ -19,7 +19,7 @@ from PyQt6.QtCore import (QSettings,
                           QStandardPaths, Qt, QUrl,
                           pyqtSlot, QCoreApplication)
 
-from PyQt6.QtGui import (QCloseEvent, QDesktopServices, QAction, QActionGroup, QGuiApplication)
+from PyQt6.QtGui import (QCloseEvent, QDesktopServices, QAction, QActionGroup, QGuiApplication, QStyleFactory)
 
 from PyQt6.QtWidgets import (QApplication,
                              QDialog, QFileDialog, QFrame, QGridLayout,
@@ -55,7 +55,8 @@ from custom_widgets import QPasswordLineEdit
 from config import (
     SETTINGS_DB_TYPE, SETTINGS_DB_HOST, SETTINGS_DB_PORT,
     SETTINGS_DB_NAME, SETTINGS_DB_USER, SETTINGS_DB_SCHEMA, SETTINGS_DB_PASSWORD,
-    SETTINGS_UI_CURRENT_STYLE, SETTINGS_UI_AUTO_THEME, AUTO_THEME_DARK, AUTO_THEME_LIGHT)
+    SETTINGS_UI_CURRENT_STYLE, SETTINGS_UI_AUTO_THEME, SETTINGS_UI_WIN11_STYLE,
+    AUTO_THEME_DARK, AUTO_THEME_LIGHT)
 
 try:
     from fpdf import FPDF
@@ -522,21 +523,32 @@ class CatastoMainWindow(QMainWindow):
 
         settings = QSettings()
         auto_theme_enabled = settings.value(SETTINGS_UI_AUTO_THEME, False, type=bool)
+        win11_enabled = settings.value(SETTINGS_UI_WIN11_STYLE, False, type=bool)
         current_style = settings.value(SETTINGS_UI_CURRENT_STYLE, AUTO_THEME_LIGHT, type=str)
 
-        # Voce speciale: segue la preferenza del sistema operativo
+        # Voce speciale: segue la preferenza dark/light del sistema operativo
         self.auto_theme_action = QAction("Tema Automatico (Segue Sistema)", self, checkable=True)
         self.auto_theme_action.setChecked(auto_theme_enabled)
         self.auto_theme_action.triggered.connect(self._enable_auto_theme)
         style_menu.addAction(self.auto_theme_action)
         self.style_action_group.addAction(self.auto_theme_action)
+
+        # Voce speciale: stile nativo Windows 11 (solo se disponibile)
+        self.win11_action = None
+        if "windows11" in QStyleFactory.keys():
+            self.win11_action = QAction("Stile Nativo Windows 11", self, checkable=True)
+            self.win11_action.setChecked(win11_enabled)
+            self.win11_action.triggered.connect(self._enable_win11_style)
+            style_menu.addAction(self.win11_action)
+            self.style_action_group.addAction(self.win11_action)
+
         style_menu.addSeparator()
 
         for style_file in get_available_styles():
             style_name = style_file.replace('_', ' ').replace('.qss', '').title()
             action = QAction(style_name, self, checkable=True)
             action.triggered.connect(lambda _, file=style_file: self._change_stylesheet(file))
-            if style_file == current_style and not auto_theme_enabled:
+            if style_file == current_style and not auto_theme_enabled and not win11_enabled:
                 action.setChecked(True)
             style_menu.addAction(action)
             self.style_action_group.addAction(action)
@@ -554,23 +566,31 @@ class CatastoMainWindow(QMainWindow):
         # --- FINE MODIFICA ---
 
     def _change_stylesheet(self, filename: str):
-        """Carica, applica e salva il nuovo stylesheet selezionato. Disabilita il tema automatico."""
+        """Carica, applica e salva il nuovo stylesheet. Disabilita tema automatico e stile Win11."""
         self.logger.info(f"Cambio tema grafico richiesto: {filename}")
         new_stylesheet = load_stylesheet(filename)
         if new_stylesheet:
+            self._reset_app_style()
             QApplication.instance().setStyleSheet(new_stylesheet)
             settings = QSettings()
             settings.setValue(SETTINGS_UI_CURRENT_STYLE, filename)
             settings.setValue(SETTINGS_UI_AUTO_THEME, False)
+            settings.setValue(SETTINGS_UI_WIN11_STYLE, False)
             self.auto_theme_action.setChecked(False)
+            if self.win11_action:
+                self.win11_action.setChecked(False)
             QMessageBox.information(self, "Cambio Tema", f"Tema '{filename.replace('.qss', '').title()}' applicato con successo.")
         else:
             QMessageBox.warning(self, "Errore Tema", f"Impossibile caricare il file di stile '{filename}'.")
 
     def _enable_auto_theme(self):
         """Attiva il tema automatico basato sulla preferenza dark/light del sistema operativo."""
+        self._reset_app_style()
         settings = QSettings()
         settings.setValue(SETTINGS_UI_AUTO_THEME, True)
+        settings.setValue(SETTINGS_UI_WIN11_STYLE, False)
+        if self.win11_action:
+            self.win11_action.setChecked(False)
         self._apply_auto_theme()
         self.logger.info("Tema automatico attivato.")
 
@@ -590,7 +610,21 @@ class CatastoMainWindow(QMainWindow):
         if settings.value(SETTINGS_UI_AUTO_THEME, False, type=bool):
             self._apply_auto_theme()
             self.logger.info(f"Schema OS cambiato a {scheme.name}, tema aggiornato automaticamente.")
-            
+
+    def _enable_win11_style(self):
+        """Attiva lo stile nativo Windows 11, rimuovendo qualsiasi QSS personalizzato."""
+        QApplication.instance().setStyle("windows11")
+        QApplication.instance().setStyleSheet("")
+        settings = QSettings()
+        settings.setValue(SETTINGS_UI_WIN11_STYLE, True)
+        settings.setValue(SETTINGS_UI_AUTO_THEME, False)
+        self.auto_theme_action.setChecked(False)
+        self.logger.info("Stile nativo Windows 11 attivato.")
+
+    def _reset_app_style(self):
+        """Ripristina lo stile Qt predefinito (necessario prima di applicare un QSS)."""
+        QApplication.instance().setStyle(QStyleFactory.create("Fusion"))
+
     def _show_about_eula_dialog(self):
         """Apre la finestra di dialogo con le informazioni su versione e licenza (EULA)."""
         dialog = EulaDialog(self)
@@ -1579,15 +1613,20 @@ def run_gui_app():
         gui_logger.info(f"Indirizzo IP locale identificato: {client_ip_address_gui}")
 
         settings = QSettings()
-        if settings.value(SETTINGS_UI_AUTO_THEME, False, type=bool):
+        if settings.value(SETTINGS_UI_WIN11_STYLE, False, type=bool) and \
+                "windows11" in QStyleFactory.keys():
+            app.setStyle("windows11")
+        elif settings.value(SETTINGS_UI_AUTO_THEME, False, type=bool):
             scheme = QGuiApplication.styleHints().colorScheme()
             current_style_file = AUTO_THEME_DARK if scheme == Qt.ColorScheme.Dark else AUTO_THEME_LIGHT
+            stylesheet = load_stylesheet(current_style_file)
+            if stylesheet:
+                app.setStyleSheet(stylesheet)
         else:
             current_style_file = settings.value(SETTINGS_UI_CURRENT_STYLE, AUTO_THEME_LIGHT, type=str)
-        stylesheet = load_stylesheet(current_style_file)
-        if stylesheet:
-            app.setStyleSheet(stylesheet)
-        # --- FINE MODIFICA ---
+            stylesheet = load_stylesheet(current_style_file)
+            if stylesheet:
+                app.setStyleSheet(stylesheet)
         # --- INIZIO BLOCCO CONTROLLO EULA ---
         settings = QSettings()
         eula_accepted = settings.value("EULA/accepted", False, type=bool)
