@@ -2,7 +2,7 @@ name: CI/CD Meridiana (Test & Build)
 
 on:
   push:
-    branches: [ "main", "master", "claude/review-program-uOikt" ]
+    branches: [ "main", "master", "claude/review-program-uOikt", "claude/summarize-dev-status-vDVnI" ]
   workflow_dispatch: # Permette di avviare l'azione manualmente da GitHub
 
 jobs:
