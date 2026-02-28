@@ -1,0 +1,17 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "Meridiana App",
+      "runtimeExecutable": ".venv/Scripts/python.exe",
+      "runtimeArgs": ["gui_main.py"],
+      "port": 6080
+    },
+    {
+      "name": "MkDocs Docs",
+      "runtimeExecutable": "mkdocs",
+      "runtimeArgs": ["serve"],
+      "port": 8000
+    }
+  ]
+}

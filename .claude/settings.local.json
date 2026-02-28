@@ -1,0 +1,9 @@
+{
+  "permissions": {
+    "allow": [
+      "mcp__Claude_Preview__preview_start",
+      "Bash(/u/catasto/.venv/Scripts/pip.exe install -r /u/catasto/requirements.txt)",
+      "Bash(/u/catasto/.venv/Scripts/python.exe --version)"
+    ]
+  }
+}
