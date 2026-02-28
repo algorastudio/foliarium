@@ -113,7 +113,7 @@ class ElencoComuniWidget(LazyLoadedWidget):
         # self.comuni_table.itemDoubleClicked.connect(self.mostra_partite_del_comune) # Il doppio click può rimanere
 
         # Imposta la policy per il menu contestuale sulla tabella
-        self.comuni_table.setContextMenuPolicy(Qt.CustomContextMenu)
+        self.comuni_table.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
         self.comuni_table.customContextMenuRequested.connect(self.apri_menu_contestuale_comune)
         # --- INIZIO MODIFICA ---
         # Collega il segnale di cambio selezione a una funzione che abilita/disabilita i pulsanti
@@ -4229,13 +4229,13 @@ class ReportisticaWidget(LazyLoadedWidget):
                         f"• Salvare con nome: {os.path.basename(new_filename)}\n"
                         f"• Chiudere il PDF e riprovare\n"
                         f"• Annullare l'operazione",
-                        QMessageBox.StandardButton.Save | QMessageBox.Retry | QMessageBox.StandardButton.Cancel,
+                        QMessageBox.StandardButton.Save | QMessageBox.StandardButton.Retry | QMessageBox.StandardButton.Cancel,
                         QMessageBox.StandardButton.Save
                     )
                     
                     if reply == QMessageBox.StandardButton.Save:
                         filename = new_filename
-                    elif reply == QMessageBox.Retry:
+                    elif reply == QMessageBox.StandardButton.Retry:
                         continue
                     else:
                         break
@@ -4356,7 +4356,7 @@ class StatisticheWidget(LazyLoadedWidget):
         group_layout.addWidget(viste_label)
         group_layout.addWidget(self.update_views_button)
         
-        group_layout.addWidget(QFrame(self, frameShape=QFrame.HLine))
+        group_layout.addWidget(QFrame(self, frameShape=QFrame.Shape.HLine))
 
         
         layout.addWidget(group)
@@ -4830,7 +4830,7 @@ class AuditLogViewerWidget(LazyLoadedWidget):
         
         # Gruppo Pulizia (a sinistra)
         cleanup_frame = QFrame()
-        cleanup_frame.setFrameStyle(QFrame.StyledPanel)
+        cleanup_frame.setFrameStyle(QFrame.Shape.StyledPanel)
         cleanup_layout = QHBoxLayout(cleanup_frame)
         cleanup_layout.setContentsMargins(10, 5, 10, 5)
         
@@ -4856,7 +4856,7 @@ class AuditLogViewerWidget(LazyLoadedWidget):
         
         # Gruppo Esportazione (a destra)
         export_frame = QFrame()
-        export_frame.setFrameStyle(QFrame.StyledPanel)
+        export_frame.setFrameStyle(QFrame.Shape.StyledPanel)
         export_layout = QHBoxLayout(export_frame)
         export_layout.setContentsMargins(10, 5, 10, 5)
         
@@ -4907,7 +4907,7 @@ class AuditLogViewerWidget(LazyLoadedWidget):
         
         # Controlli paginazione
         pagination_frame = QFrame()
-        pagination_frame.setFrameStyle(QFrame.StyledPanel)
+        pagination_frame.setFrameStyle(QFrame.Shape.StyledPanel)
         pagination_frame.setMaximumHeight(40)
         pagination_layout = QHBoxLayout(pagination_frame)
         pagination_layout.setContentsMargins(5, 2, 5, 2)
@@ -5709,7 +5709,7 @@ class UnifiedFuzzySearchWidget(QWidget):
 
         # === AREA RICERCA (da aggiungere al content_layout) ===
         search_frame = QFrame()
-        search_frame.setFrameStyle(QFrame.StyledPanel)
+        search_frame.setFrameStyle(QFrame.Shape.StyledPanel)
         search_frame.setMaximumHeight(120)
         search_layout = QVBoxLayout(search_frame)
         search_layout.setContentsMargins(10, 8, 10, 8)
@@ -5808,8 +5808,8 @@ class UnifiedFuzzySearchWidget(QWidget):
 
         # === STATUS BAR (ora separata e sicura) ===
         status_frame = QFrame()
-        status_frame.setFrameShape(QFrame.StyledPanel)
-        status_frame.setFrameShadow(QFrame.Sunken)
+        status_frame.setFrameShape(QFrame.Shape.StyledPanel)
+        status_frame.setFrameShadow(QFrame.Shadow.Sunken)
         status_frame.setMaximumHeight(30)
         status_layout = QHBoxLayout(status_frame)
         status_layout.setContentsMargins(5, 2, 5, 2)

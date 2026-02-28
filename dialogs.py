@@ -4512,7 +4512,7 @@ class CreateUserDialog(QDialog):
 
         frame_form = QFrame()
         frame_form.setLayout(form_layout)
-        frame_form.setFrameShape(QFrame.StyledPanel)
+        frame_form.setFrameShape(QFrame.Shape.StyledPanel)
         layout.addWidget(frame_form)
 
         buttons_layout = QHBoxLayout()
