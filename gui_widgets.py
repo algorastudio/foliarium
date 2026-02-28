@@ -3076,15 +3076,15 @@ class OperazioniPartitaWidget(QWidget):
                 chk.setProperty("immobile_id", immobile.get('id'))
                 table.setCellWidget(row, 0, chk)
                 id_i = QTableWidgetItem(str(immobile.get('id', 'N/D')))
-                id_i.setFlags(id_i.flags() & ~Qt.ItemIsEditable)
+                id_i.setFlags(id_i.flags() & ~Qt.ItemFlag.ItemIsEditable)
                 table.setItem(row, 1, id_i)
                 nat_i = QTableWidgetItem(immobile.get('natura', 'N/D'))
-                nat_i.setFlags(nat_i.flags() & ~Qt.ItemIsEditable)
+                nat_i.setFlags(nat_i.flags() & ~Qt.ItemFlag.ItemIsEditable)
                 table.setItem(row, 2, nat_i)
                 loc_t = f"{immobile.get('localita_nome', '')} {immobile.get('civico', '')}".strip(
                 )
                 loc_i = QTableWidgetItem(loc_t)
-                loc_i.setFlags(loc_i.flags() & ~Qt.ItemIsEditable)
+                loc_i.setFlags(loc_i.flags() & ~Qt.ItemFlag.ItemIsEditable)
                 table.setItem(row, 3, loc_i)
             # Configurazione resize mode per le colonne
             table.horizontalHeader().setSectionResizeMode(0, QHeaderView.ResizeMode.Fixed)  # Checkbox
@@ -6624,8 +6624,8 @@ class WelcomeScreen(QDialog):
         self.setWindowTitle("Benvenuto - Meridiana 1.2")
         self.setModal(True)
         self.setFixedSize(1024, 768)
-        self.setWindowFlags(Qt.WindowType.FramelessWindowHint | Qt.WindowStaysOnTopHint)
-        self.setAttribute(Qt.WA_DeleteOnClose)
+        self.setWindowFlags(Qt.WindowType.FramelessWindowHint | Qt.WindowType.WindowStaysOnTopHint)
+        self.setAttribute(Qt.WidgetAttribute.WA_DeleteOnClose)
 
         self.help_url = help_url
         self.logo_path = logo_path
@@ -6648,14 +6648,14 @@ class WelcomeScreen(QDialog):
         if self.logo_path and os.path.exists(self.logo_path):
             pixmap = QPixmap(str(self.logo_path))
             # Riduciamo leggermente le dimensioni massime per garantire più spazio
-            scaled_pixmap = pixmap.scaled(750, 450, Qt.AspectRatioMode.KeepAspectRatio, Qt.SmoothTransformation)
+            scaled_pixmap = pixmap.scaled(750, 450, Qt.AspectRatioMode.KeepAspectRatio, Qt.TransformationMode.SmoothTransformation)
             logo_label.setPixmap(scaled_pixmap)
         logo_layout.addWidget(logo_label)
         logo_layout.addStretch(1)
         main_layout.addLayout(logo_layout)
 
         # Titolo e Sottotitolo
-        title_label = QLabel("Meridiana 1.2"); title_label.setFont(QFont("Segoe UI", 28, QFont.Bold)); title_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        title_label = QLabel("Meridiana 1.2"); title_label.setFont(QFont("Segoe UI", 28, QFont.Weight.Bold)); title_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
         main_layout.addWidget(title_label)
         
         subtitle_label = QLabel("Gestionale Catasto Storico - Archivio di Stato di Savona"); subtitle_label.setFont(QFont("Segoe UI", 14)); subtitle_label.setAlignment(Qt.AlignmentFlag.AlignCenter)

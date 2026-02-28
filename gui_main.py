@@ -572,8 +572,8 @@ class CatastoMainWindow(QMainWindow):
     # --- FINE AGGIUNTA METODO MANCANTE -
     def create_status_bar_content(self):
         status_frame = QFrame()
-        status_frame.setFrameShape(QFrame.StyledPanel)
-        status_frame.setFrameShadow(QFrame.Sunken)
+        status_frame.setFrameShape(QFrame.Shape.StyledPanel)
+        status_frame.setFrameShadow(QFrame.Shadow.Sunken)
         status_layout = QHBoxLayout(status_frame)
 
         self.db_status_label = QLabel("Database: Non connesso")
