@@ -3865,7 +3865,7 @@ class ModificaImmobileDialog(QDialog):
             for loc_id, nome_localita in localita_list:
                 self.localita_combo.addItem(nome_localita, userData=loc_id)
         except Exception as e:
-            print(f"Errore nel caricamento delle località: {e}")
+            self.logger.error(f"Errore nel caricamento delle località: {e}")
             self.localita_combo.addItem("Errore caricamento", -1)
 
     def _load_initial_data(self):

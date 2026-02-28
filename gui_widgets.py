@@ -73,12 +73,11 @@ except ImportError:
     # Fallback o gestione errore
     class DBMError(Exception):
         pass  # ... definizioni fallback come nel file originale
-    print("ATTENZIONE: catasto_db_manager non trovato, usando eccezioni DB fallback in gui_widgets.py")
+    logger.warning("ATTENZIONE: catasto_db_manager non trovato, usando eccezioni DB fallback in gui_widgets.py")
 class ElencoComuniWidget(LazyLoadedWidget):
     def __init__(self, db_manager: 'CatastoDBManager', parent=None):
         super().__init__(parent)
-        # Stampa di debug visibile nella console all'avvio
-        print("--- DEBUG: Inizializzazione di ElencoComuniWidget ---")
+        self.logger.debug("Inizializzazione di ElencoComuniWidget")
         if db_manager:
             self.db_manager = db_manager
             self.logger.info(f"Widget inizializzato CORRETTAMENTE con DBManager (ID Oggetto: {id(self.db_manager)})")
@@ -666,10 +665,10 @@ class RicercaPartiteWidget(QWidget):
         if dialog.exec() == QDialog.DialogCode.Accepted:
             # Se l'utente ha premuto "Salva" e le modifiche sono state salvate,
             # aggiorna la tabella per mostrare i nuovi dati.
-            print("Modifiche salvate. Aggiornamento della vista in corso...")
+            self.logger.debug("Modifiche salvate. Aggiornamento della vista in corso...")
             self.carica_dati_immobili()
         else:
-            print("Operazione di modifica annullata dall'utente.")
+            self.logger.debug("Operazione di modifica annullata dall'utente.")
 
 
 class RicercaAvanzataImmobiliWidget(QWidget):
@@ -869,24 +868,13 @@ class RicercaAvanzataImmobiliWidget(QWidget):
 
         p_nome_possessore = self.nome_possessore_edit.text().strip() or None
 
-        # --- STAMPE DI DEBUG DA AGGIUNGERE/DECOMMENTARE ---
-        print("-" * 30)
-        print("DEBUG GUI: Parametri inviati a ricerca_avanzata_immobili_gui:")
-        print(f"  comune_id: {p_comune_id} (tipo: {type(p_comune_id)})")
-        print(f"  localita_id: {p_localita_id} (tipo: {type(p_localita_id)})")
-        print(f"  natura_search: '{p_natura}' (tipo: {type(p_natura)})")
-        print(
-            f"  classificazione_search: '{p_classificazione}' (tipo: {type(p_classificazione)})")
-        print(
-            f"  consistenza_search: '{p_consistenza_search}' (tipo: {type(p_consistenza_search)})")
-        print(f"  piani_min: {p_piani_min} (tipo: {type(p_piani_min)})")
-        print(f"  piani_max: {p_piani_max} (tipo: {type(p_piani_max)})")
-        print(f"  vani_min: {p_vani_min} (tipo: {type(p_vani_min)})")
-        print(f"  vani_max: {p_vani_max} (tipo: {type(p_vani_max)})")
-        print(
-            f"  nome_possessore_search: '{p_nome_possessore}' (tipo: {type(p_nome_possessore)})")
-        print("-" * 30)
-        # --- FINE STAMPE DI DEBUG ---
+        self.logger.debug(
+            "Parametri inviati a ricerca_avanzata_immobili_gui: "
+            f"comune_id={p_comune_id}, localita_id={p_localita_id}, "
+            f"natura='{p_natura}', classificazione='{p_classificazione}', "
+            f"consistenza='{p_consistenza_search}', piani={p_piani_min}-{p_piani_max}, "
+            f"vani={p_vani_min}-{p_vani_max}, nome_possessore='{p_nome_possessore}'"
+        )
 
         try:
             immobili_trovati = self.db_manager.ricerca_avanzata_immobili_gui(

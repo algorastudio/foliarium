@@ -268,7 +268,7 @@ try:
     from gui_widgets import UnifiedFuzzySearchWidget,UnifiedFuzzySearchThread
     FUZZY_SEARCH_AVAILABLE = True
 except ImportError as e:
-    print(f"[INIT] Ricerca fuzzy non disponibile")
+    logging.warning("[INIT] Ricerca fuzzy non disponibile")
     FUZZY_SEARCH_AVAILABLE = False
 
 class CatastoMainWindow(QMainWindow):
@@ -1749,7 +1749,7 @@ if __name__ == "__main__":
                                f"Si è verificato un errore critico:\n\n{str(e)}\n\n"
                                "Controlla il file catasto_gui.log per maggiori dettagli.")
         except:
-            print(f"ERRORE CRITICO: {e}")
-            print("Controlla il file catasto_gui.log per maggiori dettagli.")
+            logging.critical(f"ERRORE CRITICO: {e}")
+            logging.critical("Controlla il file catasto_gui.log per maggiori dettagli.")
         
         sys.exit(1)
