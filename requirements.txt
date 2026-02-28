@@ -18,8 +18,9 @@ psycopg2-binary==2.9.10
 PyQt6==6.8.1
 PyQt6-Qt6==6.8.1
 PyQt6-sip==13.10.0
-PyQt6-WebEngine==6.8.0
-PyQt6-WebEngine-Qt6==6.8.1
+# PyQt6-WebEngine: opzionale, da abilitare solo per funzionalità web future
+# PyQt6-WebEngine==6.8.0
+# PyQt6-WebEngine-Qt6==6.8.1
 python-dateutil==2.9.0.post0
 pytz==2025.2
 six==1.17.0

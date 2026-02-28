@@ -16,7 +16,13 @@ from PyQt6.QtCore import (QDate, QDateTime, QPoint, QProcess, QSettings,
 from PyQt6.QtGui import (QCloseEvent, QColor, QDesktopServices, QFont,
                          QIcon, QPalette, QPixmap, QAction)
 
-from PyQt6.QtWebEngineWidgets import QWebEngineView
+# QWebEngineView: opzionale, riservato a future funzionalità web
+try:
+    from PyQt6.QtWebEngineWidgets import QWebEngineView
+    WEB_ENGINE_AVAILABLE = True
+except ImportError:
+    QWebEngineView = None
+    WEB_ENGINE_AVAILABLE = False
 
 from PyQt6.QtWidgets import (QAbstractItemView, QApplication,
                              QCheckBox, QComboBox, QDateEdit, QDateTimeEdit,

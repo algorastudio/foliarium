@@ -10,6 +10,11 @@ from PyQt6.QtCore import (QDate, QDateTime, QPoint, QProcess, QSettings,
 from PyQt6.QtGui import (QCloseEvent, QColor, QDesktopServices, QFont, 
                          QIcon, QPalette, QPixmap, QAction)
 
+# QPdfDocument: visualizzatore PDF nativo Qt6 (leggero, no WebEngine)
+from PyQt6.QtPdf import QPdfDocument
+from PyQt6.QtPdfWidgets import QPdfView
+
+# QWebEngineView: opzionale, riservato a future funzionalità web (non PDF)
 try:
     from PyQt6.QtWebEngineWidgets import QWebEngineView
     WEB_ENGINE_AVAILABLE = True
@@ -510,10 +515,30 @@ class DocumentViewerDialog(QDialog):
 
     def _init_ui(self):
         main_layout = QVBoxLayout(self)
-        
+
+        # Toolbar zoom PDF (visibile solo quando si carica un PDF)
+        self.pdf_toolbar = QWidget()
+        toolbar_layout = QHBoxLayout(self.pdf_toolbar)
+        toolbar_layout.setContentsMargins(4, 4, 4, 4)
+        self.btn_zoom_out = QPushButton("−")
+        self.btn_zoom_out.setToolTip("Riduci zoom")
+        self.zoom_label = QLabel("100%")
+        self.zoom_label.setMinimumWidth(50)
+        self.zoom_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self.btn_zoom_in = QPushButton("+")
+        self.btn_zoom_in.setToolTip("Aumenta zoom")
+        self.btn_fit = QPushButton("Adatta")
+        self.btn_fit.setToolTip("Adatta alla larghezza della finestra")
+        toolbar_layout.addWidget(self.btn_zoom_out)
+        toolbar_layout.addWidget(self.zoom_label)
+        toolbar_layout.addWidget(self.btn_zoom_in)
+        toolbar_layout.addWidget(self.btn_fit)
+        toolbar_layout.addStretch()
+        self.pdf_toolbar.setVisible(False)
+
         self.viewer_widget = QWidget()
         self.viewer_layout = QVBoxLayout(self.viewer_widget)
-        self.viewer_layout.setContentsMargins(0,0,0,0)
+        self.viewer_layout.setContentsMargins(0, 0, 0, 0)
 
         button_layout = QHBoxLayout()
         self.close_button = QPushButton("Chiudi")
@@ -522,6 +547,7 @@ class DocumentViewerDialog(QDialog):
         button_layout.addWidget(self.close_button)
         button_layout.addStretch()
 
+        main_layout.addWidget(self.pdf_toolbar)
         main_layout.addWidget(self.viewer_widget)
         main_layout.addLayout(button_layout)
 
@@ -545,14 +571,50 @@ class DocumentViewerDialog(QDialog):
             
     def _load_pdf(self):
         try:
-            self.web_view = QWebEngineView(self)
-            self.web_view.setUrl(QUrl.fromLocalFile(self.file_path))
-            self.viewer_layout.addWidget(self.web_view)
-            self.logger.info(f"PDF caricato in QWebEngineView: {self.file_path}")
+            self.pdf_document = QPdfDocument(self)
+            status = self.pdf_document.load(self.file_path)
+            if status != QPdfDocument.Status.Ready:
+                raise RuntimeError(f"Errore caricamento documento: {status.name}")
+
+            self.pdf_view = QPdfView(self)
+            self.pdf_view.setDocument(self.pdf_document)
+            self.pdf_view.setPageMode(QPdfView.PageMode.MultiPage)
+            self.pdf_view.setZoomMode(QPdfView.ZoomMode.FitInView)
+            self._pdf_zoom = 1.0
+            self.viewer_layout.addWidget(self.pdf_view)
+
+            # Attiva toolbar zoom
+            self.pdf_toolbar.setVisible(True)
+            self.btn_zoom_in.clicked.connect(self._pdf_zoom_in)
+            self.btn_zoom_out.clicked.connect(self._pdf_zoom_out)
+            self.btn_fit.clicked.connect(self._pdf_zoom_fit)
+            self._update_zoom_label()
+
+            self.logger.info(f"PDF caricato con QPdfDocument ({self.pdf_document.pageCount()} pagine): {self.file_path}")
         except Exception as e:
-            self.logger.error(f"Errore durante il caricamento del PDF in QWebEngineView: {e}", exc_info=True)
-            QMessageBox.critical(self, "Errore PDF", f"Impossibile visualizzare il PDF. Errore: {e}")
+            self.logger.error(f"Errore durante il caricamento del PDF: {e}", exc_info=True)
+            QMessageBox.critical(self, "Errore PDF", f"Impossibile visualizzare il PDF.\n{e}")
             self.viewer_layout.addWidget(QLabel("Errore nel caricamento del PDF."))
+
+    def _pdf_zoom_in(self):
+        self._pdf_zoom = min(self._pdf_zoom * 1.25, 5.0)
+        self.pdf_view.setZoomMode(QPdfView.ZoomMode.Custom)
+        self.pdf_view.setZoomFactor(self._pdf_zoom)
+        self._update_zoom_label()
+
+    def _pdf_zoom_out(self):
+        self._pdf_zoom = max(self._pdf_zoom / 1.25, 0.1)
+        self.pdf_view.setZoomMode(QPdfView.ZoomMode.Custom)
+        self.pdf_view.setZoomFactor(self._pdf_zoom)
+        self._update_zoom_label()
+
+    def _pdf_zoom_fit(self):
+        self.pdf_view.setZoomMode(QPdfView.ZoomMode.FitInView)
+        self._pdf_zoom = self.pdf_view.zoomFactor()
+        self._update_zoom_label()
+
+    def _update_zoom_label(self):
+        self.zoom_label.setText(f"{int(self._pdf_zoom * 100)}%")
             
     def _load_image(self):
         try:
