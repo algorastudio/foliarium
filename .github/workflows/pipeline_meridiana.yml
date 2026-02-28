@@ -55,7 +55,7 @@ jobs:
         psql -h localhost -U postgres -d catasto_storico -f sql_scripts/02_creazione-schema-tabelle.sql
         psql -h localhost -U postgres -d catasto_storico -f sql_scripts/03_funzioni-procedure.sql
 
-    - name: Esecuzione Test Automatici (Pytest)
+    - name: Esecuzione Test Automatici (Pytest + Coverage)
       env:
         CI: true
         DB_HOST: localhost
@@ -66,6 +66,14 @@ jobs:
         QT_QPA_PLATFORM: offscreen
       run: |
         python -m pytest tests/
+
+    - name: Caricamento Report Coverage (HTML)
+      uses: actions/upload-artifact@v4
+      if: always()
+      with:
+        name: Meridiana-Coverage-Report
+        path: coverage_html/
+        if-no-files-found: ignore
 
     # ----------------------------------------------------------
     # SCREENSHOT AUTOMATICI: avvia la GUI headless e cattura

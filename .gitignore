@@ -1,6 +1,3 @@
-<<<<<<< HEAD
-acs/core/__pycache__/models.cpython-313.pyc
-=======
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[cod]
@@ -19,6 +16,7 @@ MANIFEST
 
 # Unit test / coverage reports
 htmlcov/
+coverage_html/
 .tox/
 .nox/
 .coverage
@@ -119,11 +117,8 @@ secrets.json
 *.tar.gz
 *.rar
 *.7z
-
-
 *.exe
 *.xls
 *.xlsx
 *.ppt
 *.pptx
->>>>>>> 0a923e6492c945930ac2ff2dbc5aa05398eb22c0
