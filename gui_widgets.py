@@ -3469,8 +3469,14 @@ class EsportazioniWidget(LazyLoadedWidget):
         self.btn_export_pdf.clicked.connect(self._handle_export_pdf)
         self.btn_export_pdf.setEnabled(FPDF_AVAILABLE)
         format_layout.addWidget(self.btn_export_pdf)
+
+        self.btn_export_xlsx_completo = QPushButton("Archivio Completo (.xlsx)")
+        self.btn_export_xlsx_completo.setIcon(self.style().standardIcon(QStyle.StandardPixmap.SP_DialogSaveButton))
+        self.btn_export_xlsx_completo.setToolTip("Esporta partite, possessori, immobili e variazioni del comune in un unico file Excel multi-foglio")
+        self.btn_export_xlsx_completo.clicked.connect(self._handle_export_xlsx_completo)
+        format_layout.addWidget(self.btn_export_xlsx_completo)
         # --- FINE NUOVI PULSANTI ---
-        
+
         format_layout.addStretch()
         main_layout.addWidget(format_group)
 
@@ -3753,6 +3759,63 @@ class EsportazioniWidget(LazyLoadedWidget):
         except Exception as e:
             self.logger.error(f"Errore durante l'esportazione PDF di '{export_type}': {e}", exc_info=True)
             QMessageBox.critical(self, "Errore Esportazione", f"Impossibile salvare il file PDF:\n{e}")
+    def _handle_export_xlsx_completo(self):
+        """Esporta partite, possessori, immobili e variazioni in un unico .xlsx multi-foglio."""
+        comune_id = self.comune_filter_combo.currentData()
+        comune_name = self.comune_filter_combo.currentText()
+        if comune_id is None:
+            QMessageBox.warning(self, "Comune Non Selezionato",
+                                "Seleziona un comune prima di esportare l'archivio completo.")
+            return
+
+        default_filename = f"archivio_completo_{comune_name.replace(' ', '_')}_{date.today().isoformat()}.xlsx"
+        filename, _ = QFileDialog.getSaveFileName(
+            self, "Salva Archivio Completo Excel",
+            _get_default_export_path(default_filename),
+            "File Excel (*.xlsx)"
+        )
+        if not filename:
+            return
+
+        fogli = [
+            ("Partite",     "Elenco Partite",     lambda: self.db_manager.get_partite_by_comune(comune_id)),
+            ("Possessori",  "Elenco Possessori",  lambda: self.db_manager.get_possessori_by_comune(comune_id)),
+            ("Immobili",    "Elenco Immobili",    lambda: self.db_manager.get_elenco_immobili_per_esportazione(comune_id)),
+            ("Variazioni",  "Elenco Variazioni",  lambda: self.db_manager.get_elenco_variazioni_per_esportazione(comune_id)),
+        ]
+
+        try:
+            with pd.ExcelWriter(filename, engine='openpyxl') as writer:
+                totali = []
+                for sheet_name, export_type, fetch_fn in fogli:
+                    self.log_status(f"Recupero {sheet_name}...")
+                    QApplication.processEvents()
+                    data = fetch_fn()
+                    if not data:
+                        self.log_status(f"  → Nessun dato per {sheet_name}, foglio vuoto inserito.")
+                        pd.DataFrame().to_excel(writer, sheet_name=sheet_name, index=False)
+                        totali.append((sheet_name, 0))
+                        continue
+                    header_map = self.HEADER_MAPPINGS.get(export_type, {})
+                    df = pd.DataFrame(data)
+                    if header_map:
+                        cols_presenti = [c for c in header_map.keys() if c in df.columns]
+                        df = df[cols_presenti].rename(columns=header_map)
+                    df.to_excel(writer, sheet_name=sheet_name, index=False)
+                    totali.append((sheet_name, len(df)))
+
+            riepilogo = ", ".join(f"{n}: {t}" for n, t in totali)
+            self.log_status(f"Archivio completo esportato ({riepilogo}).", link=filename)
+            QMessageBox.information(self, "Successo",
+                                    f"File Excel multi-foglio creato con successo.\n{riepilogo}")
+        except ImportError:
+            QMessageBox.critical(self, "Libreria Mancante",
+                                 "L'esportazione richiede 'pandas' e 'openpyxl'.\n"
+                                 "Installa con: pip install pandas openpyxl")
+        except Exception as e:
+            self.logger.error(f"Errore export archivio completo: {e}", exc_info=True)
+            QMessageBox.critical(self, "Errore Esportazione", f"Impossibile salvare il file:\n{e}")
+
     def _export_consistenza_patrimoniale_xls(self, comune_id: int, comune_name: str):
         """Logica di esportazione specifica per il report di consistenza patrimoniale."""
         self.log_status("Recupero dati per Report Consistenza Patrimoniale...")

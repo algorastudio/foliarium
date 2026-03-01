@@ -226,6 +226,39 @@ Tutto il lavoro è sul branch `claude/summarize-dev-status-vDVnI`.
 - 2 nuove voci menu *File*: "Importa Comuni da CSV/ISTAT..." e "Importa Località da CSV..."
 - Handler `_import_comuni()` (con refresh `ElencoComuniWidget`) e `_import_localita()`
 
+### Feature: Albero genealogico partita (v1.3.2.0)
+
+**`catasto_db_manager.py`**
+- `get_genealogia_partita(partita_id) -> Dict` — 3 query: partita centrale, predecessori (variazione.partita_destinazione_id), successori (variazione.partita_origine_id)
+
+**`dialogs.py`**
+- `AlberoGeneralogicoDialog` — QTreeWidget 5 colonne, QSplitter con QTextBrowser dettaglio, colori differenziati root/predecessori/successori, pulsante "Apri Report Testo"
+- `PartitaDetailsDialog`: pulsante "Albero Genealogico" + handler `_apri_albero_genealogico()`
+
+**`gui_widgets.py`**
+- `ReportisticaWidget`: bottone "Visualizza Albero Genealogico" affiancato a "Genera Report Genealogico", handler `_apri_albero_genealogico()`
+
+---
+
+## Roadmap v1.4 (da "Feature proposte per Meridiana v1.4.pdf")
+
+### Alta priorità
+- [x] **1. Albero genealogico proprietà** — implementato in v1.3.2.0
+- [x] **2. Export Excel avanzato** — bottone "Archivio Completo (.xlsx)" in `EsportazioniWidget`; handler `_handle_export_xlsx_completo()` con `pd.ExcelWriter` + 4 fogli (Partite, Possessori, Immobili, Variazioni)
+- [ ] **3. Ricerca full-text documenti storici** — `search_historical_documents()` esiste nel DB manager; creare `RicercaDocumentiWidget` con filtri tipo/data/parole chiave
+
+### Media priorità
+- [ ] **4. Import partite da Excel (.xlsx)** — estendere `import_partite_from_csv` con supporto `.xlsx` via `openpyxl`
+- [ ] **5. Dashboard con grafici statistici** — aggiungere grafici `QChart` (PyQt6) o `matplotlib` a `StatisticheWidget`: partite per comune, variazioni per anno, stato attivo/chiuso
+- [ ] **6. Confronto versioni partita** — diff visuale (verde/rosso) tra due periodi storici: immobili aggiunti/rimossi, cambio possessori
+
+### Bassa priorità
+- [ ] **7. Modalità offline/cache** — SQLite o JSON locale quando DB non raggiungibile
+- [ ] **8. Test coverage report** — completare marker `unit`/`integration`, aggiungere `pytest-cov`, badge README
+- [ ] **9. Export report ODT** — alternativa PDF con `odfpy` per documenti modificabili
+
+---
+
 ### Note tecniche
 - Venv progetto in `U:/catasto/.venv/` (Python 3.13)
 - Per abilitare Long Paths su Windows serve privilegi admin; alternativa: usare Python da percorso corto `C:\Python312\`
