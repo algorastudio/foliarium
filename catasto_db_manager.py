@@ -2107,6 +2107,73 @@ class CatastoDBManager:
         except Exception as e:
             self.logger.error(f"Errore DB in genera_report_genealogico (ID: {partita_id}): {e}", exc_info=True)
             return None
+
+    def get_genealogia_partita(self, partita_id: int) -> Optional[Dict[str, Any]]:
+        """Restituisce dati strutturati per l'albero genealogico di una partita."""
+        if not isinstance(partita_id, int) or partita_id <= 0:
+            self.logger.error(f"get_genealogia_partita: ID non valido: {partita_id}")
+            return None
+        try:
+            with self._get_connection() as conn:
+                with conn.cursor(cursor_factory=psycopg2.extras.DictCursor) as cur:
+                    # Query 1: dati partita centrale
+                    cur.execute(f"""
+                        SELECT p.id, p.numero_partita, p.suffisso_partita, p.tipo, p.stato,
+                               p.data_impianto, p.data_chiusura, c.nome AS comune_nome,
+                               string_agg(DISTINCT pos.nome_completo, ', ') AS possessori
+                        FROM {self.schema}.partita p
+                        JOIN {self.schema}.comune c ON p.comune_id = c.id
+                        LEFT JOIN {self.schema}.partita_possessore pp ON p.id = pp.partita_id
+                        LEFT JOIN {self.schema}.possessore pos ON pp.possessore_id = pos.id
+                        WHERE p.id = %s
+                        GROUP BY p.id, p.numero_partita, p.suffisso_partita, p.tipo, p.stato,
+                                 p.data_impianto, p.data_chiusura, c.nome;
+                    """, (partita_id,))
+                    partita_row = cur.fetchone()
+                    if not partita_row:
+                        self.logger.warning(f"get_genealogia_partita: partita ID {partita_id} non trovata.")
+                        return None
+                    # Query 2: predecessori (partita_destinazione_id = questo)
+                    cur.execute(f"""
+                        SELECT p.id, p.numero_partita, p.suffisso_partita, p.tipo, p.stato,
+                               p.data_impianto, p.data_chiusura, c.nome AS comune_nome,
+                               string_agg(DISTINCT pos.nome_completo, ', ') AS possessori,
+                               v.tipo AS tipo_variazione, v.data_variazione, v.nominativo_riferimento
+                        FROM {self.schema}.variazione v
+                        JOIN {self.schema}.partita p ON v.partita_origine_id = p.id
+                        JOIN {self.schema}.comune c ON p.comune_id = c.id
+                        LEFT JOIN {self.schema}.partita_possessore pp ON p.id = pp.partita_id
+                        LEFT JOIN {self.schema}.possessore pos ON pp.possessore_id = pos.id
+                        WHERE v.partita_destinazione_id = %s
+                        GROUP BY p.id, p.numero_partita, p.suffisso_partita, p.tipo, p.stato,
+                                 p.data_impianto, p.data_chiusura, c.nome,
+                                 v.tipo, v.data_variazione, v.nominativo_riferimento
+                        ORDER BY v.data_variazione DESC;
+                    """, (partita_id,))
+                    predecessori = [dict(r) for r in cur.fetchall()]
+                    # Query 3: successori (partita_origine_id = questo)
+                    cur.execute(f"""
+                        SELECT p.id, p.numero_partita, p.suffisso_partita, p.tipo, p.stato,
+                               p.data_impianto, p.data_chiusura, c.nome AS comune_nome,
+                               string_agg(DISTINCT pos.nome_completo, ', ') AS possessori,
+                               v.tipo AS tipo_variazione, v.data_variazione, v.nominativo_riferimento
+                        FROM {self.schema}.variazione v
+                        JOIN {self.schema}.partita p ON v.partita_destinazione_id = p.id
+                        JOIN {self.schema}.comune c ON p.comune_id = c.id
+                        LEFT JOIN {self.schema}.partita_possessore pp ON p.id = pp.partita_id
+                        LEFT JOIN {self.schema}.possessore pos ON pp.possessore_id = pos.id
+                        WHERE v.partita_origine_id = %s
+                        GROUP BY p.id, p.numero_partita, p.suffisso_partita, p.tipo, p.stato,
+                                 p.data_impianto, p.data_chiusura, c.nome,
+                                 v.tipo, v.data_variazione, v.nominativo_riferimento
+                        ORDER BY v.data_variazione ASC;
+                    """, (partita_id,))
+                    successori = [dict(r) for r in cur.fetchall()]
+            return {'partita': dict(partita_row), 'predecessori': predecessori, 'successori': successori}
+        except Exception as e:
+            self.logger.error(f"Errore DB in get_genealogia_partita (ID: {partita_id}): {e}", exc_info=True)
+            return None
+
     def genera_report_possessore(self, possessore_id: int) -> Optional[str]:
         """Chiama la funzione SQL catasto.genera_report_possessore in modo sicuro."""
         if not isinstance(possessore_id, int) or possessore_id <= 0:

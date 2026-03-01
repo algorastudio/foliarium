@@ -41,9 +41,9 @@ from config import (
     COLONNE_VISUALIZZAZIONE_POSSESSORI_LABELS, COLONNE_INSERIMENTO_POSSESSORI_NUM, COLONNE_INSERIMENTO_POSSESSORI_LABELS,
     NUOVE_ETICHETTE_POSSESSORI)
 from dialogs import ( ModificaPossessoreDialog, PartiteComuneDialog, ModificaImmobileDialog,
-                     PossessoriComuneDialog, LocalitaSelectionDialog, ModificaComuneDialog, 
-                     PartitaDetailsDialog, CreateUserDialog,ModificaLocalitaDialog,PeriodoStoricoEditDialog, 
-                     CreatePossessoreDialog)
+                     PossessoriComuneDialog, LocalitaSelectionDialog, ModificaComuneDialog,
+                     PartitaDetailsDialog, CreateUserDialog, ModificaLocalitaDialog, PeriodoStoricoEditDialog,
+                     CreatePossessoreDialog, AlberoGeneralogicoDialog)
 from custom_widgets import LazyLoadedWidget
 
 # Ottieni un logger specifico per questo modulo.
@@ -3929,7 +3929,11 @@ class ReportisticaWidget(LazyLoadedWidget):
         layout.addRow("ID Partita (*):", select_layout)
         self.partita_info_label_gen = QLabel("Nessuna partita selezionata."); layout.addRow(self.partita_info_label_gen)
         self.generate_gen_button = QPushButton("Genera Report Genealogico"); self.generate_gen_button.clicked.connect(self.generate_genealogico)
-        layout.addRow(self.generate_gen_button)
+        self.albero_gen_button = QPushButton("Visualizza Albero Genealogico"); self.albero_gen_button.clicked.connect(self._apri_albero_genealogico)
+        gen_buttons_layout = QHBoxLayout()
+        gen_buttons_layout.addWidget(self.generate_gen_button)
+        gen_buttons_layout.addWidget(self.albero_gen_button)
+        layout.addRow(gen_buttons_layout)
         return widget
 
     def _create_report_possessore_tab(self) -> QWidget:
@@ -4022,6 +4026,13 @@ class ReportisticaWidget(LazyLoadedWidget):
         # 2. Imposta il nuovo contenuto come testo semplice
         self.report_output_browser.setPlainText(self.current_report_content)
         # --- FINE CORREZIONE ---
+
+    def _apri_albero_genealogico(self):
+        partita_id = self.partita_id_gen_edit.value()
+        if partita_id <= 0:
+            QMessageBox.warning(self, "ID Non Valido", "Selezionare un ID partita valido.")
+            return
+        AlberoGeneralogicoDialog(partita_id, self.db_manager, self).exec()
 
     def generate_possessore(self):
         possessore_id = self.possessore_id_edit.value()
