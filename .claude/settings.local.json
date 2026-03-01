@@ -3,7 +3,12 @@
     "allow": [
       "mcp__Claude_Preview__preview_start",
       "Bash(/u/catasto/.venv/Scripts/pip.exe install -r /u/catasto/requirements.txt)",
-      "Bash(/u/catasto/.venv/Scripts/python.exe --version)"
+      "Bash(/u/catasto/.venv/Scripts/python.exe --version)",
+      "Bash(ls /c/Users/saint/catasto/*.py)",
+      "Bash(grep -n \"Qt\\\\.WindowModal\\\\|Qt\\\\.LeftButton\\\\|Qt\\\\.Key_Tab\\\\|Qt\\\\.Key_N\\\\|Qt\\\\.AscendingOrder\\\\|Qt\\\\.ControlModifier\\\\|Qt\\\\.ApplicationAttribute\" /c/Users/saint/catasto/tests/*.py)",
+      "Bash(python -c \":*)",
+      "Bash(python _check_enums.py)",
+      "Bash(ls -la C:/Users/saint/catasto/*.py)"
     ]
   }
 }

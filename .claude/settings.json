@@ -1,0 +1,9 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(python -c \":*)",
+      "Bash(grep -n \"import_localita\\\\|import_comuni\\\\|csv.*localita\\\\|csv.*comuni\" /c/Users/saint/catasto/*.py)",
+      "Bash(grep -A 20 \"CREATE TABLE.*tipo_localita\\\\|ALTER TABLE localita ADD COLUMN tipo_id\" /c/Users/saint/catasto/sql_scripts/*.sql)"
+    ]
+  }
+}
