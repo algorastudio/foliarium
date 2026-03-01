@@ -97,6 +97,17 @@ class CatastoDBManager:
         # ... (resto della configurazione del logger come prima) ...
         self.logger.info(f"Inizializzato gestore DB (parametri memorizzati) per {dbname}@{host}")
         self.pool = None # Il pool viene inizializzato esplicitamente dopo
+
+        # --- Modalità offline / cache locale ---
+        self.offline_mode: bool = False
+        self.offline_cache_timestamp: Optional[str] = None
+        try:
+            from app_paths import CACHE_DIR
+            self._cache_dir = CACHE_DIR
+        except Exception:
+            import tempfile
+            self._cache_dir = None
+            self.logger.warning("CACHE_DIR non disponibile; cache offline disabilitata.")
     # In catasto_db_manager.py, SOSTITUISCI il metodo initialize_main_pool con questo:
 
     def initialize_main_pool(self) -> bool:
@@ -291,6 +302,62 @@ class CatastoDBManager:
             if conn:
                 self.pool.putconn(conn)
     
+    # ------------------------------------------------------------------ #
+    #  Cache locale per modalità offline                                   #
+    # ------------------------------------------------------------------ #
+
+    def _cache_file(self, key: str):
+        """Restituisce il Path del file JSON per la chiave data."""
+        from pathlib import Path
+        if self._cache_dir is None:
+            return None
+        return Path(self._cache_dir) / f"cache_{key}.json"
+
+    def _save_cache(self, key: str, data) -> None:
+        """Salva data nel file cache corrispondente alla chiave."""
+        cf = self._cache_file(key)
+        if cf is None:
+            return
+        try:
+            payload = {"timestamp": datetime.now().isoformat(), "data": data}
+            with open(cf, 'w', encoding='utf-8') as f:
+                json.dump(payload, f, ensure_ascii=False, default=str)
+        except Exception as e:
+            self.logger.warning(f"Cache: impossibile salvare '{key}': {e}")
+
+    def _load_cache(self, key: str) -> Tuple[Any, Optional[str]]:
+        """Carica dal file cache. Restituisce (data, timestamp) o (None, None)."""
+        cf = self._cache_file(key)
+        if cf is None or not cf.exists():
+            return None, None
+        try:
+            with open(cf, 'r', encoding='utf-8') as f:
+                payload = json.load(f)
+            return payload.get("data"), payload.get("timestamp")
+        except Exception as e:
+            self.logger.warning(f"Cache: impossibile leggere '{key}': {e}")
+            return None, None
+
+    def _try_with_cache(self, key: str, fetch_fn):
+        """
+        Esegue fetch_fn(). Se riesce salva in cache e azzera offline_mode.
+        Se fallisce carica dalla cache e imposta offline_mode=True.
+        """
+        try:
+            result = fetch_fn()
+            self._save_cache(key, result)
+            self.offline_mode = False
+            return result
+        except Exception as e:
+            self.logger.warning(f"DB non raggiungibile ({e}); carico cache '{key}'.")
+            cached, ts = self._load_cache(key)
+            if cached is not None:
+                self.offline_mode = True
+                self.offline_cache_timestamp = ts
+                return cached
+            # Nessuna cache disponibile: rilancio l'eccezione originale
+            raise
+
     def disconnect_pool_temporarily(self) -> bool:
         self.logger.info("Chiusura temporanea del pool di connessioni per operazione di ripristino...")
         self.close_pool() # Chiude e nullifica self.pool
@@ -702,19 +769,17 @@ class CatastoDBManager:
             return []
     
     def get_elenco_comuni_semplice(self) -> List[Tuple]:
-        """
-        Recupera un elenco di tutti i comuni (ID e nome) per popolare una scelta utente.
-        """
-        query = f"SELECT id, nome FROM {self.schema}.comune ORDER BY nome"
-        try:
+        """Recupera un elenco di tutti i comuni (ID e nome) per popolare una scelta utente."""
+        def _fetch():
+            query = f"SELECT id, nome FROM {self.schema}.comune ORDER BY nome"
             with self._get_connection() as conn:
-                # Qui non usiamo DictCursor perché la firma del metodo prevede una lista di tuple
                 with conn.cursor() as cur:
                     cur.execute(query)
                     return cur.fetchall()
+        try:
+            return self._try_with_cache("comuni_semplice", _fetch)
         except Exception as e:
             self.logger.error(f"Errore nel recuperare l'elenco dei comuni: {e}", exc_info=True)
-            # Solleviamo un'eccezione personalizzata per informare il chiamante del fallimento
             raise DBMError("Impossibile recuperare l'elenco dei comuni.") from e
     # In catasto_db_manager.py, sostituisci la vecchia funzione con questa:
 
@@ -2237,14 +2302,16 @@ class CatastoDBManager:
 
     def get_statistiche_comune(self) -> List[Dict[str, Any]]:
         """Recupera dati dalla vista materializzata mv_statistiche_comune in modo sicuro."""
-        query = f"SELECT * FROM {self.schema}.mv_statistiche_comune ORDER BY comune;"
-        try:
+        def _fetch():
+            query = f"SELECT * FROM {self.schema}.mv_statistiche_comune ORDER BY comune;"
             with self._get_connection() as conn:
                 with conn.cursor(cursor_factory=DictCursor) as cur:
                     cur.execute(query)
                     results = [dict(row) for row in cur.fetchall()]
                     self.logger.info(f"Recuperate {len(results)} righe da mv_statistiche_comune.")
                     return results
+        try:
+            return self._try_with_cache("statistiche_comune", _fetch)
         except Exception as e:
             self.logger.error(f"Errore DB in get_statistiche_comune: {e}", exc_info=True)
             return []

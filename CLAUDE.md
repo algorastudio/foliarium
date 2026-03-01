@@ -253,7 +253,7 @@ Tutto il lavoro è sul branch `claude/summarize-dev-status-vDVnI`.
 - [x] **6. Confronto versioni partita** — `ConfrontoPartiteDialog` in `dialogs.py`: diff visuale (verde=#C8E6C9 / rosso=#FFCDD2) su possessori e immobili; accesso da tab Genealogico in `ReportisticaWidget`
 
 ### Bassa priorità
-- [ ] **7. Modalità offline/cache** — SQLite o JSON locale quando DB non raggiungibile
+- [x] **7. Modalità offline/cache** — `_try_with_cache()` in `CatastoDBManager`; cache JSON in `CACHE_DIR` (`%LOCALAPPDATA%/Meridiana/cache/`); wrappati `get_elenco_comuni_semplice()` e `get_statistiche_comune()`; barra rossa `offline_bar` in `gui_main.py` quando DB non raggiungibile
 - [ ] **8. Test coverage report** — completare marker `unit`/`integration`, aggiungere `pytest-cov`, badge README
 - [ ] **9. Export report ODT** — alternativa PDF con `odfpy` per documenti modificabili
 

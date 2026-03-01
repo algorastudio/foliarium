@@ -47,11 +47,13 @@ def get_user_data_dir():
 APP_DATA_DIR = get_user_data_dir()
 ESPORTAZIONI_DIR = APP_DATA_DIR / "esportazioni"
 LOG_DIR = APP_DATA_DIR / "logs"
+CACHE_DIR = APP_DATA_DIR / "cache"
 
 # Creiamo fisicamente queste directory se non esistono.
 # Questa operazione è sicura perché APP_DATA_DIR è sempre scrivibile.
 ESPORTAZIONI_DIR.mkdir(parents=True, exist_ok=True)
 LOG_DIR.mkdir(parents=True, exist_ok=True)
+CACHE_DIR.mkdir(parents=True, exist_ok=True)
 
 
 # --- 3. FUNZIONI HELPER PER ACCEDERE AI PERCORSI (DA USARE NEL RESTO DELL'APP) ---

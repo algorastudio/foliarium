@@ -341,7 +341,22 @@ class CatastoMainWindow(QMainWindow):
         
         self.main_layout.addWidget(self.stale_data_bar)
         self.stale_data_bar.hide() # Nascondi la barra di default
-       
+
+        # --- Barra modalità offline ---
+        self.offline_bar = QFrame()
+        self.offline_bar.setObjectName("offlineBar")
+        self.offline_bar.setStyleSheet("#offlineBar { background-color: #FFCDD2; border: 1px solid #EF9A9A; border-radius: 4px; }")
+        offline_layout = QHBoxLayout(self.offline_bar)
+        offline_layout.setContentsMargins(10, 5, 10, 5)
+        self.offline_label = QLabel("⚠️  Modalità offline — database non raggiungibile. Dati mostrati dalla cache locale.")
+        self.offline_label.setStyleSheet("color: #B71C1C; font-weight: bold;")
+        self.offline_timestamp_label = QLabel("")
+        self.offline_timestamp_label.setStyleSheet("color: #B71C1C;")
+        offline_layout.addWidget(self.offline_label)
+        offline_layout.addWidget(self.offline_timestamp_label)
+        offline_layout.addStretch()
+        self.main_layout.addWidget(self.offline_bar)
+        self.offline_bar.hide()
 
         self.create_status_bar_content()
         self.create_menu_bar()
@@ -441,6 +456,7 @@ class CatastoMainWindow(QMainWindow):
         QGuiApplication.styleHints().colorSchemeChanged.connect(self._on_color_scheme_changed)
 
         self.check_mv_refresh_status()
+        self._check_offline_mode()
         # --- FINE AGGIUNTA ---
 # In gui_main.py, SOSTITUISCI il metodo _check_backup_reminder
 
@@ -1450,6 +1466,19 @@ class CatastoMainWindow(QMainWindow):
             self.stale_data_bar.show()
         else:
             self.stale_data_bar.hide()
+
+    def _check_offline_mode(self):
+        """Mostra/nasconde la barra offline in base allo stato del db_manager."""
+        if not self.db_manager:
+            return
+        if getattr(self.db_manager, 'offline_mode', False):
+            ts = getattr(self.db_manager, 'offline_cache_timestamp', None)
+            ts_str = f"  (cache del {ts[:19].replace('T', ' ')})" if ts else ""
+            self.offline_timestamp_label.setText(ts_str)
+            self.offline_bar.show()
+        else:
+            self.offline_bar.hide()
+
     def _apri_dialogo_impostazioni_aggiornamento(self):
         """
         Apre un dialogo per permettere all'utente di impostare la soglia (in ore)
