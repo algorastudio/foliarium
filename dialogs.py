@@ -5732,9 +5732,9 @@ class ISTATDownloadWorker(QThread):
 
     ISTAT_URL = "https://www.istat.it/storage/codici-unita-amministrative/Elenco-comuni-italiani.csv"
     COL_NOME = "Denominazione in italiano"
-    COL_PROVINCIA = "Denominazione dell'Unità territoriale sovracomunale (valida a fini statistici)"
-    COL_REGIONE = "Denominazione regione"
-    COL_CODICE_CATASTALE = "Codice Catastale del Comune"
+    COL_PROVINCIA = "Sigla automobilistica"
+    COL_REGIONE = "Denominazione Regione"
+    COL_CODICE_CATASTALE = "Codice Catastale del comune"
     COL_SIGLA = "Sigla automobilistica"
 
     def __init__(self, provincia_filter: str = "", parent=None):
