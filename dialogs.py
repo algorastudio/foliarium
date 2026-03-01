@@ -6067,8 +6067,85 @@ class ImportComuniDialog(QDialog):
         super().closeEvent(event)
 
 
+class OSMLocalitaWorker(QThread):
+    """QThread che scarica strade e luoghi da OpenStreetMap (Overpass API) per un comune."""
+
+    OVERPASS_URL = "https://overpass-api.de/api/interpreter"
+    PREFIXES_IT = {
+        'Via', 'Viale', 'Corso', 'Piazza', 'Vicolo', 'Largo',
+        'Salita', 'Calata', 'Contrada', 'Borgata', 'Regione',
+        'Frazione', 'Strada', 'Traversa', 'Passaggio', 'Località',
+    }
+    PLACE_TAGS = {'hamlet', 'village', 'suburb', 'neighbourhood', 'locality', 'quarter'}
+
+    progress = pyqtSignal(str)
+    finished = pyqtSignal(list)
+    error = pyqtSignal(str)
+
+    def __init__(self, comune_nome: str, include_strade: bool = True,
+                 include_luoghi: bool = True, parent=None):
+        super().__init__(parent)
+        self.comune_nome = comune_nome
+        self.include_strade = include_strade
+        self.include_luoghi = include_luoghi
+
+    def run(self):
+        import urllib.request
+        import urllib.parse
+        import json as _json
+        try:
+            self.progress.emit("Connessione a OpenStreetMap...")
+            parts = []
+            if self.include_strade:
+                parts.append('way["highway"]["name"](area.a);')
+            if self.include_luoghi:
+                parts.append('node["place"]["name"](area.a);')
+            if not parts:
+                self.error.emit("Seleziona almeno un tipo di dati (strade o luoghi).")
+                return
+            query = (
+                '[out:json][timeout:90];'
+                f'area["boundary"="administrative"]["admin_level"="8"]'
+                f'["name"="{self.comune_nome}"]->.a;'
+                f'({" ".join(parts)});out tags;'
+            )
+            data = urllib.parse.urlencode({'data': query}).encode()
+            req = urllib.request.Request(
+                self.OVERPASS_URL, data=data,
+                headers={'User-Agent': 'Meridiana/1.4 (archivio catastale storico)'}
+            )
+            self.progress.emit("Download dati in corso...")
+            with urllib.request.urlopen(req, timeout=90) as resp:
+                result = _json.loads(resp.read())
+
+            rows, seen = [], set()
+            for el in result.get('elements', []):
+                tags = el.get('tags', {})
+                nome = tags.get('name', '').strip()
+                if not nome:
+                    continue
+                tipo = self._parse_tipo(nome, tags.get('highway', ''), tags.get('place', ''))
+                key = (nome, tipo)
+                if key not in seen:
+                    seen.add(key)
+                    rows.append({'nome': nome, 'tipo': tipo, 'civico': ''})
+
+            self.progress.emit(f"Trovati {len(rows)} elementi. Pronto per l'import.")
+            self.finished.emit(rows)
+        except Exception as e:
+            self.error.emit(f"Errore durante il download: {e}")
+
+    def _parse_tipo(self, nome: str, highway: str, place: str) -> str:
+        first = nome.split()[0] if nome else ''
+        if first in self.PREFIXES_IT:
+            return first
+        if place in self.PLACE_TAGS:
+            return 'Località'
+        return ''
+
+
 class ImportLocalitaDialog(QDialog):
-    """Dialog per importare località da file CSV per un comune selezionato."""
+    """Dialog per importare località da file CSV o da OpenStreetMap per un comune selezionato."""
 
     TEMPLATE_HEADERS = "nome;tipo;civico"
     TEMPLATE_EXAMPLE = (
@@ -6077,29 +6154,46 @@ class ImportLocalitaDialog(QDialog):
         "Regione Valleggia;Regione;\n"
     )
     PREVIEW_COLUMNS = [("Nome", "nome"), ("Tipo", "tipo"), ("Civico", "civico")]
+    OSM_PREVIEW_COLUMNS = [("Nome", "nome"), ("Tipo", "tipo")]
 
     def __init__(self, db_manager: 'CatastoDBManager', parent=None):
         super().__init__(parent)
         self.db_manager = db_manager
         self.setWindowTitle("Importa Località")
-        self.setMinimumSize(680, 480)
+        self.setMinimumSize(720, 520)
         self._csv_rows: list = []
-        self._comune_id: Optional[int] = None
+        self._osm_rows: list = []
+        self._osm_worker: Optional[OSMLocalitaWorker] = None
+        self._comuni_map: Dict[str, int] = {}
         self._build_ui()
 
     def _build_ui(self):
         layout = QVBoxLayout(self)
 
-        # Selezione comune
+        # Selezione comune (condivisa tra entrambi i tab)
         comune_layout = QHBoxLayout()
         comune_layout.addWidget(QLabel("Comune di riferimento:"))
         self._comune_combo = QComboBox()
         self._comune_combo.setMinimumWidth(280)
+        self._comune_combo.currentTextChanged.connect(self._on_comune_changed)
         comune_layout.addWidget(self._comune_combo)
         comune_layout.addStretch()
         layout.addLayout(comune_layout)
 
         self._carica_comuni()
+
+        self._tabs = QTabWidget()
+        self._tabs.addTab(self._build_csv_tab(), "Da file CSV")
+        self._tabs.addTab(self._build_osm_tab(), "Da OpenStreetMap")
+        layout.addWidget(self._tabs)
+
+        bb = QDialogButtonBox(QDialogButtonBox.StandardButton.Close)
+        bb.rejected.connect(self.reject)
+        layout.addWidget(bb)
+
+    def _build_csv_tab(self) -> QWidget:
+        w = QWidget()
+        layout = QVBoxLayout(w)
 
         info = QLabel(
             "File CSV con separatore <b>;</b>.<br>"
@@ -6113,7 +6207,6 @@ class ImportLocalitaDialog(QDialog):
         btn_template = QPushButton("Scarica template CSV")
         btn_template.clicked.connect(self._scarica_template)
         btn_layout.addWidget(btn_template)
-
         btn_apri = QPushButton("Seleziona file CSV...")
         btn_apri.clicked.connect(self._seleziona_csv)
         btn_layout.addWidget(btn_apri)
@@ -6123,24 +6216,87 @@ class ImportLocalitaDialog(QDialog):
         self._path_label = QLabel("Nessun file selezionato.")
         layout.addWidget(self._path_label)
 
-        self._preview = QTableWidget(0, len(self.PREVIEW_COLUMNS))
-        self._preview.setHorizontalHeaderLabels([c[0] for c in self.PREVIEW_COLUMNS])
-        self._preview.setEditTriggers(QAbstractItemView.EditTrigger.NoEditTriggers)
-        self._preview.horizontalHeader().setStretchLastSection(True)
-        layout.addWidget(self._preview)
+        self._csv_preview = QTableWidget(0, len(self.PREVIEW_COLUMNS))
+        self._csv_preview.setHorizontalHeaderLabels([c[0] for c in self.PREVIEW_COLUMNS])
+        self._csv_preview.setEditTriggers(QAbstractItemView.EditTrigger.NoEditTriggers)
+        self._csv_preview.horizontalHeader().setStretchLastSection(True)
+        layout.addWidget(self._csv_preview)
 
-        self._import_btn = QPushButton("Importa nel DB")
-        self._import_btn.setEnabled(False)
-        self._import_btn.clicked.connect(self._importa)
-        layout.addWidget(self._import_btn)
+        self._csv_import_btn = QPushButton("Importa nel DB")
+        self._csv_import_btn.setEnabled(False)
+        self._csv_import_btn.clicked.connect(self._importa_csv)
+        layout.addWidget(self._csv_import_btn)
 
-        bb = QDialogButtonBox(QDialogButtonBox.StandardButton.Close)
-        bb.rejected.connect(self.reject)
-        layout.addWidget(bb)
+        return w
+
+    def _build_osm_tab(self) -> QWidget:
+        w = QWidget()
+        layout = QVBoxLayout(w)
+
+        info = QLabel(
+            "Scarica strade e luoghi da <b>OpenStreetMap</b> per il comune selezionato.<br>"
+            "I dati sono open source e vengono recuperati tramite l'API Overpass."
+        )
+        info.setWordWrap(True)
+        layout.addWidget(info)
+
+        # Nome comune (auto-popolato dal combo, modificabile)
+        nome_layout = QHBoxLayout()
+        nome_layout.addWidget(QLabel("Nome comune (per OSM):"))
+        self._osm_comune_edit = QLineEdit()
+        self._osm_comune_edit.setPlaceholderText("es. Savona")
+        nome_layout.addWidget(self._osm_comune_edit)
+        layout.addLayout(nome_layout)
+
+        # Checkboxes tipo dati
+        check_layout = QHBoxLayout()
+        self._osm_chk_strade = QCheckBox("Includi strade (Via, Corso, Piazza...)")
+        self._osm_chk_strade.setChecked(True)
+        self._osm_chk_luoghi = QCheckBox("Includi luoghi (frazioni, borghi...)")
+        self._osm_chk_luoghi.setChecked(True)
+        check_layout.addWidget(self._osm_chk_strade)
+        check_layout.addWidget(self._osm_chk_luoghi)
+        check_layout.addStretch()
+        layout.addLayout(check_layout)
+
+        # Download button + status
+        dl_layout = QHBoxLayout()
+        self._osm_download_btn = QPushButton("Scarica da OpenStreetMap")
+        self._osm_download_btn.clicked.connect(self._avvia_download_osm)
+        dl_layout.addWidget(self._osm_download_btn)
+        dl_layout.addStretch()
+        layout.addLayout(dl_layout)
+
+        self._osm_status_label = QLabel("In attesa.")
+        layout.addWidget(self._osm_status_label)
+
+        self._osm_progress = QProgressBar()
+        self._osm_progress.setRange(0, 0)
+        self._osm_progress.setVisible(False)
+        layout.addWidget(self._osm_progress)
+
+        self._osm_preview = QTableWidget(0, len(self.OSM_PREVIEW_COLUMNS))
+        self._osm_preview.setHorizontalHeaderLabels([c[0] for c in self.OSM_PREVIEW_COLUMNS])
+        self._osm_preview.setEditTriggers(QAbstractItemView.EditTrigger.NoEditTriggers)
+        self._osm_preview.horizontalHeader().setStretchLastSection(True)
+        layout.addWidget(self._osm_preview)
+
+        self._osm_import_btn = QPushButton("Importa nel DB")
+        self._osm_import_btn.setEnabled(False)
+        self._osm_import_btn.clicked.connect(self._importa_osm)
+        layout.addWidget(self._osm_import_btn)
+
+        return w
+
+    def _on_comune_changed(self, text: str):
+        """Sincronizza il nome del comune nell'edit OSM con la selezione del combo."""
+        nome = text.split("(")[0].strip() if text else ""
+        if hasattr(self, '_osm_comune_edit'):
+            self._osm_comune_edit.setText(nome)
 
     def _carica_comuni(self):
         self._comune_combo.clear()
-        self._comuni_map: Dict[str, int] = {}
+        self._comuni_map = {}
         try:
             comuni = self.db_manager.get_comuni()
             for c in comuni:
@@ -6153,6 +6309,8 @@ class ImportLocalitaDialog(QDialog):
     def _get_selected_comune_id(self) -> Optional[int]:
         label = self._comune_combo.currentText()
         return self._comuni_map.get(label)
+
+    # --- Tab CSV ---
 
     def _scarica_template(self):
         path, _ = QFileDialog.getSaveFileName(
@@ -6182,14 +6340,13 @@ class ImportLocalitaDialog(QDialog):
                                         "Il file CSV deve contenere almeno la colonna 'nome'.")
                     return
                 self._csv_rows = list(reader)
-
             self._path_label.setText(f"File: {path}  ({len(self._csv_rows)} righe)")
-            _popola_preview_tabella(self._preview, self._csv_rows, self.PREVIEW_COLUMNS)
-            self._import_btn.setEnabled(bool(self._csv_rows))
+            _popola_preview_tabella(self._csv_preview, self._csv_rows, self.PREVIEW_COLUMNS)
+            self._csv_import_btn.setEnabled(bool(self._csv_rows))
         except Exception as e:
             QMessageBox.critical(self, "Errore lettura CSV", str(e))
 
-    def _importa(self):
+    def _importa_csv(self):
         comune_id = self._get_selected_comune_id()
         if not comune_id:
             QMessageBox.warning(self, "Nessun comune", "Seleziona un comune prima di importare.")
@@ -6206,9 +6363,75 @@ class ImportLocalitaDialog(QDialog):
         QApplication.restoreOverrideCursor()
         _mostra_risultati_import(self, "Località", result.get("success", []), result.get("errors", []))
         self._csv_rows = []
-        self._preview.setRowCount(0)
-        self._import_btn.setEnabled(False)
+        self._csv_preview.setRowCount(0)
+        self._csv_import_btn.setEnabled(False)
         self._path_label.setText("Nessun file selezionato.")
+
+    # --- Tab OSM ---
+
+    def _avvia_download_osm(self):
+        comune_nome = self._osm_comune_edit.text().strip()
+        if not comune_nome:
+            QMessageBox.warning(self, "Nome mancante", "Inserisci il nome del comune.")
+            return
+        self._osm_rows = []
+        self._osm_preview.setRowCount(0)
+        self._osm_import_btn.setEnabled(False)
+        self._osm_download_btn.setEnabled(False)
+        self._osm_progress.setVisible(True)
+        self._osm_status_label.setText("Download in corso...")
+
+        self._osm_worker = OSMLocalitaWorker(
+            comune_nome=comune_nome,
+            include_strade=self._osm_chk_strade.isChecked(),
+            include_luoghi=self._osm_chk_luoghi.isChecked(),
+            parent=self
+        )
+        self._osm_worker.progress.connect(self._osm_status_label.setText)
+        self._osm_worker.finished.connect(self._on_osm_finished)
+        self._osm_worker.error.connect(self._on_osm_error)
+        self._osm_worker.start()
+
+    def _on_osm_finished(self, rows: list):
+        self._osm_rows = rows
+        self._osm_progress.setVisible(False)
+        self._osm_download_btn.setEnabled(True)
+        _popola_preview_tabella(self._osm_preview, rows, self.OSM_PREVIEW_COLUMNS)
+        self._osm_import_btn.setEnabled(bool(rows))
+
+    def _on_osm_error(self, msg: str):
+        self._osm_progress.setVisible(False)
+        self._osm_download_btn.setEnabled(True)
+        self._osm_status_label.setText("Errore durante il download.")
+        QMessageBox.critical(self, "Errore OpenStreetMap", msg)
+
+    def _importa_osm(self):
+        comune_id = self._get_selected_comune_id()
+        if not comune_id:
+            QMessageBox.warning(self, "Nessun comune",
+                                "Seleziona il comune nel menu a tendina in alto prima di importare.")
+            return
+        if not self._osm_rows:
+            return
+        QApplication.setOverrideCursor(Qt.CursorShape.WaitCursor)
+        try:
+            result = self.db_manager.import_localita_from_rows(comune_id, self._osm_rows)
+        except Exception as e:
+            QApplication.restoreOverrideCursor()
+            QMessageBox.critical(self, "Errore DB", str(e))
+            return
+        QApplication.restoreOverrideCursor()
+        _mostra_risultati_import(self, "Località", result.get("success", []), result.get("errors", []))
+        self._osm_rows = []
+        self._osm_preview.setRowCount(0)
+        self._osm_import_btn.setEnabled(False)
+        self._osm_status_label.setText("Import completato. Scarica di nuovo per un nuovo import.")
+
+    def closeEvent(self, event):
+        if self._osm_worker and self._osm_worker.isRunning():
+            self._osm_worker.quit()
+            self._osm_worker.wait(2000)
+        super().closeEvent(event)
 
 
 class AlberoGeneralogicoDialog(QDialog):
