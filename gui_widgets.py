@@ -80,6 +80,39 @@ except ImportError:
     class DBMError(Exception):
         pass  # ... definizioni fallback come nel file originale
     logger.warning("ATTENZIONE: catasto_db_manager non trovato, usando eccezioni DB fallback in gui_widgets.py")
+# ---------------------------------------------------------------------------
+# Costanti e helper globali UI/UX
+# ---------------------------------------------------------------------------
+_PROVINCE_ITALIANE = [
+    "AG","AL","AN","AO","AP","AQ","AR","AT","AV","BA","BG","BI","BL","BN","BO",
+    "BR","BS","BT","BZ","CA","CB","CE","CH","CL","CN","CO","CR","CS","CT","CZ",
+    "EN","FC","FE","FG","FI","FM","FR","GE","GO","GR","IM","IS","KR","LC","LE",
+    "LI","LO","LT","LU","MB","MC","ME","MI","MN","MO","MS","MT","NA","NO","NU",
+    "OG","OR","OT","PA","PC","PD","PE","PG","PI","PN","PO","PR","PT","PU","PV",
+    "PZ","RA","RC","RE","RG","RI","RM","RN","RO","SA","SI","SO","SP","SR","SS",
+    "SU","SV","TA","TE","TN","TO","TP","TR","TS","TV","UD","VA","VB","VC","VE",
+    "VI","VR","VT","VV",
+]
+
+_FIELD_ERROR_STYLE = (
+    "border: 2px solid #e74c3c; border-radius: 3px; background-color: #fff5f5;"
+)
+
+
+def _set_field_error(widget, has_error: bool) -> None:
+    """Applica o rimuove il bordo rosso di errore da un widget di input."""
+    widget.setStyleSheet(_FIELD_ERROR_STYLE if has_error else "")
+
+
+def _show_status_message(message: str, timeout_ms: int = 4000) -> None:
+    """Mostra un messaggio nella status bar della finestra principale (non bloccante)."""
+    win = QApplication.activeWindow()
+    if win and hasattr(win, "statusBar"):
+        win.statusBar().showMessage(message, timeout_ms)
+
+
+# ---------------------------------------------------------------------------
+
 class ElencoComuniWidget(LazyLoadedWidget):
     def __init__(self, db_manager: 'CatastoDBManager', parent=None):
         super().__init__(parent)
@@ -499,8 +532,16 @@ class RicercaPartiteWidget(QWidget):
         self.results_table.setAlternatingRowColors(True)
         self.results_table.horizontalHeader().setStretchLastSection(True)
         self.results_table.setSelectionBehavior(QAbstractItemView.SelectionBehavior.SelectRows)
+        self.results_table.setEditTriggers(QAbstractItemView.EditTrigger.NoEditTriggers)
+        self.results_table.setSortingEnabled(True)
+        self.results_table.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
+        self.results_table.customContextMenuRequested.connect(self._apri_menu_contestuale_partita)
 
         results_layout.addWidget(self.results_table)
+
+        self.result_count_label = QLabel("Nessuna ricerca eseguita.")
+        self.result_count_label.setStyleSheet("color: #555; font-style: italic; padding: 2px 0;")
+        results_layout.addWidget(self.result_count_label)
 
         # Dettagli partita selezionata
         self.detail_button = QPushButton("Mostra Dettagli Partita")
@@ -572,6 +613,7 @@ class RicercaPartiteWidget(QWidget):
             # --- Fine Stampa di DEBUG ---
 
             # Pulisce la tabella prima di popolarla
+            self.results_table.setSortingEnabled(False)
             self.results_table.setRowCount(0)
 
             if partite:  # Verifica se la lista 'partite' non è vuota
@@ -590,13 +632,14 @@ class RicercaPartiteWidget(QWidget):
                     self.results_table.setItem(
                         row_idx, 4, QTableWidgetItem(partita_data.get('stato', '')))
                 self.results_table.resizeColumnsToContents()  # Adatta le colonne al contenuto
-                QMessageBox.information(
-                    self, "Ricerca Completata", f"Trovate {len(partite)} partite corrispondenti ai criteri.")
+                self.results_table.setSortingEnabled(True)
+                self.result_count_label.setText(f"{len(partite)} partite trovate.")
+                _show_status_message(f"Ricerca completata: {len(partite)} partite trovate.", 4000)
             else:
+                self.results_table.setSortingEnabled(True)
                 logging.getLogger("CatastoGUI").info(
                     "RicercaPartiteWidget.do_search - Nessuna partita trovata o la lista risultati è vuota.")
-                QMessageBox.information(
-                    self, "Ricerca Completata", "Nessuna partita trovata con i criteri specificati.")
+                self.result_count_label.setText("Nessuna partita trovata con i criteri specificati.")
 
         except Exception as e:
             logging.getLogger("CatastoGUI").error(
@@ -632,6 +675,30 @@ class RicercaPartiteWidget(QWidget):
                     self, "Errore", f"Non è stato possibile recuperare i dettagli della partita ID {partita_id}.")
         else:
             QMessageBox.warning(self, "Errore", "ID partita non valido.")
+
+    def _apri_menu_contestuale_partita(self, position: QPoint):
+        """Context menu sul risultato di ricerca partite."""
+        index = self.results_table.indexAt(position)
+        if not index.isValid():
+            return
+        row = index.row()
+        id_item = self.results_table.item(row, 0)
+        numero_item = self.results_table.item(row, 2)
+        partita_id_text = id_item.text() if id_item else ""
+        numero_text = numero_item.text() if numero_item else ""
+
+        menu = QMenu(self.results_table)
+        menu.addAction(
+            QApplication.style().standardIcon(QStyle.StandardPixmap.SP_FileDialogContentsView),
+            "Apri Dettagli"
+        ).triggered.connect(self.show_details)
+        menu.addSeparator()
+        menu.addAction(f"Copia Numero Partita ({numero_text})").triggered.connect(
+            lambda: QApplication.clipboard().setText(numero_text))
+        menu.addAction(f"Copia ID ({partita_id_text})").triggered.connect(
+            lambda: QApplication.clipboard().setText(partita_id_text))
+        menu.exec(self.results_table.viewport().mapToGlobal(position))
+
     # ======================================================================
     # ECCO LO SLOT CHE STAI CERCANDO DI POSIZIONARE
     # È un metodo della stessa classe che contiene il pulsante e la tabella.
@@ -799,6 +866,9 @@ class RicercaAvanzataImmobiliWidget(QWidget):
         ).setStretchLastSection(True)  # Ultima colonna stretch
         self.risultati_immobili_table.setSortingEnabled(True)
         results_layout.addWidget(self.risultati_immobili_table)
+        self.result_count_label = QLabel("Nessuna ricerca eseguita.")
+        self.result_count_label.setStyleSheet("color: #555; font-style: italic; padding: 2px 0;")
+        results_layout.addWidget(self.result_count_label)
         main_layout.addWidget(results_group)
 
         self.setLayout(main_layout)
@@ -898,6 +968,7 @@ class RicercaAvanzataImmobiliWidget(QWidget):
                 data_fine_possesso_search=None    # Non ancora in GUI
             )
 
+            self.risultati_immobili_table.setSortingEnabled(False)
             self.risultati_immobili_table.setRowCount(0)
             if immobili_trovati:
                 self.risultati_immobili_table.setRowCount(
@@ -940,12 +1011,12 @@ class RicercaAvanzataImmobiliWidget(QWidget):
                         row_idx, col, QTableWidgetItem(immobile.get('possessori_attuali', '')))
                     col += 1  # Campo dalla funzione SQL
 
-                # self.risultati_immobili_table.resizeColumnsToContents() # Potrebbe essere lento con molti dati
-                QMessageBox.information(
-                    self, "Ricerca Completata", f"Trovati {len(immobili_trovati)} immobili.")
+                self.risultati_immobili_table.setSortingEnabled(True)
+                self.result_count_label.setText(f"{len(immobili_trovati)} immobili trovati.")
+                _show_status_message(f"Ricerca completata: {len(immobili_trovati)} immobili trovati.", 4000)
             else:
-                QMessageBox.information(
-                    self, "Ricerca Completata", "Nessun immobile trovato con i criteri specificati.")
+                self.risultati_immobili_table.setSortingEnabled(True)
+                self.result_count_label.setText("Nessun immobile trovato con i criteri specificati.")
         except AttributeError as ae:
             logging.getLogger("CatastoGUI").error(
                 f"Metodo di ricerca immobili non trovato nel db_manager: {ae}", exc_info=True)
@@ -978,13 +1049,24 @@ class InserimentoComuneWidget(LazyLoadedWidget): # Eredita da LazyLoadedWidget
         form_layout = QFormLayout(form_group)
         form_layout.setSpacing(10)
         self.nome_comune_edit = QLineEdit()
-        form_layout.addRow("Nome Comune (*):", self.nome_comune_edit)
+        _lbl_nome = QLabel('Nome Comune <span style="color:#e74c3c;font-weight:bold;">*</span>:')
+        form_layout.addRow(_lbl_nome, self.nome_comune_edit)
         self.provincia_edit = QLineEdit("SV")
         self.provincia_edit.setMaxLength(100)
-        form_layout.addRow("Provincia (*):", self.provincia_edit)
+        _prov_completer = QCompleter(_PROVINCE_ITALIANE, self)
+        _prov_completer.setCompletionMode(QCompleter.CompletionMode.InlineCompletion)
+        _prov_completer.setCaseSensitivity(Qt.CaseSensitivity.CaseInsensitive)
+        self.provincia_edit.setCompleter(_prov_completer)
+        _lbl_prov = QLabel('Provincia <span style="color:#e74c3c;font-weight:bold;">*</span>:')
+        form_layout.addRow(_lbl_prov, self.provincia_edit)
         self.regione_edit = QLineEdit()
         self.regione_edit.setMaxLength(100)
-        form_layout.addRow("Regione (*):", self.regione_edit)
+        _lbl_reg = QLabel('Regione <span style="color:#e74c3c;font-weight:bold;">*</span>:')
+        form_layout.addRow(_lbl_reg, self.regione_edit)
+        # Reset errore al primo carattere digitato
+        self.nome_comune_edit.textChanged.connect(lambda: _set_field_error(self.nome_comune_edit, False))
+        self.provincia_edit.textChanged.connect(lambda: _set_field_error(self.provincia_edit, False))
+        self.regione_edit.textChanged.connect(lambda: _set_field_error(self.regione_edit, False))
         self.codice_catastale_edit = QLineEdit()
         self.codice_catastale_edit.setPlaceholderText("Es. A123 (opzionale)")
         form_layout.addRow("Codice Catastale:", self.codice_catastale_edit)
@@ -1067,6 +1149,8 @@ class InserimentoComuneWidget(LazyLoadedWidget): # Eredita da LazyLoadedWidget
         # Il segnale 'toggled' disabiliterà automaticamente i QDateEdit
         
         self.periodo_combo.setCurrentIndex(0)
+        for w in (self.nome_comune_edit, self.provincia_edit, self.regione_edit):
+            _set_field_error(w, False)
         self.nome_comune_edit.setFocus()
 
     def inserisci_comune(self):
@@ -1082,8 +1166,10 @@ class InserimentoComuneWidget(LazyLoadedWidget): # Eredita da LazyLoadedWidget
         data_ist = self.data_istituzione_edit.date().toPyDate() if self.data_istituzione_check.isChecked() else None
         data_sopp = self.data_soppressione_edit.date().toPyDate() if self.data_soppressione_check.isChecked() else None
 
+        _set_field_error(self.nome_comune_edit, not nome_comune)
+        _set_field_error(self.provincia_edit, not provincia)
+        _set_field_error(self.regione_edit, not regione)
         if not all([nome_comune, provincia, regione]):
-            QMessageBox.warning(self, "Dati Mancanti", "Nome, Provincia e Regione sono campi obbligatori.")
             return
 
         username_per_log = self.utente_attuale_info.get('username', 'utente_sconosciuto') if self.utente_attuale_info else 'utente_sconosciuto'
@@ -1095,7 +1181,7 @@ class InserimentoComuneWidget(LazyLoadedWidget): # Eredita da LazyLoadedWidget
                 data_istituzione=data_ist, data_soppressione=data_sopp, # Passa i valori corretti (o None)
                 note=note, utente=username_per_log
             )
-            QMessageBox.information(self, "Successo", f"Comune '{nome_comune}' inserito con ID: {comune_id}.")
+            _show_status_message(f"Comune '{nome_comune}' inserito con successo (ID: {comune_id}).", 5000)
             self.pulisci_campi()
             self.comune_appena_inserito.emit(comune_id)
         except (DBUniqueConstraintError, DBDataError, DBMError) as e:
@@ -1340,7 +1426,7 @@ class InserimentoPossessoreWidget(LazyLoadedWidget):
         form_layout = QGridLayout(form_group)
         form_layout.setColumnStretch(1, 1)
 
-        form_layout.addWidget(QLabel("Cognome e Nome (*):"), 0, 0)
+        form_layout.addWidget(QLabel('Cognome e Nome <span style="color:#e74c3c;font-weight:bold;">*</span>:'), 0, 0)
         self.cognome_nome_edit = QLineEdit()
         self.cognome_nome_edit.setPlaceholderText("Es. Rossi Mario, Bianchi Giovanni")
         form_layout.addWidget(self.cognome_nome_edit, 0, 1)
@@ -1353,12 +1439,12 @@ class InserimentoPossessoreWidget(LazyLoadedWidget):
         self.btn_genera_nome_completo.clicked.connect(self._genera_e_imposta_nome_completo)
         form_layout.addWidget(self.btn_genera_nome_completo, 2, 1, Qt.AlignmentFlag.AlignLeft)
 
-        form_layout.addWidget(QLabel("Nome Completo (generato) (*):"), 3, 0)
+        form_layout.addWidget(QLabel('Nome Completo (generato) <span style="color:#e74c3c;font-weight:bold;">*</span>:'), 3, 0)
         self.nome_completo_edit = QLineEdit()
         self.nome_completo_edit.setPlaceholderText("Verrà generato o inserire manualmente")
         form_layout.addWidget(self.nome_completo_edit, 3, 1)
 
-        form_layout.addWidget(QLabel("Comune di Riferimento (*):"), 4, 0)
+        form_layout.addWidget(QLabel('Comune di Riferimento <span style="color:#e74c3c;font-weight:bold;">*</span>:'), 4, 0)
         self.comune_combo = QComboBox()
         self.comune_combo.addItem("Caricamento comuni...", None)
         self.comune_combo.setEnabled(False)
@@ -1367,6 +1453,11 @@ class InserimentoPossessoreWidget(LazyLoadedWidget):
         self.attivo_checkbox = QCheckBox("Attivo")
         self.attivo_checkbox.setChecked(True)
         form_layout.addWidget(self.attivo_checkbox, 5, 1)
+
+        # Reset errore al primo carattere digitato
+        self.cognome_nome_edit.textChanged.connect(lambda: _set_field_error(self.cognome_nome_edit, False))
+        self.nome_completo_edit.textChanged.connect(lambda: _set_field_error(self.nome_completo_edit, False))
+        self.comune_combo.currentIndexChanged.connect(lambda: _set_field_error(self.comune_combo, False))
 
         main_layout.addWidget(form_group)
 
@@ -1480,6 +1571,8 @@ class InserimentoPossessoreWidget(LazyLoadedWidget):
         if self.comune_combo.count() > 0:
             self.comune_combo.setCurrentIndex(0) # O -1 per nessuna selezione se preferito
         self.attivo_checkbox.setChecked(True)
+        for w in (self.cognome_nome_edit, self.nome_completo_edit, self.comune_combo):
+            _set_field_error(w, False)
         self.cognome_nome_edit.setFocus()
 
     def _salva_possessore(self):
@@ -1501,17 +1594,16 @@ class InserimentoPossessoreWidget(LazyLoadedWidget):
 
         attivo = self.attivo_checkbox.isChecked()
 
-        if not nome_completo_input: # Il nome completo (generato o manuale) rimane obbligatorio
-            QMessageBox.warning(self, "Dati Mancanti", "Il campo 'Nome Completo' è obbligatorio. Utilizzare 'Genera Nome Completo' o inserirlo manualmente.")
-            self.nome_completo_edit.setFocus()
-            return
-        if not cognome_nome_input: # Rendiamo anche questo obbligatorio per coerenza
-            QMessageBox.warning(self, "Dati Mancanti", "Il campo 'Cognome e Nome' è obbligatorio.")
-            self.cognome_nome_edit.setFocus()
-            return
-        if comune_id_selezionato is None:
-            QMessageBox.warning(self, "Dati Mancanti", "Selezionare un comune di riferimento.")
-            self.comune_combo.setFocus()
+        _set_field_error(self.nome_completo_edit, not nome_completo_input)
+        _set_field_error(self.cognome_nome_edit, not cognome_nome_input)
+        _set_field_error(self.comune_combo, comune_id_selezionato is None)
+        if not nome_completo_input or not cognome_nome_input or comune_id_selezionato is None:
+            if not nome_completo_input:
+                self.nome_completo_edit.setFocus()
+            elif not cognome_nome_input:
+                self.cognome_nome_edit.setFocus()
+            else:
+                self.comune_combo.setFocus()
             return
 
         try:
@@ -1524,8 +1616,7 @@ class InserimentoPossessoreWidget(LazyLoadedWidget):
             )
 
             if new_possessore_id is not None:
-                QMessageBox.information(self, "Successo",
-                                        f"Possessore '{nome_completo_input}' creato con successo. ID: {new_possessore_id}.")
+                _show_status_message(f"Possessore '{nome_completo_input}' inserito con successo (ID: {new_possessore_id}).", 5000)
                 self._pulisci_campi_possessore()
                 # Qui potresti emettere un segnale se altri widget devono essere aggiornati
             # else: create_possessore solleva eccezioni
@@ -1561,21 +1652,23 @@ class InserimentoLocalitaWidget(QWidget):
         layout = QVBoxLayout(self)
         form_group = QGroupBox("Inserimento Nuova Località")
         form_layout = QGridLayout(form_group)
-        comune_label = QLabel("Comune (*):")
+        comune_label = QLabel('Comune <span style="color:#e74c3c;font-weight:bold;">*</span>:')
         self.comune_button = QPushButton("Seleziona Comune...")
         self.comune_button.clicked.connect(self.select_comune)
         self.comune_display = QLabel("Nessun comune selezionato")
         form_layout.addWidget(comune_label, 0, 0)
         form_layout.addWidget(self.comune_button, 0, 1)
         form_layout.addWidget(self.comune_display, 0, 2)
-        nome_label = QLabel("Nome località (*):")
+        nome_label = QLabel('Nome località <span style="color:#e74c3c;font-weight:bold;">*</span>:')
         self.nome_edit = QLineEdit()
+        self.nome_edit.textChanged.connect(lambda: _set_field_error(self.nome_edit, False))
         form_layout.addWidget(nome_label, 1, 0)
         form_layout.addWidget(self.nome_edit, 1, 1, 1, 2)
-        tipo_label = QLabel("Tipo (*):")
+        tipo_label = QLabel('Tipo <span style="color:#e74c3c;font-weight:bold;">*</span>:')
         self.tipo_combo = QComboBox()
         self.tipo_combo.addItem("Seleziona prima un comune...", None)
         self.tipo_combo.setEnabled(False)
+        self.tipo_combo.currentIndexChanged.connect(lambda: _set_field_error(self.tipo_combo, False))
         form_layout.addWidget(tipo_label, 2, 0)
         form_layout.addWidget(self.tipo_combo, 2, 1)
         civico_label = QLabel("Civico (opzionale):")
@@ -1619,6 +1712,8 @@ class InserimentoLocalitaWidget(QWidget):
     def _pulisci_campi(self):
         self.nome_edit.clear()
         self.civico_edit.setValue(0)
+        for w in (self.nome_edit, self.tipo_combo):
+            _set_field_error(w, False)
         self.nome_edit.setFocus()
 
     def _scarica_template_csv(self):
@@ -1664,25 +1759,18 @@ class InserimentoLocalitaWidget(QWidget):
             self.refresh_localita()
 
     def insert_localita(self):
-        if not self.comune_id:
-            QMessageBox.warning(self, "Errore", "Seleziona un comune.")
-            return
-
         nome = self.nome_edit.text().strip()
-        tipo_id = self.tipo_combo.currentData() # <-- MODIFICA QUI: Prende l'ID
+        tipo_id = self.tipo_combo.currentData()
         civico = self.civico_edit.value() if self.civico_edit.value() > 0 else None
 
-        if not nome:
-            QMessageBox.warning(self, "Errore", "Il nome della località è obbligatorio.")
-            return
-        if tipo_id is None: # <-- MODIFICA QUI: Controlla che un tipo sia selezionato
-            QMessageBox.warning(self, "Errore", "Selezionare una tipologia valida.")
+        _set_field_error(self.nome_edit, not nome)
+        _set_field_error(self.tipo_combo, tipo_id is None)
+        if not self.comune_id or not nome or tipo_id is None:
             return
 
         try:
-            # Passa tipo_id invece della stringa
             localita_id = self.db_manager.insert_localita(self.comune_id, nome, tipo_id, civico)
-            QMessageBox.information(self, "Successo", f"Località '{nome}' inserita con ID: {localita_id}")
+            _show_status_message(f"Località '{nome}' inserita con successo (ID: {localita_id}).", 5000)
             self.nome_edit.clear()
             self.civico_edit.setValue(0)
             self.refresh_localita()
@@ -1722,7 +1810,9 @@ class InserimentoPartitaWidget(QWidget):
         
         # --- CAMPI DEL FORM AGGIORNATI SECONDO LO SCHEMA ---
         self.comune_combo = QComboBox()
-        form_layout.addRow("Comune (*):", self.comune_combo)
+        self.comune_combo.currentIndexChanged.connect(lambda: _set_field_error(self.comune_combo, False))
+        _lbl_comune_p = QLabel('Comune <span style="color:#e74c3c;font-weight:bold;">*</span>:')
+        form_layout.addRow(_lbl_comune_p, self.comune_combo)
 
         self.numero_partita_spin = QSpinBox()
         self.numero_partita_spin.setRange(1, 999999)
@@ -1842,6 +1932,7 @@ class InserimentoPartitaWidget(QWidget):
         self.numero_provenienza_edit.clear()
         self.tipo_combo.setCurrentIndex(0)
         self.stato_combo.setCurrentIndex(0)
+        _set_field_error(self.comune_combo, False)
 
     def _scarica_template_csv(self):
         path, _ = QFileDialog.getSaveFileName(
@@ -1859,8 +1950,8 @@ class InserimentoPartitaWidget(QWidget):
 
     def _salva_partita(self):
         comune_id = self.comune_combo.currentData()
+        _set_field_error(self.comune_combo, not comune_id)
         if not comune_id:
-            QMessageBox.warning(self, "Dati Mancanti", "È necessario selezionare un comune.")
             return
 
         # Recupera i dati dai campi, inclusi i nuovi
@@ -1878,7 +1969,7 @@ class InserimentoPartitaWidget(QWidget):
                 data_chiusura=data_chiusura, # Passa il nuovo valore
                 numero_provenienza=numero_provenienza # Passa il nuovo valore
             )
-            QMessageBox.information(self, "Successo", f"Partita creata con successo con ID: {new_id}.")
+            _show_status_message(f"Partita creata con successo (ID: {new_id}).", 5000)
             self._pulisci_campi()
         except (DBMError, DBUniqueConstraintError, DBDataError) as e:
             QMessageBox.critical(self, "Errore Salvataggio", f"Impossibile salvare la partita:\n{e}")
@@ -3555,6 +3646,7 @@ class RicercaDocumentiWidget(QWidget):
         hdr.setSectionResizeMode(4, QHeaderView.ResizeMode.ResizeToContents)
         hdr.setSectionResizeMode(5, QHeaderView.ResizeMode.ResizeToContents)
         hdr.setSectionResizeMode(6, QHeaderView.ResizeMode.Stretch)
+        self.tabella.setSortingEnabled(True)
         main_layout.addWidget(self.tabella, 1)
 
     def _esegui_ricerca(self):
@@ -3582,9 +3674,11 @@ class RicercaDocumentiWidget(QWidget):
         self._popola_tabella(risultati)
 
     def _popola_tabella(self, righe: list):
+        self.tabella.setSortingEnabled(False)
         self.tabella.setRowCount(0)
         if not righe:
             self.risultati_label.setText("Nessun documento trovato.")
+            self.tabella.setSortingEnabled(True)
             return
         self.tabella.setRowCount(len(righe))
         for r, row in enumerate(righe):
@@ -3593,6 +3687,7 @@ class RicercaDocumentiWidget(QWidget):
                 item = QTableWidgetItem(str(val) if val is not None else '')
                 item.setFlags(item.flags() & ~Qt.ItemFlag.ItemIsEditable)
                 self.tabella.setItem(r, c, item)
+        self.tabella.setSortingEnabled(True)
         self.risultati_label.setText(f"{len(righe)} documento/i trovato/i.")
 
     def _reset_filtri(self):

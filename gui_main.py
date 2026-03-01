@@ -19,7 +19,8 @@ from PyQt6.QtCore import (QSettings,
                           QStandardPaths, Qt, QUrl,
                           pyqtSlot, QCoreApplication)
 
-from PyQt6.QtGui import (QCloseEvent, QDesktopServices, QAction, QActionGroup, QGuiApplication)
+from PyQt6.QtGui import (QCloseEvent, QDesktopServices, QAction, QActionGroup, QGuiApplication,
+                         QKeySequence, QShortcut)
 
 from PyQt6.QtWidgets import (QApplication,
                              QDialog, QFileDialog, QFrame, QGridLayout,
@@ -837,6 +838,28 @@ class CatastoMainWindow(QMainWindow):
 
         self.tabs.setCurrentIndex(0)
         self.logger.info("Setup dei tab completato con nomi abbreviati e tooltip.")
+
+        # Keyboard shortcuts: Ctrl+1..N per i tab principali, F5 per refresh
+        for i in range(self.tabs.count()):
+            sc = QShortcut(QKeySequence(f"Ctrl+{i + 1}"), self)
+            sc.activated.connect(lambda idx=i: self.tabs.setCurrentIndex(idx))
+        self._f5_shortcut = QShortcut(QKeySequence("F5"), self)
+        self._f5_shortcut.activated.connect(self._handle_f5_refresh)
+
+    def _handle_f5_refresh(self):
+        """F5: ricarica i dati del widget corrente se supporta il lazy reload."""
+        current = self.tabs.currentWidget()
+        if current is None:
+            return
+        sub_tabs = current.findChildren(QTabWidget)
+        target = sub_tabs[0].currentWidget() if sub_tabs else current
+        if hasattr(target, '_data_loaded'):
+            target._data_loaded = False
+        if hasattr(target, 'load_initial_data'):
+            target.load_initial_data()
+        elif hasattr(target, 'load_data'):
+            target.load_data()
+
     def activate_tab_and_sub_tab(self, main_tab_name: str, sub_tab_name: str, activate_report_sub_tab: bool = False):
         self.logger.info(
             f"Richiesta attivazione: Tab Principale='{main_tab_name}', Sotto-Tab='{sub_tab_name}'")
@@ -1011,6 +1034,23 @@ class CatastoMainWindow(QMainWindow):
             except Exception as e:
                 self.logger.error(f"Errore durante il lazy loading del widget '{widget_to_load.__class__.__name__}': {e}", exc_info=True)
                 QMessageBox.critical(self, "Errore Caricamento Widget", f"Impossibile caricare i dati per la sezione selezionata:\n{e}")
+
+        # Auto-focus: porta il cursore al primo campo dei widget di inserimento
+        if widget_to_load is not None:
+            self._set_focus_first_field(widget_to_load)
+
+    def _set_focus_first_field(self, widget) -> None:
+        """Imposta il focus sul primo campo di input dei widget di inserimento."""
+        from gui_widgets import (InserimentoComuneWidget, InserimentoPossessoreWidget,
+                                 InserimentoLocalitaWidget, InserimentoPartitaWidget)
+        if isinstance(widget, InserimentoComuneWidget):
+            widget.nome_comune_edit.setFocus()
+        elif isinstance(widget, InserimentoPossessoreWidget):
+            widget.cognome_nome_edit.setFocus()
+        elif isinstance(widget, InserimentoLocalitaWidget):
+            widget.comune_button.setFocus()
+        elif isinstance(widget, InserimentoPartitaWidget):
+            widget.comune_combo.setFocus()
 
     def update_ui_based_on_role(self):
         self.logger.info(
