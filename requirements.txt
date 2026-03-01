@@ -10,6 +10,7 @@ jaraco.context==6.0.1
 jaraco.functools==4.2.1
 keyring==25.6.0
 more-itertools==10.7.0
+matplotlib>=3.9.0
 numpy==2.3.0
 openpyxl==3.1.5
 pandas==2.3.0

@@ -4501,6 +4501,9 @@ class StatisticheWidget(LazyLoadedWidget):
         immobili_tab = self._create_immobili_tipologia_tab()
         stats_sub_tabs.addTab(immobili_tab, "Immobili per Tipologia")
 
+        grafici_tab = self._create_grafici_tab()
+        stats_sub_tabs.addTab(grafici_tab, "Grafici")
+
         # --- Contenitore per il tab Manutenzione ---
         maintenance_tab = self._create_maintenance_tab()
 
@@ -4548,6 +4551,90 @@ class StatisticheWidget(LazyLoadedWidget):
         layout.addWidget(self.immobili_table)
         return widget
 
+    def _create_grafici_tab(self):
+        """Crea il tab con grafici statistici via matplotlib."""
+        widget = QWidget()
+        layout = QVBoxLayout(widget)
+
+        try:
+            from matplotlib.backends.backend_qtagg import FigureCanvasQTAgg as FigureCanvas
+            from matplotlib.figure import Figure
+            import matplotlib
+            matplotlib.use('QtAgg')
+
+            btn_aggiorna = QPushButton("Aggiorna Grafici")
+            btn_aggiorna.clicked.connect(self._aggiorna_grafici)
+            layout.addWidget(btn_aggiorna)
+
+            # Figura matplotlib con 3 assi
+            self._fig = Figure(figsize=(10, 8), tight_layout=True)
+            self._ax_partite = self._fig.add_subplot(2, 2, 1)
+            self._ax_stato   = self._fig.add_subplot(2, 2, 2)
+            self._ax_variaz  = self._fig.add_subplot(2, 1, 2)
+            self._canvas = FigureCanvas(self._fig)
+            layout.addWidget(self._canvas, 1)
+            self._matplotlib_ok = True
+        except Exception as e:
+            self._matplotlib_ok = False
+            lbl = QLabel(f"Grafici non disponibili: {e}\n\nInstalla matplotlib: pip install matplotlib")
+            lbl.setWordWrap(True)
+            layout.addWidget(lbl)
+
+        return widget
+
+    def _aggiorna_grafici(self):
+        if not getattr(self, '_matplotlib_ok', False):
+            return
+        try:
+            stats = self.db_manager.get_statistiche_comune() or []
+
+            # --- Grafico 1: Partite per comune (bar orizzontale, top 10) ---
+            ax = self._ax_partite
+            ax.clear()
+            dati = sorted(stats, key=lambda r: r.get('totale_partite', 0), reverse=True)[:10]
+            comuni = [r.get('comune', '') for r in dati]
+            totali = [r.get('totale_partite', 0) for r in dati]
+            ax.barh(comuni[::-1], totali[::-1], color='steelblue')
+            ax.set_title('Partite per comune (top 10)')
+            ax.set_xlabel('Totale partite')
+
+            # --- Grafico 2: Stato partite (torta attive/inattive) ---
+            ax2 = self._ax_stato
+            ax2.clear()
+            tot_attive  = sum(r.get('partite_attive', 0)   for r in stats)
+            tot_inattive = sum(r.get('partite_inattive', 0) for r in stats)
+            if tot_attive + tot_inattive > 0:
+                ax2.pie([tot_attive, tot_inattive],
+                        labels=['Attive', 'Inattive'],
+                        colors=['#4CAF50', '#F44336'],
+                        autopct='%1.1f%%', startangle=90)
+            ax2.set_title('Stato partite (totale)')
+
+            # --- Grafico 3: Variazioni per anno ---
+            ax3 = self._ax_variaz
+            ax3.clear()
+            try:
+                variaz = self.db_manager.get_elenco_variazioni_per_esportazione(None) or []
+                anni: dict = {}
+                for v in variaz:
+                    data = v.get('data_variazione') or ''
+                    anno = str(data)[:4]
+                    if anno.isdigit():
+                        anni[anno] = anni.get(anno, 0) + 1
+                if anni:
+                    anni_ord = sorted(anni.keys())
+                    ax3.bar(anni_ord, [anni[a] for a in anni_ord], color='darkorange')
+                    ax3.set_title('Variazioni per anno')
+                    ax3.set_xlabel('Anno')
+                    ax3.set_ylabel('N. variazioni')
+                    ax3.tick_params(axis='x', rotation=45)
+            except Exception:
+                ax3.set_title('Variazioni per anno (dati non disponibili)')
+
+            self._canvas.draw()
+        except Exception as e:
+            self.logger.error(f"Errore aggiornamento grafici: {e}", exc_info=True)
+
     def _create_maintenance_tab(self):
         """Crea il widget per il tab 'Manutenzione'."""
         widget = QWidget()
@@ -4579,6 +4666,7 @@ class StatisticheWidget(LazyLoadedWidget):
         self.logger.info("StatisticheWidget: Esecuzione lazy loading...")
         self.refresh_stats_comune()
         self.refresh_immobili_tipologia()
+        self._aggiorna_grafici()
 
     def refresh_stats_comune(self):
         self.logger.info("Aggiornamento statistiche comuni...")

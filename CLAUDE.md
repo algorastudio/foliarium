@@ -249,7 +249,7 @@ Tutto il lavoro è sul branch `claude/summarize-dev-status-vDVnI`.
 
 ### Media priorità
 - [x] **4. Import partite da Excel (.xlsx)** — `_insert_partite_records()` helper condiviso; `import_partite_from_xlsx()` legge xlsx con `openpyxl`; file dialog accetta `.csv` e `.xlsx`, smistamento per estensione
-- [ ] **5. Dashboard con grafici statistici** — aggiungere grafici `QChart` (PyQt6) o `matplotlib` a `StatisticheWidget`: partite per comune, variazioni per anno, stato attivo/chiuso
+- [x] **5. Dashboard con grafici statistici** — tab "Grafici" in `StatisticheWidget` con `matplotlib` (FigureCanvasQTAgg): bar partite/comune, torta attive/inattive, bar variazioni/anno; `matplotlib>=3.9.0` aggiunto a `requirements.txt`
 - [ ] **6. Confronto versioni partita** — diff visuale (verde/rosso) tra due periodi storici: immobili aggiunti/rimossi, cambio possessori
 
 ### Bassa priorità
