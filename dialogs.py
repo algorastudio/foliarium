@@ -6412,3 +6412,157 @@ class AlberoGeneralogicoDialog(QDialog):
         v.addLayout(hl)
         dlg.exec()
 
+
+class ConfrontoPartiteDialog(QDialog):
+    """Confronto diff visuale tra due partite catastali (possessori e immobili)."""
+
+    _COLOR_SOLO_A  = QColor("#FFCDD2")   # rosso chiaro — rimosso / solo in A
+    _COLOR_SOLO_B  = QColor("#C8E6C9")   # verde chiaro — aggiunto / solo in B
+    _COLOR_COMUNE  = QColor("#FFFFFF")   # bianco       — presente in entrambe
+
+    def __init__(self, db_manager, partita_id_a: int = 0, partita_id_b: int = 0, parent=None):
+        super().__init__(parent)
+        self.db_manager = db_manager
+        self.setWindowTitle("Confronto tra due Partite")
+        self.setMinimumSize(900, 620)
+        self._init_ui(partita_id_a, partita_id_b)
+
+    def _init_ui(self, id_a: int, id_b: int):
+        layout = QVBoxLayout(self)
+
+        # --- Selezione partite ---
+        sel_group = QGroupBox("Seleziona le due partite da confrontare")
+        sel_layout = QHBoxLayout(sel_group)
+        sel_layout.addWidget(QLabel("Partita A (base):"))
+        self._spin_a = QSpinBox(); self._spin_a.setRange(1, 9999999); self._spin_a.setValue(max(id_a, 1))
+        sel_layout.addWidget(self._spin_a)
+        sel_layout.addSpacing(20)
+        sel_layout.addWidget(QLabel("Partita B (confronto):"))
+        self._spin_b = QSpinBox(); self._spin_b.setRange(1, 9999999); self._spin_b.setValue(max(id_b, 1))
+        sel_layout.addWidget(self._spin_b)
+        btn_confronta = QPushButton("Confronta")
+        btn_confronta.clicked.connect(self._esegui_confronto)
+        sel_layout.addWidget(btn_confronta)
+        sel_layout.addStretch()
+        layout.addWidget(sel_group)
+
+        # --- Header riepilogativo ---
+        self._header_label = QLabel("Seleziona due partite e premi Confronta.")
+        self._header_label.setWordWrap(True)
+        layout.addWidget(self._header_label)
+
+        # --- Tab Possessori / Immobili ---
+        self._tabs = QTabWidget()
+
+        # Tab Possessori
+        self._tbl_poss = self._make_table(["Nome Possessore", "Titolo", "Quota", "Stato"])
+        self._tabs.addTab(self._tbl_poss, "Possessori")
+
+        # Tab Immobili
+        self._tbl_imm = self._make_table(["Natura", "Classificazione", "Località", "Piani", "Vani", "Consistenza", "Stato"])
+        self._tabs.addTab(self._tbl_imm, "Immobili")
+
+        layout.addWidget(self._tabs, 1)
+
+        # Legenda
+        leg_layout = QHBoxLayout()
+        for color, testo in [(self._COLOR_SOLO_A, "Solo in A (rimosso)"),
+                              (self._COLOR_SOLO_B, "Solo in B (aggiunto)"),
+                              (self._COLOR_COMUNE, "Presente in entrambe")]:
+            lbl = QLabel(f"  {testo}  ")
+            lbl.setAutoFillBackground(True)
+            p = lbl.palette(); p.setColor(lbl.backgroundRole(), color); lbl.setPalette(p)
+            leg_layout.addWidget(lbl)
+        leg_layout.addStretch()
+        btn_chiudi = QPushButton("Chiudi"); btn_chiudi.clicked.connect(self.accept)
+        leg_layout.addWidget(btn_chiudi)
+        layout.addLayout(leg_layout)
+
+    def _make_table(self, headers: list) -> QTableWidget:
+        tbl = QTableWidget()
+        tbl.setColumnCount(len(headers))
+        tbl.setHorizontalHeaderLabels(headers)
+        tbl.setEditTriggers(QAbstractItemView.EditTrigger.NoEditTriggers)
+        tbl.setSelectionBehavior(QAbstractItemView.SelectionBehavior.SelectRows)
+        tbl.setAlternatingRowColors(False)
+        tbl.horizontalHeader().setSectionResizeMode(0, QHeaderView.ResizeMode.Stretch)
+        for i in range(1, len(headers)):
+            tbl.horizontalHeader().setSectionResizeMode(i, QHeaderView.ResizeMode.ResizeToContents)
+        return tbl
+
+    def _esegui_confronto(self):
+        id_a = self._spin_a.value()
+        id_b = self._spin_b.value()
+        if id_a == id_b:
+            QMessageBox.warning(self, "Stessa partita", "Seleziona due ID partita diversi.")
+            return
+        QApplication.setOverrideCursor(Qt.CursorShape.WaitCursor)
+        try:
+            dati_a = self.db_manager.get_partita_details(id_a)
+            dati_b = self.db_manager.get_partita_details(id_b)
+        finally:
+            QApplication.restoreOverrideCursor()
+        if not dati_a:
+            QMessageBox.warning(self, "Non trovata", f"Partita A (ID {id_a}) non trovata."); return
+        if not dati_b:
+            QMessageBox.warning(self, "Non trovata", f"Partita B (ID {id_b}) non trovata."); return
+
+        lbl_a = f"N.{dati_a['numero_partita']} — {dati_a.get('comune_nome','')}"
+        lbl_b = f"N.{dati_b['numero_partita']} — {dati_b.get('comune_nome','')}"
+        self._header_label.setText(
+            f"<b>A:</b> {lbl_a} &nbsp;|&nbsp; <b>B:</b> {lbl_b} &nbsp;·&nbsp; "
+            f"Verde = aggiunto in B &nbsp;·&nbsp; Rosso = presente solo in A"
+        )
+        self._popola_possessori(dati_a.get('possessori', []), dati_b.get('possessori', []))
+        self._popola_immobili(dati_a.get('immobili', []), dati_b.get('immobili', []))
+
+    def _chiave_possessore(self, p: dict) -> str:
+        return p.get('nome_completo', '').strip().lower()
+
+    def _chiave_immobile(self, i: dict) -> str:
+        return f"{i.get('natura','')}{i.get('localita_nome','')}{i.get('classificazione','')}".lower()
+
+    def _set_row_color(self, tbl: QTableWidget, row: int, color: QColor):
+        brush = QBrush(color)
+        for col in range(tbl.columnCount()):
+            item = tbl.item(row, col)
+            if item:
+                item.setBackground(brush)
+
+    def _popola_possessori(self, poss_a: list, poss_b: list):
+        chiavi_a = {self._chiave_possessore(p): p for p in poss_a}
+        chiavi_b = {self._chiave_possessore(p): p for p in poss_b}
+        tutte = sorted(set(chiavi_a) | set(chiavi_b))
+        tbl = self._tbl_poss
+        tbl.setRowCount(len(tutte))
+        for r, k in enumerate(tutte):
+            if k in chiavi_a and k in chiavi_b:
+                p = chiavi_a[k]; stato = "Entrambe"; color = self._COLOR_COMUNE
+            elif k in chiavi_a:
+                p = chiavi_a[k]; stato = "Solo in A"; color = self._COLOR_SOLO_A
+            else:
+                p = chiavi_b[k]; stato = "Solo in B"; color = self._COLOR_SOLO_B
+            for c, v in enumerate([p.get('nome_completo',''), p.get('titolo',''), p.get('quota',''), stato]):
+                tbl.setItem(r, c, QTableWidgetItem(str(v) if v else ''))
+            self._set_row_color(tbl, r, color)
+
+    def _popola_immobili(self, imm_a: list, imm_b: list):
+        chiavi_a = {self._chiave_immobile(i): i for i in imm_a}
+        chiavi_b = {self._chiave_immobile(i): i for i in imm_b}
+        tutte = sorted(set(chiavi_a) | set(chiavi_b))
+        tbl = self._tbl_imm
+        tbl.setRowCount(len(tutte))
+        for r, k in enumerate(tutte):
+            if k in chiavi_a and k in chiavi_b:
+                i = chiavi_a[k]; stato = "Entrambe"; color = self._COLOR_COMUNE
+            elif k in chiavi_a:
+                i = chiavi_a[k]; stato = "Solo in A"; color = self._COLOR_SOLO_A
+            else:
+                i = chiavi_b[k]; stato = "Solo in B"; color = self._COLOR_SOLO_B
+            vals = [i.get('natura',''), i.get('classificazione',''), i.get('localita_nome',''),
+                    str(i.get('numero_piani','') or ''), str(i.get('numero_vani','') or ''),
+                    str(i.get('consistenza','') or ''), stato]
+            for c, v in enumerate(vals):
+                tbl.setItem(r, c, QTableWidgetItem(v))
+            self._set_row_color(tbl, r, color)
+

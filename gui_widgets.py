@@ -43,7 +43,7 @@ from config import (
 from dialogs import ( ModificaPossessoreDialog, PartiteComuneDialog, ModificaImmobileDialog,
                      PossessoriComuneDialog, LocalitaSelectionDialog, ModificaComuneDialog,
                      PartitaDetailsDialog, CreateUserDialog, ModificaLocalitaDialog, PeriodoStoricoEditDialog,
-                     CreatePossessoreDialog, AlberoGeneralogicoDialog)
+                     CreatePossessoreDialog, AlberoGeneralogicoDialog, ConfrontoPartiteDialog)
 from custom_widgets import LazyLoadedWidget
 
 # Ottieni un logger specifico per questo modulo.
@@ -4130,7 +4130,7 @@ class ReportisticaWidget(LazyLoadedWidget):
         self.partita_id_gen_edit = QSpinBox(); self.partita_id_gen_edit.setRange(1, 9999999)
         self.search_partita_gen_button = QPushButton("Cerca..."); self.search_partita_gen_button.clicked.connect(self.search_partita_gen)
         select_layout.addWidget(self.partita_id_gen_edit); select_layout.addWidget(self.search_partita_gen_button)
-        layout.addRow("ID Partita (*):", select_layout)
+        layout.addRow("ID Partita A (*):", select_layout)
         self.partita_info_label_gen = QLabel("Nessuna partita selezionata."); layout.addRow(self.partita_info_label_gen)
         self.generate_gen_button = QPushButton("Genera Report Genealogico"); self.generate_gen_button.clicked.connect(self.generate_genealogico)
         self.albero_gen_button = QPushButton("Visualizza Albero Genealogico"); self.albero_gen_button.clicked.connect(self._apri_albero_genealogico)
@@ -4138,6 +4138,17 @@ class ReportisticaWidget(LazyLoadedWidget):
         gen_buttons_layout.addWidget(self.generate_gen_button)
         gen_buttons_layout.addWidget(self.albero_gen_button)
         layout.addRow(gen_buttons_layout)
+
+        # --- Confronto versioni ---
+        layout.addRow(QLabel(""))  # spaziatore
+        confronto_label = QLabel("<b>Confronto tra due partite</b>"); layout.addRow(confronto_label)
+        select_b_layout = QHBoxLayout()
+        self.partita_id_gen_b_edit = QSpinBox(); self.partita_id_gen_b_edit.setRange(1, 9999999)
+        select_b_layout.addWidget(self.partita_id_gen_b_edit)
+        layout.addRow("ID Partita B (*):", select_b_layout)
+        self.confronta_button = QPushButton("Confronta Partite (Diff Visuale)")
+        self.confronta_button.clicked.connect(self._apri_confronto_partite)
+        layout.addRow(self.confronta_button)
         return widget
 
     def _create_report_possessore_tab(self) -> QWidget:
@@ -4237,6 +4248,14 @@ class ReportisticaWidget(LazyLoadedWidget):
             QMessageBox.warning(self, "ID Non Valido", "Selezionare un ID partita valido.")
             return
         AlberoGeneralogicoDialog(partita_id, self.db_manager, self).exec()
+
+    def _apri_confronto_partite(self):
+        id_a = self.partita_id_gen_edit.value()
+        id_b = self.partita_id_gen_b_edit.value()
+        if id_a <= 0 or id_b <= 0:
+            QMessageBox.warning(self, "ID Non Valido", "Inserire ID validi per entrambe le partite.")
+            return
+        ConfrontoPartiteDialog(self.db_manager, id_a, id_b, self).exec()
 
     def generate_possessore(self):
         possessore_id = self.possessore_id_edit.value()
