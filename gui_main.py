@@ -6,7 +6,7 @@ Interfaccia Grafica per Gestionale Catasto Storico
 =================================================
 Autore: Marco Santoro
 Data: 18/05/2025
-Versione: 1.2 (con integrazione menu esportazioni)
+Versione: 1.3
 """
 import sys,bcrypt
 from gui_widgets import UnifiedFuzzySearchWidget
@@ -133,7 +133,7 @@ class LoginDialog(QDialog):
         # NUOVO attributo per conservare l'UUID
         self.current_session_id_from_dialog: Optional[str] = None
 
-        self.setWindowTitle("Login - Meridiana 1.2")
+        self.setWindowTitle("Login - Meridiana 1.3")
         self.setMinimumWidth(350)
         self.setModal(True)
 
@@ -317,7 +317,7 @@ class CatastoMainWindow(QMainWindow):
         self.gestione_periodi_storici_widget_ref: Optional[GestionePeriodiStoriciWidget] = None
         self.gestione_tipi_localita_widget_ref: Optional[GestioneTipiLocalitaWidget] = None
         
-        self.setWindowTitle("Meridiana 1.2 - Gestionale Catasto Storico")
+        self.setWindowTitle("Meridiana 1.3 - Gestionale Catasto Storico")
         self.setMinimumSize(1280, 720)
         self.central_widget = QWidget()
         self.main_layout = QVBoxLayout(self.central_widget)

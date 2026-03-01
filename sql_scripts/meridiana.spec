@@ -1,7 +1,7 @@
 # -*- mode: python ; coding: utf-8 -*-
 
 # ===================================================================
-#  File di Specifiche PyInstaller per Meridiana 1.2
+#  File di Specifiche PyInstaller per Meridiana 1.3
 #  Autore: Marco Santoro
 #  Data: 16/06/2025
 # ===================================================================

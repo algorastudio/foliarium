@@ -1,6 +1,6 @@
 # 📥 Esportazione Dati
 
-Il modulo **Esportazioni** di Meridiana 1.2 permette di estrarre massivamente i dati dal database catastale per poterli consultare offline, stamparli o rielaborarli in altri software (come Microsoft Excel).
+Il modulo **Esportazioni** di Meridiana 1.3 permette di estrarre massivamente i dati dal database catastale per poterli consultare offline, stamparli o rielaborarli in altri software (come Microsoft Excel).
 
 ---
 
@@ -32,7 +32,7 @@ La procedura per esportare i dati è semplice e guidata:
 
 ## 3. Formati Supportati
 
-Meridiana 1.2 supporta tre formati di esportazione professionali:
+Meridiana 1.3 supporta tre formati di esportazione professionali:
 
 ### 📊 Esporta in Excel (.xlsx)
 È il formato consigliato se hai bisogno di filtrare, ordinare o modificare i dati estratti. Il file viene generato in formato nativo Excel e organizza i dati in colonne con intestazioni chiare (es. ID, Nome, Natura Immobile).
