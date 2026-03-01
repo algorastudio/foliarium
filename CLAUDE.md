@@ -245,7 +245,7 @@ Tutto il lavoro è sul branch `claude/summarize-dev-status-vDVnI`.
 ### Alta priorità
 - [x] **1. Albero genealogico proprietà** — implementato in v1.3.2.0
 - [x] **2. Export Excel avanzato** — bottone "Archivio Completo (.xlsx)" in `EsportazioniWidget`; handler `_handle_export_xlsx_completo()` con `pd.ExcelWriter` + 4 fogli (Partite, Possessori, Immobili, Variazioni)
-- [ ] **3. Ricerca full-text documenti storici** — `search_historical_documents()` esiste nel DB manager; creare `RicercaDocumentiWidget` con filtri tipo/data/parole chiave
+- [x] **3. Ricerca full-text documenti storici** — `RicercaDocumentiWidget` in `gui_widgets.py`; sub-tab "Ricerca Documenti" in Consultazione; filtri: parole chiave titolo, tipo, anno da/a, ID partita
 
 ### Media priorità
 - [ ] **4. Import partite da Excel (.xlsx)** — estendere `import_partite_from_csv` con supporto `.xlsx` via `openpyxl`

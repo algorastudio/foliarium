@@ -46,8 +46,8 @@ from gui_widgets import (
     OperazioniPartitaWidget, EsportazioniWidget, ReportisticaWidget, StatisticheWidget,
     GestioneUtentiWidget, AuditLogViewerWidget, BackupWidget, 
     RegistraConsultazioneWidget, WelcomeScreen  , RicercaPartiteWidget,GestionePeriodiStoriciWidget ,
-    GestioneTipiLocalitaWidget , 
-    DBConfigDialog,InserimentoPartitaWidget)
+    GestioneTipiLocalitaWidget ,
+    DBConfigDialog, InserimentoPartitaWidget, RicercaDocumentiWidget)
 from dialogs import CSVImportResultDialog,EulaDialog
 
 from custom_widgets import QPasswordLineEdit
@@ -697,11 +697,14 @@ class CatastoMainWindow(QMainWindow):
         self.consultazione_sub_tabs.addTab(self.ricerca_partite_widget_ref, "Ricerca Partite")
         self.ricerca_avanzata_immobili_widget_ref = RicercaAvanzataImmobiliWidget(self.db_manager, self.consultazione_sub_tabs)
         self.consultazione_sub_tabs.addTab(self.ricerca_avanzata_immobili_widget_ref, "Ricerca Immobili")
-        
+        self.ricerca_documenti_widget_ref = RicercaDocumentiWidget(self.db_manager, self.consultazione_sub_tabs)
+        self.consultazione_sub_tabs.addTab(self.ricerca_documenti_widget_ref, "Ricerca Documenti")
+
         # Tooltip per i sotto-tab di consultazione
         self.consultazione_sub_tabs.setTabToolTip(0, "Visualizza l'elenco principale dei comuni registrati")
         self.consultazione_sub_tabs.setTabToolTip(1, "Ricerca partite per comune, numero, possessore o natura immobile")
         self.consultazione_sub_tabs.setTabToolTip(2, "Ricerca avanzata immobili con filtri multipli")
+        self.consultazione_sub_tabs.setTabToolTip(3, "Ricerca full-text nei documenti storici catastali")
         
         layout_consultazione.addWidget(self.consultazione_sub_tabs)
         self.tabs.addTab(consultazione_contenitore, "Consultazione")
