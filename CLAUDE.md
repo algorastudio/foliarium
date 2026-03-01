@@ -4,7 +4,7 @@
 
 **Meridiana** is a desktop application for managing historical Italian cadastral records (archivio catastale storico), developed for the State Archive of Savona. It allows archivists to search, insert, and export property records (partite catastali) and owners (possessori).
 
-- **Current version:** 1.3.1.0
+- **Current version:** 1.4.1.0
 - **Author:** Marco Santoro
 - **Primary platform:** Windows 10+
 - **Code/UI language:** Italian
@@ -259,7 +259,49 @@ Tutto il lavoro è sul branch `claude/summarize-dev-status-vDVnI`.
 
 ---
 
+## Changelog sessione corrente (v1.4.1.0)
+
+Tutto il lavoro è sul branch `claude/summarize-dev-status-vDVnI`.
+
+### Fix: Colonne CSV ISTAT (`dialogs.py`)
+
+- Corretti i nomi colonna in `ISTATDownloadWorker`:
+  - `COL_REGIONE`: `"Denominazione regione"` → `"Denominazione Regione"` (R maiuscola)
+  - `COL_CODICE_CATASTALE`: `"Codice Catastale del Comune"` → `"Codice Catastale del comune"` (c minuscola)
+  - `COL_PROVINCIA`: nome lunghissimo con `\n` → `"Sigla automobilistica"`
+
+### Refactoring: rimozione duplicati e dead code (commit `refactor`)
+
+- `app_utils.py`: rimossa prima definizione di `_get_default_export_path` (usava percorso relativo), rimossa `check_network_environment()` (mai chiamata), rimossi blocchi ridondanti `PDFPartita/PDFPossessore: pass`
+- `catasto_db_manager.py`: rimossa prima definizione di `_resolve_executable_path` e prima definizione di `_search_variazioni_fuzzy_internal` (entrambi duplicati, seconda definizione è quella attiva)
+- `custom_widgets.py`: rimosso import duplicato `from PyQt6.QtCore import Qt, QSettings, pyqtSlot`
+- `gui_main.py`: rimosso `RicercaPartiteWidget` duplicato negli import; rimosso `from dialogs import CSVImportResultDialog, EulaDialog` duplicato
+- Totale: -108 righe
+
+### Feature: Import località da OpenStreetMap (`dialogs.py`)
+
+- `OSMLocalitaWorker(QThread)` — interroga Overpass API (`https://overpass-api.de/api/interpreter`) con query `area["boundary"="administrative"]["admin_level"="8"]["name"="<comune>"]`; estrae strade (tag `highway`) e luoghi (tag `place`: hamlet, village, suburb, etc.); deduplica per nome; mappa tipo dalla prima parola del nome OSM
+- `ImportLocalitaDialog` convertita in `QTabWidget` con 2 tab:
+  - **"Da CSV"**: import da file CSV (funzionalità precedente)
+  - **"Da OpenStreetMap"**: campo comune, checkbox strade/luoghi, progress bar indeterminata, preview tabella, pulsante importa
+- `closeEvent` ferma il worker OSM se in esecuzione
+- Tipi OSM supportati: Via, Viale, Corso, Piazza, Vicolo, Largo, Salita, Calata, Contrada, Borgata, Regione, Frazione, Strada, Traversa, Passaggio, Località
+
+### Feature: 4 pulsanti uniformi nei widget di inserimento (`gui_widgets.py`, `gui_main.py`)
+
+Ogni tab di inserimento ora ha 4 pulsanti in un unico `QHBoxLayout`:
+**[Inserisci] [Pulisci Campi] [Importa CSV] [Scarica template]**
+
+- **`InserimentoComuneWidget`**: aggiunto segnale `import_csv_requested = pyqtSignal()`; rimpiazzato layout a 2 pulsanti con 4; aggiunto `_scarica_template_csv()` (template: `nome;provincia;regione;codice_catastale;data_istituzione;data_soppressione;note`)
+- **`InserimentoPossessoreWidget`**: rimosso QGroupBox "Azioni Aggiuntive" (import + info separati); consolidato in riga unica 4 pulsanti; aggiunto `_scarica_template_csv()` (template: `cognome_nome;nome_completo;paternita`)
+- **`InserimentoLocalitaWidget`**: aggiunto segnale `import_csv_requested`; aggiunto pulsante Pulisci Campi, Importa CSV, Scarica template; aggiunti metodi `_pulisci_campi()` e `_scarica_template_csv()` (template: `nome;tipo;civico`)
+- **`InserimentoPartitaWidget`**: rimosso QGroupBox "Importazione Massiva"; rimosso `manual_actions_layout` dal `form_layout`; aggiunto layout 4 pulsanti dopo `form_group`; aggiunto `_scarica_template_csv()` (template: `comune_nome;numero_partita;suffisso_partita;data_impianto;tipo_partita;numero_provenienza;stato`)
+- **`gui_main.py`**: aggiunte connessioni `inserimento_comune_widget_ref.import_csv_requested.connect(self._import_comuni)` e `inserimento_localita_widget_ref.import_csv_requested.connect(self._import_localita)` (i metodi `_import_*` già esistevano)
+
+---
+
 ### Note tecniche
 - Venv progetto in `U:/catasto/.venv/` (Python 3.13)
 - Per abilitare Long Paths su Windows serve privilegi admin; alternativa: usare Python da percorso corto `C:\Python312\`
 - Terminale integrato VS Code: impostare "Command Prompt" come default (`terminal.integrated.defaultProfile.windows`)
+- Overpass API: gratuita, nessuna chiave API richiesta; rate limit ~1 req/s; endpoint: `https://overpass-api.de/api/interpreter`
