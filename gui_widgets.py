@@ -961,6 +961,7 @@ class RicercaAvanzataImmobiliWidget(QWidget):
 
 class InserimentoComuneWidget(LazyLoadedWidget): # Eredita da LazyLoadedWidget
     comune_appena_inserito = pyqtSignal(int)
+    import_csv_requested = pyqtSignal()
 
     def __init__(self, db_manager: 'CatastoDBManager', utente_attuale_info: Optional[Dict[str, Any]], parent=None):
         super().__init__(parent) # Chiama il costruttore della classe base
@@ -1008,9 +1009,19 @@ class InserimentoComuneWidget(LazyLoadedWidget): # Eredita da LazyLoadedWidget
         form_layout.addRow("Periodo Storico:", self.periodo_combo)
         main_layout.addWidget(form_group)
         button_layout = QHBoxLayout()
-        self.submit_button = QPushButton("Inserisci Comune"); self.submit_button.clicked.connect(self.inserisci_comune)
-        self.clear_button = QPushButton("Pulisci Campi"); self.clear_button.clicked.connect(self.pulisci_campi)
-        button_layout.addStretch(); button_layout.addWidget(self.submit_button); button_layout.addWidget(self.clear_button)
+        self.submit_button = QPushButton("Inserisci Comune")
+        self.submit_button.clicked.connect(self.inserisci_comune)
+        self.clear_button = QPushButton("Pulisci Campi")
+        self.clear_button.clicked.connect(self.pulisci_campi)
+        btn_import = QPushButton("Importa CSV")
+        btn_import.clicked.connect(self.import_csv_requested.emit)
+        btn_template = QPushButton("Scarica template")
+        btn_template.clicked.connect(self._scarica_template_csv)
+        button_layout.addStretch()
+        button_layout.addWidget(self.submit_button)
+        button_layout.addWidget(self.clear_button)
+        button_layout.addWidget(btn_import)
+        button_layout.addWidget(btn_template)
         main_layout.addLayout(button_layout)
         main_layout.addStretch(1)
 
@@ -1031,6 +1042,20 @@ class InserimentoComuneWidget(LazyLoadedWidget): # Eredita da LazyLoadedWidget
         except DBMError as e:
             QMessageBox.critical(self, "Errore Caricamento", f"Impossibile caricare l'elenco dei periodi storici:\n{e}")
 
+
+    def _scarica_template_csv(self):
+        path, _ = QFileDialog.getSaveFileName(
+            self, "Salva template CSV comuni", "template_comuni.csv", "File CSV (*.csv)"
+        )
+        if not path:
+            return
+        try:
+            with open(path, "w", encoding="utf-8-sig") as f:
+                f.write("nome;provincia;regione;codice_catastale;data_istituzione;data_soppressione;note\n")
+                f.write("Savona;SV;Liguria;I480;1861-01-01;;\n")
+            QMessageBox.information(self, "Template salvato", f"Template salvato in:\n{path}")
+        except Exception as e:
+            QMessageBox.critical(self, "Errore", str(e))
 
     def pulisci_campi(self):
         self.nome_comune_edit.clear(); self.provincia_edit.setText("SV"); self.regione_edit.clear()
@@ -1345,25 +1370,20 @@ class InserimentoPossessoreWidget(LazyLoadedWidget):
 
         main_layout.addWidget(form_group)
 
-        import_group = QGroupBox("Azioni Aggiuntive")
-        import_layout = QHBoxLayout(import_group)
-        self.import_button = QPushButton("📂 Importa Possessori da CSV..."); 
-        self.import_button.clicked.connect(self.import_csv_requested.emit)
-        self.info_button_possessori = QPushButton("Info Formato CSV"); 
-        self.info_button_possessori.clicked.connect(self._mostra_info_formato_csv)
-        import_layout.addWidget(self.import_button)
-        import_layout.addWidget(self.info_button_possessori)
-        import_layout.addStretch()
-        main_layout.addWidget(import_group)
-
         button_layout = QHBoxLayout()
         self.save_button = QPushButton("Salva Nuovo Possessore")
         self.save_button.clicked.connect(self._salva_possessore)
         self.clear_button = QPushButton("Pulisci Campi")
         self.clear_button.clicked.connect(self._pulisci_campi_possessore)
+        btn_import = QPushButton("Importa CSV")
+        btn_import.clicked.connect(self.import_csv_requested.emit)
+        btn_template = QPushButton("Scarica template")
+        btn_template.clicked.connect(self._scarica_template_csv)
         button_layout.addStretch()
         button_layout.addWidget(self.save_button)
         button_layout.addWidget(self.clear_button)
+        button_layout.addWidget(btn_import)
+        button_layout.addWidget(btn_template)
         main_layout.addLayout(button_layout)
 
         main_layout.addStretch(1)
@@ -1437,6 +1457,20 @@ class InserimentoPossessoreWidget(LazyLoadedWidget):
             nome_completo_generato = ""
             
         self.nome_completo_edit.setText(nome_completo_generato.strip())
+
+    def _scarica_template_csv(self):
+        path, _ = QFileDialog.getSaveFileName(
+            self, "Salva template CSV possessori", "template_possessori.csv", "File CSV (*.csv)"
+        )
+        if not path:
+            return
+        try:
+            with open(path, "w", encoding="utf-8-sig") as f:
+                f.write("cognome_nome;nome_completo;paternita\n")
+                f.write("Rossi Mario;Mario Rossi;fu Giovanni\n")
+            QMessageBox.information(self, "Template salvato", f"Template salvato in:\n{path}")
+        except Exception as e:
+            QMessageBox.critical(self, "Errore", str(e))
 
     def _pulisci_campi_possessore(self):
         """Pulisce i campi del form possessore."""
@@ -1513,6 +1547,8 @@ class InserimentoPossessoreWidget(LazyLoadedWidget):
 
 # --- Scheda per Localita ---
 class InserimentoLocalitaWidget(QWidget):
+    import_csv_requested = pyqtSignal()
+
     def __init__(self, db_manager, parent=None):
         super(InserimentoLocalitaWidget, self).__init__(parent)
         self.db_manager = db_manager
@@ -1551,9 +1587,21 @@ class InserimentoLocalitaWidget(QWidget):
         form_layout.addWidget(self.civico_edit, 3, 1)
         form_group.setLayout(form_layout)
         layout.addWidget(form_group)
-        insert_button = QPushButton("Inserisci Località")
-        insert_button.clicked.connect(self.insert_localita)
-        layout.addWidget(insert_button)
+        button_layout = QHBoxLayout()
+        btn_inserisci = QPushButton("Inserisci Località")
+        btn_inserisci.clicked.connect(self.insert_localita)
+        btn_pulisci = QPushButton("Pulisci Campi")
+        btn_pulisci.clicked.connect(self._pulisci_campi)
+        btn_import = QPushButton("Importa CSV")
+        btn_import.clicked.connect(self.import_csv_requested.emit)
+        btn_template = QPushButton("Scarica template")
+        btn_template.clicked.connect(self._scarica_template_csv)
+        button_layout.addStretch()
+        button_layout.addWidget(btn_inserisci)
+        button_layout.addWidget(btn_pulisci)
+        button_layout.addWidget(btn_import)
+        button_layout.addWidget(btn_template)
+        layout.addLayout(button_layout)
         summary_group = QGroupBox("Località nel Comune Selezionato")
         summary_layout = QVBoxLayout(summary_group)
         self.refresh_button = QPushButton("Aggiorna Lista")
@@ -1567,6 +1615,26 @@ class InserimentoLocalitaWidget(QWidget):
         summary_layout.addWidget(self.localita_table)
         layout.addWidget(summary_group)
         self.setLayout(layout)
+
+    def _pulisci_campi(self):
+        self.nome_edit.clear()
+        self.civico_edit.setValue(0)
+        self.nome_edit.setFocus()
+
+    def _scarica_template_csv(self):
+        path, _ = QFileDialog.getSaveFileName(
+            self, "Salva template CSV località", "template_localita.csv", "File CSV (*.csv)"
+        )
+        if not path:
+            return
+        try:
+            with open(path, "w", encoding="utf-8-sig") as f:
+                f.write("nome;tipo;civico\n")
+                f.write("Via Roma;Via;10\n")
+                f.write("Borgata Pianello;Borgata;\n")
+            QMessageBox.information(self, "Template salvato", f"Template salvato in:\n{path}")
+        except Exception as e:
+            QMessageBox.critical(self, "Errore", str(e))
 
     def _load_tipi_localita(self):
         """Carica dinamicamente le tipologie di località nel ComboBox."""
@@ -1695,37 +1763,23 @@ class InserimentoPartitaWidget(QWidget):
         self.stato_combo.addItems(["attiva", "inattiva"])
         form_layout.addRow("Stato (*):", self.stato_combo)
 
-        # Pulsanti di azione per il form manuale
+        main_layout.addWidget(form_group)
+
+        button_layout = QHBoxLayout()
         btn_salva = QPushButton("Salva Nuova Partita")
         btn_salva.clicked.connect(self._salva_partita)
         btn_pulisci = QPushButton("Pulisci Campi")
         btn_pulisci.clicked.connect(self._pulisci_campi)
-        manual_actions_layout = QHBoxLayout()
-        manual_actions_layout.addStretch()
-        manual_actions_layout.addWidget(btn_salva)
-        manual_actions_layout.addWidget(btn_pulisci)
-        form_layout.addRow(manual_actions_layout)
-        main_layout.addWidget(form_group)
-
-        # Sezione per l'importazione CSV
-        import_group = QGroupBox("Importazione Massiva")
-        # --- MODIFICA QUI: usiamo un QHBoxLayout ---
-        import_layout = QHBoxLayout(import_group)
-        
-        import_button = QPushButton("📂 Importa Partite da File CSV...")
-        import_button.setIcon(self.style().standardIcon(QStyle.StandardPixmap.SP_DialogSaveButton))
-        import_button.clicked.connect(self.import_csv_requested.emit)
-
-        # Creiamo il nuovo pulsante di aiuto
-        info_button_partite = QPushButton("Info Formato")
-        info_button_partite.setIcon(self.style().standardIcon(QStyle.StandardPixmap.SP_MessageBoxQuestion))
-        info_button_partite.clicked.connect(self._mostra_info_formato_csv)
-
-        import_layout.addWidget(import_button)
-        import_layout.addWidget(info_button_partite)
-        import_layout.addStretch()
-        # --- FINE MODIFICA ---
-        main_layout.addWidget(import_group)
+        btn_import = QPushButton("Importa CSV")
+        btn_import.clicked.connect(self.import_csv_requested.emit)
+        btn_template = QPushButton("Scarica template")
+        btn_template.clicked.connect(self._scarica_template_csv)
+        button_layout.addStretch()
+        button_layout.addWidget(btn_salva)
+        button_layout.addWidget(btn_pulisci)
+        button_layout.addWidget(btn_import)
+        button_layout.addWidget(btn_template)
+        main_layout.addLayout(button_layout)
 
         main_layout.addStretch()
         self.setLayout(main_layout)
@@ -1784,11 +1838,25 @@ class InserimentoPartitaWidget(QWidget):
         self.numero_partita_spin.setValue(1)
         self.suffisso_edit.clear()
         self.data_impianto_edit.setDate(QDate.currentDate())
-        self.data_chiusura_check.setChecked(False) # Disattiva e resetta la data chiusura
+        self.data_chiusura_check.setChecked(False)
         self.numero_provenienza_edit.clear()
         self.tipo_combo.setCurrentIndex(0)
         self.stato_combo.setCurrentIndex(0)
-        
+
+    def _scarica_template_csv(self):
+        path, _ = QFileDialog.getSaveFileName(
+            self, "Salva template CSV partite", "template_partite.csv", "File CSV (*.csv)"
+        )
+        if not path:
+            return
+        try:
+            with open(path, "w", encoding="utf-8-sig") as f:
+                f.write("comune_nome;numero_partita;suffisso_partita;data_impianto;tipo_partita;numero_provenienza;stato\n")
+                f.write("Savona;1;;1900-01-01;principale;;attiva\n")
+            QMessageBox.information(self, "Template salvato", f"Template salvato in:\n{path}")
+        except Exception as e:
+            QMessageBox.critical(self, "Errore", str(e))
+
     def _salva_partita(self):
         comune_id = self.comune_combo.currentData()
         if not comune_id:

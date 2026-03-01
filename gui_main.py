@@ -741,6 +741,7 @@ class CatastoMainWindow(QMainWindow):
             parent=self.inserimento_sub_tabs
         )
         self.inserimento_sub_tabs.addTab(self.inserimento_comune_widget_ref, "Comune")
+        self.inserimento_comune_widget_ref.import_csv_requested.connect(self._import_comuni)
 
         self.inserimento_possessore_widget_ref = InserimentoPossessoreWidget(self.db_manager)
         self.inserimento_sub_tabs.addTab(self.inserimento_possessore_widget_ref, "Possessore")
@@ -752,6 +753,7 @@ class CatastoMainWindow(QMainWindow):
     
         self.inserimento_localita_widget_ref = InserimentoLocalitaWidget(self.db_manager, self.inserimento_sub_tabs)
         self.inserimento_sub_tabs.addTab(self.inserimento_localita_widget_ref, "Località")
+        self.inserimento_localita_widget_ref.import_csv_requested.connect(self._import_localita)
 
         self.registrazione_proprieta_widget_ref = RegistrazioneProprietaWidget(self.db_manager)
         self.inserimento_sub_tabs.addTab(self.registrazione_proprieta_widget_ref, "Reg. Proprietà")
