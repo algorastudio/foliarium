@@ -4105,7 +4105,12 @@ class ReportisticaWidget(LazyLoadedWidget):
         export_buttons_layout = QHBoxLayout()
         self.export_txt_button = QPushButton("Esporta come TXT"); self.export_txt_button.clicked.connect(self._export_current_report_txt)
         self.export_pdf_button = QPushButton("Esporta come PDF"); self.export_pdf_button.clicked.connect(self._export_current_report_pdf); self.export_pdf_button.setEnabled(FPDF_AVAILABLE)
-        export_buttons_layout.addStretch(); export_buttons_layout.addWidget(self.export_txt_button); export_buttons_layout.addWidget(self.export_pdf_button)
+        self.export_odt_button = QPushButton("Esporta come ODT"); self.export_odt_button.clicked.connect(self._export_current_report_odt)
+        self.export_odt_button.setToolTip("Esporta il report in formato ODT (LibreOffice Writer)")
+        export_buttons_layout.addStretch()
+        export_buttons_layout.addWidget(self.export_txt_button)
+        export_buttons_layout.addWidget(self.export_pdf_button)
+        export_buttons_layout.addWidget(self.export_odt_button)
         output_layout.addLayout(export_buttons_layout)
 
         main_layout.addWidget(output_group, 1)
@@ -4475,6 +4480,61 @@ class ReportisticaWidget(LazyLoadedWidget):
                 break
             finally:
                 progress.close()    
+    def _export_current_report_odt(self):
+        """Esporta il report corrente in formato ODT (LibreOffice Writer)."""
+        if not self.current_report_content.strip():
+            QMessageBox.warning(self, "Nessun Contenuto", "Generare un report prima di esportarlo.")
+            return
+        default_filename_base = f"report_catasto_{date.today().isoformat()}.odt"
+        full_default_path = _get_default_export_path(default_filename_base)
+        filename, _ = QFileDialog.getSaveFileName(
+            self, "Salva Report ODT", full_default_path, "File ODT (*.odt)"
+        )
+        if not filename:
+            return
+        try:
+            from odf.opendocument import OpenDocumentText
+            from odf.text import P, H
+            from odf.style import Style, TextProperties, ParagraphProperties
+
+            doc = OpenDocumentText()
+
+            # Stile titolo
+            s_title = Style(name="Titolo", family="paragraph")
+            s_title.addElement(TextProperties(fontsize="16pt", fontweight="bold"))
+            s_title.addElement(ParagraphProperties(marginbottom="6pt"))
+            doc.styles.addElement(s_title)
+
+            # Stile corpo
+            s_body = Style(name="Corpo", family="paragraph")
+            s_body.addElement(TextProperties(fontsize="10pt"))
+            doc.styles.addElement(s_body)
+
+            # Titolo documento
+            doc.text.addElement(H(outlinelevel=1, stylename="Titolo",
+                                  text="Report Catasto Storico"))
+
+            # Contenuto testo (riga per riga)
+            for line in self.current_report_content.splitlines():
+                doc.text.addElement(P(stylename="Corpo", text=line if line else " "))
+
+            doc.save(filename)
+
+            file_url = QUrl.fromLocalFile(filename).toString()
+            base_name = os.path.basename(filename)
+            self.report_output_browser.append(
+                f"<p style='color:green;'>Report ODT esportato: "
+                f"<a href='{file_url}'>{base_name}</a></p>"
+            )
+            QMessageBox.information(self, "Successo", f"File ODT creato:\n{filename}")
+        except ImportError:
+            QMessageBox.critical(self, "Libreria Mancante",
+                                 "La libreria 'odfpy' non è installata.\n"
+                                 "Installa con: pip install odfpy")
+        except Exception as e:
+            self.logger.error(f"Errore export ODT: {e}", exc_info=True)
+            QMessageBox.critical(self, "Errore Esportazione ODT", f"Impossibile salvare il file:\n{e}")
+
     def _open_export_file_link(self, url: QUrl):
         """Apre il file locale puntato dall'URL cliccato nel log."""
         self.logger.info(f"Tentativo di aprire il file dal link: {url.toLocalFile()}")
