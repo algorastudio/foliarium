@@ -16,7 +16,7 @@
 | Layer | Technology |
 |---|---|
 | Language | Python 3.12 |
-| GUI | PyQt6 6.8.1 + PyQt6-WebEngine |
+| GUI | PyQt6 6.8.1 (WebEngine opzionale, non richiesto) |
 | Database | PostgreSQL 14+ |
 | DB driver | psycopg2-binary 2.9.10 |
 | Data | pandas 2.3, numpy 2.3, openpyxl 3.1.5 |
@@ -164,3 +164,50 @@ tests/
 ```
 
 Pytest markers: `slow`, `integration`, `gui`, `unit`.
+
+---
+
+## Changelog sessione corrente (v1.3.0.0)
+
+Tutto il lavoro è sul branch `claude/summarize-dev-status-vDVnI`.
+
+### Migrazione PyQt6 completata
+- Corretti **tutti** gli enum non-namespaced in `gui_widgets.py`, `dialogs.py`, `catasto_db_manager.py`, `app_utils.py`, `tests/catasto-test-gui.py` (>80 istanze)
+- Pattern fisso: `Qt.AlignLeft` → `Qt.AlignmentFlag.AlignLeft`, `QTableWidget.NoEditTriggers` → `QAbstractItemView.EditTrigger.NoEditTriggers`, ecc.
+- `QStyleFactory` è in `PyQt6.QtWidgets`, **non** in `PyQt6.QtGui`
+
+### Nuove feature introdotte
+
+**1. Auto dark/light mode** (`gui_main.py`, `config.py`)
+- Menu *Impostazioni → Cambia Tema Grafico → Tema Automatico (Segue Sistema)*
+- Usa `QGuiApplication.styleHints().colorScheme()` + segnale `colorSchemeChanged`
+- Costanti: `SETTINGS_UI_AUTO_THEME`, `AUTO_THEME_DARK="dark_mode_stylesheet.qss"`, `AUTO_THEME_LIGHT="meridiana_styles.qss"`
+
+**2. Stile nativo Windows 11** (`gui_main.py`, `config.py`)
+- Menu *Impostazioni → Cambia Tema Grafico → Stile Nativo Windows 11*
+- Appare solo se `"windows11" in QStyleFactory.keys()` (Qt 6.7+)
+- `app.setStyle("windows11")` + pulizia QSS; `_reset_app_style()` ripristina Fusion prima di applicare QSS
+- Costante: `SETTINGS_UI_WIN11_STYLE`; le 3 modalità (Win11/Auto/QSS) si escludono a vicenda
+
+**3. HiDPI audit** (`gui_widgets.py`, `dialogs.py`, `gui_main.py`)
+- Rimossi tutti i `setFixed*` (19 istanze) → sostituiti con `setMinimum*`
+- `WelcomeScreen`: `setFixedSize(1024,768)` → `setMinimumSize(800,600)` + `resize(1024,768)`
+- `QSplitter.setSizes([N,M])` → `setStretchFactor()` proporzionale
+
+**4. QPdfDocument sostituisce WebEngine** (`dialogs.py`)
+- `DocumentViewerDialog._load_pdf()` usa `QPdfDocument` + `QPdfView` con toolbar zoom (−/+/Adatta)
+- WebEngine commentato in `requirements.txt` (risparmio ~80 MB installer)
+- `WEB_ENGINE_AVAILABLE` flag in `gui_widgets.py` e `custom_widgets.py` per uso futuro web
+
+**5. Logo SVG** (`app_paths.py`, `gui_main.py`, `gui_widgets.py`)
+- `get_logo_svg_path(dark=False)` in `app_paths.py` → `"logo meridiana.svg"` o `"meridiana_dark.svg"`
+- `WelcomeScreen` usa `QSvgWidget` (sempre nitido su HiDPI), fallback PNG se QtSvgWidgets non disponibile
+- Logo scelto automaticamente in base al tema dark/light del sistema
+
+### Prossima feature pianificata
+Import comuni e località da **CSV manuale** e **ISTAT automatico** (da implementare):
+- Livello 1: CSV con template scaricabile, mappatura su tabelle `comune` e `localita`
+- Livello 2: Download automatico da ISTAT (URL ufficiale), filtro per provincia, QThread per non bloccare UI
+- Tabelle DB coinvolte: `comune` (nome, provincia, regione, codice_catastale), `localita` (comune_id, nome, tipo_id, civico)
+- Aggiungere metodi `import_comuni_from_rows()` e `import_localita_from_rows()` a `CatastoDBManager`
+- Creare `ImportComuniDialog` e `ImportLocalitaDialog` in `dialogs.py`
