@@ -499,7 +499,7 @@ class CatastoMainWindow(QMainWindow):
         import_localita_action.triggered.connect(self._import_localita)
         import_possessori_action = QAction("Importa Possessori da CSV...", self)
         import_possessori_action.triggered.connect(self._import_possessori_csv)
-        import_partite_action = QAction("Importa Partite da CSV...", self)
+        import_partite_action = QAction("Importa Partite da CSV/Excel...", self)
         import_partite_action.triggered.connect(self._import_partite_csv)
         exit_action = QAction(self.style().standardIcon(QStyle.StandardPixmap.SP_DialogCloseButton), "&Esci", self)
         exit_action.triggered.connect(self.close)
@@ -1363,9 +1363,7 @@ class CatastoMainWindow(QMainWindow):
             QApplication.restoreOverrideCursor()
     
     def _import_partite_csv(self):
-        """
-        Gestisce l'importazione di partite da un file CSV e mostra i risultati.
-        """
+        """Gestisce l'importazione di partite da CSV o Excel e mostra i risultati."""
         try:
             comuni = self.db_manager.get_elenco_comuni_semplice()
             if not comuni:
@@ -1385,14 +1383,18 @@ class CatastoMainWindow(QMainWindow):
                 return
 
             file_path, _ = QFileDialog.getOpenFileName(
-                self, "Seleziona il file CSV con le partite", "", "File CSV (*.csv);;Tutti i file (*)"
+                self, "Seleziona file partite da importare", "",
+                "File supportati (*.csv *.xlsx);;CSV (*.csv);;Excel (*.xlsx);;Tutti i file (*)"
             )
             if not file_path:
                 return
 
             QApplication.setOverrideCursor(Qt.CursorShape.WaitCursor)
-            
-            import_results = self.db_manager.import_partite_from_csv(file_path, comune_id_selezionato, nome_comune_selezionato)
+
+            if file_path.lower().endswith('.xlsx'):
+                import_results = self.db_manager.import_partite_from_xlsx(file_path, comune_id_selezionato, nome_comune_selezionato)
+            else:
+                import_results = self.db_manager.import_partite_from_csv(file_path, comune_id_selezionato, nome_comune_selezionato)
             
             # Crea una versione dei dati di successo adatta al dialogo generico
             success_display_data = []

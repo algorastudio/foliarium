@@ -818,72 +818,93 @@ class CatastoDBManager:
             raise DBMError(f"Errore critico di sistema durante l'importazione: {e}") from e
     # In catasto_db_manager.py, SOSTITUISCI la vecchia funzione con questa
 
-    def import_partite_from_csv(self, file_path: str, comune_id: int, comune_nome: str) -> Dict[str, list]:
-        """
-        Importa una lista di partite da un file CSV, gestendo gli errori riga per riga.
-        Restituisce un dizionario con i risultati dettagliati ('success' e 'errors').
-        """
-        records_to_import = []
-        try:
-            with open(file_path, mode='r', encoding='utf-8') as csvfile:
-                reader = csv.DictReader(csvfile, delimiter=';')
-                required_headers = {'numero_partita', 'data_impianto', 'stato', 'tipo'}
-                if not required_headers.issubset(reader.fieldnames or []):
-                    raise ValueError(f"Intestazioni mancanti nel CSV. Richieste: {', '.join(required_headers)}")
-                for i, row in enumerate(reader):
-                    if not all(row.get(key) for key in required_headers):
-                        raise ValueError(f"Dati mancanti alla riga {i + 2}. Campi obbligatori: {', '.join(required_headers)}.")
-                    records_to_import.append(row)
-        except Exception as e:
-            raise IOError(f"Errore leggendo il file CSV: {e}")
-
-        if not records_to_import:
+    def _insert_partite_records(self, records: List[Dict], comune_id: int, comune_nome: str) -> Dict[str, list]:
+        """Helper condiviso: inserisce una lista di record-partita con SAVEPOINT per riga."""
+        if not records:
             return {"success": [], "errors": []}
-
-        success_rows = []
-        error_rows = []
-
+        success_rows: List[Dict] = []
+        error_rows: list = []
         try:
             with self._get_connection() as conn:
                 with conn.cursor() as cur:
-                    for i, record in enumerate(records_to_import):
+                    for i, record in enumerate(records):
                         line_num = i + 2
                         cur.execute("SAVEPOINT record_savepoint")
                         try:
                             numero_partita = int(record['numero_partita'])
                             suffisso_partita = record.get('suffisso_partita') or None
-                            
                             cur.execute(
-                                f"SELECT id FROM {self.schema}.partita WHERE comune_id = %s AND numero_partita = %s AND (suffisso_partita = %s OR (suffisso_partita IS NULL AND %s IS NULL))",
+                                f"SELECT id FROM {self.schema}.partita WHERE comune_id = %s AND numero_partita = %s"
+                                f" AND (suffisso_partita = %s OR (suffisso_partita IS NULL AND %s IS NULL))",
                                 (comune_id, numero_partita, suffisso_partita, suffisso_partita)
                             )
                             if cur.fetchone():
-                                suffisso_str = f" con suffisso '{suffisso_partita}'" if suffisso_partita else ""
-                                raise ValueError(f"La partita n.{numero_partita}{suffisso_str} esiste già.")
-
+                                suf = f" con suffisso '{suffisso_partita}'" if suffisso_partita else ""
+                                raise ValueError(f"La partita n.{numero_partita}{suf} esiste già.")
                             cur.execute(
-                                f"""
-                                INSERT INTO {self.schema}.partita (comune_id, numero_partita, suffisso_partita, data_impianto, data_chiusura, numero_provenienza, stato, tipo)
-                                VALUES (%s, %s, %s, %s, %s, %s, %s, %s) RETURNING id;
-                                """,
-                                (comune_id, numero_partita, suffisso_partita, record['data_impianto'], record.get('data_chiusura') or None, record.get('numero_provenienza') or None, record['stato'], record['tipo'])
+                                f"""INSERT INTO {self.schema}.partita
+                                    (comune_id, numero_partita, suffisso_partita, data_impianto,
+                                     data_chiusura, numero_provenienza, stato, tipo)
+                                    VALUES (%s, %s, %s, %s, %s, %s, %s, %s) RETURNING id;""",
+                                (comune_id, numero_partita, suffisso_partita,
+                                 record['data_impianto'], record.get('data_chiusura') or None,
+                                 record.get('numero_provenienza') or None,
+                                 record['stato'], record['tipo'])
                             )
                             new_id = cur.fetchone()[0]
                             cur.execute("RELEASE SAVEPOINT record_savepoint")
                             record['id'] = new_id
                             record['comune_nome'] = comune_nome
                             success_rows.append(record)
-                        
                         except (ValueError, psycopg2.Error, DBMError) as error:
                             cur.execute("ROLLBACK TO SAVEPOINT record_savepoint")
                             error_rows.append((line_num, record, str(error)))
-            
-            self.logger.info(f"Importazione CSV partite completata. Successi: {len(success_rows)}, Errori: {len(error_rows)}")
+            self.logger.info(f"Import partite completato. Successi: {len(success_rows)}, Errori: {len(error_rows)}")
             return {"success": success_rows, "errors": error_rows}
-
         except Exception as e:
-            self.logger.error(f"Errore critico durante l'importazione CSV delle partite: {e}", exc_info=True)
+            self.logger.error(f"Errore critico import partite: {e}", exc_info=True)
             raise DBMError(f"Errore critico di sistema durante l'importazione: {e}") from e
+
+    def import_partite_from_csv(self, file_path: str, comune_id: int, comune_nome: str) -> Dict[str, list]:
+        """Importa partite da un file CSV (delimitatore ';')."""
+        records: List[Dict] = []
+        required = {'numero_partita', 'data_impianto', 'stato', 'tipo'}
+        try:
+            with open(file_path, mode='r', encoding='utf-8') as csvfile:
+                reader = csv.DictReader(csvfile, delimiter=';')
+                if not required.issubset(reader.fieldnames or []):
+                    raise ValueError(f"Intestazioni mancanti. Richieste: {', '.join(required)}")
+                for i, row in enumerate(reader):
+                    if not all(row.get(k) for k in required):
+                        raise ValueError(f"Dati mancanti alla riga {i + 2}. Campi obbligatori: {', '.join(required)}.")
+                    records.append(dict(row))
+        except Exception as e:
+            raise IOError(f"Errore leggendo il file CSV: {e}")
+        return self._insert_partite_records(records, comune_id, comune_nome)
+
+    def import_partite_from_xlsx(self, file_path: str, comune_id: int, comune_nome: str) -> Dict[str, list]:
+        """Importa partite da un file Excel (.xlsx). Stesse colonne del CSV."""
+        required = {'numero_partita', 'data_impianto', 'stato', 'tipo'}
+        try:
+            import openpyxl
+            wb = openpyxl.load_workbook(file_path, read_only=True, data_only=True)
+            ws = wb.active
+            rows_iter = ws.iter_rows(values_only=True)
+            headers = [str(h).strip() if h is not None else '' for h in next(rows_iter, [])]
+            if not required.issubset(set(headers)):
+                raise ValueError(f"Intestazioni mancanti nel foglio Excel. Richieste: {', '.join(required)}")
+            records: List[Dict] = []
+            for i, row in enumerate(rows_iter):
+                record = {headers[j]: (str(v).strip() if v is not None else '') for j, v in enumerate(row)}
+                if not all(record.get(k) for k in required):
+                    raise ValueError(f"Dati mancanti alla riga {i + 2}. Campi obbligatori: {', '.join(required)}.")
+                records.append(record)
+            wb.close()
+        except ImportError:
+            raise IOError("La libreria 'openpyxl' non è installata. Esegui: pip install openpyxl")
+        except Exception as e:
+            raise IOError(f"Errore leggendo il file Excel: {e}")
+        return self._insert_partite_records(records, comune_id, comune_nome)
     def check_possessore_exists(self, nome_completo: str, comune_id: Optional[int] = None) -> Optional[int]:
         """Verifica se un possessore esiste e ritorna il suo ID, usando il pattern corretto."""
         try:
