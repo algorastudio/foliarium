@@ -33,7 +33,7 @@ from PyQt6.QtWidgets import (QApplication,
 from catasto_db_manager import CatastoDBManager
 from app_utils import get_local_ip_address, get_password_from_keyring 
 import pandas as pd # Importa pandas
-from app_paths import get_available_styles, load_stylesheet, get_logo_path, get_resource_path
+from app_paths import get_available_styles, load_stylesheet, get_logo_svg_path, get_resource_path
 from dialogs import CSVImportResultDialog, EulaDialog,BackupReminderSettingsDialog
 
 
@@ -1759,7 +1759,8 @@ def run_gui_app():
 
         # 4. LOGIN UTENTE OK, MOSTRA WELCOME SCREEN E AVVIA L'APP
         base_dir_app = os.path.dirname(os.path.abspath(sys.argv[0]))
-        logo_path = get_logo_path()
+        is_dark = QGuiApplication.styleHints().colorScheme() == Qt.ColorScheme.Dark
+        logo_path = get_logo_svg_path(dark=is_dark)
         manuale_path = None
         if getattr(sys, 'frozen', False):
             exe_dir = os.path.dirname(sys.executable)

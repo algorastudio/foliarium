@@ -106,8 +106,16 @@ def load_stylesheet(filename: str) -> str:
         return ""
 
 def get_logo_path() -> Path:
-    """Ritorna il percorso del file del logo."""
+    """Ritorna il percorso del file del logo (PNG, fallback)."""
     return get_resource_path("logo_meridiana.png")
+
+def get_logo_svg_path(dark: bool = False) -> Path:
+    """Ritorna il percorso SVG del logo per rendering HiDPI nitido.
+    dark=True seleziona la variante per tema scuro.
+    Se il file SVG non esiste, ritorna il PNG come fallback."""
+    svg_name = "meridiana_dark.svg" if dark else "logo meridiana.svg"
+    svg_path = get_resource_path(svg_name)
+    return svg_path if svg_path.exists() else get_logo_path()
 
 # Per mantenere la retrocompatibilità con le chiamate `resource_path`
 # che potrebbero essere rimaste in giro, la rendiamo un alias di get_resource_path

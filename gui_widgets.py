@@ -6638,13 +6638,30 @@ class WelcomeScreen(QDialog):
         # Logo
         logo_layout = QHBoxLayout()
         logo_layout.addStretch(1)
-        logo_label = QLabel()
         if self.logo_path and os.path.exists(self.logo_path):
-            pixmap = QPixmap(str(self.logo_path))
-            # Riduciamo leggermente le dimensioni massime per garantire più spazio
-            scaled_pixmap = pixmap.scaled(750, 450, Qt.AspectRatioMode.KeepAspectRatio, Qt.TransformationMode.SmoothTransformation)
-            logo_label.setPixmap(scaled_pixmap)
-        logo_layout.addWidget(logo_label)
+            logo_path_str = str(self.logo_path)
+            if logo_path_str.lower().endswith('.svg'):
+                try:
+                    from PyQt6.QtSvgWidgets import QSvgWidget
+                    logo_widget = QSvgWidget(logo_path_str)
+                    # Mantieni le proporzioni naturali del SVG entro i limiti
+                    natural = logo_widget.renderer().defaultSize()
+                    if natural.isValid() and natural.height() > 0:
+                        ratio = natural.width() / natural.height()
+                        h = min(300, natural.height())
+                        w = min(int(h * ratio), 750)
+                        logo_widget.setMaximumSize(w, h)
+                    logo_layout.addWidget(logo_widget)
+                except ImportError:
+                    logo_label = QLabel()
+                    pixmap = QPixmap(logo_path_str)
+                    logo_label.setPixmap(pixmap.scaled(750, 300, Qt.AspectRatioMode.KeepAspectRatio, Qt.TransformationMode.SmoothTransformation))
+                    logo_layout.addWidget(logo_label)
+            else:
+                logo_label = QLabel()
+                pixmap = QPixmap(logo_path_str)
+                logo_label.setPixmap(pixmap.scaled(750, 300, Qt.AspectRatioMode.KeepAspectRatio, Qt.TransformationMode.SmoothTransformation))
+                logo_layout.addWidget(logo_label)
         logo_layout.addStretch(1)
         main_layout.addLayout(logo_layout)
 
