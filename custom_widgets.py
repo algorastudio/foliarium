@@ -4,14 +4,9 @@ from datetime import date, datetime
 from typing import Optional, List, Dict, Any, Tuple, TYPE_CHECKING
 
 # Importazioni PyQt6
-# Importazioni necessarie (QSvgWidget già dovrebbe esserci dalla risposta precedente)
-#from PyQt6.QtSvgWidgets import QSvgWidget
-# QByteArray non è più necessario se carichi da file
-# from PyQt6.QtCore import QByteArray
-# Importazioni PyQt6
 from PyQt6.QtCore import (QDate, QDateTime, QPoint, QProcess, QSettings,
                           QSize, QStandardPaths, Qt, QTimer, QUrl,
-                          pyqtSignal)
+                          pyqtSignal, pyqtSlot)
 
 from PyQt6.QtGui import (QCloseEvent, QColor, QDesktopServices, QFont,
                          QIcon, QPalette, QPixmap, QAction)
@@ -35,7 +30,6 @@ from PyQt6.QtWidgets import (QAbstractItemView, QApplication,
                              QSpinBox, QStyle, QStyleFactory, QTabWidget,
                              QTableWidget, QTableWidgetItem, QTextEdit,
                              QVBoxLayout, QWidget)
-from PyQt6.QtCore import Qt, QSettings, pyqtSlot
 # Importazione commentata (da abilitare se necessario)
 # from PyQt6.QtSvgWidgets import QSvgWidget
 class ImmobiliTableWidget(QTableWidget):

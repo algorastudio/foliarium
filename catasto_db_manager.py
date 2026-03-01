@@ -3257,23 +3257,6 @@ class CatastoDBManager:
             return None # Modificato da return "" per coerenza con Optional[str]
 
 
-    def _resolve_executable_path(self, user_provided_path: str, default_name: str) -> Optional[str]:
-        # Se l'utente fornisce un percorso valido, usa quello
-        if user_provided_path and os.path.isabs(user_provided_path) and os.path.exists(user_provided_path) and os.path.isfile(user_provided_path):
-            self.logger.info(f"Utilizzo del percorso eseguibile fornito dall'utente: {user_provided_path} (per default {default_name})")
-            return user_provided_path
-        elif user_provided_path: 
-            self.logger.warning(f"Percorso fornito '{user_provided_path}' per '{default_name}' non valido. Tento di cercare '{default_name}' nel PATH.")
-
-        # Altrimenti, cerca il default_name nel PATH
-        found_path_in_system = shutil.which(default_name) # default_name qui sarà "pg_restore.exe" o "psql.exe"
-        if found_path_in_system:
-            self.logger.info(f"Trovato eseguibile '{default_name}' nel PATH di sistema: {found_path_in_system}")
-            return found_path_in_system
-        else:
-            self.logger.error(f"Eseguibile '{default_name}' non trovato nel PATH e nessun percorso valido fornito.")
-            return None
-
     def get_backup_command_parts(self,
                                  backup_file_path: str,
                                  pg_dump_executable_path_ui: str,
@@ -3925,44 +3908,7 @@ class CatastoDBManager:
             self.logger.error(f"Errore critico durante search_all_entities_fuzzy: {e}", exc_info=True)
             return {}
 
-    # --- METODI DI RICERCA INTERNI (con correzione finale a DictCursor e partita_id) ---
-
-    def _search_variazioni_fuzzy_internal(self, conn, query: str, threshold: float, limit: int) -> List[Dict]:
-        """Ricerca fuzzy interna per le variazioni (su tipo e nominativo di riferimento)."""
-        # --- CORREZIONE: Sostituito v.note (inesistente) con v.nominativo_riferimento ---
-        sql = f"""
-            SELECT
-                v.id AS entity_id,
-                'Variazione ' || v.tipo || ' del ' || TO_CHAR(v.data_variazione, 'DD/MM/YYYY') AS display_text,
-                'Rif: ' || COALESCE(v.nominativo_riferimento, 'N/D') || ' | Partita Origine: ' || po.numero_partita AS detail_text,
-                greatest(
-                    similarity(v.tipo, %s),
-                    similarity(v.nominativo_riferimento, %s)
-                ) AS similarity_score,
-                CASE
-                    WHEN similarity(v.tipo, %s) > similarity(v.nominativo_riferimento, %s) THEN 'tipo'
-                    ELSE 'nominativo_riferimento'
-                END AS search_field,
-                v.tipo,
-                v.data_variazione,
-                v.nominativo_riferimento AS descrizione
-            FROM {self.schema}.variazione v
-            LEFT JOIN {self.schema}.partita po ON v.partita_origine_id = po.id
-            WHERE greatest(
-                    similarity(v.tipo, %s),
-                    similarity(v.nominativo_riferimento, %s)
-                ) >= %s
-            ORDER BY similarity_score DESC
-            LIMIT %s;
-        """
-        try:
-            with conn.cursor(cursor_factory=DictCursor) as cur:
-                # I parametri sono ripetuti per ogni segnaposto '%' nella query
-                cur.execute(sql, (query, query, query, query, query, query, threshold, limit))
-                return [dict(row) for row in cur.fetchall()]
-        except Exception as e:
-            self.logger.error(f"Errore ricerca fuzzy variazioni: {e}", exc_info=True)
-            return []
+    # --- METODI DI RICERCA INTERNI ---
 
     # In catasto_db_manager.py, SOSTITUISCI il metodo _search_localita_fuzzy_internal
 

@@ -185,12 +185,6 @@ if FPDF_AVAILABLE:
                         self.cell(
                             col_widths[i], 6, text, border=1, new_x=XPos.RIGHT, new_y=YPos.TOP, align=align)
             self.ln(4)
-else:  # FPDF non disponibile
-    class PDFPartita:
-        pass  # Definizioni vuote per evitare errori di NameError
-
-    class PDFPossessore:
-        pass
 if FPDF_AVAILABLE:
     class GenericTextReportPDF(FPDF):
         def __init__(self, orientation='P', unit='mm', format='A4', report_title="Report"):
@@ -250,42 +244,6 @@ def get_local_ip_address():
         if 's' in locals():
             s.close()
     return ip
-
-# La funzione check_network_environment rimane esattamente come nell'esempio precedente,
-# ma ora l'import "from config import logger" funzionerà correttamente.
-# ...
-# La funzione get_local_ip_address() rimane invariata
-
-def check_network_environment(allowed_subnet="192.168.1."):
-    """Verifica la rete, a meno che non sia attiva la modalità di sviluppo."""
-    if DEVELOPMENT_MODE:
-        logger.warning("MODALITÀ SVILUPPO ATTIVA - Il controllo di rete è disabilitato.")
-        return True
-
-    ip_address = get_local_ip_address()
-
-    # Controlla se l'IP rientra nella subnet autorizzata o è l'host locale
-    if ip_address.startswith(allowed_subnet) or ip_address == "127.0.0.1":
-        # from config import logger # Evitiamo import circolari, il logging va gestito nel chiamante
-        # logger.info(f"Controllo di rete superato. IP rilevato: {ip_address}")
-        return True
-    else:
-        # Mostra un messaggio di errore chiaro all'utente
-        msg = QMessageBox()
-        msg.setIcon(QMessageBox.Icon.Critical)
-        msg.setText("Accesso non autorizzato.")
-        msg.setInformativeText(
-            f"Questo applicativo non è autorizzato a funzionare da questo indirizzo IP ({ip_address}).\n"
-            "L'uso è consentito esclusivamente all'interno della rete dell'Archivio di Stato di Savona."
-        )
-        msg.setWindowTitle("Errore di Sicurezza")
-        msg.exec()
-        return False
-def _get_default_export_path(default_filename: str) -> str:
-    export_dir_name = "esportazioni"
-    full_dir_path = os.path.abspath(export_dir_name)
-    os.makedirs(full_dir_path, exist_ok=True)
-    return os.path.join(full_dir_path, default_filename)
 
 def gui_esporta_partita_json(parent_widget, db_manager: CatastoDBManager, partita_id: int):
     # Recupera i dati usando il metodo del db_manager che restituisce il dizionario completo

@@ -44,11 +44,10 @@ from gui_widgets import (
     RicercaAvanzataImmobiliWidget, InserimentoComuneWidget,
     InserimentoPossessoreWidget, InserimentoLocalitaWidget, RegistrazioneProprietaWidget,
     OperazioniPartitaWidget, EsportazioniWidget, ReportisticaWidget, StatisticheWidget,
-    GestioneUtentiWidget, AuditLogViewerWidget, BackupWidget, 
-    RegistraConsultazioneWidget, WelcomeScreen  , RicercaPartiteWidget,GestionePeriodiStoriciWidget ,
-    GestioneTipiLocalitaWidget ,
+    GestioneUtentiWidget, AuditLogViewerWidget, BackupWidget,
+    RegistraConsultazioneWidget, WelcomeScreen, GestionePeriodiStoriciWidget,
+    GestioneTipiLocalitaWidget,
     DBConfigDialog, InserimentoPartitaWidget, RicercaDocumentiWidget)
-from dialogs import CSVImportResultDialog,EulaDialog
 
 from custom_widgets import QPasswordLineEdit
 
