@@ -3,9 +3,9 @@ import os,csv,sys,logging,json,bcrypt
 from datetime import date, datetime
 from typing import Optional, List, Dict, Any, Tuple, TYPE_CHECKING
 # Importazioni PyQt6
-from PyQt6.QtCore import (QDate, QDateTime, QPoint, QProcess, QSettings, 
-                          QSize, QStandardPaths, Qt, QTimer, QUrl, 
-                          pyqtSignal,pyqtSlot)
+from PyQt6.QtCore import (QDate, QDateTime, QPoint, QProcess, QSettings,
+                          QSize, QStandardPaths, Qt, QThread, QTimer, QUrl,
+                          pyqtSignal, pyqtSlot)
 
 from PyQt6.QtGui import (QCloseEvent, QColor, QDesktopServices, QFont, 
                          QIcon, QPalette, QPixmap, QAction)
@@ -5707,4 +5707,495 @@ def _verify_password(stored_hash: str, provided_password: str) -> bool:
         logging.getLogger("CatastoGUI").error(
             f"Errore imprevisto durante la verifica bcrypt: {e}")
         return False
+
+
+# ---------------------------------------------------------------------------
+# Import comuni e località da CSV / ISTAT
+# ---------------------------------------------------------------------------
+
+class ISTATDownloadWorker(QThread):
+    """QThread che scarica e analizza il file comuni ISTAT in background."""
+    progress = pyqtSignal(str)
+    finished = pyqtSignal(list)
+    error = pyqtSignal(str)
+
+    ISTAT_URL = "https://www.istat.it/storage/codici-unita-amministrative/Elenco-comuni-italiani.csv"
+    COL_NOME = "Denominazione in italiano"
+    COL_PROVINCIA = "Denominazione dell'Unità territoriale sovracomunale (valida a fini statistici)"
+    COL_REGIONE = "Denominazione regione"
+    COL_CODICE_CATASTALE = "Codice Catastale del Comune"
+    COL_SIGLA = "Sigla automobilistica"
+
+    def __init__(self, provincia_filter: str = "", parent=None):
+        super().__init__(parent)
+        self.provincia_filter = provincia_filter.strip().upper()
+
+    def run(self):
+        import urllib.request
+        import io as _io
+        try:
+            self.progress.emit("Connessione al server ISTAT...")
+            req = urllib.request.Request(self.ISTAT_URL, headers={"User-Agent": "Mozilla/5.0"})
+            with urllib.request.urlopen(req, timeout=30) as response:
+                raw = response.read()
+            self.progress.emit("Download completato. Analisi dati...")
+            text = raw.decode("latin-1")
+            reader = csv.DictReader(_io.StringIO(text), delimiter=";")
+            required = {self.COL_NOME, self.COL_PROVINCIA, self.COL_REGIONE, self.COL_CODICE_CATASTALE}
+            fieldnames = set(reader.fieldnames or [])
+            if not required.issubset(fieldnames):
+                missing = required - fieldnames
+                self.error.emit(
+                    f"Il file ISTAT non contiene le colonne attese.\n"
+                    f"Mancanti: {', '.join(missing)}\n\n"
+                    f"Colonne trovate: {', '.join(sorted(fieldnames))}"
+                )
+                return
+            rows = []
+            for row in reader:
+                if self.provincia_filter and self.COL_SIGLA in row:
+                    sigla = (row.get(self.COL_SIGLA) or "").strip().upper()
+                    if sigla != self.provincia_filter:
+                        continue
+                nome = (row.get(self.COL_NOME) or "").strip()
+                if not nome:
+                    continue
+                rows.append({
+                    "nome": nome,
+                    "provincia": (row.get(self.COL_PROVINCIA) or "").strip(),
+                    "regione": (row.get(self.COL_REGIONE) or "").strip(),
+                    "codice_catastale": (row.get(self.COL_CODICE_CATASTALE) or "").strip(),
+                })
+            self.progress.emit(f"Trovati {len(rows)} comuni. Pronto per l'import.")
+            self.finished.emit(rows)
+        except Exception as e:
+            self.error.emit(f"Errore durante il download: {e}")
+
+
+def _mostra_risultati_import(parent, entity_label: str, success_rows: list, error_rows: list):
+    """Mostra un dialog di riepilogo dopo un import batch."""
+    if not error_rows:
+        QMessageBox.information(
+            parent, "Import completato",
+            f"Importazione completata con successo.\n\n"
+            f"{entity_label} importati: {len(success_rows)}"
+        )
+        return
+
+    dlg = QDialog(parent)
+    dlg.setWindowTitle("Riepilogo importazione")
+    dlg.setMinimumSize(650, 400)
+    layout = QVBoxLayout(dlg)
+
+    layout.addWidget(QLabel(
+        f"<b>Import completato.</b> "
+        f"Successi: <b>{len(success_rows)}</b> &nbsp;|&nbsp; "
+        f"Errori: <b>{len(error_rows)}</b>"
+    ))
+
+    table = QTableWidget(len(error_rows), 3)
+    table.setHorizontalHeaderLabels(["Riga", "Dato", "Errore"])
+    table.setEditTriggers(QAbstractItemView.EditTrigger.NoEditTriggers)
+    for i, (line_num, row_data, msg) in enumerate(error_rows):
+        table.setItem(i, 0, QTableWidgetItem(str(line_num)))
+        table.setItem(i, 1, QTableWidgetItem(str(row_data)))
+        table.setItem(i, 2, QTableWidgetItem(msg))
+    table.resizeColumnsToContents()
+    table.horizontalHeader().setStretchLastSection(True)
+    layout.addWidget(table)
+
+    bb = QDialogButtonBox(QDialogButtonBox.StandardButton.Ok)
+    bb.accepted.connect(dlg.accept)
+    layout.addWidget(bb)
+    dlg.exec()
+
+
+def _popola_preview_tabella(table: QTableWidget, rows: list, columns: list):
+    """Popola una QTableWidget con le prime 20 righe per l'anteprima."""
+    preview = rows[:20]
+    table.setRowCount(len(preview))
+    table.setColumnCount(len(columns))
+    table.setHorizontalHeaderLabels([c[0] for c in columns])
+    for r_idx, row in enumerate(preview):
+        for c_idx, (_, key) in enumerate(columns):
+            table.setItem(r_idx, c_idx, QTableWidgetItem(str(row.get(key, ""))))
+    table.resizeColumnsToContents()
+    table.horizontalHeader().setStretchLastSection(True)
+
+
+class ImportComuniDialog(QDialog):
+    """Dialog per importare comuni da file CSV o da ISTAT."""
+
+    TEMPLATE_HEADERS = "nome;provincia;regione;codice_catastale;data_istituzione;data_soppressione;note"
+    TEMPLATE_EXAMPLE = "Savona;Savona;Liguria;I480;01/01/1861;;"
+    PREVIEW_COLUMNS = [
+        ("Nome", "nome"), ("Provincia", "provincia"), ("Regione", "regione"),
+        ("Cod. catastale", "codice_catastale"), ("Data ist.", "data_istituzione"),
+        ("Data sopp.", "data_soppressione"), ("Note", "note"),
+    ]
+
+    def __init__(self, db_manager: 'CatastoDBManager', parent=None):
+        super().__init__(parent)
+        self.db_manager = db_manager
+        self.setWindowTitle("Importa Comuni")
+        self.setMinimumSize(780, 520)
+        self._csv_rows: list = []
+        self._istat_rows: list = []
+        self._istat_worker: Optional[ISTATDownloadWorker] = None
+        self._build_ui()
+
+    def _build_ui(self):
+        layout = QVBoxLayout(self)
+        self._tabs = QTabWidget()
+        self._tabs.addTab(self._build_csv_tab(), "Da file CSV")
+        self._tabs.addTab(self._build_istat_tab(), "Da ISTAT")
+        layout.addWidget(self._tabs)
+
+        bb = QDialogButtonBox(QDialogButtonBox.StandardButton.Close)
+        bb.rejected.connect(self.reject)
+        layout.addWidget(bb)
+
+    # --- Tab CSV ---
+
+    def _build_csv_tab(self) -> QWidget:
+        w = QWidget()
+        layout = QVBoxLayout(w)
+
+        info = QLabel(
+            "Seleziona un file CSV con separatore <b>;</b>.<br>"
+            "Colonne obbligatorie: <b>nome, provincia, regione</b>.<br>"
+            "Opzionali: codice_catastale, data_istituzione (GG/MM/AAAA), data_soppressione, note."
+        )
+        info.setWordWrap(True)
+        layout.addWidget(info)
+
+        btn_layout = QHBoxLayout()
+        btn_template = QPushButton("Scarica template CSV")
+        btn_template.clicked.connect(self._scarica_template_csv)
+        btn_layout.addWidget(btn_template)
+
+        btn_apri = QPushButton("Seleziona file CSV...")
+        btn_apri.clicked.connect(self._seleziona_csv)
+        btn_layout.addWidget(btn_apri)
+        btn_layout.addStretch()
+        layout.addLayout(btn_layout)
+
+        self._csv_path_label = QLabel("Nessun file selezionato.")
+        layout.addWidget(self._csv_path_label)
+
+        self._csv_preview = QTableWidget(0, len(self.PREVIEW_COLUMNS))
+        self._csv_preview.setHorizontalHeaderLabels([c[0] for c in self.PREVIEW_COLUMNS])
+        self._csv_preview.setEditTriggers(QAbstractItemView.EditTrigger.NoEditTriggers)
+        self._csv_preview.horizontalHeader().setStretchLastSection(True)
+        layout.addWidget(self._csv_preview)
+
+        self._csv_import_btn = QPushButton("Importa nel DB")
+        self._csv_import_btn.setEnabled(False)
+        self._csv_import_btn.clicked.connect(self._importa_csv)
+        layout.addWidget(self._csv_import_btn)
+        return w
+
+    def _scarica_template_csv(self):
+        path, _ = QFileDialog.getSaveFileName(
+            self, "Salva template CSV", "template_comuni.csv", "File CSV (*.csv)"
+        )
+        if not path:
+            return
+        try:
+            with open(path, "w", encoding="utf-8-sig") as f:
+                f.write(self.TEMPLATE_HEADERS + "\n")
+                f.write(self.TEMPLATE_EXAMPLE + "\n")
+            QMessageBox.information(self, "Template salvato", f"Template salvato in:\n{path}")
+        except Exception as e:
+            QMessageBox.critical(self, "Errore", f"Impossibile salvare il template:\n{e}")
+
+    def _seleziona_csv(self):
+        path, _ = QFileDialog.getOpenFileName(
+            self, "Seleziona file CSV comuni", "", "File CSV (*.csv);;Tutti i file (*)"
+        )
+        if not path:
+            return
+        try:
+            with open(path, encoding="utf-8-sig") as f:
+                reader = csv.DictReader(f, delimiter=";")
+                required = {"nome", "provincia", "regione"}
+                if not required.issubset(set(reader.fieldnames or [])):
+                    QMessageBox.warning(
+                        self, "Intestazioni mancanti",
+                        f"Il file CSV deve contenere almeno: {', '.join(required)}"
+                    )
+                    return
+                self._csv_rows = list(reader)
+
+            self._csv_path_label.setText(f"File: {path}  ({len(self._csv_rows)} righe)")
+            _popola_preview_tabella(self._csv_preview, self._csv_rows, self.PREVIEW_COLUMNS)
+            self._csv_import_btn.setEnabled(bool(self._csv_rows))
+        except Exception as e:
+            QMessageBox.critical(self, "Errore lettura CSV", str(e))
+
+    def _importa_csv(self):
+        if not self._csv_rows:
+            return
+        QApplication.setOverrideCursor(Qt.CursorShape.WaitCursor)
+        try:
+            result = self.db_manager.import_comuni_from_rows(self._csv_rows)
+        except Exception as e:
+            QApplication.restoreOverrideCursor()
+            QMessageBox.critical(self, "Errore DB", str(e))
+            return
+        QApplication.restoreOverrideCursor()
+        _mostra_risultati_import(self, "Comuni", result.get("success", []), result.get("errors", []))
+        self._csv_rows = []
+        self._csv_preview.setRowCount(0)
+        self._csv_import_btn.setEnabled(False)
+        self._csv_path_label.setText("Nessun file selezionato.")
+
+    # --- Tab ISTAT ---
+
+    ISTAT_PREVIEW_COLUMNS = [
+        ("Nome", "nome"), ("Provincia", "provincia"),
+        ("Regione", "regione"), ("Cod. catastale", "codice_catastale"),
+    ]
+
+    def _build_istat_tab(self) -> QWidget:
+        w = QWidget()
+        layout = QVBoxLayout(w)
+
+        info = QLabel(
+            "Scarica l'elenco ufficiale dei comuni italiani dall'ISTAT e importali nel DB.<br>"
+            "Filtra per <b>sigla provincia</b> (es. <i>SV</i> per Savona) oppure lascia vuoto per tutti."
+        )
+        info.setWordWrap(True)
+        layout.addWidget(info)
+
+        filter_layout = QHBoxLayout()
+        filter_layout.addWidget(QLabel("Filtro provincia (sigla):"))
+        self._istat_sigla_edit = QLineEdit()
+        self._istat_sigla_edit.setPlaceholderText("es. SV  (lascia vuoto per tutti)")
+        self._istat_sigla_edit.setMaximumWidth(180)
+        filter_layout.addWidget(self._istat_sigla_edit)
+        filter_layout.addStretch()
+        layout.addLayout(filter_layout)
+
+        btn_layout = QHBoxLayout()
+        self._istat_download_btn = QPushButton("Scarica da ISTAT")
+        self._istat_download_btn.clicked.connect(self._avvia_download_istat)
+        btn_layout.addWidget(self._istat_download_btn)
+        btn_layout.addStretch()
+        layout.addLayout(btn_layout)
+
+        self._istat_status_label = QLabel("In attesa.")
+        layout.addWidget(self._istat_status_label)
+
+        self._istat_progress = QProgressBar()
+        self._istat_progress.setRange(0, 0)  # indeterminate
+        self._istat_progress.setVisible(False)
+        layout.addWidget(self._istat_progress)
+
+        self._istat_preview = QTableWidget(0, len(self.ISTAT_PREVIEW_COLUMNS))
+        self._istat_preview.setHorizontalHeaderLabels([c[0] for c in self.ISTAT_PREVIEW_COLUMNS])
+        self._istat_preview.setEditTriggers(QAbstractItemView.EditTrigger.NoEditTriggers)
+        self._istat_preview.horizontalHeader().setStretchLastSection(True)
+        layout.addWidget(self._istat_preview)
+
+        self._istat_import_btn = QPushButton("Importa nel DB")
+        self._istat_import_btn.setEnabled(False)
+        self._istat_import_btn.clicked.connect(self._importa_istat)
+        layout.addWidget(self._istat_import_btn)
+        return w
+
+    def _avvia_download_istat(self):
+        self._istat_rows = []
+        self._istat_preview.setRowCount(0)
+        self._istat_import_btn.setEnabled(False)
+        self._istat_download_btn.setEnabled(False)
+        self._istat_progress.setVisible(True)
+        self._istat_status_label.setText("Download in corso...")
+
+        sigla = self._istat_sigla_edit.text().strip()
+        self._istat_worker = ISTATDownloadWorker(provincia_filter=sigla, parent=self)
+        self._istat_worker.progress.connect(self._istat_status_label.setText)
+        self._istat_worker.finished.connect(self._on_istat_finished)
+        self._istat_worker.error.connect(self._on_istat_error)
+        self._istat_worker.start()
+
+    def _on_istat_finished(self, rows: list):
+        self._istat_rows = rows
+        self._istat_progress.setVisible(False)
+        self._istat_download_btn.setEnabled(True)
+        _popola_preview_tabella(self._istat_preview, rows, self.ISTAT_PREVIEW_COLUMNS)
+        self._istat_import_btn.setEnabled(bool(rows))
+
+    def _on_istat_error(self, msg: str):
+        self._istat_progress.setVisible(False)
+        self._istat_download_btn.setEnabled(True)
+        self._istat_status_label.setText("Errore durante il download.")
+        QMessageBox.critical(self, "Errore ISTAT", msg)
+
+    def _importa_istat(self):
+        if not self._istat_rows:
+            return
+        QApplication.setOverrideCursor(Qt.CursorShape.WaitCursor)
+        try:
+            result = self.db_manager.import_comuni_from_rows(self._istat_rows)
+        except Exception as e:
+            QApplication.restoreOverrideCursor()
+            QMessageBox.critical(self, "Errore DB", str(e))
+            return
+        QApplication.restoreOverrideCursor()
+        _mostra_risultati_import(self, "Comuni", result.get("success", []), result.get("errors", []))
+        self._istat_rows = []
+        self._istat_preview.setRowCount(0)
+        self._istat_import_btn.setEnabled(False)
+        self._istat_status_label.setText("Import completato. Scarica di nuovo per un nuovo import.")
+
+    def closeEvent(self, event):
+        if self._istat_worker and self._istat_worker.isRunning():
+            self._istat_worker.quit()
+            self._istat_worker.wait(2000)
+        super().closeEvent(event)
+
+
+class ImportLocalitaDialog(QDialog):
+    """Dialog per importare località da file CSV per un comune selezionato."""
+
+    TEMPLATE_HEADERS = "nome;tipo;civico"
+    TEMPLATE_EXAMPLE = (
+        "Via Roma;Via;10\n"
+        "Borgata Pianello;Borgata;\n"
+        "Regione Valleggia;Regione;\n"
+    )
+    PREVIEW_COLUMNS = [("Nome", "nome"), ("Tipo", "tipo"), ("Civico", "civico")]
+
+    def __init__(self, db_manager: 'CatastoDBManager', parent=None):
+        super().__init__(parent)
+        self.db_manager = db_manager
+        self.setWindowTitle("Importa Località")
+        self.setMinimumSize(680, 480)
+        self._csv_rows: list = []
+        self._comune_id: Optional[int] = None
+        self._build_ui()
+
+    def _build_ui(self):
+        layout = QVBoxLayout(self)
+
+        # Selezione comune
+        comune_layout = QHBoxLayout()
+        comune_layout.addWidget(QLabel("Comune di riferimento:"))
+        self._comune_combo = QComboBox()
+        self._comune_combo.setMinimumWidth(280)
+        comune_layout.addWidget(self._comune_combo)
+        comune_layout.addStretch()
+        layout.addLayout(comune_layout)
+
+        self._carica_comuni()
+
+        info = QLabel(
+            "File CSV con separatore <b>;</b>.<br>"
+            "Colonna obbligatoria: <b>nome</b>.<br>"
+            "Opzionali: <b>tipo</b> (Via, Borgata, Regione, Altro), <b>civico</b> (numero intero)."
+        )
+        info.setWordWrap(True)
+        layout.addWidget(info)
+
+        btn_layout = QHBoxLayout()
+        btn_template = QPushButton("Scarica template CSV")
+        btn_template.clicked.connect(self._scarica_template)
+        btn_layout.addWidget(btn_template)
+
+        btn_apri = QPushButton("Seleziona file CSV...")
+        btn_apri.clicked.connect(self._seleziona_csv)
+        btn_layout.addWidget(btn_apri)
+        btn_layout.addStretch()
+        layout.addLayout(btn_layout)
+
+        self._path_label = QLabel("Nessun file selezionato.")
+        layout.addWidget(self._path_label)
+
+        self._preview = QTableWidget(0, len(self.PREVIEW_COLUMNS))
+        self._preview.setHorizontalHeaderLabels([c[0] for c in self.PREVIEW_COLUMNS])
+        self._preview.setEditTriggers(QAbstractItemView.EditTrigger.NoEditTriggers)
+        self._preview.horizontalHeader().setStretchLastSection(True)
+        layout.addWidget(self._preview)
+
+        self._import_btn = QPushButton("Importa nel DB")
+        self._import_btn.setEnabled(False)
+        self._import_btn.clicked.connect(self._importa)
+        layout.addWidget(self._import_btn)
+
+        bb = QDialogButtonBox(QDialogButtonBox.StandardButton.Close)
+        bb.rejected.connect(self.reject)
+        layout.addWidget(bb)
+
+    def _carica_comuni(self):
+        self._comune_combo.clear()
+        self._comuni_map: Dict[str, int] = {}
+        try:
+            comuni = self.db_manager.get_comuni()
+            for c in comuni:
+                label = f"{c['nome']} ({c['provincia']})"
+                self._comune_combo.addItem(label)
+                self._comuni_map[label] = c['id']
+        except Exception as e:
+            QMessageBox.warning(self, "Avviso", f"Impossibile caricare i comuni: {e}")
+
+    def _get_selected_comune_id(self) -> Optional[int]:
+        label = self._comune_combo.currentText()
+        return self._comuni_map.get(label)
+
+    def _scarica_template(self):
+        path, _ = QFileDialog.getSaveFileName(
+            self, "Salva template CSV", "template_localita.csv", "File CSV (*.csv)"
+        )
+        if not path:
+            return
+        try:
+            with open(path, "w", encoding="utf-8-sig") as f:
+                f.write(self.TEMPLATE_HEADERS + "\n")
+                f.write(self.TEMPLATE_EXAMPLE)
+            QMessageBox.information(self, "Template salvato", f"Template salvato in:\n{path}")
+        except Exception as e:
+            QMessageBox.critical(self, "Errore", f"Impossibile salvare il template:\n{e}")
+
+    def _seleziona_csv(self):
+        path, _ = QFileDialog.getOpenFileName(
+            self, "Seleziona file CSV località", "", "File CSV (*.csv);;Tutti i file (*)"
+        )
+        if not path:
+            return
+        try:
+            with open(path, encoding="utf-8-sig") as f:
+                reader = csv.DictReader(f, delimiter=";")
+                if "nome" not in (reader.fieldnames or []):
+                    QMessageBox.warning(self, "Intestazioni mancanti",
+                                        "Il file CSV deve contenere almeno la colonna 'nome'.")
+                    return
+                self._csv_rows = list(reader)
+
+            self._path_label.setText(f"File: {path}  ({len(self._csv_rows)} righe)")
+            _popola_preview_tabella(self._preview, self._csv_rows, self.PREVIEW_COLUMNS)
+            self._import_btn.setEnabled(bool(self._csv_rows))
+        except Exception as e:
+            QMessageBox.critical(self, "Errore lettura CSV", str(e))
+
+    def _importa(self):
+        comune_id = self._get_selected_comune_id()
+        if not comune_id:
+            QMessageBox.warning(self, "Nessun comune", "Seleziona un comune prima di importare.")
+            return
+        if not self._csv_rows:
+            return
+        QApplication.setOverrideCursor(Qt.CursorShape.WaitCursor)
+        try:
+            result = self.db_manager.import_localita_from_rows(comune_id, self._csv_rows)
+        except Exception as e:
+            QApplication.restoreOverrideCursor()
+            QMessageBox.critical(self, "Errore DB", str(e))
+            return
+        QApplication.restoreOverrideCursor()
+        _mostra_risultati_import(self, "Località", result.get("success", []), result.get("errors", []))
+        self._csv_rows = []
+        self._preview.setRowCount(0)
+        self._import_btn.setEnabled(False)
+        self._path_label.setText("Nessun file selezionato.")
 

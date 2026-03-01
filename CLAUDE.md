@@ -4,7 +4,7 @@
 
 **Meridiana** is a desktop application for managing historical Italian cadastral records (archivio catastale storico), developed for the State Archive of Savona. It allows archivists to search, insert, and export property records (partite catastali) and owners (possessori).
 
-- **Current version:** 1.3.0.0
+- **Current version:** 1.3.1.0
 - **Author:** Marco Santoro
 - **Primary platform:** Windows 10+
 - **Code/UI language:** Italian
@@ -204,10 +204,29 @@ Tutto il lavoro è sul branch `claude/summarize-dev-status-vDVnI`.
 - `WelcomeScreen` usa `QSvgWidget` (sempre nitido su HiDPI), fallback PNG se QtSvgWidgets non disponibile
 - Logo scelto automaticamente in base al tema dark/light del sistema
 
-### Prossima feature pianificata
-Import comuni e località da **CSV manuale** e **ISTAT automatico** (da implementare):
-- Livello 1: CSV con template scaricabile, mappatura su tabelle `comune` e `localita`
-- Livello 2: Download automatico da ISTAT (URL ufficiale), filtro per provincia, QThread per non bloccare UI
-- Tabelle DB coinvolte: `comune` (nome, provincia, regione, codice_catastale), `localita` (comune_id, nome, tipo_id, civico)
-- Aggiungere metodi `import_comuni_from_rows()` e `import_localita_from_rows()` a `CatastoDBManager`
-- Creare `ImportComuniDialog` e `ImportLocalitaDialog` in `dialogs.py`
+---
+
+## Changelog sessione corrente (v1.3.1.0)
+
+Tutto il lavoro è sul branch `claude/summarize-dev-status-vDVnI`.
+
+### Feature: Import comuni e località da CSV / ISTAT
+
+**`catasto_db_manager.py`**
+- `import_comuni_from_rows(rows: List[Dict]) -> Dict` — batch insert comuni con SAVEPOINT per riga; campi obbligatori: nome, provincia, regione; opzionali: codice_catastale, data_istituzione, data_soppressione, note
+- `import_localita_from_rows(comune_id, rows: List[Dict]) -> Dict` — batch insert località; risolve tipo (stringa) → tipo_id via lookup in-memory; fallback su "Altro"
+
+**`dialogs.py`**
+- `ISTATDownloadWorker(QThread)` — scarica CSV ISTAT ufficiale in background (`urllib.request`), mappa colonne → schema locale, filtro per sigla provincia
+- `ImportComuniDialog` — due tab: *Da file CSV* (template scaricabile, preview 20 righe, import) e *Da ISTAT* (download con progress bar, preview, import)
+- `ImportLocalitaDialog` — selezione comune da ComboBox, template CSV scaricabile, preview, import
+- `_mostra_risultati_import()` — helper per dialog riepilogo successi/errori
+
+**`gui_main.py`**
+- 2 nuove voci menu *File*: "Importa Comuni da CSV/ISTAT..." e "Importa Località da CSV..."
+- Handler `_import_comuni()` (con refresh `ElencoComuniWidget`) e `_import_localita()`
+
+### Note tecniche
+- Venv progetto in `U:/catasto/.venv/` (Python 3.13)
+- Per abilitare Long Paths su Windows serve privilegi admin; alternativa: usare Python da percorso corto `C:\Python312\`
+- Terminale integrato VS Code: impostare "Command Prompt" come default (`terminal.integrated.defaultProfile.windows`)

@@ -34,7 +34,8 @@ from catasto_db_manager import CatastoDBManager
 from app_utils import get_local_ip_address, get_password_from_keyring 
 import pandas as pd # Importa pandas
 from app_paths import get_available_styles, load_stylesheet, get_logo_svg_path, get_resource_path
-from dialogs import CSVImportResultDialog, EulaDialog,BackupReminderSettingsDialog
+from dialogs import (CSVImportResultDialog, EulaDialog, BackupReminderSettingsDialog,
+                     ImportComuniDialog, ImportLocalitaDialog)
 
 
 # Dai nuovi moduli che creeremo:
@@ -492,13 +493,20 @@ class CatastoMainWindow(QMainWindow):
         # --- FINE AGGIUNTA ---
         
         # --- Azioni per il menu File ---
+        import_comuni_action = QAction("Importa Comuni da CSV/ISTAT...", self)
+        import_comuni_action.triggered.connect(self._import_comuni)
+        import_localita_action = QAction("Importa Località da CSV...", self)
+        import_localita_action.triggered.connect(self._import_localita)
         import_possessori_action = QAction("Importa Possessori da CSV...", self)
         import_possessori_action.triggered.connect(self._import_possessori_csv)
         import_partite_action = QAction("Importa Partite da CSV...", self)
         import_partite_action.triggered.connect(self._import_partite_csv)
         exit_action = QAction(self.style().standardIcon(QStyle.StandardPixmap.SP_DialogCloseButton), "&Esci", self)
         exit_action.triggered.connect(self.close)
-        
+
+        file_menu.addAction(import_comuni_action)
+        file_menu.addAction(import_localita_action)
+        file_menu.addSeparator()
         file_menu.addAction(import_possessori_action)
         file_menu.addAction(import_partite_action)
         file_menu.addSeparator()
@@ -1266,6 +1274,18 @@ class CatastoMainWindow(QMainWindow):
             "Applicazione GUI Catasto Storico terminata via closeEvent.")
         event.accept()
    
+    def _import_comuni(self):
+        """Apre il dialog per importare comuni da CSV o ISTAT."""
+        dlg = ImportComuniDialog(self.db_manager, self)
+        dlg.exec()
+        if self.elenco_comuni_widget_ref:
+            self.elenco_comuni_widget_ref.load_data()
+
+    def _import_localita(self):
+        """Apre il dialog per importare località da CSV."""
+        dlg = ImportLocalitaDialog(self.db_manager, self)
+        dlg.exec()
+
     def _import_possessori_csv(self):
         """
         Gestisce il flusso di importazione dei possessori da CSV, chiamando la logica
