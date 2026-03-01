@@ -19,12 +19,12 @@ from PyQt6.QtCore import (QSettings,
                           QStandardPaths, Qt, QUrl,
                           pyqtSlot, QCoreApplication)
 
-from PyQt6.QtGui import (QCloseEvent, QDesktopServices, QAction, QActionGroup, QGuiApplication, QStyleFactory)
+from PyQt6.QtGui import (QCloseEvent, QDesktopServices, QAction, QActionGroup, QGuiApplication)
 
 from PyQt6.QtWidgets import (QApplication,
                              QDialog, QFileDialog, QFrame, QGridLayout,
                              QHBoxLayout, QInputDialog,
-                             QLabel, QLineEdit, QMainWindow, QMessageBox, QPushButton, QStyle, QTabWidget,
+                             QLabel, QLineEdit, QMainWindow, QMessageBox, QPushButton, QStyle, QStyleFactory, QTabWidget,
                              QVBoxLayout, QWidget)
 # --- FINE MODIFICA ---
 
