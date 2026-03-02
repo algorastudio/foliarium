@@ -1,56 +1,110 @@
-# 📥 Esportazione Dati
+# Esportazioni
 
-Il modulo **Esportazioni** di Meridiana 1.3 permette di estrarre massivamente i dati dal database catastale per poterli consultare offline, stamparli o rielaborarli in altri software (come Microsoft Excel).
+Il modulo **Esportazioni** di Meridiana permette di estrarre i dati dal database catastale in vari formati per consultazione offline, stampa istituzionale o rielaborazione in altri software.
 
----
-
-## 1. Tipi di Dati Esportabili
-Attraverso l'interfaccia principale è possibile selezionare diverse categorie di dati da esportare:
-
-* **Elenco Possessori:** Estrae tutti i possessori registrati, includendo la paternità e il numero di partite a loro associate.
-* **Elenco Partite:** Un riepilogo di tutte le partite catastali (attive e inattive) con i totali dei possessori e degli immobili associati.
-* **Elenco Immobili:** Dettaglio di fabbricati e terreni, completi di natura, classificazione e località.
-* **Elenco Località:** La lista delle vie, borgate e piazze configurate nel sistema.
-* **Elenco Variazioni:** Lo storico dei passaggi di proprietà e delle mutazioni catastali (volture).
-* **Report Consistenza Patrimoniale:** Un report avanzato che raggruppa tutti gli immobili posseduti, divisi per singolo possessore.
+> 📸 **Screenshot:** Sezione Esportazioni con menu a tendina tipo esportazione, filtro comune e pulsanti formato.
 
 ---
 
-## 2. Come effettuare un'esportazione
+## Dati esportabili
 
-La procedura per esportare i dati è semplice e guidata:
-
-1. Vai alla sezione **Esportazioni** dal menu principale.
-2. Dal menu a tendina **"Tipo di Esportazione"**, scegli la categoria di dati che ti interessa.
-3. Dal menu **"Filtra per Comune"**, seleziona il Comune di riferimento (oppure lascia "Tutti i Comuni" se l'opzione è disponibile).
-4. Clicca sul pulsante corrispondente al formato desiderato (**CSV**, **XLS** o **PDF**).
-
-!!! success "Cartella di Salvataggio Automatica"
-    Per tenere in ordine il tuo lavoro, Meridiana ti proporrà automaticamente di salvare i file nella cartella **`Documenti > Esportazioni Meridiana`** del tuo computer. Potrai comunque scegliere una cartella diversa cliccando su "Sfoglia" nella finestra di salvataggio di Windows.
-
----
-
-## 3. Formati Supportati
-
-Meridiana 1.3 supporta tre formati di esportazione professionali:
-
-### 📊 Esporta in Excel (.xlsx)
-È il formato consigliato se hai bisogno di filtrare, ordinare o modificare i dati estratti. Il file viene generato in formato nativo Excel e organizza i dati in colonne con intestazioni chiare (es. ID, Nome, Natura Immobile).
-
-### 📄 Esporta in PDF
-Genera un documento impaginato e pronto per la stampa istituzionale. Il PDF include:
-- Intestazione automatica su ogni pagina.
-- Piè di pagina con numero di pagina e dicitura legale dell'Archivio di Stato.
-- Dati incolonnati in tabelle ad alta leggibilità.
-
-### 📝 Esporta in CSV
-Formato di testo grezzo, utile se i dati devono essere importati in altri database governativi o software legacy. Il file utilizza il punto e virgola (`;`) come separatore di colonna.
+| Categoria | Contenuto |
+|---|---|
+| **Elenco Possessori** | Tutti i possessori con paternità e numero partite associate |
+| **Elenco Partite** | Riepilogo partite (attive e non) con totali possessori e immobili |
+| **Elenco Immobili** | Fabbricati e terreni con natura, classificazione e località |
+| **Elenco Località** | Vie, borgate e piazze configurate nel sistema |
+| **Elenco Variazioni** | Storico passaggi di proprietà e volture catastali |
+| **Report Consistenza Patrimoniale** | Raggruppamento immobili per possessore |
 
 ---
 
-## 4. Log delle Operazioni
-Nella parte inferiore della schermata è presente una finestra di **Log**.
-Ogni volta che completi un'esportazione, apparirà un messaggio verde con il link al file appena creato. **Cliccando sul link blu nel log**, il file PDF o Excel si aprirà automaticamente sul tuo schermo!
+## Come eseguire un'esportazione
 
-!!! warning "Attenzione ai file aperti"
-    Se tenti di esportare un file (ad esempio `report_immobili.xlsx`) mentre lo stesso file è **già aperto** in Excel sul tuo computer, Meridiana ti avviserà con un errore di permessi. Assicurati di chiudere il documento prima di sovrascriverlo con una nuova esportazione.
+1. Vai alla sezione **Esportazioni** dalla barra di navigazione
+2. Dal menu a tendina **"Tipo di Esportazione"** scegli la categoria
+3. Dal menu **"Filtra per Comune"** seleziona il comune (oppure "Tutti i Comuni")
+4. Fai clic sul pulsante del formato desiderato
+
+> 📸 **Screenshot:** Procedura di esportazione passo-passo con il menu tipo e il pulsante PDF evidenziati.
+
+---
+
+## Formati supportati
+
+### Esporta in CSV
+
+Formato testo con separatore `;` (punto e virgola), compatibile con Excel e database governativi.
+
+- Codifica: UTF-8
+- Separatore colonne: `;`
+- Estensione: `.csv`
+
+### Esporta in Excel (.xlsx)
+
+Formato nativo Excel con colonne etichettate. Consigliato per analisi e rielaborazione dei dati.
+
+- Compatibile con Microsoft Excel 2007+, LibreOffice Calc, Google Sheets
+- Estensione: `.xlsx`
+
+### Esporta in PDF
+
+Documento impaginato pronto per la stampa istituzionale.
+
+- Intestazione automatica su ogni pagina
+- Piè di pagina con numero di pagina e dicitura dell'Archivio di Stato
+- Dati incolonnati in tabelle ad alta leggibilità
+- Estensione: `.pdf`
+
+### Esporta in ODT
+
+Documento di testo in formato OpenDocument, modificabile con LibreOffice Writer.
+
+- Compatibile con LibreOffice, Apache OpenOffice, Microsoft Word
+- Conserva la struttura tabellare dei dati
+- Estensione: `.odt`
+
+---
+
+## Archivio Completo (.xlsx) — Novità v1.4
+
+Il pulsante **"Archivio Completo (.xlsx)"** genera un unico file Excel con **4 fogli** contenenti l'intero archivio catastale:
+
+| Foglio | Contenuto |
+|---|---|
+| **Partite** | Tutte le partite catastali |
+| **Possessori** | Tutti i possessori registrati |
+| **Immobili** | Tutti i fabbricati e terreni |
+| **Variazioni** | Tutto lo storico delle variazioni |
+
+> 📸 **Screenshot:** File Excel aperto con 4 tab in basso: Partite, Possessori, Immobili, Variazioni.
+
+!!! warning "Tempo di elaborazione"
+    L'esportazione dell'archivio completo può richiedere alcuni minuti su database di grandi dimensioni. Non chiudere Meridiana durante l'operazione.
+
+---
+
+## Cartella di salvataggio
+
+Per impostazione predefinita, Meridiana suggerisce di salvare i file nella cartella:
+
+```
+Documenti\Esportazioni Meridiana\
+```
+
+È comunque possibile scegliere una cartella diversa tramite la finestra di salvataggio standard di Windows.
+
+---
+
+## Log delle operazioni
+
+Nella parte inferiore della schermata è presente un pannello **Log**. Dopo ogni esportazione compare un messaggio con:
+
+- Tipo di esportazione eseguita
+- Nome del file generato (cliccabile per aprirlo direttamente)
+- Data e ora dell'operazione
+
+> 📸 **Screenshot:** Pannello log con messaggio di successo e link cliccabile al file esportato.
+
+!!! warning "File già aperto"
+    Se il file di destinazione è già aperto in Excel o in un altro programma, l'esportazione fallirà con un errore di permessi. Chiudere il file prima di avviare una nuova esportazione.
