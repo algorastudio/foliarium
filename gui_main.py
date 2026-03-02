@@ -528,20 +528,36 @@ class CatastoMainWindow(QMainWindow):
         # --- Azioni per il menu File ---
         import_comuni_action = QAction("Importa Comuni da CSV/ISTAT...", self)
         import_comuni_action.triggered.connect(self._import_comuni)
+        scarica_comuni_action = QAction("Scarica CSV Comuni", self)
+        scarica_comuni_action.triggered.connect(self._scarica_csv_comuni)
+
         import_localita_action = QAction("Importa Località da CSV...", self)
         import_localita_action.triggered.connect(self._import_localita)
+        scarica_localita_action = QAction("Scarica CSV Località...", self)
+        scarica_localita_action.triggered.connect(self._scarica_csv_localita)
+
         import_possessori_action = QAction("Importa Possessori da CSV...", self)
         import_possessori_action.triggered.connect(self._import_possessori_csv)
+        scarica_poss_action = QAction("Scarica CSV Possessori...", self)
+        scarica_poss_action.triggered.connect(self._scarica_csv_possessori)
+
         import_partite_action = QAction("Importa Partite da CSV/Excel...", self)
         import_partite_action.triggered.connect(self._import_partite_csv)
+        scarica_partite_action = QAction("Scarica CSV Partite...", self)
+        scarica_partite_action.triggered.connect(self._scarica_csv_partite)
+
         exit_action = QAction(self.style().standardIcon(QStyle.StandardPixmap.SP_DialogCloseButton), "&Esci", self)
         exit_action.triggered.connect(self.close)
 
         file_menu.addAction(import_comuni_action)
+        file_menu.addAction(scarica_comuni_action)
         file_menu.addAction(import_localita_action)
+        file_menu.addAction(scarica_localita_action)
         file_menu.addSeparator()
         file_menu.addAction(import_possessori_action)
+        file_menu.addAction(scarica_poss_action)
         file_menu.addAction(import_partite_action)
+        file_menu.addAction(scarica_partite_action)
         file_menu.addSeparator()
         file_menu.addAction(exit_action)
         
@@ -767,18 +783,22 @@ class CatastoMainWindow(QMainWindow):
         )
         self.inserimento_sub_tabs.addTab(self.inserimento_comune_widget_ref, "Comune")
         self.inserimento_comune_widget_ref.import_csv_requested.connect(self._import_comuni)
+        self.inserimento_comune_widget_ref.scarica_csv_requested.connect(self._scarica_csv_comuni)
 
         self.inserimento_possessore_widget_ref = InserimentoPossessoreWidget(self.db_manager)
         self.inserimento_sub_tabs.addTab(self.inserimento_possessore_widget_ref, "Possessore")
         self.inserimento_possessore_widget_ref.import_csv_requested.connect(self._import_possessori_csv)
-        
+        self.inserimento_possessore_widget_ref.scarica_csv_requested.connect(self._scarica_csv_possessori)
+
         self.inserimento_partite_widget_ref = InserimentoPartitaWidget(self.db_manager, self.inserimento_sub_tabs)
         self.inserimento_sub_tabs.addTab(self.inserimento_partite_widget_ref, "Partita")
         self.inserimento_partite_widget_ref.import_csv_requested.connect(self._import_partite_csv)
-    
+        self.inserimento_partite_widget_ref.scarica_csv_requested.connect(self._scarica_csv_partite)
+
         self.inserimento_localita_widget_ref = InserimentoLocalitaWidget(self.db_manager, self.inserimento_sub_tabs)
         self.inserimento_sub_tabs.addTab(self.inserimento_localita_widget_ref, "Località")
         self.inserimento_localita_widget_ref.import_csv_requested.connect(self._import_localita)
+        self.inserimento_localita_widget_ref.scarica_csv_requested.connect(self._scarica_csv_localita)
 
         self.registrazione_proprieta_widget_ref = RegistrazioneProprietaWidget(self.db_manager)
         self.inserimento_sub_tabs.addTab(self.registrazione_proprieta_widget_ref, "Reg. Proprietà")
@@ -1290,6 +1310,112 @@ class CatastoMainWindow(QMainWindow):
         """Apre il dialogo di configurazione SMTP per le notifiche email."""
         from dialogs import SMTPSettingsDialog
         SMTPSettingsDialog(self).exec()
+
+    # ------------------------------------------------------------------
+    # Scarica CSV — helper e handler per le 4 entità di inserimento
+    # ------------------------------------------------------------------
+
+    def _scarica_csv(self, data: list, fieldnames: list, default_filename: str) -> None:
+        """Salva una lista di dict come CSV (delimiter ';') tramite QFileDialog."""
+        if not data:
+            QMessageBox.information(self, "Nessun dato", "Nessun record da scaricare.")
+            return
+        filename, _ = QFileDialog.getSaveFileName(
+            self, "Salva CSV", default_filename, "File CSV (*.csv)"
+        )
+        if not filename:
+            return
+        try:
+            import csv as _csv
+            with open(filename, 'w', newline='', encoding='utf-8') as f:
+                writer = _csv.DictWriter(f, fieldnames=fieldnames, delimiter=';',
+                                         extrasaction='ignore')
+                writer.writeheader()
+                writer.writerows(data)
+            QMessageBox.information(
+                self, "Scaricato",
+                f"{len(data)} record salvati in:\n{filename}"
+            )
+        except OSError as e:
+            QMessageBox.critical(self, "Errore salvataggio", str(e))
+
+    def _seleziona_comune_per_csv(self, entita: str):
+        """
+        Mostra QInputDialog per selezionare un comune.
+        Restituisce (comune_id, nome_slug) oppure (None, '') se l'utente annulla.
+        """
+        try:
+            comuni = self.db_manager.get_elenco_comuni_semplice()
+        except Exception:
+            comuni = []
+        if not comuni:
+            QMessageBox.warning(self, "Nessun Comune",
+                                "Nessun comune trovato nel database.")
+            return None, ""
+        nomi = [c[1] for c in comuni]
+        nome, ok = QInputDialog.getItem(
+            self, "Selezione Comune",
+            f"Comune di riferimento per '{entita}':", nomi, 0, False
+        )
+        if not ok or not nome:
+            return None, ""
+        for cid, cnome in comuni:
+            if cnome == nome:
+                return cid, cnome.replace(' ', '_')
+        return None, ""
+
+    def _scarica_csv_comuni(self):
+        """Scarica tutti i comuni in un CSV compatibile con 'Importa Comuni da CSV'."""
+        try:
+            data = self.db_manager.get_comuni_export_csv()
+        except Exception as e:
+            QMessageBox.critical(self, "Errore Database", str(e))
+            return
+        self._scarica_csv(
+            data,
+            ['nome', 'provincia', 'regione', 'codice_catastale',
+             'data_istituzione', 'data_soppressione', 'note'],
+            'comuni_export.csv'
+        )
+
+    def _scarica_csv_localita(self):
+        """Scarica le località di un comune in CSV compatibile con 'Importa Località da CSV'."""
+        comune_id, slug = self._seleziona_comune_per_csv("località")
+        if not comune_id:
+            return
+        try:
+            data = self.db_manager.get_localita_export_csv(comune_id)
+        except Exception as e:
+            QMessageBox.critical(self, "Errore Database", str(e))
+            return
+        self._scarica_csv(data, ['nome', 'tipo', 'civico'],
+                          f'localita_{slug}.csv')
+
+    def _scarica_csv_possessori(self):
+        """Scarica i possessori di un comune in CSV compatibile con 'Importa Possessori da CSV'."""
+        comune_id, slug = self._seleziona_comune_per_csv("possessori")
+        if not comune_id:
+            return
+        try:
+            data = self.db_manager.get_possessori_export_csv(comune_id)
+        except Exception as e:
+            QMessageBox.critical(self, "Errore Database", str(e))
+            return
+        self._scarica_csv(data, ['cognome_nome', 'nome_completo', 'paternita'],
+                          f'possessori_{slug}.csv')
+
+    def _scarica_csv_partite(self):
+        """Scarica le partite di un comune in CSV compatibile con 'Importa Partite da CSV'."""
+        comune_id, slug = self._seleziona_comune_per_csv("partite")
+        if not comune_id:
+            return
+        try:
+            data = self.db_manager.get_partite_export_csv(comune_id)
+        except Exception as e:
+            QMessageBox.critical(self, "Errore Database", str(e))
+            return
+        self._scarica_csv(data, ['numero_partita', 'data_impianto', 'stato', 'tipo'],
+                          f'partite_{slug}.csv')
 
     def handle_logout(self):
         if self.logged_in_user_id is not None and self.current_session_id and self.db_manager:

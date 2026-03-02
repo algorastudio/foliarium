@@ -1033,6 +1033,7 @@ class RicercaAvanzataImmobiliWidget(QWidget):
 class InserimentoComuneWidget(LazyLoadedWidget): # Eredita da LazyLoadedWidget
     comune_appena_inserito = pyqtSignal(int)
     import_csv_requested = pyqtSignal()
+    scarica_csv_requested = pyqtSignal()
 
     def __init__(self, db_manager: 'CatastoDBManager', utente_attuale_info: Optional[Dict[str, Any]], parent=None):
         super().__init__(parent) # Chiama il costruttore della classe base
@@ -1097,12 +1098,15 @@ class InserimentoComuneWidget(LazyLoadedWidget): # Eredita da LazyLoadedWidget
         self.clear_button.clicked.connect(self.pulisci_campi)
         btn_import = QPushButton("Importa CSV")
         btn_import.clicked.connect(self.import_csv_requested.emit)
+        btn_scarica = QPushButton("Scarica CSV")
+        btn_scarica.clicked.connect(self.scarica_csv_requested.emit)
         btn_template = QPushButton("Scarica template")
         btn_template.clicked.connect(self._scarica_template_csv)
         button_layout.addStretch()
         button_layout.addWidget(self.submit_button)
         button_layout.addWidget(self.clear_button)
         button_layout.addWidget(btn_import)
+        button_layout.addWidget(btn_scarica)
         button_layout.addWidget(btn_template)
         main_layout.addLayout(button_layout)
         main_layout.addStretch(1)
@@ -1411,6 +1415,7 @@ class GestionePeriodiStoriciWidget(LazyLoadedWidget):
                 QMessageBox.critical(self, "Errore Eliminazione", str(e))
 class InserimentoPossessoreWidget(LazyLoadedWidget):
     import_csv_requested = pyqtSignal()
+    scarica_csv_requested = pyqtSignal()
 
     def __init__(self, db_manager: 'CatastoDBManager', parent=None):
         super().__init__(parent)  # Chiama il costruttore della classe base
@@ -1468,12 +1473,15 @@ class InserimentoPossessoreWidget(LazyLoadedWidget):
         self.clear_button.clicked.connect(self._pulisci_campi_possessore)
         btn_import = QPushButton("Importa CSV")
         btn_import.clicked.connect(self.import_csv_requested.emit)
+        btn_scarica = QPushButton("Scarica CSV")
+        btn_scarica.clicked.connect(self.scarica_csv_requested.emit)
         btn_template = QPushButton("Scarica template")
         btn_template.clicked.connect(self._scarica_template_csv)
         button_layout.addStretch()
         button_layout.addWidget(self.save_button)
         button_layout.addWidget(self.clear_button)
         button_layout.addWidget(btn_import)
+        button_layout.addWidget(btn_scarica)
         button_layout.addWidget(btn_template)
         main_layout.addLayout(button_layout)
 
@@ -1639,6 +1647,7 @@ class InserimentoPossessoreWidget(LazyLoadedWidget):
 # --- Scheda per Localita ---
 class InserimentoLocalitaWidget(QWidget):
     import_csv_requested = pyqtSignal()
+    scarica_csv_requested = pyqtSignal()
 
     def __init__(self, db_manager, parent=None):
         super(InserimentoLocalitaWidget, self).__init__(parent)
@@ -1687,12 +1696,15 @@ class InserimentoLocalitaWidget(QWidget):
         btn_pulisci.clicked.connect(self._pulisci_campi)
         btn_import = QPushButton("Importa CSV")
         btn_import.clicked.connect(self.import_csv_requested.emit)
+        btn_scarica = QPushButton("Scarica CSV")
+        btn_scarica.clicked.connect(self.scarica_csv_requested.emit)
         btn_template = QPushButton("Scarica template")
         btn_template.clicked.connect(self._scarica_template_csv)
         button_layout.addStretch()
         button_layout.addWidget(btn_inserisci)
         button_layout.addWidget(btn_pulisci)
         button_layout.addWidget(btn_import)
+        button_layout.addWidget(btn_scarica)
         button_layout.addWidget(btn_template)
         layout.addLayout(button_layout)
         summary_group = QGroupBox("Località nel Comune Selezionato")
@@ -1794,6 +1806,7 @@ class InserimentoLocalitaWidget(QWidget):
 
 class InserimentoPartitaWidget(QWidget):
     import_csv_requested = pyqtSignal()
+    scarica_csv_requested = pyqtSignal()
 
     def __init__(self, db_manager: 'CatastoDBManager', parent=None):
         super().__init__(parent)
@@ -1862,12 +1875,15 @@ class InserimentoPartitaWidget(QWidget):
         btn_pulisci.clicked.connect(self._pulisci_campi)
         btn_import = QPushButton("Importa CSV")
         btn_import.clicked.connect(self.import_csv_requested.emit)
+        btn_scarica = QPushButton("Scarica CSV")
+        btn_scarica.clicked.connect(self.scarica_csv_requested.emit)
         btn_template = QPushButton("Scarica template")
         btn_template.clicked.connect(self._scarica_template_csv)
         button_layout.addStretch()
         button_layout.addWidget(btn_salva)
         button_layout.addWidget(btn_pulisci)
         button_layout.addWidget(btn_import)
+        button_layout.addWidget(btn_scarica)
         button_layout.addWidget(btn_template)
         main_layout.addLayout(button_layout)
 

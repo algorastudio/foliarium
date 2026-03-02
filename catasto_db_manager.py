@@ -4508,6 +4508,108 @@ class CatastoDBManager:
             raise DBMError(f"Errore critico di sistema durante l'importazione: {e}") from e
 
 
+    # ------------------------------------------------------------------
+    # Metodi export CSV — formato compatibile con i template di import
+    # ------------------------------------------------------------------
+
+    def get_comuni_export_csv(self) -> List[Dict[str, Any]]:
+        """
+        Restituisce tutti i comuni con i campi compatibili con il template di import.
+        Colonne: nome;provincia;regione;codice_catastale;data_istituzione;data_soppressione;note
+        """
+        query = f"""
+            SELECT
+                nome,
+                provincia,
+                regione,
+                COALESCE(codice_catastale, '') AS codice_catastale,
+                TO_CHAR(data_istituzione, 'DD/MM/YYYY') AS data_istituzione,
+                TO_CHAR(data_soppressione, 'DD/MM/YYYY') AS data_soppressione,
+                COALESCE(note, '') AS note
+            FROM {self.schema}.comune
+            ORDER BY nome;
+        """
+        try:
+            with self._get_connection() as conn:
+                with conn.cursor(cursor_factory=DictCursor) as cur:
+                    cur.execute(query)
+                    return [dict(row) for row in cur.fetchall()]
+        except Exception as e:
+            self.logger.error(f"Errore export CSV comuni: {e}", exc_info=True)
+            raise DBMError(f"Impossibile recuperare i comuni per l'export: {e}") from e
+
+    def get_localita_export_csv(self, comune_id: int) -> List[Dict[str, Any]]:
+        """
+        Restituisce le località di un comune con i campi compatibili con il template di import.
+        Colonne: nome;tipo;civico
+        """
+        query = f"""
+            SELECT
+                l.nome,
+                COALESCE(tl.nome, '') AS tipo,
+                COALESCE(CAST(l.civico AS TEXT), '') AS civico
+            FROM {self.schema}.localita l
+            LEFT JOIN {self.schema}.tipo_localita tl ON l.tipo_id = tl.id
+            WHERE l.comune_id = %s
+            ORDER BY l.nome;
+        """
+        try:
+            with self._get_connection() as conn:
+                with conn.cursor(cursor_factory=DictCursor) as cur:
+                    cur.execute(query, (comune_id,))
+                    return [dict(row) for row in cur.fetchall()]
+        except Exception as e:
+            self.logger.error(f"Errore export CSV località per comune {comune_id}: {e}", exc_info=True)
+            raise DBMError(f"Impossibile recuperare le località per l'export: {e}") from e
+
+    def get_possessori_export_csv(self, comune_id: int) -> List[Dict[str, Any]]:
+        """
+        Restituisce i possessori di un comune con i campi compatibili con il template di import.
+        Colonne: cognome_nome;nome_completo;paternita
+        """
+        query = f"""
+            SELECT
+                cognome_nome,
+                nome_completo,
+                COALESCE(paternita, '') AS paternita
+            FROM {self.schema}.possessore
+            WHERE comune_id = %s
+            ORDER BY cognome_nome;
+        """
+        try:
+            with self._get_connection() as conn:
+                with conn.cursor(cursor_factory=DictCursor) as cur:
+                    cur.execute(query, (comune_id,))
+                    return [dict(row) for row in cur.fetchall()]
+        except Exception as e:
+            self.logger.error(f"Errore export CSV possessori per comune {comune_id}: {e}", exc_info=True)
+            raise DBMError(f"Impossibile recuperare i possessori per l'export: {e}") from e
+
+    def get_partite_export_csv(self, comune_id: int) -> List[Dict[str, Any]]:
+        """
+        Restituisce le partite di un comune con i campi compatibili con il template di import.
+        Colonne: numero_partita;data_impianto;stato;tipo
+        """
+        query = f"""
+            SELECT
+                numero_partita,
+                TO_CHAR(data_impianto, 'DD/MM/YYYY') AS data_impianto,
+                stato,
+                tipo
+            FROM {self.schema}.partita
+            WHERE comune_id = %s
+            ORDER BY numero_partita;
+        """
+        try:
+            with self._get_connection() as conn:
+                with conn.cursor(cursor_factory=DictCursor) as cur:
+                    cur.execute(query, (comune_id,))
+                    return [dict(row) for row in cur.fetchall()]
+        except Exception as e:
+            self.logger.error(f"Errore export CSV partite per comune {comune_id}: {e}", exc_info=True)
+            raise DBMError(f"Impossibile recuperare le partite per l'export: {e}") from e
+
+
 # --- Esempio di utilizzo minimale (invariato) ---
 if __name__ == "__main__":
     print("Esecuzione test minimale CatastoDBManager...")
