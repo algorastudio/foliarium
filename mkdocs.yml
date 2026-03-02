@@ -15,10 +15,6 @@ theme:
 
 plugins:
   - search
-  - with-pdf:
-      author: Marco Santoro
-      copyright: Archivio di Stato di Savona
-      output_path: ../manuale_meridiana_v1.4.pdf
 
 nav:
   - Home: index.md
