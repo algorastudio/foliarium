@@ -4,7 +4,7 @@
 
 **Meridiana** is a desktop application for managing historical Italian cadastral records (archivio catastale storico), developed for the State Archive of Savona. It allows archivists to search, insert, and export property records (partite catastali) and owners (possessori).
 
-- **Current version:** 1.4.1.0
+- **Current version:** 1.4.2.0
 - **Author:** Marco Santoro
 - **Primary platform:** Windows 10+
 - **Code/UI language:** Italian
@@ -305,3 +305,60 @@ Ogni tab di inserimento ora ha 4 pulsanti in un unico `QHBoxLayout`:
 - Per abilitare Long Paths su Windows serve privilegi admin; alternativa: usare Python da percorso corto `C:\Python312\`
 - Terminale integrato VS Code: impostare "Command Prompt" come default (`terminal.integrated.defaultProfile.windows`)
 - Overpass API: gratuita, nessuna chiave API richiesta; rate limit ~1 req/s; endpoint: `https://overpass-api.de/api/interpreter`
+
+---
+
+## Changelog sessione corrente (v1.4.2.0)
+
+Tutto il lavoro è sul branch `claude/summarize-dev-status-vDVnI`.
+
+### Miglioramenti UI/UX (`gui_widgets.py`, `gui_main.py`)
+
+**Helper globali aggiunti in `gui_widgets.py`:**
+- `_PROVINCE_ITALIANE` — lista 107 sigle province italiane
+- `_set_field_error(widget, has_error)` — bordatura rossa CSS su campo non valido
+- `_show_status_message(message, timeout_ms)` — messaggio status bar senza dipendenza circolare
+
+**Tabelle di ricerca:**
+- `RicercaPartiteWidget`: `setSortingEnabled(True)`, menu contestuale tasto destro (Apri Dettagli / Copia Numero / Copia ID), etichetta conteggio risultati, sorting guard in `do_search()`
+- `RicercaAvanzataImmobiliWidget`: etichetta conteggio risultati, sorting guard
+- `RicercaDocumentiWidget`: sorting abilitato, sorting guard in `_popola_tabella()`
+- Sostituiti tutti i `QMessageBox.information("N risultati trovati")` con aggiornamento label
+
+**Form di inserimento (tutti e 4 i widget):**
+- Label con asterisco HTML `<b>*</b>` per campi obbligatori
+- `_set_field_error` nella validazione + reset automatico `textChanged`/`currentIndexChanged`
+- `QCompleter` su campo Provincia (107 sigle, case-insensitive, inline)
+- `_show_status_message` al posto di `QMessageBox.information` per i successi
+
+**Navigazione e shortcut:**
+- `Ctrl+1..N` per navigare tra i tab
+- `F5` per ricaricare il tab corrente (`_handle_f5_refresh`)
+- Auto-focus sul primo campo quando si entra in un tab di inserimento (`_set_focus_first_field`)
+
+### Feature: Notifiche email automatiche (`email_service.py`, `config.py`, `dialogs.py`, `gui_main.py`, `gui_widgets.py`)
+
+**`email_service.py`** (nuovo file):
+- `EmailService` — legge config da `QSettings` + password da `keyring` (`Meridiana_SMTP`); `is_configured()`, `send()`, 4 template: `notify_account_created`, `notify_password_changed`, `notify_role_changed`, `notify_login`
+- `EmailWorker(QThread)` — invio email non-bloccante; segnale `result = pyqtSignal(bool, str)`
+- Supporta STARTTLS (`smtplib.SMTP`) e SMTP_SSL
+
+**`config.py`** (+10 costanti):
+- `SETTINGS_SMTP_ENABLED/HOST/PORT/USER/USE_TLS/FROM_ADDR`
+- `SETTINGS_EMAIL_ON_CREATE/ON_PASSWD/ON_ROLE/ON_LOGIN`
+
+**`dialogs.py`** — `SMTPSettingsDialog`:
+- QGroupBox "Server SMTP": host, porta, TLS, utente, password (QPasswordLineEdit), mittente
+- QGroupBox "Notifiche attive": 4 checkbox per tipo evento
+- Pulsante "Test connessione" → `EmailWorker` con feedback verde/rosso in-dialog
+- `_load_settings()` da QSettings + keyring; `_save_and_accept()` salva tutto
+
+**`gui_main.py`**:
+- Voce menu *Impostazioni → Notifiche Email...* → apre `SMTPSettingsDialog`
+- Notifica login in `perform_initial_setup()` (solo se `SETTINGS_EMAIL_ON_LOGIN` abilitato e utente ha email)
+
+**`gui_widgets.py`** — `GestioneUtentiWidget`:
+- `crea_nuovo_utente()` → `notify_account_created` con dati da `CreateUserDialog`
+- `modifica_utente_selezionato()` → `notify_role_changed` se ruolo cambiato
+- `reset_password_utente_selezionato()` → `notify_password_changed` con lookup `get_utente_by_id`
+- Worker tenuto vivo con `self._email_workers` list (evita garbage collection)
