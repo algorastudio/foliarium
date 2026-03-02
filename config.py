@@ -38,6 +38,18 @@ SETTINGS_UI_CURRENT_STYLE = "UI/CurrentStyle"
 SETTINGS_UI_AUTO_THEME = "UI/AutoTheme"
 SETTINGS_UI_WIN11_STYLE = "UI/Win11NativeStyle"
 
+# --- Notifiche email (SMTP) ---
+SETTINGS_SMTP_ENABLED   = "Email/Enabled"
+SETTINGS_SMTP_HOST      = "Email/Host"
+SETTINGS_SMTP_PORT      = "Email/Port"        # default 587
+SETTINGS_SMTP_USER      = "Email/User"
+SETTINGS_SMTP_USE_TLS   = "Email/UseTLS"      # default True
+SETTINGS_SMTP_FROM_ADDR = "Email/FromAddress"
+SETTINGS_EMAIL_ON_CREATE = "Email/OnCreate"   # default True
+SETTINGS_EMAIL_ON_PASSWD = "Email/OnPassword" # default True
+SETTINGS_EMAIL_ON_ROLE   = "Email/OnRole"     # default True
+SETTINGS_EMAIL_ON_LOGIN  = "Email/OnLogin"    # default True
+
 # --- Temi usati dall'auto-rilevamento dark/light del sistema operativo ---
 AUTO_THEME_DARK = "dark_mode_stylesheet.qss"
 AUTO_THEME_LIGHT = "meridiana_styles.qss"

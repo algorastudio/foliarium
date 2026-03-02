@@ -423,6 +423,23 @@ class CatastoMainWindow(QMainWindow):
             self.logout_button.setEnabled(True)
             self.statusBar().showMessage(
                 f"Login come {user_display} effettuato con successo.")
+            # --- Notifica email login ---
+            try:
+                from email_service import EmailService, EmailWorker
+                from config import SETTINGS_EMAIL_ON_LOGIN
+                _svc = EmailService(QSettings())
+                if _svc.is_configured() and QSettings().value(SETTINGS_EMAIL_ON_LOGIN, True, type=bool):
+                    _user_email = (self.logged_in_user_info or {}).get('email')
+                    if _user_email:
+                        _username = (self.logged_in_user_info or {}).get('username', 'N/D')
+                        _nome = (self.logged_in_user_info or {}).get('nome_completo') or _username
+                        _to, _subj, _body = _svc.notify_login(_user_email, _username, _nome)
+                        self._login_email_worker = EmailWorker(_svc, _to, _subj, _body)
+                        self._login_email_worker.result.connect(
+                            lambda ok, err: self.logger.warning(f"Email login: {err}") if not ok else None)
+                        self._login_email_worker.start()
+            except Exception as _e:
+                self.logger.warning(f"Notifica email login non inviata: {_e}")
         else:  # Modalità setup DB (admin_offline) o nessun login
             ruolo_fittizio = self.logged_in_user_info.get(
                 'ruolo') if self.logged_in_user_info else None
@@ -535,8 +552,15 @@ class CatastoMainWindow(QMainWindow):
         config_refresh_action = QAction("Impostazioni di Aggiornamento Dati...", self)
         config_refresh_action.triggered.connect(self._apri_dialogo_impostazioni_aggiornamento)
         
+        email_action = QAction(
+            self.style().standardIcon(QStyle.StandardPixmap.SP_MessageBoxInformation),
+            "Notifiche &Email...", self
+        )
+        email_action.triggered.connect(self._apri_impostazioni_email)
+
         settings_menu.addAction(config_db_action)
         settings_menu.addAction(config_refresh_action)
+        settings_menu.addAction(email_action)
         settings_menu.addSeparator()
 
         # --- Menu dinamico per i temi ---
@@ -1261,6 +1285,12 @@ class CatastoMainWindow(QMainWindow):
             )
             # Potremmo anche chiudere l'applicazione qui per forzare il riavvio
             # self.close()
+
+    def _apri_impostazioni_email(self):
+        """Apre il dialogo di configurazione SMTP per le notifiche email."""
+        from dialogs import SMTPSettingsDialog
+        SMTPSettingsDialog(self).exec()
+
     def handle_logout(self):
         if self.logged_in_user_id is not None and self.current_session_id and self.db_manager:
             # Chiama il logout_user del db_manager passando l'ID utente e l'ID sessione correnti

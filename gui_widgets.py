@@ -5098,6 +5098,26 @@ class GestioneUtentiWidget(LazyLoadedWidget):
         if dialog.exec() == QDialog.DialogCode.Accepted:
             self.refresh_user_list()
             QMessageBox.information(self, "Successo", "Nuovo utente creato.")
+            # --- Notifica email creazione account ---
+            try:
+                from email_service import EmailService, EmailWorker
+                from config import SETTINGS_EMAIL_ON_CREATE
+                _svc = EmailService(QSettings())
+                if _svc.is_configured() and QSettings().value(SETTINGS_EMAIL_ON_CREATE, True, type=bool):
+                    _email = dialog.email_edit.text().strip()
+                    if _email:
+                        _to, _subj, _body = _svc.notify_account_created(
+                            _email, dialog.username_edit.text().strip(),
+                            dialog.nome_edit.text().strip(),
+                            dialog.ruolo_combo.currentText())
+                        _w = EmailWorker(_svc, _to, _subj, _body)
+                        _w.result.connect(
+                            lambda ok, err: self.logger.warning(f"Email crea account: {err}") if not ok else None)
+                        _w.start()
+                        self._email_workers = getattr(self, '_email_workers', [])
+                        self._email_workers.append(_w)
+            except Exception as _e:
+                self.logger.warning(f"Notifica email creazione non inviata: {_e}")
 
     def _get_selected_user_id(self) -> Optional[int]:
         selected_rows = self.user_table.selectionModel().selectedRows()
@@ -5157,6 +5177,27 @@ class GestioneUtentiWidget(LazyLoadedWidget):
                 QMessageBox.information(
                     self, "Successo", "Dettagli utente aggiornati.")
                 self.refresh_user_list()
+                # --- Notifica email cambio ruolo ---
+                if 'ruolo' in update_params:
+                    try:
+                        from email_service import EmailService, EmailWorker
+                        from config import SETTINGS_EMAIL_ON_ROLE
+                        _svc = EmailService(QSettings())
+                        if _svc.is_configured() and QSettings().value(SETTINGS_EMAIL_ON_ROLE, True, type=bool):
+                            _email = (new_email if (new_email and new_email != email_attuale)
+                                      else email_attuale)
+                            if _email:
+                                _to, _subj, _body = _svc.notify_role_changed(
+                                    _email, utente_attuale.get('username', ''),
+                                    nome_attuale, ruolo_attuale, new_ruolo)
+                                _w = EmailWorker(_svc, _to, _subj, _body)
+                                _w.result.connect(
+                                    lambda ok, err: self.logger.warning(f"Email cambio ruolo: {err}") if not ok else None)
+                                _w.start()
+                                self._email_workers = getattr(self, '_email_workers', [])
+                                self._email_workers.append(_w)
+                    except Exception as _e:
+                        self.logger.warning(f"Notifica email cambio ruolo non inviata: {_e}")
             else:
                 QMessageBox.critical(
                     self, "Errore", "Aggiornamento fallito. Controllare i log.")
@@ -5173,6 +5214,8 @@ class GestioneUtentiWidget(LazyLoadedWidget):
                                 "Non puoi resettare la tua password da questa interfaccia.")
             return
 
+        utente_target = self.db_manager.get_utente_by_id(user_id)
+
         new_password, ok = QInputDialog.getText(
             self, "Reset Password", "Inserisci la nuova password temporanea:", QLineEdit.EchoMode.Password)
         if ok and new_password:
@@ -5184,6 +5227,25 @@ class GestioneUtentiWidget(LazyLoadedWidget):
                     if self.db_manager.reset_user_password(user_id, new_hash):
                         QMessageBox.information(
                             self, "Successo", f"Password per utente ID {user_id} resettata.")
+                        # --- Notifica email cambio password ---
+                        try:
+                            from email_service import EmailService, EmailWorker
+                            from config import SETTINGS_EMAIL_ON_PASSWD
+                            _svc = EmailService(QSettings())
+                            if _svc.is_configured() and QSettings().value(SETTINGS_EMAIL_ON_PASSWD, True, type=bool):
+                                _email = (utente_target or {}).get('email')
+                                if _email:
+                                    _username = (utente_target or {}).get('username', 'N/D')
+                                    _nome = (utente_target or {}).get('nome_completo') or _username
+                                    _to, _subj, _body = _svc.notify_password_changed(_email, _username, _nome)
+                                    _w = EmailWorker(_svc, _to, _subj, _body)
+                                    _w.result.connect(
+                                        lambda ok, err: self.logger.warning(f"Email cambio password: {err}") if not ok else None)
+                                    _w.start()
+                                    self._email_workers = getattr(self, '_email_workers', [])
+                                    self._email_workers.append(_w)
+                        except Exception as _e:
+                            self.logger.warning(f"Notifica email password non inviata: {_e}")
                     else:
                         QMessageBox.critical(
                             self, "Errore", "Reset password fallito.")

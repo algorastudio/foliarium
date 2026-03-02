@@ -46,8 +46,12 @@ from app_paths import get_resource_path
 # Importazione commentata (da abilitare se necessario)
 # from PyQt6.QtSvgWidgets import QSvgWidget
 from config import (
-    SETTINGS_DB_TYPE, SETTINGS_DB_HOST, SETTINGS_DB_PORT, 
-    SETTINGS_DB_NAME, SETTINGS_DB_USER, SETTINGS_DB_SCHEMA,SETTINGS_DB_PASSWORD
+    SETTINGS_DB_TYPE, SETTINGS_DB_HOST, SETTINGS_DB_PORT,
+    SETTINGS_DB_NAME, SETTINGS_DB_USER, SETTINGS_DB_SCHEMA, SETTINGS_DB_PASSWORD,
+    SETTINGS_SMTP_ENABLED, SETTINGS_SMTP_HOST, SETTINGS_SMTP_PORT,
+    SETTINGS_SMTP_USER, SETTINGS_SMTP_USE_TLS, SETTINGS_SMTP_FROM_ADDR,
+    SETTINGS_EMAIL_ON_CREATE, SETTINGS_EMAIL_ON_PASSWD,
+    SETTINGS_EMAIL_ON_ROLE, SETTINGS_EMAIL_ON_LOGIN,
 )
 from catasto_db_manager import CatastoDBManager
 
@@ -6788,4 +6792,184 @@ class ConfrontoPartiteDialog(QDialog):
             for c, v in enumerate(vals):
                 tbl.setItem(r, c, QTableWidgetItem(v))
             self._set_row_color(tbl, r, color)
+
+
+# ---------------------------------------------------------------------------
+# SMTPSettingsDialog — Impostazioni notifiche email
+# ---------------------------------------------------------------------------
+
+class SMTPSettingsDialog(QDialog):
+    """
+    Finestra di configurazione SMTP per le notifiche email.
+    Accessibile da Impostazioni → Notifiche Email...
+
+    La password SMTP viene salvata in keyring (non in QSettings).
+    """
+
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self.setWindowTitle("Impostazioni Notifiche Email")
+        self.setMinimumWidth(440)
+        self._settings = QSettings()
+        self._email_worker = None
+        self._initUI()
+        self._load_settings()
+
+    def _initUI(self):
+        layout = QVBoxLayout(self)
+        layout.setSpacing(12)
+
+        # --- Abilita notifiche ---
+        self.enabled_check = QCheckBox("Abilita notifiche email")
+        layout.addWidget(self.enabled_check)
+
+        # --- Server SMTP ---
+        smtp_group = QGroupBox("Server SMTP")
+        smtp_form = QFormLayout(smtp_group)
+        smtp_form.setSpacing(8)
+
+        self.host_edit = QLineEdit()
+        self.host_edit.setPlaceholderText("es. smtp.gmail.com")
+        smtp_form.addRow("Host:", self.host_edit)
+
+        porta_layout = QHBoxLayout()
+        self.port_spin = QSpinBox()
+        self.port_spin.setRange(1, 65535)
+        self.port_spin.setValue(587)
+        self.port_spin.setFixedWidth(80)
+        self.tls_check = QCheckBox("Usa TLS (STARTTLS)")
+        self.tls_check.setChecked(True)
+        porta_layout.addWidget(self.port_spin)
+        porta_layout.addWidget(self.tls_check)
+        porta_layout.addStretch()
+        smtp_form.addRow("Porta:", porta_layout)
+
+        self.user_edit = QLineEdit()
+        self.user_edit.setPlaceholderText("es. noreply@archivio.it")
+        smtp_form.addRow("Utente:", self.user_edit)
+
+        self.password_edit = QPasswordLineEdit()
+        self.password_edit.setPlaceholderText("Password account SMTP")
+        smtp_form.addRow("Password:", self.password_edit)
+
+        self.from_edit = QLineEdit()
+        self.from_edit.setPlaceholderText("es. Meridiana <noreply@archivio.it>")
+        smtp_form.addRow("Indirizzo mittente:", self.from_edit)
+
+        layout.addWidget(smtp_group)
+
+        # --- Notifiche attive ---
+        notify_group = QGroupBox("Invia notifica quando...")
+        notify_layout = QVBoxLayout(notify_group)
+        self.chk_create = QCheckBox("Creazione account")
+        self.chk_passwd = QCheckBox("Cambio password")
+        self.chk_role   = QCheckBox("Cambio ruolo")
+        self.chk_login  = QCheckBox("Accesso (login)")
+        for chk in (self.chk_create, self.chk_passwd, self.chk_role, self.chk_login):
+            chk.setChecked(True)
+            notify_layout.addWidget(chk)
+        layout.addWidget(notify_group)
+
+        # --- Test + label esito ---
+        test_layout = QHBoxLayout()
+        self.btn_test = QPushButton("Test connessione")
+        self.btn_test.clicked.connect(self._test_connection)
+        self.test_label = QLabel("")
+        test_layout.addWidget(self.btn_test)
+        test_layout.addWidget(self.test_label)
+        test_layout.addStretch()
+        layout.addLayout(test_layout)
+
+        # --- OK / Annulla ---
+        buttons = QDialogButtonBox(
+            QDialogButtonBox.StandardButton.Ok | QDialogButtonBox.StandardButton.Cancel
+        )
+        buttons.accepted.connect(self._save_and_accept)
+        buttons.rejected.connect(self.reject)
+        layout.addWidget(buttons)
+
+    # ------------------------------------------------------------------
+
+    def _load_settings(self):
+        s = self._settings
+        self.enabled_check.setChecked(s.value(SETTINGS_SMTP_ENABLED, False, type=bool))
+        self.host_edit.setText(s.value(SETTINGS_SMTP_HOST, "", type=str))
+        self.port_spin.setValue(s.value(SETTINGS_SMTP_PORT, 587, type=int))
+        self.user_edit.setText(s.value(SETTINGS_SMTP_USER, "", type=str))
+        self.tls_check.setChecked(s.value(SETTINGS_SMTP_USE_TLS, True, type=bool))
+        self.from_edit.setText(s.value(SETTINGS_SMTP_FROM_ADDR, "", type=str))
+        self.chk_create.setChecked(s.value(SETTINGS_EMAIL_ON_CREATE, True, type=bool))
+        self.chk_passwd.setChecked(s.value(SETTINGS_EMAIL_ON_PASSWD, True, type=bool))
+        self.chk_role.setChecked(s.value(SETTINGS_EMAIL_ON_ROLE, True, type=bool))
+        self.chk_login.setChecked(s.value(SETTINGS_EMAIL_ON_LOGIN, True, type=bool))
+        # Password da keyring
+        user = self.user_edit.text()
+        if user and keyring:
+            pwd = keyring.get_password("Meridiana_SMTP", user) or ""
+            self.password_edit.setText(pwd)
+
+    def _save_and_accept(self):
+        s = self._settings
+        s.setValue(SETTINGS_SMTP_ENABLED, self.enabled_check.isChecked())
+        s.setValue(SETTINGS_SMTP_HOST, self.host_edit.text().strip())
+        s.setValue(SETTINGS_SMTP_PORT, self.port_spin.value())
+        s.setValue(SETTINGS_SMTP_USER, self.user_edit.text().strip())
+        s.setValue(SETTINGS_SMTP_USE_TLS, self.tls_check.isChecked())
+        s.setValue(SETTINGS_SMTP_FROM_ADDR, self.from_edit.text().strip())
+        s.setValue(SETTINGS_EMAIL_ON_CREATE, self.chk_create.isChecked())
+        s.setValue(SETTINGS_EMAIL_ON_PASSWD, self.chk_passwd.isChecked())
+        s.setValue(SETTINGS_EMAIL_ON_ROLE,   self.chk_role.isChecked())
+        s.setValue(SETTINGS_EMAIL_ON_LOGIN,  self.chk_login.isChecked())
+        # Salva password in keyring
+        user = self.user_edit.text().strip()
+        pwd  = self.password_edit.text()
+        if keyring and user:
+            try:
+                keyring.set_password("Meridiana_SMTP", user, pwd)
+            except Exception as e:
+                logging.getLogger("CatastoGUI").warning(f"Keyring SMTP: {e}")
+        self.accept()
+
+    def _test_connection(self):
+        """Salva temporaneamente i valori e invia un'email di test al mittente."""
+        from email_service import EmailService, EmailWorker
+        # Costruisce un service "live" con i valori attuali del form
+        s = QSettings()
+        s.setValue(SETTINGS_SMTP_ENABLED, True)
+        s.setValue(SETTINGS_SMTP_HOST, self.host_edit.text().strip())
+        s.setValue(SETTINGS_SMTP_PORT, self.port_spin.value())
+        s.setValue(SETTINGS_SMTP_USER, self.user_edit.text().strip())
+        s.setValue(SETTINGS_SMTP_USE_TLS, self.tls_check.isChecked())
+        s.setValue(SETTINGS_SMTP_FROM_ADDR, self.from_edit.text().strip())
+
+        svc = EmailService(s)
+        # Inietta la password dal campo senza passare per keyring
+        svc.password = self.password_edit.text()
+
+        to = self.from_edit.text().strip() or self.user_edit.text().strip()
+        if not to:
+            self.test_label.setText("⚠ Inserisci l'indirizzo mittente.")
+            self.test_label.setStyleSheet("color: orange;")
+            return
+
+        self.btn_test.setEnabled(False)
+        self.test_label.setText("Invio in corso…")
+        self.test_label.setStyleSheet("color: gray;")
+
+        self._email_worker = EmailWorker(
+            svc, to,
+            "[Meridiana] Test connessione SMTP",
+            "Connessione SMTP configurata correttamente.\n\n-- Sistema Meridiana"
+        )
+        self._email_worker.result.connect(self._on_test_result)
+        self._email_worker.start()
+
+    def _on_test_result(self, ok: bool, err: str):
+        self.btn_test.setEnabled(True)
+        if ok:
+            self.test_label.setText("✓ Email di test inviata con successo.")
+            self.test_label.setStyleSheet("color: green;")
+        else:
+            self.test_label.setText(f"✗ {err}")
+            self.test_label.setStyleSheet("color: red;")
 
