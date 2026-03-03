@@ -619,6 +619,7 @@ class CatastoMainWindow(QMainWindow):
 
         # --- Azione per il menu Help ---
         show_manual_action = QAction("Visualizza Manuale Utente...", self)
+        show_manual_action.setShortcut(QKeySequence("F1"))
         show_manual_action.triggered.connect(self._apri_manuale_utente)
         help_menu.addAction(show_manual_action)
             # --- INIZIO MODIFICA ---
@@ -1714,63 +1715,13 @@ class CatastoMainWindow(QMainWindow):
         # Chiamiamo la funzione di refresh esistente, mostrando il messaggio di successo
         self.db_manager.refresh_materialized_views(show_success_message=True)
     def _apri_manuale_utente(self):
-        """
-        Apre il file PDF del manuale utente situato nella cartella 'resources'.
-        """
+        """Apre il manuale utente integrato (Markdown → QTextBrowser)."""
         try:
-            # Lista di percorsi possibili per il manuale
-            possible_paths = []
-            
-            # Percorso 1: Usando get_resource_path (originale)
-            try:
-                manual_path_1 = get_resource_path(os.path.join("resources", "manuale_utente.pdf"))
-                possible_paths.append(manual_path_1)
-            except:
-                pass
-            
-            # Percorso 2: Relativo all'eseguibile
-            if getattr(sys, 'frozen', False):
-                # Applicazione compilata
-                exe_dir = os.path.dirname(sys.executable)
-                manual_path_2 = os.path.join(exe_dir, "resources", "manuale_utente.pdf")
-                possible_paths.append(manual_path_2)
-                
-                # Percorso 3: Nella cartella _internal (PyInstaller)
-                manual_path_3 = os.path.join(exe_dir, "_internal", "resources", "manuale_utente.pdf")
-                possible_paths.append(manual_path_3)
-            
-            # Percorso 4: Relativo allo script principale
-            base_dir = os.path.dirname(os.path.abspath(sys.argv[0]))
-            manual_path_4 = os.path.join(base_dir, "resources", "manuale_utente.pdf")
-            possible_paths.append(manual_path_4)
-            
-            # Percorso 5: Directory corrente
-            manual_path_5 = os.path.join(os.getcwd(), "resources", "manuale_utente.pdf")
-            possible_paths.append(manual_path_5)
-            
-            # Cerca il primo percorso valido
-            found_path = None
-            for path in possible_paths:
-                if os.path.exists(path):
-                    found_path = path
-                    break
-            
-            if found_path:
-                self.logger.info(f"Manuale trovato al percorso: {found_path}")
-                QDesktopServices.openUrl(QUrl.fromLocalFile(found_path))
-            else:
-                # Log di debug per vedere tutti i percorsi tentati
-                self.logger.error(f"Manuale non trovato. Percorsi tentati:")
-                for i, path in enumerate(possible_paths, 1):
-                    self.logger.error(f"  {i}. {path}")
-                
-                QMessageBox.warning(self, "Manuale Non Trovato",
-                                f"Il file del manuale utente non è stato trovato.\n\n"
-                                f"Percorsi verificati:\n" + 
-                                "\n".join([f"• {path}" for path in possible_paths[:3]]))
-                                
+            from dialogs import HelpViewerDialog
+            dlg = HelpViewerDialog(self)
+            dlg.exec()
         except Exception as e:
-            self.logger.error(f"Errore imprevisto durante l'apertura del manuale: {e}", exc_info=True)
+            self.logger.error(f"Errore apertura manuale: {e}", exc_info=True)
             QMessageBox.critical(self, "Errore", f"Impossibile aprire il manuale:\n{e}")
             
     def _show_backup_settings_dialog(self):

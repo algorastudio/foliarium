@@ -119,6 +119,15 @@ def get_logo_svg_path(dark: bool = False) -> Path:
     svg_path = get_resource_path(svg_name)
     return svg_path if svg_path.exists() else get_logo_path()
 
+def get_doc_path(relative_path: str = "") -> Path:
+    """
+    Ottiene il percorso assoluto di un file nella cartella 'docs'.
+    Senza argomenti restituisce la directory docs stessa.
+    """
+    if relative_path:
+        return DOCS_DIR / relative_path
+    return DOCS_DIR
+
 # Per mantenere la retrocompatibilità con le chiamate `resource_path`
 # che potrebbero essere rimaste in giro, la rendiamo un alias di get_resource_path
 resource_path = get_resource_path
