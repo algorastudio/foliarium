@@ -4,7 +4,7 @@
 
 **Meridiana** is a desktop application for managing historical Italian cadastral records (archivio catastale storico), developed for the State Archive of Savona. It allows archivists to search, insert, and export property records (partite catastali) and owners (possessori).
 
-- **Current version:** 1.4.2.0
+- **Current version:** 1.4.3.0
 - **Author:** Marco Santoro
 - **Primary platform:** Windows 10+
 - **Code/UI language:** Italian
@@ -362,3 +362,56 @@ Tutto il lavoro è sul branch `claude/summarize-dev-status-vDVnI`.
 - `modifica_utente_selezionato()` → `notify_role_changed` se ruolo cambiato
 - `reset_password_utente_selezionato()` → `notify_password_changed` con lookup `get_utente_by_id`
 - Worker tenuto vivo con `self._email_workers` list (evita garbage collection)
+
+
+---
+
+## Changelog sessione corrente (v1.4.3.0)
+
+Tutto il lavoro e sul branch `claude/summarize-dev-status-vDVnI`.
+
+### Feature: Scarica CSV dati esistenti (`catasto_db_manager.py`, `gui_main.py`, `gui_widgets.py`)
+
+Abilita il flusso completo **scarica → modifica → reimporta** per tutte e 4 le entita di inserimento.
+Il CSV scaricato usa esattamente le stesse colonne del template di import (compatibilita round-trip garantita).
+
+**`catasto_db_manager.py`** — 4 nuovi metodi:
+- `get_comuni_export_csv()` — restituisce lista dict con campi `nome;provincia;regione;codice_catastale;data_istituzione;data_soppressione;note`
+- `get_localita_export_csv(comune_id)` — campi `nome;tipo;civico`
+- `get_possessori_export_csv()` — campi `cognome_nome;nome_completo;paternita`
+- `get_partite_export_csv()` — campi `numero_partita;data_impianto;stato;tipo`
+
+**`gui_main.py`**:
+- Helper `_scarica_csv(data, fieldnames, default_filename)` — salva lista dict come CSV con `;` via QFileDialog
+- Helper `_seleziona_comune_per_csv(entita)` — QInputDialog per selezione comune (usato da localita)
+- 4 handler `_scarica_csv_comuni/localita/possessori/partite()`
+- 4 nuove voci menu *File*: "Scarica CSV Comuni", "Scarica CSV Localita...", "Scarica CSV Possessori...", "Scarica CSV Partite..."
+
+**`gui_widgets.py`**:
+- Segnale `scarica_csv_requested` nei 4 widget di inserimento
+- Pulsante "Scarica CSV" aggiunto tra "Importa CSV" e "Scarica template" (barra ora a 5 pulsanti)
+- Segnali connessi agli handler di `gui_main.py`
+
+### Feature: Manuale utente integrato (`HelpViewerDialog`) (`dialogs.py`, `app_paths.py`, `gui_main.py`, `requirements.txt`)
+
+Viewer del manuale embedded nell'app senza WebEngine ne server MkDocs.
+
+**`app_paths.py`**:
+- `get_doc_path(relative_path=)` — risolve percorso in `DOCS_DIR` (gia definita come `BASE_DIR / docs`)
+
+**`dialogs.py`** — `HelpViewerDialog(QDialog)`:
+- `QSplitter` orizzontale: albero navigazione (sinistra) + `QTextBrowser` contenuto (destra)
+- Albero costruito dalla sezione `nav` di `mkdocs.yml` tramite PyYAML; fallback a scansione ricorsiva `docs/`
+- Categorie in **grassetto**, foglie con `UserRole = percorso .md relativo`
+- Rendering: `markdown` lib con estensioni `tables, fenced_code, toc, admonition, nl2br` + CSS inline (stile indigo professionale)
+- Navigazione back/forward con cronologia interna
+- Link interni .md risolti relativamente alla pagina corrente
+- Link http/https aperti in `QDesktopServices`
+- `_sync_tree()` sincronizza la selezione albero alla pagina corrente (anche su back/forward)
+- Shortcut F1 su voce menu *Help → Visualizza Manuale Utente...*
+
+**`gui_main.py`**:
+- `_apri_manuale_utente()` semplificato: apre `HelpViewerDialog(self).exec()`
+- `show_manual_action.setShortcut(QKeySequence(F1))`
+
+**`requirements.txt`**: aggiunto `markdown>=3.4`
