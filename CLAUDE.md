@@ -4,7 +4,7 @@
 
 **Meridiana** is a desktop application for managing historical Italian cadastral records (archivio catastale storico), developed for the State Archive of Savona. It allows archivists to search, insert, and export property records (partite catastali) and owners (possessori).
 
-- **Current version:** 1.4.3.0
+- **Current version:** 1.4.4.0
 - **Author:** Marco Santoro
 - **Primary platform:** Windows 10+
 - **Code/UI language:** Italian
@@ -415,3 +415,34 @@ Viewer del manuale embedded nell'app senza WebEngine ne server MkDocs.
 - `show_manual_action.setShortcut(QKeySequence(F1))`
 
 **`requirements.txt`**: aggiunto `markdown>=3.4`
+
+
+---
+
+## Changelog sessione corrente (v1.4.4.0)
+
+Tutto il lavoro e sul branch `claude/summarize-dev-status-vDVnI`.
+
+### Compliance GDPR/NIS2 (`config.py`, `catasto_db_manager.py`, `gui_main.py`, `gui_widgets.py`, `dialogs.py`)
+
+**Session timeout (inattivita):**
+- `config.py`: `SETTINGS_SESSION_TIMEOUT = "Security/SessionTimeoutMinutes"` (default 15, 0=disabilitato)
+- `gui_main.py`: `QTimer` + `eventFilter` su `QApplication`; resetta su MouseMove/Click/KeyPress/Wheel
+- Dialog countdown 60s con "Continua"/"Logout"; avvio dopo login, stop al logout
+- Voce menu *Impostazioni → Timeout Sessione...* per configurare i minuti (`_configura_timeout_sessione()`)
+
+**Log tracciabilita export:**
+- `catasto_db_manager.py`: `log_app_event(user_id, session_id, event_type, details)` — scrive su `audit_log` (best-effort)
+- `gui_main.py`: log in `_scarica_csv()` dopo salvataggio riuscito (copre tutti e 4 gli handler CSV)
+- `gui_widgets.py`: log in `EsportazioniWidget._handle_export_csv()` e `_handle_export_xls()`
+
+**Policy password:**
+- `dialogs.py`: `_validate_password_strength(password) -> (bool, str)` — minimo 8 caratteri + 1 cifra
+- `dialogs.py`: `CreateUserDialog.handle_create_user()` usa il nuovo validator (era min 6, nessun requisito cifra)
+- `gui_widgets.py`: `reset_password_utente_selezionato()` usa il nuovo validator con importazione locale
+
+### Documentazione aggiornata (`docs/`)
+- `docs/index.md`: versione aggiornata a 1.4.4.0
+- `docs/riferimento/changelog.md`: aggiunte sezioni v1.4.2.0, v1.4.3.0, v1.4.4.0
+- `docs/admin/gestione-utenti.md`: aggiornati requisiti password, aggiunte note notifiche email
+- `docs/primo-avvio.md`: aggiunta sezione "Timeout di sessione"

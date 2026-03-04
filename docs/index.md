@@ -10,7 +10,7 @@
 
 | Campo | Valore |
 |---|---|
-| Versione | **1.4.1.0** |
+| Versione | **1.4.4.0** |
 | Data rilascio | Marzo 2026 |
 | Autore | Marco Santoro |
 | Piattaforma | Windows 10 / Windows 11 |

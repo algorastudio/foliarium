@@ -25,13 +25,16 @@ Meridiana implementa tre livelli di accesso:
    - **Nome utente** (username): stringa alfanumerica, case-insensitive
    - **Nome completo**: nome visualizzato nell'interfaccia
    - **Ruolo**: Guest / Utente / Amministratore
-   - **Password**: minimo 8 caratteri
+   - **Password**: minimo 8 caratteri e almeno 1 cifra
 3. Fare clic su **Salva**
 
 > 📸 **Screenshot:** Dialog di creazione nuovo utente con campi username, nome completo, ruolo, password.
 
 !!! info "Password sicura"
     Le password vengono memorizzate con hashing bcrypt. Non è possibile recuperare una password dimenticata: è necessario reimpostarla dall'account amministratore.
+
+!!! info "Notifica automatica"
+    Se le notifiche email sono configurate (*Impostazioni → Notifiche Email...*), l'utente riceve automaticamente una email di benvenuto con le credenziali al momento della creazione.
 
 ---
 
@@ -48,11 +51,14 @@ Meridiana implementa tre livelli di accesso:
 
 1. Selezionare l'utente
 2. Fare clic su **Reimposta Password**
-3. Inserire la nuova password e confermarla
+3. Inserire la nuova password (minimo 8 caratteri, almeno 1 cifra) e confermarla
 4. Comunicare la nuova password all'utente
 
 !!! warning "L'utente deve cambiare la password"
     Si consiglia di informare l'utente di cambiare la password al prossimo accesso tramite *Impostazioni → Cambia Password*.
+
+!!! info "Notifica automatica"
+    Se le notifiche email sono attive, l'utente riceve un avviso di sicurezza via email al momento del reset.
 
 ---
 

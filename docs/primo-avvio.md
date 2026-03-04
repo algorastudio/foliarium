@@ -85,6 +85,22 @@ Meridiana include 16 temi grafici selezionabili dal menu **Impostazioni → Camb
 
 ---
 
+## Timeout di sessione
+
+Per sicurezza, Meridiana disconnette automaticamente l'utente dopo un periodo di inattività.
+
+Quando la sessione sta per scadere compare un dialog di avviso con un countdown di 60 secondi:
+
+- **Continua sessione** — riprende normalmente
+- **Logout ora** — disconnette immediatamente
+- Nessuna risposta entro 60 secondi → logout automatico
+
+!!! info "Configurare il timeout"
+    Il numero di minuti di inattività si configura da *Impostazioni → Timeout Sessione...*
+    Il valore predefinito è **15 minuti**. Impostare **0** per disabilitare il timeout.
+
+---
+
 ## Chiusura dell'applicazione
 
 Per chiudere Meridiana usare:

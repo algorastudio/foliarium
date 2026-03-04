@@ -1,5 +1,65 @@
 # Changelog
 
+## v1.4.4.0 — Marzo 2026
+
+### Compliance GDPR/NIS2
+
+#### Timeout sessione automatico
+
+- Logout automatico dopo un periodo di inattività configurabile (default 15 minuti)
+- Dialog di avviso con countdown 60s prima del logout
+- Configurabile da *Impostazioni → Timeout Sessione...* (0 = disabilitato)
+
+#### Log tracciabilità export
+
+- Ogni esportazione (CSV, Excel) viene registrata nell'Audit Log con utente, filename e numero di record
+- Consultabile dalla sezione *Audit Log* dell'applicazione
+
+#### Policy password rafforzata
+
+- Requisiti minimi: **8 caratteri** e **almeno 1 cifra**
+- Applicata sia alla creazione utente che al reset password
+
+---
+
+## v1.4.3.0 — Marzo 2026
+
+### Nuove feature
+
+#### Manuale utente integrato (F1)
+
+- Viewer del manuale embedded nell'app: *Help → Visualizza Manuale Utente...* oppure tasto **F1**
+- Albero di navigazione da `mkdocs.yml`, rendering Markdown con CSS, navigazione back/forward
+- Nessun browser esterno richiesto
+
+#### Scarica CSV dati esistenti
+
+- 4 nuove voci menu *File*: Scarica CSV Comuni, Località, Possessori, Partite
+- Pulsante "Scarica CSV" in ogni pannello di inserimento
+- CSV compatibile round-trip con i template di import (scarica → modifica → reimporta)
+
+---
+
+## v1.4.2.0 — Marzo 2026
+
+### Miglioramenti UI/UX
+
+- **Sorting tabelle**: ordinamento per colonna cliccando l'intestazione in Ricerca Partite, Immobili e Documenti
+- **Menu contestuale**: tasto destro sulle partite trovate → Apri Dettagli / Copia Numero / Copia ID
+- **Conteggio risultati**: etichetta con il numero di record trovati nelle tabelle di ricerca (senza popup)
+- **Validazione inline**: i campi obbligatori si evidenziano in rosso se non compilati correttamente
+- **Completamento provincia**: digitando le prime lettere nel campo Provincia compare un suggerimento automatico
+- **Scorciatoie tastiera**: `Ctrl+1..N` per navigare tra i tab, `F5` per ricaricare il tab corrente
+
+### Notifiche email automatiche
+
+- Nuovo modulo email con supporto SMTP/STARTTLS e SMTP_SSL
+- Configurazione da *Impostazioni → Notifiche Email...*: host, porta, credenziali, test connessione
+- 4 eventi notificati: creazione account, reset password, cambio ruolo, login
+- Invio in background (non blocca l'interfaccia), password SMTP memorizzata in keyring
+
+---
+
 ## v1.4.1.0 — Marzo 2026
 
 ### Fix
