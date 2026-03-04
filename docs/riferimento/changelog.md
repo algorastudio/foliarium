@@ -1,5 +1,26 @@
 # Changelog
 
+## v1.4.5.0 — Marzo 2026
+
+### Fix e miglioramenti UX
+
+#### Fix: ImportLocalitaDialog — campo comune OSM non sincronizzato
+
+- Il campo "Nome comune (per OSM)" ora si popola correttamente all'apertura del dialog con il valore già selezionato nel menu a tendina in alto, eliminando il rischio di importare località di un comune su un altro.
+
+#### Conferma prima di ogni importazione dati
+
+- Aggiunto dialog di conferma (`Sì / No`, default No) prima di avviare qualsiasi importazione nel DB:
+  - Comuni da CSV
+  - Comuni da ISTAT
+  - Località da CSV
+  - Località da OpenStreetMap
+  - Possessori da CSV
+  - Partite da CSV / Excel
+- Il messaggio informa l'utente del numero di record in fase di import, del comune di riferimento (ove applicabile) e del possibile effetto sui dati già presenti.
+
+---
+
 ## v1.4.4.0 — Marzo 2026
 
 ### Compliance GDPR/NIS2

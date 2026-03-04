@@ -4,7 +4,7 @@
 
 **Meridiana** is a desktop application for managing historical Italian cadastral records (archivio catastale storico), developed for the State Archive of Savona. It allows archivists to search, insert, and export property records (partite catastali) and owners (possessori).
 
-- **Current version:** 1.4.4.0
+- **Current version:** 1.4.5.0
 - **Author:** Marco Santoro
 - **Primary platform:** Windows 10+
 - **Code/UI language:** Italian
@@ -416,6 +416,27 @@ Viewer del manuale embedded nell'app senza WebEngine ne server MkDocs.
 
 **`requirements.txt`**: aggiunto `markdown>=3.4`
 
+
+---
+
+## Changelog sessione corrente (v1.4.5.0)
+
+Tutto il lavoro è sul branch `claude/summarize-dev-status-vDVnI`.
+
+### Fix: ImportLocalitaDialog — campo OSM non sincronizzato (`dialogs.py`)
+
+- `_build_ui()`: aggiunta chiamata a `_on_comune_changed()` dopo la costruzione dei tab, così `_osm_comune_edit` viene popolato correttamente all'apertura del dialog con il valore già selezionato nel combo.
+
+### Conferma prima di ogni import dati (`dialogs.py`, `gui_main.py`)
+
+- `QMessageBox.question` (default **No**) aggiunto in 6 punti:
+  - `ImportComuniDialog._importa_csv()` — comuni da CSV
+  - `ImportComuniDialog._importa_istat()` — comuni da ISTAT
+  - `ImportLocalitaDialog._importa_csv()` — località da CSV
+  - `ImportLocalitaDialog._importa_osm()` — località da OSM
+  - `gui_main._import_possessori_csv()` — possessori da CSV
+  - `gui_main._import_partite_csv()` — partite da CSV/xlsx
+- Ogni messaggio mostra N record, comune di riferimento (ove applicabile) e avviso su dati già presenti.
 
 ---
 

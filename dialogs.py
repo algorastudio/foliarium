@@ -5964,6 +5964,17 @@ class ImportComuniDialog(QDialog):
     def _importa_csv(self):
         if not self._csv_rows:
             return
+        risposta = QMessageBox.question(
+            self, "Conferma importazione",
+            f"Stai per importare <b>{len(self._csv_rows)}</b> comuni nel database.<br><br>"
+            "I record con lo stesso nome potrebbero essere ignorati o aggiornati.<br>"
+            "I dati associati (partite, possessori) ai comuni già presenti rimarranno invariati.<br><br>"
+            "Procedere con l'importazione?",
+            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+            QMessageBox.StandardButton.No
+        )
+        if risposta != QMessageBox.StandardButton.Yes:
+            return
         QApplication.setOverrideCursor(Qt.CursorShape.WaitCursor)
         try:
             result = self.db_manager.import_comuni_from_rows(self._csv_rows)
@@ -6062,6 +6073,17 @@ class ImportComuniDialog(QDialog):
 
     def _importa_istat(self):
         if not self._istat_rows:
+            return
+        risposta = QMessageBox.question(
+            self, "Conferma importazione",
+            f"Stai per importare <b>{len(self._istat_rows)}</b> comuni da ISTAT nel database.<br><br>"
+            "I record con lo stesso nome potrebbero essere ignorati o aggiornati.<br>"
+            "I dati associati ai comuni già presenti rimarranno invariati.<br><br>"
+            "Procedere con l'importazione?",
+            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+            QMessageBox.StandardButton.No
+        )
+        if risposta != QMessageBox.StandardButton.Yes:
             return
         QApplication.setOverrideCursor(Qt.CursorShape.WaitCursor)
         try:
@@ -6203,6 +6225,9 @@ class ImportLocalitaDialog(QDialog):
         self._tabs.addTab(self._build_csv_tab(), "Da file CSV")
         self._tabs.addTab(self._build_osm_tab(), "Da OpenStreetMap")
         layout.addWidget(self._tabs)
+
+        # Sincronizza il campo OSM con la selezione iniziale del combo
+        self._on_comune_changed(self._comune_combo.currentText())
 
         bb = QDialogButtonBox(QDialogButtonBox.StandardButton.Close)
         bb.rejected.connect(self.reject)
@@ -6370,6 +6395,18 @@ class ImportLocalitaDialog(QDialog):
             return
         if not self._csv_rows:
             return
+        comune_nome = self._comune_combo.currentText()
+        risposta = QMessageBox.question(
+            self, "Conferma importazione",
+            f"Stai per importare <b>{len(self._csv_rows)}</b> località per il comune "
+            f"<b>{comune_nome}</b>.<br><br>"
+            "Le località con lo stesso nome già presenti nel database potrebbero essere sovrascritte.<br><br>"
+            "Procedere con l'importazione?",
+            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+            QMessageBox.StandardButton.No
+        )
+        if risposta != QMessageBox.StandardButton.Yes:
+            return
         QApplication.setOverrideCursor(Qt.CursorShape.WaitCursor)
         try:
             result = self.db_manager.import_localita_from_rows(comune_id, self._csv_rows)
@@ -6429,6 +6466,18 @@ class ImportLocalitaDialog(QDialog):
                                 "Seleziona il comune nel menu a tendina in alto prima di importare.")
             return
         if not self._osm_rows:
+            return
+        comune_nome = self._comune_combo.currentText()
+        risposta = QMessageBox.question(
+            self, "Conferma importazione",
+            f"Stai per importare <b>{len(self._osm_rows)}</b> località da OpenStreetMap per il comune "
+            f"<b>{comune_nome}</b>.<br><br>"
+            "Le località con lo stesso nome già presenti nel database potrebbero essere sovrascritte.<br><br>"
+            "Procedere con l'importazione?",
+            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+            QMessageBox.StandardButton.No
+        )
+        if risposta != QMessageBox.StandardButton.Yes:
             return
         QApplication.setOverrideCursor(Qt.CursorShape.WaitCursor)
         try:

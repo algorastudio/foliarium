@@ -1651,6 +1651,18 @@ class CatastoMainWindow(QMainWindow):
             if not file_path:
                 return
 
+            # --- Conferma sovrascrittura ---
+            risposta = QMessageBox.question(
+                self, "Conferma importazione",
+                f"Stai per importare possessori da CSV per il comune <b>{nome_comune_selezionato}</b>.<br><br>"
+                "I possessori con gli stessi dati già presenti nel database potrebbero essere sovrascritti.<br><br>"
+                "Procedere con l'importazione?",
+                QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+                QMessageBox.StandardButton.No
+            )
+            if risposta != QMessageBox.StandardButton.Yes:
+                return
+
             # --- PASSO 3: Avvia l'importazione e mostra il nuovo dialogo di riepilogo ---
             QApplication.setOverrideCursor(Qt.CursorShape.WaitCursor)
             
@@ -1709,6 +1721,17 @@ class CatastoMainWindow(QMainWindow):
                 "File supportati (*.csv *.xlsx);;CSV (*.csv);;Excel (*.xlsx);;Tutti i file (*)"
             )
             if not file_path:
+                return
+
+            risposta = QMessageBox.question(
+                self, "Conferma importazione",
+                f"Stai per importare partite da file per il comune <b>{nome_comune_selezionato}</b>.<br><br>"
+                "Le partite con gli stessi dati già presenti nel database potrebbero essere sovrascritte.<br><br>"
+                "Procedere con l'importazione?",
+                QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+                QMessageBox.StandardButton.No
+            )
+            if risposta != QMessageBox.StandardButton.Yes:
                 return
 
             QApplication.setOverrideCursor(Qt.CursorShape.WaitCursor)
