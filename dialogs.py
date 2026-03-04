@@ -4620,8 +4620,9 @@ class CreateUserDialog(QDialog):
         if len(username) < 3:
             QMessageBox.warning(self, "Errore di Validazione", "L'username deve essere di almeno 3 caratteri.")
             return
-        if len(password) < 6: #Sposto il controllo prima del confirm
-            QMessageBox.warning(self, "Errore di Validazione", "La password deve essere di almeno 6 caratteri.")
+        pwd_ok, pwd_err = _validate_password_strength(password)
+        if not pwd_ok:
+            QMessageBox.warning(self, "Errore di Validazione", pwd_err)
             self.password_edit.setFocus()
             self.password_edit.selectAll()
             return
@@ -5702,6 +5703,18 @@ def datetime_to_qdate(dt_date: Optional[date]) -> QDate:
     if dt_date is None:
         return QDate()  # Restituisce una QDate "nulla"
     return QDate(dt_date.year, dt_date.month, dt_date.day)
+def _validate_password_strength(password: str) -> tuple:
+    """Verifica i requisiti minimi della password.
+    Restituisce (True, '') se valida, oppure (False, messaggio_errore).
+    Requisiti: almeno 8 caratteri, almeno 1 cifra.
+    """
+    if len(password) < 8:
+        return False, "La password deve essere di almeno 8 caratteri."
+    if not any(c.isdigit() for c in password):
+        return False, "La password deve contenere almeno un numero."
+    return True, ""
+
+
 def _hash_password(password: str) -> str:
         """Genera un hash sicuro per la password usando bcrypt."""
         password_bytes = password.encode('utf-8')

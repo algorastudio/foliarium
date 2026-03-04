@@ -4225,6 +4225,27 @@ class CatastoDBManager:
         except Exception as e:
             self.logger.error(f"Errore durante la pulizia dei log di audit: {e}", exc_info=True)
             raise DBMError(f"Impossibile pulire i log di audit: {e}") from e
+    def log_app_event(self, user_id: Optional[int], session_id: Optional[str],
+                      event_type: str, details: Optional[Dict[str, Any]] = None) -> None:
+        """Registra un evento applicativo (es. export) nell'audit_log.
+        Usa operazione='I' e tabella=event_type (es. 'export_csv', 'export_xlsx').
+        Non solleva eccezioni: il log è best-effort.
+        """
+        try:
+            import json as _json
+            dati_dopo = _json.dumps(details or {}, ensure_ascii=False, default=str)
+            query = f"""
+                INSERT INTO {self.schema}.audit_log
+                    (tabella, operazione, app_user_id, session_id, dati_dopo)
+                VALUES (%s, 'I', %s, %s, %s::jsonb)
+            """
+            with self._get_connection() as conn:
+                with conn.cursor() as cur:
+                    cur.execute(query, (event_type, user_id, session_id, dati_dopo))
+            self.logger.debug(f"log_app_event: {event_type} user={user_id}")
+        except Exception as e:
+            self.logger.warning(f"log_app_event fallito ({event_type}): {e}")
+
     # In catasto_db_manager.py, dentro la classe CatastoDBManager
 
     def close_user_session(self, session_id: str) -> bool:

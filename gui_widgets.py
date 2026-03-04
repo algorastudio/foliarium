@@ -3984,6 +3984,17 @@ class EsportazioniWidget(LazyLoadedWidget):
             
             self.log_status(f"Esportazione CSV completata con successo.", link=filename)
             QMessageBox.information(self, "Successo", f"{len(data)} record esportati con successo.")
+            # --- Audit log export ---
+            try:
+                import os as _os
+                win = QApplication.activeWindow()
+                uid = getattr(win, 'logged_in_user_id', None)
+                sid = getattr(win, 'current_session_id', None)
+                self.db_manager.log_app_event(uid, sid, "export_csv",
+                    {"filename": _os.path.basename(filename),
+                     "tipo": export_type, "n_record": len(data)})
+            except Exception:
+                pass
         except Exception as e:
             self.logger.error(f"Errore durante l'esportazione CSV: {e}", exc_info=True)
             QMessageBox.critical(self, "Errore Esportazione", f"Impossibile salvare il file CSV:\n{e}")
@@ -4026,6 +4037,16 @@ class EsportazioniWidget(LazyLoadedWidget):
             success_message = f"<font color='green'>Esportazione Excel completata: <a href='{file_url}'>{base_name}</a></font>"
             self.status_log.append(success_message)
             QMessageBox.information(self, "Successo", f"{len(data)} record esportati con successo.")
+            # --- Audit log export ---
+            try:
+                win = QApplication.activeWindow()
+                uid = getattr(win, 'logged_in_user_id', None)
+                sid = getattr(win, 'current_session_id', None)
+                self.db_manager.log_app_event(uid, sid, "export_xlsx",
+                    {"filename": os.path.basename(filename),
+                     "tipo": export_type, "n_record": len(data)})
+            except Exception:
+                pass
 
         except ImportError:
             self.logger.error("La libreria 'pandas' o 'openpyxl' non è installata.")
@@ -5235,6 +5256,11 @@ class GestioneUtentiWidget(LazyLoadedWidget):
         new_password, ok = QInputDialog.getText(
             self, "Reset Password", "Inserisci la nuova password temporanea:", QLineEdit.EchoMode.Password)
         if ok and new_password:
+            from dialogs import _validate_password_strength
+            pwd_ok, pwd_err = _validate_password_strength(new_password)
+            if not pwd_ok:
+                QMessageBox.warning(self, "Password non valida", pwd_err)
+                return
             new_password_confirm, ok_confirm = QInputDialog.getText(
                 self, "Conferma Password", "Conferma la nuova password temporanea:", QLineEdit.EchoMode.Password)
             if ok_confirm and new_password == new_password_confirm:

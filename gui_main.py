@@ -57,7 +57,8 @@ from config import (
     SETTINGS_DB_TYPE, SETTINGS_DB_HOST, SETTINGS_DB_PORT,
     SETTINGS_DB_NAME, SETTINGS_DB_USER, SETTINGS_DB_SCHEMA, SETTINGS_DB_PASSWORD,
     SETTINGS_UI_CURRENT_STYLE, SETTINGS_UI_AUTO_THEME, SETTINGS_UI_WIN11_STYLE,
-    AUTO_THEME_DARK, AUTO_THEME_LIGHT)
+    AUTO_THEME_DARK, AUTO_THEME_LIGHT,
+    SETTINGS_SESSION_TIMEOUT)
 
 try:
     from fpdf import FPDF
@@ -289,6 +290,13 @@ class CatastoMainWindow(QMainWindow):
         self.pool_initialized_successful: bool = False
         # --- FINE CORREZIONE DEFINITIVA ---
 
+        # --- Session timeout (inattività) ---
+        from PyQt6.QtCore import QTimer, QEvent
+        self._inactivity_timer = QTimer(self)
+        self._inactivity_timer.setSingleShot(True)
+        self._inactivity_timer.timeout.connect(self._on_inactivity_timeout)
+        QApplication.instance().installEventFilter(self)
+
         self.initUI()
         
     def initUI(self):
@@ -423,6 +431,7 @@ class CatastoMainWindow(QMainWindow):
             self.logout_button.setEnabled(True)
             self.statusBar().showMessage(
                 f"Login come {user_display} effettuato con successo.")
+            self._start_inactivity_timer()
             # --- Notifica email login ---
             try:
                 from email_service import EmailService, EmailWorker
@@ -574,9 +583,16 @@ class CatastoMainWindow(QMainWindow):
         )
         email_action.triggered.connect(self._apri_impostazioni_email)
 
+        timeout_action = QAction(
+            self.style().standardIcon(QStyle.StandardPixmap.SP_DialogResetButton),
+            "&Timeout Sessione...", self
+        )
+        timeout_action.triggered.connect(self._configura_timeout_sessione)
+
         settings_menu.addAction(config_db_action)
         settings_menu.addAction(config_refresh_action)
         settings_menu.addAction(email_action)
+        settings_menu.addAction(timeout_action)
         settings_menu.addSeparator()
 
         # --- Menu dinamico per i temi ---
@@ -1337,6 +1353,14 @@ class CatastoMainWindow(QMainWindow):
                 self, "Scaricato",
                 f"{len(data)} record salvati in:\n{filename}"
             )
+            # --- Audit log export ---
+            if self.db_manager:
+                import os as _os
+                self.db_manager.log_app_event(
+                    self.logged_in_user_id, self.current_session_id,
+                    "export_csv",
+                    {"filename": _os.path.basename(filename), "n_record": len(data),
+                     "entity": default_filename.replace(".csv", "")})
         except OSError as e:
             QMessageBox.critical(self, "Errore salvataggio", str(e))
 
@@ -1418,6 +1442,89 @@ class CatastoMainWindow(QMainWindow):
         self._scarica_csv(data, ['numero_partita', 'data_impianto', 'stato', 'tipo'],
                           f'partite_{slug}.csv')
 
+    # ------------------------------------------------------------------
+    # Session timeout — inattività
+    # ------------------------------------------------------------------
+
+    def _start_inactivity_timer(self):
+        """Avvia (o riavvia) il timer di inattività in base alle impostazioni."""
+        minutes = QSettings().value(SETTINGS_SESSION_TIMEOUT, 15, type=int)
+        if minutes > 0 and self.logged_in_user_id is not None:
+            self._inactivity_timer.start(minutes * 60 * 1000)
+        else:
+            self._inactivity_timer.stop()
+
+    def eventFilter(self, obj, event):
+        """Resetta il timer di inattività ad ogni interazione utente."""
+        from PyQt6.QtCore import QEvent
+        if self.logged_in_user_id is not None and self._inactivity_timer.isActive():
+            if event.type() in (QEvent.Type.MouseMove, QEvent.Type.MouseButtonPress,
+                                 QEvent.Type.KeyPress, QEvent.Type.Wheel):
+                self._inactivity_timer.start()  # riavvia con l'intervallo già impostato
+        return super().eventFilter(obj, event)
+
+    def _on_inactivity_timeout(self):
+        """Mostra dialog di avviso con countdown; se nessuna risposta → logout."""
+        if self.logged_in_user_id is None:
+            return
+
+        from PyQt6.QtCore import QTimer as _QTimer
+        dlg = QDialog(self)
+        dlg.setWindowTitle("Sessione in scadenza")
+        dlg.setWindowFlags(dlg.windowFlags() & ~Qt.WindowType.WindowContextHelpButtonHint)
+        layout = QVBoxLayout(dlg)
+
+        remaining = [60]  # secondi
+        lbl = QLabel()
+        lbl.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        font = lbl.font(); font.setPointSize(12); lbl.setFont(font)
+        layout.addWidget(lbl)
+
+        btn_row = QHBoxLayout()
+        btn_continua = QPushButton("Continua sessione")
+        btn_logout = QPushButton("Logout ora")
+        btn_continua.setDefault(True)
+        btn_row.addWidget(btn_continua)
+        btn_row.addWidget(btn_logout)
+        layout.addLayout(btn_row)
+
+        def _update():
+            remaining[0] -= 1
+            lbl.setText(
+                f"La sessione è inattiva da troppo tempo.\n\n"
+                f"Logout automatico tra {remaining[0]} secondi.\n\n"
+                f"Vuoi continuare?"
+            )
+            if remaining[0] <= 0:
+                countdown.stop()
+                dlg.reject()
+
+        countdown = _QTimer(dlg)
+        countdown.timeout.connect(_update)
+        countdown.start(1000)
+        _update()
+
+        btn_continua.clicked.connect(lambda: (countdown.stop(), dlg.accept()))
+        btn_logout.clicked.connect(lambda: (countdown.stop(), dlg.reject()))
+
+        if dlg.exec() == QDialog.DialogCode.Accepted:
+            self._start_inactivity_timer()  # riprende la sessione
+        else:
+            self.handle_logout()
+
+    def _configura_timeout_sessione(self):
+        """Apre QInputDialog per configurare i minuti di timeout (0 = disabilitato)."""
+        current = QSettings().value(SETTINGS_SESSION_TIMEOUT, 15, type=int)
+        value, ok = QInputDialog.getInt(
+            self, "Timeout Sessione",
+            "Minuti di inattività prima del logout automatico\n(0 = disabilitato):",
+            current, 0, 480, 5)
+        if ok:
+            QSettings().setValue(SETTINGS_SESSION_TIMEOUT, value)
+            self._start_inactivity_timer()
+            msg = f"Timeout impostato a {value} minuti." if value > 0 else "Timeout sessione disabilitato."
+            self.statusBar().showMessage(msg, 4000)
+
     def handle_logout(self):
         if self.logged_in_user_id is not None and self.current_session_id and self.db_manager:
             # Chiama il logout_user del db_manager passando l'ID utente e l'ID sessione correnti
@@ -1433,6 +1540,7 @@ class CatastoMainWindow(QMainWindow):
                 logging.getLogger("CatastoGUI").warning(
                     f"Logout utente ID {self.logged_in_user_id}, sessione {self.current_session_id[:8]}... Errore registrazione DB.")
 
+            self._inactivity_timer.stop()
             # Resetta le informazioni utente e sessione nella GUI
             self.logged_in_user_id = None
             self.logged_in_user_info = None

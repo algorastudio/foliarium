@@ -50,6 +50,9 @@ SETTINGS_EMAIL_ON_PASSWD = "Email/OnPassword" # default True
 SETTINGS_EMAIL_ON_ROLE   = "Email/OnRole"     # default True
 SETTINGS_EMAIL_ON_LOGIN  = "Email/OnLogin"    # default True
 
+# --- Sicurezza sessione ---
+SETTINGS_SESSION_TIMEOUT = "Security/SessionTimeoutMinutes"  # default 15, 0 = disabilitato
+
 # --- Temi usati dall'auto-rilevamento dark/light del sistema operativo ---
 AUTO_THEME_DARK = "dark_mode_stylesheet.qss"
 AUTO_THEME_LIGHT = "meridiana_styles.qss"
