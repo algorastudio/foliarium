@@ -1,5 +1,7 @@
 # config.py
 
+APP_VERSION = "1.4.6.0"
+
 import logging
 import os
 from logging.handlers import RotatingFileHandler

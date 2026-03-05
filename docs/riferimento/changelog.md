@@ -1,5 +1,24 @@
 # Changelog
 
+## v1.4.6.0 — Marzo 2026
+
+### Miglioramenti UI/UX
+
+#### Dashboard
+- Versione nell'intestazione ora dinamica (`APP_VERSION` da `config.py`) — non più hardcoded "1.3"
+- Aggiunta riga informativa sotto il titolo: ruolo utente e data/ora di accesso
+
+#### Form di inserimento
+- **Tooltip** sui 5 pulsanti di ogni widget inserimento (Comune, Possessore, Località, Partita)
+- **Invio per salvare**: campo principale di ogni form collegato a `returnPressed` → avvia il salvataggio senza cliccare il pulsante
+
+#### Tabelle di ricerca
+- **Conteggio risultati** spostato sopra la tabella (più naturale da leggere prima dei dati)
+- **Menu tasto destro** aggiunto a *Ricerca Avanzata Immobili*: copia ID, Partita N., Comune, Natura
+- **Menu tasto destro** aggiunto a *Ricerca Documenti*: copia Titolo, Anno, Partita, ID
+
+---
+
 ## v1.4.5.0 — Marzo 2026
 
 ### Fix e miglioramenti UX

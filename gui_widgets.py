@@ -35,7 +35,8 @@ from PyQt6.QtWidgets import (QAbstractItemView, QApplication,
                              QVBoxLayout, QWidget,QProgressDialog,QTextBrowser,QSlider, QCompleter,QSplitter)
 
 from config import (
-    SETTINGS_DB_TYPE, SETTINGS_DB_HOST, SETTINGS_DB_PORT, 
+    APP_VERSION,
+    SETTINGS_DB_TYPE, SETTINGS_DB_HOST, SETTINGS_DB_PORT,
     SETTINGS_DB_NAME, SETTINGS_DB_USER, SETTINGS_DB_SCHEMA,
     COLONNE_POSSESSORI_DETTAGLI_NUM ,COLONNE_POSSESSORI_DETTAGLI_LABELS,COLONNE_VISUALIZZAZIONE_POSSESSORI_NUM,
     COLONNE_VISUALIZZAZIONE_POSSESSORI_LABELS, COLONNE_INSERIMENTO_POSSESSORI_NUM, COLONNE_INSERIMENTO_POSSESSORI_LABELS,
@@ -537,11 +538,10 @@ class RicercaPartiteWidget(QWidget):
         self.results_table.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
         self.results_table.customContextMenuRequested.connect(self._apri_menu_contestuale_partita)
 
-        results_layout.addWidget(self.results_table)
-
         self.result_count_label = QLabel("Nessuna ricerca eseguita.")
         self.result_count_label.setStyleSheet("color: #555; font-style: italic; padding: 2px 0;")
         results_layout.addWidget(self.result_count_label)
+        results_layout.addWidget(self.results_table)
 
         # Dettagli partita selezionata
         self.detail_button = QPushButton("Mostra Dettagli Partita")
@@ -865,10 +865,12 @@ class RicercaAvanzataImmobiliWidget(QWidget):
         self.risultati_immobili_table.horizontalHeader(
         ).setStretchLastSection(True)  # Ultima colonna stretch
         self.risultati_immobili_table.setSortingEnabled(True)
-        results_layout.addWidget(self.risultati_immobili_table)
+        self.risultati_immobili_table.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
+        self.risultati_immobili_table.customContextMenuRequested.connect(self._apri_menu_immobile)
         self.result_count_label = QLabel("Nessuna ricerca eseguita.")
         self.result_count_label.setStyleSheet("color: #555; font-style: italic; padding: 2px 0;")
         results_layout.addWidget(self.result_count_label)
+        results_layout.addWidget(self.risultati_immobili_table)
         main_layout.addWidget(results_group)
 
         self.setLayout(main_layout)
@@ -1028,6 +1030,27 @@ class RicercaAvanzataImmobiliWidget(QWidget):
             QMessageBox.critical(self, "Errore Ricerca",
                                  f"Si è verificato un errore imprevisto: {e}")
 
+    def _apri_menu_immobile(self, position: QPoint):
+        index = self.risultati_immobili_table.indexAt(position)
+        if not index.isValid():
+            return
+        row = index.row()
+        def _cell(col):
+            item = self.risultati_immobili_table.item(row, col)
+            return item.text() if item else ""
+        id_imm, numero, comune, _, natura = _cell(0), _cell(1), _cell(2), _cell(3), _cell(4)
+        menu = QMenu(self.risultati_immobili_table)
+        menu.addAction(f"ID Immobile: {id_imm}").triggered.connect(
+            lambda: QApplication.clipboard().setText(id_imm))
+        menu.addAction(f"Partita N.: {numero}").triggered.connect(
+            lambda: QApplication.clipboard().setText(numero))
+        menu.addAction(f"Comune: {comune}").triggered.connect(
+            lambda: QApplication.clipboard().setText(comune))
+        if natura:
+            menu.addAction(f"Natura: {natura}").triggered.connect(
+                lambda: QApplication.clipboard().setText(natura))
+        menu.exec(self.risultati_immobili_table.viewport().mapToGlobal(position))
+
 # In gui_widgets.py, SOSTITUISCI l'intera classe InserimentoComuneWidget con questa:
 
 class InserimentoComuneWidget(LazyLoadedWidget): # Eredita da LazyLoadedWidget
@@ -1070,6 +1093,7 @@ class InserimentoComuneWidget(LazyLoadedWidget): # Eredita da LazyLoadedWidget
         self.regione_edit.textChanged.connect(lambda: _set_field_error(self.regione_edit, False))
         self.codice_catastale_edit = QLineEdit()
         self.codice_catastale_edit.setPlaceholderText("Es. A123 (opzionale)")
+        self.codice_catastale_edit.returnPressed.connect(self.inserisci_comune)
         form_layout.addRow("Codice Catastale:", self.codice_catastale_edit)
         self.data_istituzione_check = QCheckBox("Imposta data istituzione")
         self.data_istituzione_edit = QDateEdit(calendarPopup=True)
@@ -1094,14 +1118,19 @@ class InserimentoComuneWidget(LazyLoadedWidget): # Eredita da LazyLoadedWidget
         button_layout = QHBoxLayout()
         self.submit_button = QPushButton("Inserisci Comune")
         self.submit_button.clicked.connect(self.inserisci_comune)
+        self.submit_button.setToolTip("Salva il comune nel database (Invio)")
         self.clear_button = QPushButton("Pulisci Campi")
         self.clear_button.clicked.connect(self.pulisci_campi)
+        self.clear_button.setToolTip("Azzera tutti i campi del form")
         btn_import = QPushButton("Importa CSV")
         btn_import.clicked.connect(self.import_csv_requested.emit)
+        btn_import.setToolTip("Importa più comuni da un file CSV")
         btn_scarica = QPushButton("Scarica CSV")
         btn_scarica.clicked.connect(self.scarica_csv_requested.emit)
+        btn_scarica.setToolTip("Scarica i comuni esistenti come file CSV")
         btn_template = QPushButton("Scarica template")
         btn_template.clicked.connect(self._scarica_template_csv)
+        btn_template.setToolTip("Scarica un file CSV di esempio con le colonne corrette")
         button_layout.addStretch()
         button_layout.addWidget(self.submit_button)
         button_layout.addWidget(self.clear_button)
@@ -1447,6 +1476,7 @@ class InserimentoPossessoreWidget(LazyLoadedWidget):
         form_layout.addWidget(QLabel('Nome Completo (generato) <span style="color:#e74c3c;font-weight:bold;">*</span>:'), 3, 0)
         self.nome_completo_edit = QLineEdit()
         self.nome_completo_edit.setPlaceholderText("Verrà generato o inserire manualmente")
+        self.nome_completo_edit.returnPressed.connect(self._salva_possessore)
         form_layout.addWidget(self.nome_completo_edit, 3, 1)
 
         form_layout.addWidget(QLabel('Comune di Riferimento <span style="color:#e74c3c;font-weight:bold;">*</span>:'), 4, 0)
@@ -1469,14 +1499,19 @@ class InserimentoPossessoreWidget(LazyLoadedWidget):
         button_layout = QHBoxLayout()
         self.save_button = QPushButton("Salva Nuovo Possessore")
         self.save_button.clicked.connect(self._salva_possessore)
+        self.save_button.setToolTip("Salva il possessore nel database (Invio)")
         self.clear_button = QPushButton("Pulisci Campi")
         self.clear_button.clicked.connect(self._pulisci_campi_possessore)
+        self.clear_button.setToolTip("Azzera tutti i campi del form")
         btn_import = QPushButton("Importa CSV")
         btn_import.clicked.connect(self.import_csv_requested.emit)
+        btn_import.setToolTip("Importa più possessori da un file CSV")
         btn_scarica = QPushButton("Scarica CSV")
         btn_scarica.clicked.connect(self.scarica_csv_requested.emit)
+        btn_scarica.setToolTip("Scarica i possessori esistenti come file CSV")
         btn_template = QPushButton("Scarica template")
         btn_template.clicked.connect(self._scarica_template_csv)
+        btn_template.setToolTip("Scarica un file CSV di esempio con le colonne corrette")
         button_layout.addStretch()
         button_layout.addWidget(self.save_button)
         button_layout.addWidget(self.clear_button)
@@ -1671,6 +1706,7 @@ class InserimentoLocalitaWidget(QWidget):
         nome_label = QLabel('Nome località <span style="color:#e74c3c;font-weight:bold;">*</span>:')
         self.nome_edit = QLineEdit()
         self.nome_edit.textChanged.connect(lambda: _set_field_error(self.nome_edit, False))
+        self.nome_edit.returnPressed.connect(self.insert_localita)
         form_layout.addWidget(nome_label, 1, 0)
         form_layout.addWidget(self.nome_edit, 1, 1, 1, 2)
         tipo_label = QLabel('Tipo <span style="color:#e74c3c;font-weight:bold;">*</span>:')
@@ -1692,14 +1728,20 @@ class InserimentoLocalitaWidget(QWidget):
         button_layout = QHBoxLayout()
         btn_inserisci = QPushButton("Inserisci Località")
         btn_inserisci.clicked.connect(self.insert_localita)
+        btn_inserisci.setToolTip("Salva la località nel database (Invio)")
+        self._btn_inserisci_localita = btn_inserisci
         btn_pulisci = QPushButton("Pulisci Campi")
         btn_pulisci.clicked.connect(self._pulisci_campi)
+        btn_pulisci.setToolTip("Azzera tutti i campi del form")
         btn_import = QPushButton("Importa CSV")
         btn_import.clicked.connect(self.import_csv_requested.emit)
+        btn_import.setToolTip("Importa più località da un file CSV")
         btn_scarica = QPushButton("Scarica CSV")
         btn_scarica.clicked.connect(self.scarica_csv_requested.emit)
+        btn_scarica.setToolTip("Scarica le località esistenti come file CSV")
         btn_template = QPushButton("Scarica template")
         btn_template.clicked.connect(self._scarica_template_csv)
+        btn_template.setToolTip("Scarica un file CSV di esempio con le colonne corrette")
         button_layout.addStretch()
         button_layout.addWidget(btn_inserisci)
         button_layout.addWidget(btn_pulisci)
@@ -1834,6 +1876,7 @@ class InserimentoPartitaWidget(QWidget):
         self.suffisso_edit = QLineEdit()
         self.suffisso_edit.setPlaceholderText("Es. bis, A (opzionale)")
         self.suffisso_edit.setMaxLength(20)
+        self.suffisso_edit.returnPressed.connect(self._salva_partita)
         form_layout.addRow("Suffisso Partita:", self.suffisso_edit)
 
         self.data_impianto_edit = QDateEdit(calendarPopup=True)
@@ -1871,14 +1914,20 @@ class InserimentoPartitaWidget(QWidget):
         button_layout = QHBoxLayout()
         btn_salva = QPushButton("Salva Nuova Partita")
         btn_salva.clicked.connect(self._salva_partita)
+        btn_salva.setToolTip("Salva la partita nel database (Invio)")
+        self._btn_salva_partita = btn_salva
         btn_pulisci = QPushButton("Pulisci Campi")
         btn_pulisci.clicked.connect(self._pulisci_campi)
+        btn_pulisci.setToolTip("Azzera tutti i campi del form")
         btn_import = QPushButton("Importa CSV")
         btn_import.clicked.connect(self.import_csv_requested.emit)
+        btn_import.setToolTip("Importa più partite da un file CSV o Excel")
         btn_scarica = QPushButton("Scarica CSV")
         btn_scarica.clicked.connect(self.scarica_csv_requested.emit)
+        btn_scarica.setToolTip("Scarica le partite esistenti come file CSV")
         btn_template = QPushButton("Scarica template")
         btn_template.clicked.connect(self._scarica_template_csv)
+        btn_template.setToolTip("Scarica un file CSV di esempio con le colonne corrette")
         button_layout.addStretch()
         button_layout.addWidget(btn_salva)
         button_layout.addWidget(btn_pulisci)
@@ -3663,7 +3712,33 @@ class RicercaDocumentiWidget(QWidget):
         hdr.setSectionResizeMode(5, QHeaderView.ResizeMode.ResizeToContents)
         hdr.setSectionResizeMode(6, QHeaderView.ResizeMode.Stretch)
         self.tabella.setSortingEnabled(True)
+        self.tabella.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
+        self.tabella.customContextMenuRequested.connect(self._apri_menu_documento)
         main_layout.addWidget(self.tabella, 1)
+
+    def _apri_menu_documento(self, position: QPoint):
+        index = self.tabella.indexAt(position)
+        if not index.isValid():
+            return
+        row = index.row()
+        def _cell(col):
+            item = self.tabella.item(row, col)
+            return item.text() if item else ""
+        id_doc, titolo, tipo, anno, comune, partita = (
+            _cell(0), _cell(1), _cell(2), _cell(3), _cell(4), _cell(5)
+        )
+        menu = QMenu(self.tabella)
+        menu.addAction(f"Copia titolo: {titolo[:40]}{'…' if len(titolo)>40 else ''}").triggered.connect(
+            lambda: QApplication.clipboard().setText(titolo))
+        if anno:
+            menu.addAction(f"Copia anno: {anno}").triggered.connect(
+                lambda: QApplication.clipboard().setText(anno))
+        if partita:
+            menu.addAction(f"Copia partita: {partita}").triggered.connect(
+                lambda: QApplication.clipboard().setText(partita))
+        menu.addAction(f"Copia ID: {id_doc}").triggered.connect(
+            lambda: QApplication.clipboard().setText(id_doc))
+        menu.exec(self.tabella.viewport().mapToGlobal(position))
 
     def _esegui_ricerca(self):
         titolo = self.titolo_edit.text().strip() or None
@@ -7134,9 +7209,18 @@ class DashboardWidget(QWidget):
 
         # 1. Intestazione
         nome_utente = self.current_user_info.get('nome_completo', 'Utente') if self.current_user_info else 'Utente'
-        header_label = QLabel(f"<h2>Benvenuto in Meridiana 1.3, {nome_utente}</h2>")
+        ruolo_utente = self.current_user_info.get('ruolo', '') if self.current_user_info else ''
+        header_label = QLabel(f"<h2>Benvenuto in Meridiana {APP_VERSION}, {nome_utente}</h2>")
         header_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
         main_layout.addWidget(header_label)
+        from datetime import datetime as _dt
+        sub_label = QLabel(
+            f'<span style="color:#888;font-size:12px;">'
+            f'Ruolo: <b>{ruolo_utente}</b> &nbsp;·&nbsp; {_dt.now().strftime("%A %d %B %Y, %H:%M")}'
+            f'</span>'
+        )
+        sub_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        main_layout.addWidget(sub_label)
 
         # 2. Ricerca Globale
         search_group = QGroupBox("Ricerca Rapida")

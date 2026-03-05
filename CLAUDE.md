@@ -4,7 +4,7 @@
 
 **Meridiana** is a desktop application for managing historical Italian cadastral records (archivio catastale storico), developed for the State Archive of Savona. It allows archivists to search, insert, and export property records (partite catastali) and owners (possessori).
 
-- **Current version:** 1.4.5.0
+- **Current version:** 1.4.6.0
 - **Author:** Marco Santoro
 - **Primary platform:** Windows 10+
 - **Code/UI language:** Italian
@@ -416,6 +416,31 @@ Viewer del manuale embedded nell'app senza WebEngine ne server MkDocs.
 
 **`requirements.txt`**: aggiunto `markdown>=3.4`
 
+
+---
+
+## Changelog sessione corrente (v1.4.6.0)
+
+Tutto il lavoro è sul branch `claude/summarize-dev-status-vDVnI`.
+
+### Miglioramenti UI/UX (`gui_widgets.py`, `config.py`)
+
+**Dashboard:**
+- `APP_VERSION` aggiunta in `config.py` e importata in `gui_widgets.py`; header non più hardcoded "1.3"
+- Riga secondaria sotto il titolo: ruolo utente + data/ora corrente (font piccolo, colore grigio)
+
+**Form di inserimento (tutti e 4 i widget):**
+- `setToolTip()` sui 5 pulsanti di ogni widget (Inserisci/Salva, Pulisci Campi, Importa CSV, Scarica CSV, Scarica template)
+- `returnPressed` collegato al metodo di salvataggio sul campo principale di ogni form:
+  - Comuni → `codice_catastale_edit`
+  - Possessori → `nome_completo_edit`
+  - Località → `nome_edit`
+  - Partite → `suffisso_edit`
+
+**Tabelle di ricerca:**
+- `result_count_label` spostata sopra la tabella in `RicercaPartiteWidget` e `RicercaAvanzataImmobiliWidget`
+- Menu contestuale (tasto destro) aggiunto a `RicercaAvanzataImmobiliWidget`: copia ID Immobile, Partita N., Comune, Natura
+- Menu contestuale aggiunto a `RicercaDocumentiWidget`: copia Titolo, Anno, Partita, ID documento
 
 ---
 
