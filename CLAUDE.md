@@ -4,7 +4,7 @@
 
 **Meridiana** is a desktop application for managing historical Italian cadastral records (archivio catastale storico), developed for the State Archive of Savona. It allows archivists to search, insert, and export property records (partite catastali) and owners (possessori).
 
-- **Current version:** 1.4.7.0
+- **Current version:** 1.5.0
 - **Author:** Marco Santoro
 - **Primary platform:** Windows 10+
 - **Code/UI language:** Italian
@@ -419,7 +419,7 @@ Viewer del manuale embedded nell'app senza WebEngine ne server MkDocs.
 
 ---
 
-## Changelog sessione corrente (v1.4.7.0)
+## Changelog sessione corrente (v1.5.0)
 
 Tutto il lavoro è sul branch `claude/summarize-dev-status-vDVnI`.
 

@@ -1,6 +1,6 @@
 # config.py
 
-APP_VERSION = "1.4.7.0"
+APP_VERSION = "1.5.0"
 
 import logging
 import os
