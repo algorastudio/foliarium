@@ -20,7 +20,7 @@ from PyQt6.QtCore import (QSettings,
                           pyqtSlot, pyqtSignal, QCoreApplication)
 
 from PyQt6.QtGui import (QCloseEvent, QDesktopServices, QAction, QActionGroup, QGuiApplication,
-                         QKeySequence, QShortcut, QSvgRenderer)
+                         QKeySequence, QShortcut)
 
 from PyQt6.QtWidgets import (QApplication,
                              QDialog, QFileDialog, QFrame, QGridLayout,
