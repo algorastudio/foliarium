@@ -146,3 +146,62 @@
     QMenuBar::item:selected { background: #C0C0C0; }
     QMenu { background-color: #FFFFFF; border: 1px solid #B0B0B0; color: #333333;}
     QMenu::item:selected { background-color: #0078D4; color: white; }
+
+/* === TOPBAR === */
+#topBar {
+    background: #FFFFFF;
+    border-bottom: 1px solid #E0E0E0;
+    min-height: 48px;
+    max-height: 48px;
+}
+#appTitle { font-size: 15px; font-weight: bold; color: #202124; }
+#dbIndicator { font-size: 11px; color: #5F6368; }
+#userLabel { font-size: 12px; color: #202124; }
+#roleChip[role="admin"]        { background: #FDEDED; color: #B00020; border-radius: 10px; padding: 2px 8px; font-size: 11px; }
+#roleChip[role="archivista"]   { background: #EBF3FE; color: #0078D4; border-radius: 10px; padding: 2px 8px; font-size: 11px; }
+#roleChip[role="consultatore"] { background: #F1F3F4; color: #5F6368; border-radius: 10px; padding: 2px 8px; font-size: 11px; }
+#logoutButton {
+    background: transparent;
+    border: 1px solid #DADCE0;
+    border-radius: 4px;
+    padding: 4px 12px;
+    color: #444444;
+    font-size: 12px;
+}
+#logoutButton:hover { background: #F5F5F5; border-color: #BDBDBD; }
+
+/* === SIDEBAR === */
+#sidebar {
+    background: #FFFFFF;
+    border-right: 1px solid #E0E0E0;
+    min-width: 220px;
+    max-width: 220px;
+}
+#sectionLabel {
+    color: #9E9E9E;
+    font-size: 10px;
+    font-weight: bold;
+    text-transform: uppercase;
+    padding: 12px 16px 4px 16px;
+    background: transparent;
+}
+QPushButton#navButton {
+    text-align: left;
+    padding: 8px 16px;
+    border: none;
+    border-radius: 6px;
+    margin: 1px 8px;
+    background: transparent;
+    color: #444444;
+    font-size: 13px;
+}
+QPushButton#navButton:hover { background: #F5F5F5; }
+QPushButton#navButton[active="true"] {
+    background: #EBF3FE;
+    color: #0078D4;
+    font-weight: bold;
+    border-left: 3px solid #0078D4;
+}
+
+/* === CONTENT AREA === */
+QStackedWidget { background: #F8F9FA; }

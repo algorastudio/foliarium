@@ -4,7 +4,7 @@
 
 **Meridiana** is a desktop application for managing historical Italian cadastral records (archivio catastale storico), developed for the State Archive of Savona. It allows archivists to search, insert, and export property records (partite catastali) and owners (possessori).
 
-- **Current version:** 1.4.6.0
+- **Current version:** 1.4.7.0
 - **Author:** Marco Santoro
 - **Primary platform:** Windows 10+
 - **Code/UI language:** Italian
@@ -416,6 +416,42 @@ Viewer del manuale embedded nell'app senza WebEngine ne server MkDocs.
 
 **`requirements.txt`**: aggiunto `markdown>=3.4`
 
+
+---
+
+## Changelog sessione corrente (v1.4.7.0)
+
+Tutto il lavoro è sul branch `claude/summarize-dev-status-vDVnI`.
+
+### Feature: Redesign UI — Sidebar + Top Bar (`gui_main.py`, `styles/meridiana_styles.qss`)
+
+Sostituita la navigazione a QTabWidget annidati (3 livelli) con una sidebar verticale stile VS Code + QStackedWidget flat.
+
+**Nuove classi in `gui_main.py`:**
+- `TopBarWidget(QFrame)` — barra fissa h=48px: logo SVG + titolo | [spacer] | indicatore DB | nome utente | chip ruolo | [Logout]
+  - `update_user_info(nome, ruolo, db_connected, db_name)` — aggiorna tutti i label
+  - `set_logout_enabled(bool)` — abilita/disabilita il pulsante logout
+- `SidebarWidget(QWidget)` — pannello w=220px scrollabile
+  - `build_nav(is_admin, fuzzy_available)` — costruisce bottoni e label sezione in base al ruolo
+  - `set_active(page_name)` — applica stile attivo al bottone selezionato
+  - `set_button_visible(page_name, visible)` — mostra/nasconde bottoni per ruolo
+  - `get_page_names()` — lista ordinata pagine per shortcut Ctrl+N
+
+**Refactoring `CatastoMainWindow`:**
+- `initUI()`: rimosso `QTabWidget`, aggiunti `TopBarWidget` + `SidebarWidget` + `QStackedWidget`; rimosso `create_status_bar_content()`
+- `setup_tabs()` → `setup_pages()`: tutte le pagine aggiunte direttamente a `self.stack`; `_page_index` dict mappa `page_name → indice stack`
+- `navigate_to(page_name)`: nuovo metodo principale di navigazione (sostituisce tab switching)
+- `activate_tab_and_sub_tab()`: mantenuto come wrapper di compatibilità con mapping `(main_tab, sub_tab) → page_name`
+- `_on_stack_changed(index)`: lazy loading su cambio pagina stack
+- `update_ui_based_on_role()`: usa `sidebar.set_button_visible()` invece di `tabs.setTabEnabled()`
+- `handle_logout()`: aggiorna `top_bar`, svuota `self.stack`
+- `_check_backup_reminder()`: usa `navigate_to("backup")`
+- `_handle_partita_creata_per_operazioni()`: usa `navigate_to("operazioni")`
+- `_handle_f5_refresh()`: opera su `self.stack.currentWidget()`
+- Shortcut `Ctrl+1..N`: rimappati ai bottoni sidebar flat
+- Titolo finestra: `"Meridiana — Archivio Catastale Storico"`
+
+**`styles/meridiana_styles.qss`:** aggiunti stili `#topBar`, `#appTitle`, `#dbIndicator`, `#userLabel`, `#roleChip[role=*]`, `#logoutButton`, `#sidebar`, `#sectionLabel`, `QPushButton#navButton` (con stati `:hover` e `[active="true"]`), `QStackedWidget`.
 
 ---
 
