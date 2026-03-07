@@ -17,7 +17,7 @@ sudo apt-get install -y -q gnupg curl
 curl -fsSL https://www.postgresql.org/media/keys/ACCC4CF8.asc \
     | sudo gpg --dearmor -o /usr/share/keyrings/postgresql-keyring.gpg
 echo "deb [signed-by=/usr/share/keyrings/postgresql-keyring.gpg] \
-    https://apt.postgresql.org/pub/repos/apt bullseye-pgdg main" \
+    https://apt.postgresql.org/pub/repos/apt bookworm-pgdg main" \
     | sudo tee /etc/apt/sources.list.d/pgdg.list > /dev/null
 
 sudo apt-get update -y -q

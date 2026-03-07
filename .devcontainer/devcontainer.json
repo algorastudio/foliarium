@@ -1,6 +1,6 @@
 {
   "name": "Meridiana – Catasto Storico",
-  "image": "mcr.microsoft.com/devcontainers/python:3.12-bullseye",
+  "image": "mcr.microsoft.com/devcontainers/python:3.12-bookworm",
 
   "features": {
     "ghcr.io/devcontainers/features/desktop-lite:1": {
