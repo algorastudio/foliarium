@@ -1,6 +1,8 @@
 {
   "name": "Meridiana – Catasto Storico",
-  "image": "mcr.microsoft.com/devcontainers/python:3.12-bookworm",
+  "build": {
+    "dockerfile": "Dockerfile"
+  },
 
   "features": {
     "ghcr.io/devcontainers/features/desktop-lite:1": {
