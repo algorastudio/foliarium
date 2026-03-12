@@ -187,7 +187,7 @@ class FoliariumSplashScreen(QSplashScreen):
             )
         else:
             pixmap = _build_foliarium_splash_pixmap()
-        super().__init__(pixmap, Qt.WindowType.WindowStaysOnTopHint)
+        super().__init__(pixmap)
         self.setWindowFlag(Qt.WindowType.FramelessWindowHint)
 
 
@@ -1925,7 +1925,13 @@ def run_gui_app():
         if not IS_TEST_ENV:
             _splash = FoliariumSplashScreen()
             _splash.show()
+            # Mostra la splash per 2.5 secondi poi la chiude automaticamente
+            import time
             app.processEvents()
+            time.sleep(2.5)
+            app.processEvents()
+            _splash.close()
+            _splash = None
 
         # --- CHIAMATA ALLA NUOVA FUNZIONE QUI ---
         # Questo imposta il logging per l'intera applicazione prima che qualsiasi
@@ -2113,10 +2119,6 @@ def run_gui_app():
             login_dialog.logged_in_user_info,
             login_dialog.current_session_id_from_dialog
         )
-
-        if _splash is not None:
-            _splash.finish(main_window_instance)
-            _splash = None
 
         QTimer.singleShot(1500, lambda: update_checker.check_for_updates(main_window_instance))
 
