@@ -16,7 +16,7 @@ from datetime import datetime
 from typing import Optional, Dict
 # Importazioni PyQt6
 from PyQt6.QtCore import (QSettings,
-                          QStandardPaths, Qt, QUrl,
+                          QStandardPaths, Qt, QTimer, QUrl,
                           pyqtSlot, pyqtSignal, QCoreApplication)
 
 from PyQt6.QtGui import (QCloseEvent, QDesktopServices, QAction, QActionGroup, QGuiApplication,
@@ -53,6 +53,7 @@ from gui_widgets import (
     DBConfigDialog, InserimentoPartitaWidget, RicercaDocumentiWidget)
 
 from custom_widgets import QPasswordLineEdit
+import update_checker
 
 
 from config import (
@@ -2116,6 +2117,8 @@ def run_gui_app():
         if _splash is not None:
             _splash.finish(main_window_instance)
             _splash = None
+
+        QTimer.singleShot(1500, lambda: update_checker.check_for_updates(main_window_instance))
 
         gui_logger.info("Setup completato. Avvio loop eventi.")
         sys.exit(app.exec())
