@@ -1862,7 +1862,7 @@ def setup_logging():
     os.makedirs(app_data_path, exist_ok=True)
 
     # Percorso completo del file di log
-    log_file_path = os.path.join(app_data_path, "meridiana_session.log")
+    log_file_path = os.path.join(app_data_path, "foliarium_session.log")
 
     # Configura il logger principale (root logger)
     log_format = '%(asctime)s - %(name)s - %(levelname)s - %(filename)s:%(lineno)d - %(message)s'
@@ -1893,8 +1893,8 @@ def setup_global_logging():
     os.makedirs(app_data_path, exist_ok=True)
     
     # Percorso completo del file di log
-    log_file_path = os.path.join(app_data_path, "meridiana_session.log")
-    
+    log_file_path = os.path.join(app_data_path, "foliarium_session.log")
+
     # Configura il logger usando basicConfig, che pulisce ogni handler precedente.
     # 'force=True' (per Python 3.8+) assicura che questa configurazione sovrascriva tutto.
     logging.basicConfig(
