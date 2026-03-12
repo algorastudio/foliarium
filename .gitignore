@@ -115,6 +115,9 @@ config.local.json
 config.dev.json
 secrets.json
 
+# Claude Code internal files
+.claude/worktrees/
+
 # Binary and large files
 *.zip
 *.tar.gz
