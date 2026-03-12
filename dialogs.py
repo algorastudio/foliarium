@@ -5609,7 +5609,7 @@ class EulaDialog(QDialog):
     """Dialogo per la visualizzazione e l'accettazione dell'EULA."""
     def __init__(self, parent=None):
         super().__init__(parent)
-        self.setWindowTitle("Contratto di Licenza (EULA) - Meridiana 1.3")
+        self.setWindowTitle("Contratto di Licenza (EULA) - Foliarium")
         self.setMinimumSize(600, 500)
         self.setModal(True)
 
@@ -6151,7 +6151,7 @@ class OSMLocalitaWorker(QThread):
             data = urllib.parse.urlencode({'data': query}).encode()
             req = urllib.request.Request(
                 self.OVERPASS_URL, data=data,
-                headers={'User-Agent': 'Meridiana/1.4 (archivio catastale storico)'}
+                headers={'User-Agent': 'Foliarium/1.5 (archivio catastale storico)'}
             )
             self.progress.emit("Download dati in corso...")
             with urllib.request.urlopen(req, timeout=90) as resp:
@@ -6915,7 +6915,7 @@ class SMTPSettingsDialog(QDialog):
         smtp_form.addRow("Password:", self.password_edit)
 
         self.from_edit = QLineEdit()
-        self.from_edit.setPlaceholderText("es. Meridiana <noreply@archivio.it>")
+        self.from_edit.setPlaceholderText("es. Foliarium <noreply@archivio.it>")
         smtp_form.addRow("Indirizzo mittente:", self.from_edit)
 
         layout.addWidget(smtp_group)
@@ -6967,7 +6967,7 @@ class SMTPSettingsDialog(QDialog):
         # Password da keyring
         user = self.user_edit.text()
         if user and keyring:
-            pwd = keyring.get_password("Meridiana_SMTP", user) or ""
+            pwd = keyring.get_password("Foliarium_SMTP", user) or ""
             self.password_edit.setText(pwd)
 
     def _save_and_accept(self):
@@ -6987,7 +6987,7 @@ class SMTPSettingsDialog(QDialog):
         pwd  = self.password_edit.text()
         if keyring and user:
             try:
-                keyring.set_password("Meridiana_SMTP", user, pwd)
+                keyring.set_password("Foliarium_SMTP", user, pwd)
             except Exception as e:
                 logging.getLogger("CatastoGUI").warning(f"Keyring SMTP: {e}")
         self.accept()
@@ -7020,8 +7020,8 @@ class SMTPSettingsDialog(QDialog):
 
         self._email_worker = EmailWorker(
             svc, to,
-            "[Meridiana] Test connessione SMTP",
-            "Connessione SMTP configurata correttamente.\n\n-- Sistema Meridiana"
+            "[Foliarium] Test connessione SMTP",
+            "Connessione SMTP configurata correttamente.\n\n-- Sistema Foliarium"
         )
         self._email_worker.result.connect(self._on_test_result)
         self._email_worker.start()
@@ -7106,7 +7106,7 @@ class HelpViewerDialog(QDialog):
 
     def __init__(self, parent=None):
         super().__init__(parent)
-        self.setWindowTitle("Manuale Utente \u2014 Meridiana")
+        self.setWindowTitle("Manuale Utente \u2014 Foliarium")
         self.setMinimumSize(900, 620)
         self.resize(1100, 720)
         self.setWindowFlags(

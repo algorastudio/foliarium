@@ -26,12 +26,12 @@ VSVersionInfo(
       StringTable(
         '041004b0', # Codice lingua: Italiano (Italia), set di caratteri Unicode
         [StringStruct('CompanyName', 'Marco Santoro'),
-         StringStruct('FileDescription', 'Meridiana - Archivio Catastale Storico'),
+         StringStruct('FileDescription', 'Foliarium - Archivio Catastale Storico'),
          StringStruct('FileVersion', '1.3.1'),
-         StringStruct('InternalName', 'Meridiana'),
+         StringStruct('InternalName', 'Foliarium'),
          StringStruct('LegalCopyright', u'Copyright © Marco Santoro. In gentile concessione gratuita all\'Archivio di Stato di Savona.'),
-         StringStruct('OriginalFilename', 'Meridiana.exe'),
-         StringStruct('ProductName', 'Meridiana'),
+         StringStruct('OriginalFilename', 'Foliarium.exe'),
+         StringStruct('ProductName', 'Foliarium'),
          StringStruct('ProductVersion', '1.3.1')])
       ]),
     VarFileInfo([VarStruct('Translation', [1040, 1200])]) # 1040 è LCID per Italiano

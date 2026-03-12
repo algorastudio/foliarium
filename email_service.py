@@ -1,5 +1,5 @@
 """
-email_service.py — Servizio di notifiche email per Meridiana.
+email_service.py — Servizio di notifiche email per Foliarium.
 
 Modulo autonomo (nessuna dipendenza da gui_*) che gestisce:
 - Configurazione SMTP tramite QSettings + keyring per la password
@@ -29,18 +29,18 @@ from config import (
 
 logger = logging.getLogger("CatastoGUI.email_service")
 
-_FOOTER = "\n\n--\nSistema Meridiana · Archivio di Stato di Savona"
+_FOOTER = "\n\n--\nSistema Foliarium · Archivio di Stato di Savona"
 
 
 class EmailService:
     """
-    Wrapper SMTP per Meridiana.
+    Wrapper SMTP per Foliarium.
 
     La password SMTP è custodita in keyring (SERVICE_KEYRING) e mai
     scritta su disco/QSettings in chiaro.
     """
 
-    SERVICE_KEYRING = "Meridiana_SMTP"
+    SERVICE_KEYRING = "Foliarium_SMTP"
 
     def __init__(self, settings: QSettings | None = None):
         s = settings or QSettings()
@@ -107,10 +107,10 @@ class EmailService:
     def notify_account_created(
         self, to: str, username: str, nome: str, ruolo: str
     ) -> tuple[str, str, str]:
-        subject = "[Meridiana] Nuovo account creato"
+        subject = "[Foliarium] Nuovo account creato"
         body = (
             f"Gentile {nome},\n\n"
-            f"è stato creato un account per il sistema Meridiana - Archivio Catastale Storico.\n\n"
+            f"è stato creato un account per il sistema Foliarium - Archivio Catastale Storico.\n\n"
             f"Username : {username}\n"
             f"Ruolo    : {ruolo}\n"
             f"Data     : {datetime.now().strftime('%d/%m/%Y %H:%M')}\n\n"
@@ -122,7 +122,7 @@ class EmailService:
     def notify_password_changed(
         self, to: str, username: str, nome: str
     ) -> tuple[str, str, str]:
-        subject = "[Meridiana] Password modificata"
+        subject = "[Foliarium] Password modificata"
         body = (
             f"Gentile {nome},\n\n"
             f"la password del tuo account ({username}) è stata modificata "
@@ -135,10 +135,10 @@ class EmailService:
     def notify_role_changed(
         self, to: str, username: str, nome: str, old_role: str, new_role: str
     ) -> tuple[str, str, str]:
-        subject = "[Meridiana] Ruolo aggiornato"
+        subject = "[Foliarium] Ruolo aggiornato"
         body = (
             f"Gentile {nome},\n\n"
-            f"il tuo ruolo nel sistema Meridiana è stato aggiornato:\n\n"
+            f"il tuo ruolo nel sistema Foliarium è stato aggiornato:\n\n"
             f"  Ruolo precedente : {old_role}\n"
             f"  Nuovo ruolo      : {new_role}\n\n"
             f"Data modifica: {datetime.now().strftime('%d/%m/%Y %H:%M')}"
@@ -149,11 +149,11 @@ class EmailService:
     def notify_login(
         self, to: str, username: str, nome: str
     ) -> tuple[str, str, str]:
-        subject = "[Meridiana] Accesso effettuato"
+        subject = "[Foliarium] Accesso effettuato"
         hostname = socket.gethostname()
         body = (
             f"Gentile {nome},\n\n"
-            f"è stato registrato un accesso al sistema Meridiana con il tuo account ({username}).\n\n"
+            f"è stato registrato un accesso al sistema Foliarium con il tuo account ({username}).\n\n"
             f"Data e ora  : {datetime.now().strftime('%d/%m/%Y %H:%M:%S')}\n"
             f"Postazione  : {hostname}\n\n"
             f"Se non sei stato tu ad effettuare questo accesso, "

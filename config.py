@@ -91,7 +91,7 @@ def setup_global_logging(log_level=logging.INFO):
         
         # Se il percorso non esiste, fallback
         if not log_directory:
-            log_directory = os.path.join(os.path.expanduser("~"), "MeridianaAppData")
+            log_directory = os.path.join(os.path.expanduser("~"), "FoliariumAppData")
 
         # Aggiungiamo una sottocartella 'logs'
         log_directory = os.path.join(log_directory, "logs")
@@ -99,7 +99,7 @@ def setup_global_logging(log_level=logging.INFO):
         # Crea la cartella di log se non esiste
         os.makedirs(log_directory, exist_ok=True)
 
-        log_file_path = os.path.join(log_directory, "meridiana_gui.log")
+        log_file_path = os.path.join(log_directory, "foliarium_gui.log")
 
         # Configurazione del logger 'CatastoGUI'
         logger = logging.getLogger("CatastoGUI")

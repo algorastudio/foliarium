@@ -35,7 +35,7 @@ exe = EXE(
     a.scripts,
     [],
     exclude_binaries=True,
-    name='Meridiana',
+    name='Foliarium',
     debug=False,
     bootloader_ignore_signals=False,
     strip=False,
@@ -62,5 +62,5 @@ coll = COLLECT(
     strip=False,
     upx=False, # Disabilita UPX anche per le librerie DLL
     upx_exclude=[],
-    name='Meridiana' # Nome della cartella finale che verrà creata in 'dist'
+    name='Foliarium' # Nome della cartella finale che verrà creata in 'dist'
 )

@@ -714,7 +714,7 @@ import os # Assicurati che 'os' sia importato
 
 def _get_default_export_path(default_filename: str) -> str:
     """
-    Crea la sottocartella 'Esportazioni Meridiana' in Documenti se non esiste e restituisce
+    Crea la sottocartella 'Esportazioni Foliarium' in Documenti se non esiste e restituisce
     il percorso completo per il file di default.
     """
     # 1. Trova la cartella "Documenti" ufficiale dell'utente di Windows
@@ -725,7 +725,7 @@ def _get_default_export_path(default_filename: str) -> str:
         cartella_documenti = os.path.expanduser("~")
         
     # 2. Definisce il percorso per la sottocartella dedicata
-    full_dir_path = os.path.join(cartella_documenti, "Esportazioni Meridiana")
+    full_dir_path = os.path.join(cartella_documenti, "Esportazioni Foliarium")
     
     # 3. Crea la directory in Documenti (qui abbiamo sempre i permessi!)
     os.makedirs(full_dir_path, exist_ok=True)

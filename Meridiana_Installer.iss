@@ -1,13 +1,13 @@
-; Script per Inno Setup per l'applicazione Meridiana
+; Script per Inno Setup per l'applicazione Foliarium
 ; Creato da Supporto Definitivo per il Tirocinio per Marco Santoro
 
 ; --- DEFINIZIONE COSTANTI ---
 ; Usare le costanti rende lo script più pulito e facile da manutenere per versioni future.
-#define MyAppName "Meridiana"
+#define MyAppName "Foliarium"
 #define MyAppVersion "1.3.1"
 #define MyAppPublisher "Marco Santoro"
 #define MyAppURL "https://github.com/saintgold74/catasto"
-#define MyAppExeName "Meridiana.exe"
+#define MyAppExeName "Foliarium.exe"
 #define MyCopyright "Copyright © Marco Santoro. In gentile concessione gratuita all'Archivio di Stato di Savona."
 
 [Setup]
@@ -23,7 +23,7 @@ DefaultGroupName={#MyAppName}
 DisableProgramGroupPage=yes
 ; Specifica dove salvare l'installer finale e come chiamarlo.
 OutputDir=Installer
-OutputBaseFilename=Meridiana_{#MyAppVersion}_Setup
+OutputBaseFilename=Foliarium_{#MyAppVersion}_Setup
 SetupIconFile=resources\icona_meridiana.ico
 UninstallDisplayIcon={app}\{#MyAppExeName}
 Compression=lzma2/max
@@ -34,7 +34,7 @@ PrivilegesRequired=admin
 ; --- INFORMAZIONI DI VERSIONE INCLUSE NELL'ESEGUIBILE DELL'INSTALLER ---
 VersionInfoVersion={#MyAppVersion}
 VersionInfoCompany={#MyAppPublisher}
-VersionInfoDescription=Installazione di Meridiana - Archivio Catastale Storico
+VersionInfoDescription=Installazione di Foliarium - Archivio Catastale Storico
 VersionInfoCopyright={#MyCopyright}
 
 ; --- LICENZA D'USO (EULA) ---

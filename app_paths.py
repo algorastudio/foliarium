@@ -31,15 +31,15 @@ DOCS_DIR = BASE_DIR / "docs"
 def get_user_data_dir():
     """
     Restituisce un percorso scrivibile nella cartella dati dell'utente.
-    Es. Windows: C:\\Users\\NOMEUTENTE\\AppData\\Local\\Meridiana
+    Es. Windows: C:\\Users\\NOMEUTENTE\\AppData\\Local\\Foliarium
     """
     local_app_data = os.getenv('LOCALAPPDATA')
     if local_app_data:
         # Percorso standard per i dati delle app su Windows
-        user_data_dir = Path(local_app_data) / "Meridiana"
+        user_data_dir = Path(local_app_data) / "Foliarium"
     else:
         # Fallback per sistemi non-Windows
-        user_data_dir = Path.home() / ".meridiana"
+        user_data_dir = Path.home() / ".foliarium"
     
     return user_data_dir
 
@@ -71,7 +71,7 @@ def get_style_path(style_filename: str) -> Path:
     """
     return STYLES_DIR / style_filename
 
-def get_log_file_path(log_filename: str = "meridiana.log") -> Path:
+def get_log_file_path(log_filename: str = "foliarium.log") -> Path:
     """
     Ottiene il percorso assoluto per un file di log nella cartella dati utente.
     """

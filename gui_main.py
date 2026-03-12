@@ -26,7 +26,7 @@ from PyQt6.QtWidgets import (QApplication,
                              QDialog, QFileDialog, QFrame, QGridLayout,
                              QHBoxLayout, QInputDialog,
                              QLabel, QLineEdit, QMainWindow, QMessageBox, QPushButton,
-                             QScrollArea, QSizePolicy, QStackedWidget,
+                             QScrollArea, QSizePolicy, QSplashScreen, QStackedWidget,
                              QStyle, QStyleFactory, QTabWidget,
                              QVBoxLayout, QWidget)
 # --- FINE MODIFICA ---
@@ -56,11 +56,12 @@ from custom_widgets import QPasswordLineEdit
 
 
 from config import (
+    APP_VERSION,
     SETTINGS_DB_TYPE, SETTINGS_DB_HOST, SETTINGS_DB_PORT,
     SETTINGS_DB_NAME, SETTINGS_DB_USER, SETTINGS_DB_SCHEMA, SETTINGS_DB_PASSWORD,
     SETTINGS_UI_CURRENT_STYLE, SETTINGS_UI_AUTO_THEME, SETTINGS_UI_WIN11_STYLE,
     AUTO_THEME_DARK, AUTO_THEME_LIGHT,
-    SETTINGS_SESSION_TIMEOUT)
+    IS_TEST_ENV, SETTINGS_SESSION_TIMEOUT)
 
 try:
     from fpdf import FPDF
@@ -124,6 +125,74 @@ def _verify_password(stored_hash: str, provided_password: str) -> bool:
                 f"Errore imprevisto durante la verifica bcrypt: {e}")
             return False
 
+# ---------------------------------------------------------------------------
+# Splash screen Foliarium
+# ---------------------------------------------------------------------------
+
+def _build_foliarium_splash_pixmap():
+    """Genera il pixmap di fallback per la splash screen (usato se il PNG non esiste)."""
+    from PyQt6.QtGui import QPixmap, QPainter, QColor, QFont, QPen
+    from PyQt6.QtCore import QRect
+
+    W, H = 700, 394
+    pixmap = QPixmap(W, H)
+    pixmap.fill(QColor("#f5f0e8"))
+
+    painter = QPainter(pixmap)
+    painter.setRenderHint(QPainter.RenderHint.Antialiasing)
+
+    # Bordo oro
+    pen = QPen(QColor("#b8960c"), 4)
+    painter.setPen(pen)
+    painter.drawRect(8, 8, W - 16, H - 16)
+    # Linea separatrice
+    painter.drawLine(40, H // 2 + 30, W - 40, H // 2 + 30)
+
+    # Titolo
+    font_title = QFont("Georgia", 64, QFont.Weight.Bold)
+    painter.setFont(font_title)
+    painter.setPen(QColor("#1a3c2b"))
+    painter.drawText(QRect(0, 50, W, 140), Qt.AlignmentFlag.AlignCenter, "FOLIARIUM")
+
+    # Sottotitolo
+    font_sub = QFont("Georgia", 16)
+    painter.setFont(font_sub)
+    painter.drawText(QRect(0, 210, W, 40), Qt.AlignmentFlag.AlignCenter, "GESTIONE DIGITALE")
+    painter.drawText(QRect(0, 245, W, 40), Qt.AlignmentFlag.AlignCenter, "ARCHIVI CATASTALI STORICI")
+
+    # Versione
+    font_ver = QFont("Georgia", 10)
+    painter.setFont(font_ver)
+    painter.setPen(QColor("#7a6a50"))
+    painter.drawText(QRect(0, H - 45, W - 20, 30),
+                     Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignBottom,
+                     f"v{APP_VERSION}")
+
+    painter.end()
+    return pixmap
+
+
+class FoliariumSplashScreen(QSplashScreen):
+    """Splash screen mostrata all'avvio prima del login."""
+
+    def __init__(self):
+        logo_path = str(get_resource_path("Logo_foliarium_1.png"))
+        if os.path.exists(logo_path):
+            from PyQt6.QtGui import QPixmap
+            pixmap = QPixmap(logo_path).scaled(
+                700, 394,
+                Qt.AspectRatioMode.KeepAspectRatio,
+                Qt.TransformationMode.SmoothTransformation,
+            )
+        else:
+            pixmap = _build_foliarium_splash_pixmap()
+        super().__init__(pixmap, Qt.WindowType.WindowStaysOnTopHint)
+        self.setWindowFlag(Qt.WindowType.FramelessWindowHint)
+
+
+# ---------------------------------------------------------------------------
+
+
 class LoginDialog(QDialog):
     # --- INIZIO MODIFICA 1 ---
     # Aggiungiamo 'client_ip' come parametro all'init
@@ -137,7 +206,7 @@ class LoginDialog(QDialog):
         # NUOVO attributo per conservare l'UUID
         self.current_session_id_from_dialog: Optional[str] = None
 
-        self.setWindowTitle("Login - Meridiana 1.3")
+        self.setWindowTitle("Login - Foliarium")
         self.setMinimumWidth(350)
         self.setModal(True)
 
@@ -306,7 +375,7 @@ class TopBarWidget(QFrame):
         except Exception:
             pass
 
-        title_label = QLabel("Meridiana")
+        title_label = QLabel("Foliarium")
         title_label.setObjectName("appTitle")
         layout.addWidget(title_label)
 
@@ -537,7 +606,7 @@ class CatastoMainWindow(QMainWindow):
         # Indice pagine sidebar: page_name -> QStackedWidget index
         self._page_index: dict = {}
 
-        self.setWindowTitle("Meridiana — Archivio Catastale Storico")
+        self.setWindowTitle("Foliarium — Archivio Catastale Storico")
         self.setMinimumSize(1280, 720)
         self.central_widget = QWidget()
         self.main_layout = QVBoxLayout(self.central_widget)
@@ -841,7 +910,7 @@ class CatastoMainWindow(QMainWindow):
             # --- INIZIO MODIFICA ---
         help_menu.addSeparator()
 
-        show_eula_action = QAction("Informazioni su Meridiana / EULA...", self)
+        show_eula_action = QAction("Informazioni su Foliarium / EULA...", self)
         show_eula_action.triggered.connect(self._show_about_eula_dialog)
         help_menu.addAction(show_eula_action)
         # --- FINE MODIFICA ---
@@ -1783,7 +1852,7 @@ def setup_logging():
     """Configura il logging per scrivere nella cartella AppData dell'utente."""
     # Imposta i metadati dell'applicazione per creare un percorso univoco
     QCoreApplication.setOrganizationName("ArchivioDiStatoSavona")
-    QCoreApplication.setApplicationName("Meridiana")
+    QCoreApplication.setApplicationName("Foliarium")
 
     # Trova la cartella standard e scrivibile per i dati dell'applicazione
     app_data_path = QStandardPaths.writableLocation(QStandardPaths.StandardLocation.AppLocalDataLocation)
@@ -1814,7 +1883,7 @@ def setup_global_logging():
     """
     # Imposta i metadati necessari a PyQt per trovare il percorso corretto
     QCoreApplication.setOrganizationName("ArchivioDiStatoSavona")
-    QCoreApplication.setApplicationName("Meridiana")
+    QCoreApplication.setApplicationName("Foliarium")
     
     # Ottieni il percorso standard e scrivibile per i dati dell'applicazione
     app_data_path = QStandardPaths.writableLocation(QStandardPaths.StandardLocation.AppLocalDataLocation)
@@ -1847,8 +1916,15 @@ def run_gui_app():
         # Questo è FONDAMENTALE affinché QStandardPaths possa generare
         # percorsi di dati scrivibili e univoci per l'app.
         QCoreApplication.setOrganizationName("Marco Santoro")
-        QCoreApplication.setApplicationName("Meridiana")
+        QCoreApplication.setApplicationName("Foliarium")
         # --- FINE MODIFICA ---
+
+        # Splash screen (saltata in ambiente CI/test)
+        _splash = None
+        if not IS_TEST_ENV:
+            _splash = FoliariumSplashScreen()
+            _splash.show()
+            app.processEvents()
 
         # --- CHIAMATA ALLA NUOVA FUNZIONE QUI ---
         # Questo imposta il logging per l'intera applicazione prima che qualsiasi
@@ -2036,7 +2112,11 @@ def run_gui_app():
             login_dialog.logged_in_user_info,
             login_dialog.current_session_id_from_dialog
         )
-        
+
+        if _splash is not None:
+            _splash.finish(main_window_instance)
+            _splash = None
+
         gui_logger.info("Setup completato. Avvio loop eventi.")
         sys.exit(app.exec())
 
