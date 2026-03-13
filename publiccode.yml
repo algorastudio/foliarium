@@ -1,0 +1,125 @@
+publiccodeYmlVersion: "0.4"
+
+name: Foliarium
+applicationSuite: ALGORASTUDIO
+url: "https://github.com/algorastudio/foliarium"
+landingURL: "https://foliarium.it"
+softwareVersion: "1.0.0"
+releaseDate: "2026-03-11"
+
+platforms:
+  - windows
+  - linux
+
+categories:
+  - document-management
+  - data-collection
+
+developmentStatus: stable
+
+softwareType: standalone/desktop
+
+description:
+  it:
+    localisedName: Foliarium
+    genericName: "Gestionale Catasto Storico"
+    shortDescription: >
+      Software gestionale per la gestione e consultazione del catasto storico
+      presso gli Archivi di Stato italiani.
+    longDescription: >
+      Foliarium è un software gestionale desktop progettato per la gestione,
+      consultazione e digitalizzazione del catasto storico presso gli Archivi
+      di Stato italiani. Sviluppato in Python con interfaccia grafica PyQt e
+      database centralizzato PostgreSQL, Foliarium consente agli operatori
+      archivistici di gestire in modo efficiente fogli di mappa, particelle
+      catastali, intestatari, variazioni storiche e tutta la documentazione
+      connessa al catasto storico.
+
+      Il software nasce dall'esperienza diretta con l'Archivio di Stato di
+      Savona e risponde alle esigenze concrete degli operatori che quotidianamente
+      lavorano con i registri catastali storici. Foliarium supporta la ricerca
+      avanzata per intestatario, particella, foglio e comune, la gestione di
+      utenti con ruoli e permessi differenziati, e l'esportazione dei dati in
+      formati standard.
+
+      Foliarium è pensato per integrarsi nei progetti di digitalizzazione del
+      patrimonio archivistico finanziati con fondi PNRR (Missione 1, Componente 3)
+      e per rispondere ai requisiti tecnici delle gare di digitalizzazione degli
+      archivi catastali. L'architettura modulare consente l'estensione con
+      funzionalità aggiuntive quali integrazione con sistemi documentali,
+      georeferenziazione delle mappe catastali e ricerca assistita da
+      intelligenza artificiale.
+
+      Caratteristiche principali: gestione completa del catasto storico
+      (fogli, particelle, intestatari, variazioni), ricerca avanzata
+      multi-criterio, gestione utenti e permessi, database centralizzato
+      PostgreSQL multi-utente, interfaccia desktop intuitiva, esportazione
+      dati in formati aperti.
+    features:
+      - "Gestione completa del catasto storico (fogli, particelle, intestatari)"
+      - "Ricerca avanzata per intestatario, particella, foglio e comune"
+      - "Tracciamento delle variazioni storiche e passaggi di proprietà"
+      - "Database centralizzato PostgreSQL multi-utente"
+      - "Gestione utenti con ruoli e permessi differenziati"
+      - "Interfaccia desktop intuitiva per operatori archivistici"
+      - "Esportazione dati in formati aperti (CSV, PDF)"
+      - "Architettura modulare ed estendibile"
+  en:
+    localisedName: Foliarium
+    genericName: "Historical Cadastre Management System"
+    shortDescription: >
+      Desktop management software for historical cadastre records
+      at Italian State Archives.
+    longDescription: >
+      Foliarium is a desktop management software designed for the management,
+      consultation and digitization of historical cadastre records at Italian
+      State Archives. Built with Python, PyQt graphical interface and a
+      centralized PostgreSQL database, Foliarium enables archival operators
+      to efficiently manage cadastral map sheets, parcels, property owners,
+      historical changes and all documentation related to the historical
+      cadastre.
+
+      The software was born from direct experience with the State Archive
+      of Savona and addresses the real needs of operators who work daily
+      with historical cadastral registers. Foliarium supports advanced search
+      by owner, parcel, sheet and municipality, user management with
+      differentiated roles and permissions, and data export in standard formats.
+
+      Foliarium is designed to integrate into digitization projects for
+      archival heritage funded by PNRR (Mission 1, Component 3) and to meet
+      the technical requirements of digitization tenders for cadastral archives.
+      The modular architecture allows extension with additional features such
+      as integration with document management systems, georeferencing of
+      cadastral maps and AI-assisted search.
+    features:
+      - "Complete historical cadastre management (sheets, parcels, owners)"
+      - "Advanced search by owner, parcel, sheet and municipality"
+      - "Tracking of historical changes and property transfers"
+      - "Centralized multi-user PostgreSQL database"
+      - "User management with differentiated roles and permissions"
+      - "Intuitive desktop interface for archival operators"
+      - "Data export in open formats (CSV, PDF)"
+      - "Modular and extensible architecture"
+
+legal:
+  license: AGPL-3.0-or-later
+  repoOwner: "ALGORASTUDIO"
+
+maintenance:
+  type: internal
+  contacts:
+    - name: "Marco Santoro"
+      email: "santoromarco@gmail.com"
+
+localisation:
+  localisationReady: true
+  availableLanguages:
+    - it
+    - en
+
+it:
+  ripiattaforme:
+    spid: false
+    cie: false
+    anpr: false
+    pagopa: false

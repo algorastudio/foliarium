@@ -1,0 +1,7 @@
+PyQt5>=5.15
+PyQtWebEngine>=5.15
+psycopg2-binary>=2.9
+bcrypt>=4.0
+pandas>=1.5
+fpdf2>=2.7
+keyring>=23.0
