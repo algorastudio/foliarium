@@ -76,19 +76,39 @@ foliarium/
 │   ├── custom_widgets.py      # Widget personalizzati (tabelle, password, lazy loading)
 │   └── app_utils.py           # Utility (IP locale, keyring, PDF, esportazioni)
 ├── database/                  # Script SQL per PostgreSQL
-│   ├── 01_creazione-database.sql
-│   ├── 02_creazione-schema-tabelle.sql
-│   ├── 03_funzioni-procedure.sql
-│   ├── 03b_expand_fuzzy_search.sql
-│   ├── 05_query-test.sql
-│   ├── 07_user-management.sql
-│   ├── 08_advanced-reporting.sql
-│   ├── 09_backup-system.sql
-│   ├── 10_performance-optimization.sql
-│   ├── 11_advanced-cadastral-features.sql
-│   ├── 12_procedure_crud.sql
-│   ├── crea_admin_interattivo.sql
-│   └── demo_data.sql
+│   ├── 00_svuota_dati.sql             # Reset dati del database
+│   ├── 01_creazione-database.sql      # Creazione database e estensioni
+│   ├── 02_creazione-schema-tabelle.sql # Schema e tabelle principali
+│   ├── 03_funzioni-procedure.sql      # Funzioni e stored procedure
+│   ├── 03_funzioni-procedure_def.sql  # Definizioni procedure aggiuntive
+│   ├── 03b_expand_fuzzy_search.sql    # Espansione ricerca fuzzy (trigrammi)
+│   ├── 04_dati-esempio_modificato.sql # Dati di esempio
+│   ├── 04_dati_stress_test.sql        # Dati per stress test
+│   ├── 04b_dati_test_realistici.sql   # Dati di test realistici
+│   ├── 05_query-test.sql              # Query di test
+│   ├── 05_query-test_aggiornato.sql   # Query di test aggiornate
+│   ├── 07_user-management.sql         # Gestione utenti e permessi
+│   ├── 07a_bootstrap_admin.sql        # Creazione utente admin iniziale
+│   ├── 08_advanced-reporting.sql      # Reportistica avanzata
+│   ├── 09_backup-system.sql           # Sistema di backup
+│   ├── 10_performance-optimization.sql # Indici e ottimizzazioni
+│   ├── 11_advanced-cadastral-features.sql # Funzionalità catastali avanzate
+│   ├── 12_procedure_crud.sql          # Procedure CRUD
+│   ├── 13_workflow_integrati.sql      # Workflow integrati
+│   ├── 14_report_functions.sql        # Funzioni di reportistica
+│   ├── 15_integration_audit_users.sql # Integrazione audit e utenti
+│   ├── 16_advanced_search.sql         # Ricerca avanzata
+│   ├── 17_funzione_ricerca_immobili.sql # Ricerca immobili
+│   ├── 18_funzioni_trigger_audit.sql  # Trigger per audit log
+│   ├── 19_creazione_tabella_sessioni.sql # Tabella sessioni utente
+│   ├── 20_feature_tipi_localita.sql   # Tipologie località
+│   ├── crea_admin_interattivo.sql     # Script interattivo creazione admin
+│   ├── demo_data.sql                  # Dati dimostrativi (località liguri)
+│   ├── drop_db.sql                    # Eliminazione database
+│   ├── execute_fuzzy_expansion.sql    # Esecuzione espansione fuzzy
+│   ├── expand_fuzzy_search.sql        # Configurazione ricerca fuzzy
+│   ├── meridiana.spec                 # File spec (legacy)
+│   └── script x cancellare db1.txt    # Note cancellazione DB
 ├── docs/                      # Documentazione
 │   ├── installazione.md
 │   └── architettura.md
