@@ -1,0 +1,1 @@
+psql -U postgres -h localhost -d postgres -f drop_db.sql

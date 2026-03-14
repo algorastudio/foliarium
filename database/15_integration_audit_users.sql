@@ -233,10 +233,10 @@ DO $$ BEGIN RAISE NOTICE '---------------------------------'; END $$;
 DO $$ BEGIN RAISE NOTICE '--- TEST 11: Ricerca avanzata possessore ---'; END $$;
 -- Assumiamo che la funzione sia stata corretta in 16_advanced_search.sql per includere comune_nome
 DO $$ BEGIN RAISE NOTICE '  -> Ricerca "Angelo Fosati" (typo)'; END $$;
-SELECT * FROM ricerca_avanzata_possessori('Angelo Fosati', 0.2);
+SELECT * FROM catasto.ricerca_avanzata_possessori('Angelo Fosati'::TEXT, 0.2::REAL);
 
 DO $$ BEGIN RAISE NOTICE '  -> Ricerca "Rossi A"'; END $$;
-SELECT * FROM ricerca_avanzata_possessori('Rossi A', 0.3);
+SELECT * FROM catasto.ricerca_avanzata_possessori('Rossi A'::TEXT, 0.3::REAL);
 
 DO $$ BEGIN RAISE NOTICE '---------------------------------'; END $$;
 
@@ -298,8 +298,32 @@ BEGIN
     END IF;
 END $$;
 -- Funzione da script 14 (modificata per usare comune_id)
--- In 05_query-test_corretto.sql, Test 14
 SELECT * FROM genera_report_comune((SELECT id FROM comune WHERE nome = 'Cairo Montenotte'));
+
+-- In 15_integration_audit_users.sql (o dove viene aggiunta/modificata la FK)
+-- Assumendo che la tabella audit_log sia già stata creata in 02_creazione-schema-tabelle.sql
+-- e la colonna app_user_id sia stata aggiunta.
+-- Se la FK non esiste, la aggiungiamo:
+DO $$
+BEGIN
+    IF NOT EXISTS (
+        SELECT 1 FROM pg_constraint 
+        WHERE conname = 'fk_audit_log_app_user_id_utente' -- Scegli un nome consistente
+        AND conrelid = 'catasto.audit_log'::regclass
+    ) THEN
+        ALTER TABLE catasto.audit_log 
+        ADD CONSTRAINT fk_audit_log_app_user_id_utente 
+        FOREIGN KEY (app_user_id) REFERENCES catasto.utente(id) ON DELETE SET NULL;
+        RAISE NOTICE 'Foreign key fk_audit_log_app_user_id_utente creata con ON DELETE SET NULL.';
+    ELSE
+        -- Se esiste già, potresti volerla droppare e ricreare se non ha ON DELETE SET NULL
+        -- Questo blocco è più complesso perché il drop/add deve essere condizionale
+        -- Per semplicità, se la si crea la prima volta corretta, è meglio.
+        RAISE NOTICE 'Foreign key fk_audit_log_app_user_id_utente già esistente.';
+    END IF;
+END $$;
+
+
 
 DO $$ BEGIN RAISE NOTICE '---------------------------------'; END $$;
 
