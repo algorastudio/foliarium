@@ -104,6 +104,7 @@ description:
 legal:
   license: AGPL-3.0-or-later
   repoOwner: "ALGORASTUDIO"
+  # Dual licensing: commercial license available — contact santoromarco@gmail.com
 
 maintenance:
   type: internal

@@ -1,0 +1,58 @@
+# ============================================================
+#  Foliarium — .gitignore
+# ============================================================
+
+# --- Build artifacts (generati da build.bat / PyInstaller) ---
+dist/
+build/
+release/
+*.spec.bak
+
+# --- Binari PostgreSQL nella versione portatile (troppo grandi per git) ---
+# Solo gli script .bat e README_PORTABLE.md vengono tracciati
+portable/pgsql/
+portable/data/
+
+# --- Ambiente virtuale Python ---
+venv/
+.venv/
+env/
+.env
+
+# --- Bytecode Python ---
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+
+# --- Configurazione locale con credenziali ---
+config.ini
+*.ini.local
+
+# --- Log ---
+*.log
+logs/
+
+# --- Database locale ---
+*.db
+*.sqlite3
+
+# --- File temporanei editor / OS ---
+.DS_Store
+Thumbs.db
+*.swp
+*.swo
+*~
+desktop.ini
+
+# --- IDE ---
+.vscode/
+.idea/
+*.code-workspace
+
+# --- Claude Code (memoria assistente) ---
+.claude/
+
+# --- Distribuzione Python ---
+*.egg-info/
+dist-info/

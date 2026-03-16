@@ -112,6 +112,11 @@ foliarium/
 ├── docs/                      # Documentazione
 │   ├── installazione.md
 │   └── architettura.md
+├── portable/                  # Versione portatile (no installazione)
+│   ├── setup_primo_avvio.bat  # Configurazione iniziale automatica
+│   ├── avvia_foliarium.bat    # Avvio applicazione + PostgreSQL
+│   ├── arresta_foliarium.bat  # Arresto PostgreSQL
+│   └── README_PORTABLE.md     # Istruzioni versione portatile
 ├── resources/                 # Risorse (icone, loghi, EULA)
 ├── styles/                    # Fogli di stile QSS
 └── screenshots/               # Screenshot dell'applicazione
@@ -135,6 +140,8 @@ foliarium/
 ---
 
 ## Installazione rapida
+
+> **Versione portatile per Windows:** se vuoi provare Foliarium senza installare PostgreSQL, consulta la [guida portatile](portable/README_PORTABLE.md). Basta scaricare i binari PostgreSQL, un doppio clic e sei operativo.
 
 ### 1. Clona il repository
 
@@ -233,17 +240,35 @@ Servizi disponibili:
 
 ## Licenza
 
-Foliarium è rilasciato sotto licenza [GNU Affero General Public License v3.0](LICENSE) (AGPL-3.0-or-later).
+Foliarium è disponibile con **due modelli di licenza**:
 
-Questo significa che puoi liberamente usare, studiare, modificare e redistribuire il software, a condizione che ogni versione modificata sia rilasciata con la stessa licenza.
+### Licenza Open Source (AGPL-3.0-or-later)
 
-Per utilizzi con licenza commerciale diversa, contatta ALGORASTUDIO.
+[![License: AGPL v3](https://img.shields.io/badge/License-AGPL_v3-blue.svg)](LICENSE)
+
+Uso gratuito per enti pubblici e privati, **a condizione** che eventuali modifiche al codice
+vengano rilasciate pubblicamente sotto la stessa licenza AGPL-3.0-or-later.
+Testo completo: [LICENSE](LICENSE)
+
+### Licenza Commerciale
+
+Per chi necessita di:
+- personalizzazioni proprietarie non divulgabili
+- integrazioni con sistemi terzi riservati
+- SLA garantiti e supporto prioritario
+- utilizzo in ambienti che non possono rispettare i vincoli AGPL
+
+è disponibile una **licenza commerciale** che non impone l'obbligo di pubblicare
+le modifiche. Contatta ALGORASTUDIO per un preventivo.
+
+**Email:** santoromarco@gmail.com
 
 ---
 
 ## Contribuire
 
-I contributi sono benvenuti. Prima di contribuire, leggi le [linee guida per i contributi](CONTRIBUTING.md).
+I contributi sono benvenuti. Prima di contribuire, leggi le [linee guida](CONTRIBUTING.md)
+e il [Contributor License Agreement](CLA.md).
 
 ---
 

@@ -28,7 +28,20 @@
 - Estensioni PostgreSQL: `uuid-ossp`, `pg_trgm` (opzionale: `system_stats`)
 - Sistema operativo: qualsiasi sistema supportato da PostgreSQL
 
-## Installazione passo-passo
+## Installazione rapida (Versione Portatile — consigliata per Windows)
+
+Se vuoi provare Foliarium rapidamente senza installare PostgreSQL nel sistema:
+
+1. Scarica i binari PostgreSQL ZIP da [EnterpriseDB](https://www.enterprisedb.com/download-postgresql-binaries) (Windows x86-64)
+2. Estrai la cartella `pgsql` dentro `portable/`
+3. Esegui **`portable\setup_primo_avvio.bat`** — configura tutto automaticamente
+4. Da quel momento in poi, usa **`portable\avvia_foliarium.bat`** per avviare
+
+Per i dettagli completi, consulta [portable/README_PORTABLE.md](../portable/README_PORTABLE.md).
+
+---
+
+## Installazione completa (passo-passo)
 
 ### 1. Installare PostgreSQL
 

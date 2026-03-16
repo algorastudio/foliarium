@@ -19,6 +19,7 @@ from PyQt5.QtCore import QCoreApplication
 
 from config import setup_global_logging
 from gui_main import CatastoMainWindow
+from app_utils import get_local_ip_address
 
 
 def main():
@@ -32,8 +33,11 @@ def main():
     # Configura il logging globale
     setup_global_logging()
 
+    # Recupera l'indirizzo IP locale del client (usato per il log delle sessioni)
+    client_ip = get_local_ip_address()
+
     # Crea e mostra la finestra principale
-    window = CatastoMainWindow()
+    window = CatastoMainWindow(client_ip_address_gui=client_ip)
     window.show()
 
     sys.exit(app.exec_())
