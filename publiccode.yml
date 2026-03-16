@@ -117,7 +117,8 @@ localisation:
     - en
 
 it:
-  ripiattaforme:
+  countryExtensionVersion: "0.2"
+  piattaforme:
     spid: false
     cie: false
     anpr: false
