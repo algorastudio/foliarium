@@ -1,11 +1,9 @@
 publiccodeYmlVersion: "0.4"
 
 name: Foliarium
-applicationSuite: ALGORASTUDIO
 url: "https://github.com/algorastudio/foliarium"
-landingURL: "https://foliarium.it"
 softwareVersion: "1.0.0"
-releaseDate: "2026-03-11"
+releaseDate: "2026-03-16"
 
 platforms:
   - windows
