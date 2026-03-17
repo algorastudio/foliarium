@@ -1,3 +1,5 @@
+# SPDX-FileCopyrightText: 2026 ALGORASTUDIO - Marco Santoro
+# SPDX-License-Identifier: AGPL-3.0-or-later
 
 import os,csv,sys,logging,json
 from datetime import date, datetime
@@ -6662,7 +6664,7 @@ class WelcomeScreen(QDialog):
         main_layout.addWidget(subtitle_label)
 
         # Crediti
-        credits_label = QLabel("Sviluppato da: Marco Santoro\nCopyright © 2025 - Tutti i diritti riservati\nConcesso in comodato d'uso gratuito all'Archivio di Stato di Savona"); credits_label.setFont(QFont("Segoe UI", 9)); credits_label.setAlignment(Qt.AlignCenter)
+        credits_label = QLabel("Sviluppato da: Marco Santoro — ALGORASTUDIO\nCopyright © 2026 ALGORASTUDIO - Marco Santoro\nRilasciato sotto licenza GNU Affero General Public License v3.0 (AGPL-3.0)\nhttps://github.com/algorastudio/foliarium"); credits_label.setFont(QFont("Segoe UI", 9)); credits_label.setAlignment(Qt.AlignCenter)
         credits_label.setStyleSheet("color: #6c757d;")
         main_layout.addWidget(credits_label)
         main_layout.addSpacing(20)

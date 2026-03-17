@@ -101,9 +101,12 @@ description:
       - "Data export in open formats (CSV, PDF)"
       - "Modular and extensible architecture"
 
+logo: assets/logo.png
+
 legal:
   license: AGPL-3.0-or-later
   repoOwner: "ALGORASTUDIO"
+  authorsFile: AUTHORS
 
 maintenance:
   type: internal
@@ -118,6 +121,11 @@ localisation:
     - en
 
 it:
+  conforme:
+    lineeGuidaDesign: false
+    modelloInteroperabilita: false
+    misureMinimeSicurezza: false
+    gdpr: true
   ripiattaforme:
     spid: false
     cie: false

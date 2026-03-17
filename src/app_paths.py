@@ -1,3 +1,5 @@
+# SPDX-FileCopyrightText: 2026 ALGORASTUDIO - Marco Santoro
+# SPDX-License-Identifier: AGPL-3.0-or-later
 # app_paths.py
 
 import sys

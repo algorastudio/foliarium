@@ -1,3 +1,5 @@
+# SPDX-FileCopyrightText: 2026 ALGORASTUDIO - Marco Santoro
+# SPDX-License-Identifier: AGPL-3.0-or-later
 import logging,socket ,bcrypt,json, csv, os
 import sys
 from PyQt5.QtCore import QStandardPaths
