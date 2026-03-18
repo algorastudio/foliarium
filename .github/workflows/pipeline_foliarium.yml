@@ -1,4 +1,4 @@
-name: CI/CD Meridiana (Test & Build)
+name: CI/CD Foliarium (Test & Build)
 
 on:
   push:
@@ -71,7 +71,7 @@ jobs:
       uses: actions/upload-artifact@v4
       if: always()
       with:
-        name: Meridiana-Coverage-Report
+        name: Foliarium-Coverage-Report
         path: coverage_html/
         if-no-files-found: ignore
 
@@ -95,7 +95,7 @@ jobs:
       uses: actions/upload-artifact@v4
       if: always()
       with:
-        name: Meridiana-Screenshots
+        name: Foliarium-Screenshots
         path: screenshots/*.png
         if-no-files-found: ignore
 
@@ -122,27 +122,27 @@ jobs:
         pip install pyinstaller
 
     - name: Compilazione Eseguibile con PyInstaller
-      run: pyinstaller meridiana.spec
+      run: pyinstaller foliarium.spec
 
     # ----------------------------------------------------------
-    # BUILD PORTABILE: zip della cartella dist\Meridiana
+    # BUILD PORTABILE: zip della cartella dist\Foliarium
     # Estraibile ed eseguibile senza installazione (no admin)
     # ----------------------------------------------------------
     - name: Creazione Build Portabile (ZIP)
       run: |
-        Compress-Archive -Path dist\Meridiana\* -DestinationPath Meridiana_Portabile.zip
+        Compress-Archive -Path dist\Foliarium\* -DestinationPath Foliarium_Portabile.zip
 
     - name: Caricamento Build Portabile
       uses: actions/upload-artifact@v4
       with:
-        name: Meridiana-Portabile-Windows
-        path: Meridiana_Portabile.zip
+        name: Foliarium-Portabile-Windows
+        path: Foliarium_Portabile.zip
 
     - name: Compilazione Installer con Inno Setup
-      run: iscc Meridiana_Installer.iss
+      run: iscc Foliarium_Installer.iss
 
     - name: Caricamento Installer Finito
       uses: actions/upload-artifact@v4
       with:
-        name: Meridiana-Setup-Windows
+        name: Foliarium-Setup-Windows
         path: Installer\*.exe

@@ -1,6 +1,6 @@
 # Consultazione
 
-La sezione **Consultazione** è il cuore di Meridiana per la ricerca e la visualizzazione dei dati storici. È divisa in sotto-tab specializzate.
+La sezione **Consultazione** è il cuore di Foliarium per la ricerca e la visualizzazione dei dati storici. È divisa in sotto-tab specializzate.
 
 > 📸 **Screenshot:** Sezione Consultazione con le sotto-tab: Partite, Possessori, Immobili, Documenti.
 

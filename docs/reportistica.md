@@ -1,6 +1,6 @@
 # Reportistica
 
-La sezione **Reportistica** di Meridiana consente di generare report genealogici, visualizzare l'albero delle successioni proprietarie, confrontare versioni diverse di una partita ed esportare i risultati in formato ODT.
+La sezione **Reportistica** di Foliarium consente di generare report genealogici, visualizzare l'albero delle successioni proprietarie, confrontare versioni diverse di una partita ed esportare i risultati in formato ODT.
 
 > 📸 **Screenshot:** Sezione Reportistica con tab Genealogico, Confronto, Report Testo.
 
@@ -98,7 +98,7 @@ Fare clic su **Esporta come ODT** nel pannello del report genealogico testuale.
 3. Scegliere la cartella di destinazione
 4. Il file `.odt` viene aperto automaticamente se LibreOffice è installato
 
-> 📸 **Screenshot:** Finestra di salvataggio file ODT con cartella "Esportazioni Meridiana" preselezionata.
+> 📸 **Screenshot:** Finestra di salvataggio file ODT con cartella "Esportazioni Foliarium" preselezionata.
 
 !!! info "Formato ODT"
     Il formato ODT (OpenDocument Text) è compatibile con LibreOffice Writer, Apache OpenOffice e Microsoft Word. È il formato consigliato per la conservazione istituzionale.

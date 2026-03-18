@@ -1,6 +1,6 @@
 # Gestione Utenti
 
-La sezione **Gestione Utenti** è accessibile solo agli utenti con ruolo Amministratore e permette di creare, modificare e disattivare gli account utente di Meridiana.
+La sezione **Gestione Utenti** è accessibile solo agli utenti con ruolo Amministratore e permette di creare, modificare e disattivare gli account utente di Foliarium.
 
 > 📸 **Screenshot:** Sezione Gestione Utenti con lista utenti, pulsanti Crea/Modifica/Disattiva.
 
@@ -8,7 +8,7 @@ La sezione **Gestione Utenti** è accessibile solo agli utenti con ruolo Amminis
 
 ## Ruoli utente
 
-Meridiana implementa tre livelli di accesso:
+Foliarium implementa tre livelli di accesso:
 
 | Ruolo | Accesso |
 |---|---|

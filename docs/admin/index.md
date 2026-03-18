@@ -1,6 +1,6 @@
 # Guida Amministratore
 
-Questa sezione è rivolta agli **amministratori di sistema** responsabili dell'installazione, configurazione e manutenzione di Meridiana.
+Questa sezione è rivolta agli **amministratori di sistema** responsabili dell'installazione, configurazione e manutenzione di Foliarium.
 
 !!! danger "Accesso riservato"
     Le funzioni descritte in questa sezione richiedono il ruolo **Amministratore** e conoscenze tecniche di PostgreSQL e Windows Server. Un uso scorretto può causare perdita di dati.
@@ -33,7 +33,7 @@ Le funzioni amministrative sono accessibili dalla barra di navigazione solo per 
 
 ## Primo accesso come amministratore
 
-Al primo avvio di Meridiana dopo l'installazione, effettuare il login con le credenziali di default impostate durante la configurazione iniziale, quindi:
+Al primo avvio di Foliarium dopo l'installazione, effettuare il login con le credenziali di default impostate durante la configurazione iniziale, quindi:
 
 1. Andare in **Gestione Utenti** → **Cambia Password** per modificare la password di default
 2. Creare gli account per gli archivisti con ruolo appropriato

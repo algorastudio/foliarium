@@ -1,4 +1,4 @@
-Meridiana 1.3
+Foliarium 1.3
 └── 🗂️ Interfaccia Principale
     ├── 🏠 Home / Dashboard
     │   ├─ Visualizzazione Statistiche Rapide (Comuni, Partite, Possessori, Immobili)

@@ -1,8 +1,8 @@
-# CLAUDE.md — Meridiana · Archivio Catastale Storico
+# CLAUDE.md — Foliarium · Archivio Catastale Storico
 
 ## Project overview
 
-**Meridiana** is a desktop application for managing historical Italian cadastral records (archivio catastale storico), developed for the State Archive of Savona. It allows archivists to search, insert, and export property records (partite catastali) and owners (possessori).
+**Foliarium** is a desktop application for managing historical Italian cadastral records (archivio catastale storico), developed for the State Archive of Savona. It allows archivists to search, insert, and export property records (partite catastali) and owners (possessori).
 
 - **Current version:** 1.5.0
 - **Author:** Marco Santoro
@@ -22,7 +22,7 @@
 | Data | pandas 2.3, numpy 2.3, openpyxl 3.1.5 |
 | PDF export | fpdf2 2.8.3 |
 | Auth/security | bcrypt 4.3.0, keyring 25.6.0 |
-| Build | PyInstaller (`meridiana.spec`) + Inno Setup |
+| Build | PyInstaller (`foliarium.spec`) + Inno Setup |
 | CI/CD | GitHub Actions |
 | Docs | MkDocs (Material theme) |
 
@@ -48,8 +48,8 @@ catasto/
 ├── esportazioni/            # Export output directory (PDFs, CSVs)
 ├── .devcontainer/           # Dev container config (VS Code / Codespaces)
 ├── .github/workflows/       # CI/CD pipeline
-├── meridiana.spec           # PyInstaller build spec
-└── Meridiana_Installer.iss  # Inno Setup installer script
+├── foliarium.spec           # PyInstaller build spec
+└── Foliarium_Installer.iss  # Inno Setup installer script
 ```
 
 ---
@@ -69,7 +69,7 @@ pytest -m integration
 pytest -m "not gui"          # skip GUI tests (e.g. in headless env)
 
 # Build Windows executable
-pyinstaller meridiana.spec
+pyinstaller foliarium.spec
 
 # Install dependencies
 pip install -r requirements.txt
@@ -141,7 +141,7 @@ Run `bash .devcontainer/setup.sh` to initialise the DB and install dependencies 
 
 ## CI/CD (GitHub Actions)
 
-Pipeline: `.github/workflows/pipeline_meridiana.yml`
+Pipeline: `.github/workflows/pipeline_foliarium.yml`
 
 1. **Test job** (Ubuntu): spins up PostgreSQL 14, installs Qt6 system libs, runs pytest with `QT_QPA_PLATFORM=offscreen`, captures GUI screenshots as artifacts.
 2. **Build job** (Windows, only if tests pass): runs PyInstaller, creates portable ZIP and Inno Setup installer, uploads as artifacts.
@@ -181,7 +181,7 @@ Tutto il lavoro è sul branch `claude/summarize-dev-status-vDVnI`.
 **1. Auto dark/light mode** (`gui_main.py`, `config.py`)
 - Menu *Impostazioni → Cambia Tema Grafico → Tema Automatico (Segue Sistema)*
 - Usa `QGuiApplication.styleHints().colorScheme()` + segnale `colorSchemeChanged`
-- Costanti: `SETTINGS_UI_AUTO_THEME`, `AUTO_THEME_DARK="dark_mode_stylesheet.qss"`, `AUTO_THEME_LIGHT="meridiana_styles.qss"`
+- Costanti: `SETTINGS_UI_AUTO_THEME`, `AUTO_THEME_DARK="dark_mode_stylesheet.qss"`, `AUTO_THEME_LIGHT="foliarium_styles.qss"`
 
 **2. Stile nativo Windows 11** (`gui_main.py`, `config.py`)
 - Menu *Impostazioni → Cambia Tema Grafico → Stile Nativo Windows 11*
@@ -200,7 +200,7 @@ Tutto il lavoro è sul branch `claude/summarize-dev-status-vDVnI`.
 - `WEB_ENGINE_AVAILABLE` flag in `gui_widgets.py` e `custom_widgets.py` per uso futuro web
 
 **5. Logo SVG** (`app_paths.py`, `gui_main.py`, `gui_widgets.py`)
-- `get_logo_svg_path(dark=False)` in `app_paths.py` → `"logo meridiana.svg"` o `"meridiana_dark.svg"`
+- `get_logo_svg_path(dark=False)` in `app_paths.py` → `"logo_foliarium.svg"` o `"foliarium_dark.svg"`
 - `WelcomeScreen` usa `QSvgWidget` (sempre nitido su HiDPI), fallback PNG se QtSvgWidgets non disponibile
 - Logo scelto automaticamente in base al tema dark/light del sistema
 
@@ -253,7 +253,7 @@ Tutto il lavoro è sul branch `claude/summarize-dev-status-vDVnI`.
 - [x] **6. Confronto versioni partita** — `ConfrontoPartiteDialog` in `dialogs.py`: diff visuale (verde=#C8E6C9 / rosso=#FFCDD2) su possessori e immobili; accesso da tab Genealogico in `ReportisticaWidget`
 
 ### Bassa priorità
-- [x] **7. Modalità offline/cache** — `_try_with_cache()` in `CatastoDBManager`; cache JSON in `CACHE_DIR` (`%LOCALAPPDATA%/Meridiana/cache/`); wrappati `get_elenco_comuni_semplice()` e `get_statistiche_comune()`; barra rossa `offline_bar` in `gui_main.py` quando DB non raggiungibile
+- [x] **7. Modalità offline/cache** — `_try_with_cache()` in `CatastoDBManager`; cache JSON in `CACHE_DIR` (`%LOCALAPPDATA%/Foliarium/cache/`); wrappati `get_elenco_comuni_semplice()` e `get_statistiche_comune()`; barra rossa `offline_bar` in `gui_main.py` quando DB non raggiungibile
 - [x] **8. Test coverage report** — `pytest-cov` + `pytest` aggiunti a `requirements.txt`; `pytest.ini` configurato con `--cov` su moduli principali (HTML+XML+terminal); `tests/unit/test_db_manager_unit.py` con 14 test unit per cache layer, import xlsx/csv, genealogia, app_paths (tutti green)
 - [x] **9. Export report ODT** — pulsante "Esporta come ODT" in `ReportisticaWidget`; `_export_current_report_odt()` usa `odfpy` con stili titolo/corpo; `odfpy>=1.4.1` aggiunto a `requirements.txt`
 
@@ -339,7 +339,7 @@ Tutto il lavoro è sul branch `claude/summarize-dev-status-vDVnI`.
 ### Feature: Notifiche email automatiche (`email_service.py`, `config.py`, `dialogs.py`, `gui_main.py`, `gui_widgets.py`)
 
 **`email_service.py`** (nuovo file):
-- `EmailService` — legge config da `QSettings` + password da `keyring` (`Meridiana_SMTP`); `is_configured()`, `send()`, 4 template: `notify_account_created`, `notify_password_changed`, `notify_role_changed`, `notify_login`
+- `EmailService` — legge config da `QSettings` + password da `keyring` (`Foliarium_SMTP`); `is_configured()`, `send()`, 4 template: `notify_account_created`, `notify_password_changed`, `notify_role_changed`, `notify_login`
 - `EmailWorker(QThread)` — invio email non-bloccante; segnale `result = pyqtSignal(bool, str)`
 - Supporta STARTTLS (`smtplib.SMTP`) e SMTP_SSL
 
@@ -423,7 +423,7 @@ Viewer del manuale embedded nell'app senza WebEngine ne server MkDocs.
 
 Tutto il lavoro è sul branch `claude/summarize-dev-status-vDVnI`.
 
-### Feature: Redesign UI — Sidebar + Top Bar (`gui_main.py`, `styles/meridiana_styles.qss`)
+### Feature: Redesign UI — Sidebar + Top Bar (`gui_main.py`, `styles/foliarium_styles.qss`)
 
 Sostituita la navigazione a QTabWidget annidati (3 livelli) con una sidebar verticale stile VS Code + QStackedWidget flat.
 
@@ -449,9 +449,9 @@ Sostituita la navigazione a QTabWidget annidati (3 livelli) con una sidebar vert
 - `_handle_partita_creata_per_operazioni()`: usa `navigate_to("operazioni")`
 - `_handle_f5_refresh()`: opera su `self.stack.currentWidget()`
 - Shortcut `Ctrl+1..N`: rimappati ai bottoni sidebar flat
-- Titolo finestra: `"Meridiana — Archivio Catastale Storico"`
+- Titolo finestra: `"Foliarium — Archivio Catastale Storico"`
 
-**`styles/meridiana_styles.qss`:** aggiunti stili `#topBar`, `#appTitle`, `#dbIndicator`, `#userLabel`, `#roleChip[role=*]`, `#logoutButton`, `#sidebar`, `#sectionLabel`, `QPushButton#navButton` (con stati `:hover` e `[active="true"]`), `QStackedWidget`.
+**`styles/foliarium_styles.qss`:** aggiunti stili `#topBar`, `#appTitle`, `#dbIndicator`, `#userLabel`, `#roleChip[role=*]`, `#logoutButton`, `#sidebar`, `#sectionLabel`, `QPushButton#navButton` (con stati `:hover` e `[active="true"]`), `QStackedWidget`.
 
 ---
 
