@@ -528,3 +528,44 @@ Tutto il lavoro e sul branch `claude/summarize-dev-status-vDVnI`.
 - `docs/riferimento/changelog.md`: aggiunte sezioni v1.4.2.0, v1.4.3.0, v1.4.4.0
 - `docs/admin/gestione-utenti.md`: aggiornati requisiti password, aggiunte note notifiche email
 - `docs/primo-avvio.md`: aggiunta sezione "Timeout di sessione"
+
+---
+
+## Changelog sessione corrente (v1.5.0) — Rebrand
+
+Tutto il lavoro è sul branch `claude/review-and-plan-ZQzyZ`.
+
+### Rebrand completo: Meridiana → Foliarium
+
+**File fisici rinominati (git mv):**
+- `resources/logo meridiana.svg` → `resources/logo_foliarium.svg`
+- `resources/logo_meridiana.png` → `resources/logo_foliarium.png`
+- `resources/logo_meridiana_dark.png` → `resources/logo_foliarium_dark.png`
+- `resources/meridiana_dark.svg` → `resources/foliarium_dark.svg`
+- `resources/icona_meridiana.ico` → `resources/icona_foliarium.ico`
+- `styles/meridiana_styles.qss` → `styles/foliarium_styles.qss`
+- `meridiana.spec` → `foliarium.spec`
+- `Meridiana_Installer.iss` → `Foliarium_Installer.iss`
+- `.github/workflows/pipeline_meridiana.yml` → `.github/workflows/pipeline_foliarium.yml`
+
+**Sorgenti Python aggiornati:**
+- `app_paths.py`: `get_logo_path()` e `get_logo_svg_path()` usano i nuovi nomi file
+- `config.py`: `AUTO_THEME_LIGHT = "foliarium_styles.qss"`
+- `dialogs.py`: keyring DB `meridiana_db_` → `foliarium_db_`
+- `tests/unit/test_db_manager_unit.py`: test path logo aggiornato
+- `docs/genera_pdf.py`: titolo, header e output PDF aggiornati
+
+**Build/CI aggiornati:**
+- `foliarium.spec`: icona `icona_foliarium.ico`
+- `Foliarium_Installer.iss`: icona `icona_foliarium.ico`
+- `pipeline_foliarium.yml`: nome workflow, artifact names (`Foliarium-*`), comandi `pyinstaller`/`iscc`
+- `build_e_firma.bat`: riferimenti a `foliarium.spec`, `Foliarium_Installer.iss`, `dist\Foliarium\`
+- `sql_scripts/meridiana.spec`: nome exe e icona aggiornati (file legacy, non usato in prod)
+
+**Documentazione aggiornata:**
+- 13 file `.md` in `docs/` (tutto il testo "Meridiana" → "Foliarium")
+- `mkdocs.yml`: logo `assets/logo_foliarium.png`
+- `resources/EULA.txt`: branding aggiornato
+- `CLAUDE.md`: header, project overview, riferimenti a file e keyring
+- `docs/assets/logo_foliarium.png`: creata cartella `docs/assets/`, copiato logo per MkDocs
+- `docs/riferimento/changelog.md`: aggiunta voce v1.5.0 con rebrand + redesign sidebar

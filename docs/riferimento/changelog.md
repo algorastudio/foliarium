@@ -1,5 +1,22 @@
 # Changelog
 
+## v1.5.0 — Marzo 2026
+
+### Redesign UI — Sidebar + Top Bar
+- Navigazione a QTabWidget annidati (3 livelli) sostituita con sidebar verticale stile VS Code + `QStackedWidget` flat
+- **`TopBarWidget`**: barra fissa h=48px con logo, titolo, indicatore DB, nome utente, chip ruolo, pulsante Logout
+- **`SidebarWidget`**: pannello w=220px scrollabile; bottoni costruiti in base al ruolo, stile attivo dinamico
+- Navigazione via `navigate_to(page_name)`; shortcut `Ctrl+1..N` rimappati ai bottoni sidebar
+- Stili QSS dedicati: `#topBar`, `#sidebar`, `QPushButton#navButton` con stati `:hover` e `[active="true"]`
+
+### Rebrand: Meridiana → Foliarium
+- Rinominati tutti i file fisici: icona `.ico`, logo SVG e PNG (varianti chiaro/scuro), stylesheet `.qss`, spec PyInstaller, script Inno Setup, workflow CI/CD
+- Aggiornati tutti i riferimenti nel codice (`app_paths.py`, `config.py`, `dialogs.py`), nella documentazione (13 file `.md`, `mkdocs.yml`, `EULA.txt`) e negli script di build (`foliarium.spec`, `Foliarium_Installer.iss`, `pipeline_foliarium.yml`, `build_e_firma.bat`)
+- Chiave keyring DB: `meridiana_db_` → `foliarium_db_`; chiave SMTP: `Foliarium_SMTP`
+- Titolo finestra: `"Foliarium — Archivio Catastale Storico"`
+
+---
+
 ## v1.4.6.0 — Marzo 2026
 
 ### Miglioramenti UI/UX
