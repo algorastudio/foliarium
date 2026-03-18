@@ -1,6 +1,6 @@
 # Statistiche e Grafici
 
-La sezione **Statistiche** di Meridiana offre una visualizzazione grafica del patrimonio catastale attraverso grafici interattivi generati con matplotlib.
+La sezione **Statistiche** di Foliarium offre una visualizzazione grafica del patrimonio catastale attraverso grafici interattivi generati con matplotlib.
 
 > 📸 **Screenshot:** Sezione Statistiche con tre grafici affiancati: barre per comune, torta stato, barre variazioni per anno.
 

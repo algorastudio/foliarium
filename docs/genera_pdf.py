@@ -1,11 +1,11 @@
 """
-Genera il manuale utente Meridiana in PDF a partire dai file Markdown della docs/.
+Genera il manuale utente Foliarium in PDF a partire dai file Markdown della docs/.
 Usa fpdf2 + markdown (già installati nel progetto).
 
 Uso:
     python docs/genera_pdf.py
 Output:
-    docs/manuale_meridiana_1.3.1.pdf
+    docs/manuale_foliarium_1.3.1.pdf
 """
 
 import io
@@ -22,7 +22,7 @@ sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding="utf-8", errors="repla
 # ── Configurazione ──────────────────────────────────────────────────────────
 
 VERSION     = "1.3.1"
-OUTPUT_FILE = os.path.join(os.path.dirname(__file__), f"manuale_meridiana_{VERSION.replace('.','_')}.pdf")
+OUTPUT_FILE = os.path.join(os.path.dirname(__file__), f"manuale_foliarium_{VERSION.replace('.','_')}.pdf")
 DOCS_DIR    = os.path.dirname(__file__)
 
 # Font TTF di sistema (Windows)
@@ -59,7 +59,7 @@ class ManualePDF(FPDF):
             return
         self.set_font("Arial", "I", 8)
         self.set_text_color(120, 120, 120)
-        self.cell(0, 8, f"Meridiana v{VERSION} - Manuale Utente", align="L")
+        self.cell(0, 8, f"Foliarium v{VERSION} - Manuale Utente", align="L")
         self.cell(0, 8, f"Pag. {self.page_no()}", align="R", new_x="LMARGIN", new_y="NEXT")
         self.set_draw_color(180, 180, 180)
         self.line(self.l_margin, self.get_y(), self.w - self.r_margin, self.get_y())
@@ -132,7 +132,7 @@ def write_cover(pdf: ManualePDF):
     pdf.set_text_color(255, 255, 255)
     pdf.set_font("Arial", "B", 34)
     pdf.set_y(pdf.h * 0.33)
-    pdf.cell(0, 18, "Meridiana", align="C", new_x="LMARGIN", new_y="NEXT")
+    pdf.cell(0, 18, "Foliarium", align="C", new_x="LMARGIN", new_y="NEXT")
 
     pdf.set_font("Arial", "", 16)
     pdf.cell(0, 10, "Archivio Catastale Storico", align="C", new_x="LMARGIN", new_y="NEXT")
@@ -188,7 +188,7 @@ def write_chapter(pdf: ManualePDF, md_path: str):
 # ── Main ────────────────────────────────────────────────────────────────────
 
 def main():
-    print(f"Generazione PDF manuale Meridiana v{VERSION}...")
+    print(f"Generazione PDF manuale Foliarium v{VERSION}...")
 
     pdf = ManualePDF(orientation="P", unit="mm", format="A4")
     pdf.set_margins(20, 25, 20)
@@ -204,7 +204,7 @@ def main():
     else:
         print("  [WARN] Font Arial non trovati — uso Helvetica (caratteri non-latin-1 potrebbero mancare)")
 
-    pdf.set_title(f"Manuale Utente Meridiana v{VERSION}")
+    pdf.set_title(f"Manuale Utente Foliarium v{VERSION}")
     pdf.set_author("Marco Santoro")
     pdf.set_creator("fpdf2")
 

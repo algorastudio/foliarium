@@ -1,6 +1,6 @@
-# Guida di Implementazione del Sistema Catasto Storico
+# Struttura Database
 
-Questa guida fornisce le istruzioni passo-passo per implementare il sistema completo del Catasto Storico utilizzando PostgreSQL e pgAdmin.
+Questa guida fornisce le istruzioni passo-passo per inizializzare il database del Catasto Storico tramite PostgreSQL e pgAdmin. È rivolta agli amministratori di sistema che devono configurare un'installazione da zero.
 
 ## Sequenza di esecuzione
 

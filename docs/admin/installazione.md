@@ -36,11 +36,11 @@ openpyxl==3.1.5
 
 ## Installazione tramite installer (Windows)
 
-1. Eseguire **Meridiana_Setup_v1.4.exe** come amministratore
+1. Eseguire **Foliarium_Setup_v1.4.exe** come amministratore
 2. Seguire la procedura guidata
 3. Al termine, configurare la connessione al database (vedi sezione successiva)
 
-> 📸 **Screenshot:** Procedura guidata di installazione Meridiana con barra di avanzamento.
+> 📸 **Screenshot:** Procedura guidata di installazione Foliarium con barra di avanzamento.
 
 ---
 
@@ -91,7 +91,7 @@ In pgAdmin: *Tools → Query Tool*, aprire ciascun file ed eseguire.
 
 ### Configurazione credenziali
 
-Meridiana legge le credenziali del database dalle **variabili d'ambiente** di Windows:
+Foliarium legge le credenziali del database dalle **variabili d'ambiente** di Windows:
 
 | Variabile | Default | Descrizione |
 |---|---|---|
@@ -103,7 +103,7 @@ Meridiana legge le credenziali del database dalle **variabili d'ambiente** di Wi
 
 #### Impostazione variabili su Windows
 
-**Metodo 1: Dialog GUI di Meridiana**
+**Metodo 1: Dialog GUI di Foliarium**
 Andare in *Impostazioni → Configura Connessione Database* e inserire i dati nella finestra.
 
 **Metodo 2: Variabili d'ambiente di sistema**
@@ -115,7 +115,7 @@ Andare in *Impostazioni → Configura Connessione Database* e inserire i dati ne
 
 ```ini
 DB_HOST=192.168.1.100
-DB_USER=meridiana_user
+DB_USER=foliarium_user
 DB_PASS=password_sicura
 DB_NAME=catasto_storico
 DB_PORT=5432
@@ -148,7 +148,7 @@ New-ItemProperty -Path "HKLM:\SYSTEM\CurrentControlSet\Control\FileSystem" `
 
 ## Verifica dell'installazione
 
-Dopo la configurazione, avviare Meridiana e verificare:
+Dopo la configurazione, avviare Foliarium e verificare:
 
 1. Il login funziona correttamente
 2. La barra di stato mostra "Database: Connesso"
@@ -162,7 +162,7 @@ Dopo la configurazione, avviare Meridiana e verificare:
 Per sviluppo o test in ambiente isolato:
 
 ```
-noVNC desktop → http://localhost:6080 (password: meridiana)
+noVNC desktop → http://localhost:6080 (password: foliarium)
 PostgreSQL    → localhost:5432
 QT_QPA_PLATFORM=xcb (impostato automaticamente)
 ```
@@ -180,7 +180,7 @@ bash .devcontainer/setup.sh
 Per generare il file `.exe` con PyInstaller:
 
 ```bash
-pyinstaller meridiana.spec
+pyinstaller foliarium.spec
 ```
 
-L'eseguibile viene generato in `dist/Meridiana/`. Per creare l'installer Windows usare **Inno Setup** con lo script `Meridiana_Installer.iss`.
+L'eseguibile viene generato in `dist/Foliarium/`. Per creare l'installer Windows usare **Inno Setup** con lo script `Foliarium_Installer.iss`.

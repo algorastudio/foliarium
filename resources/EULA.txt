@@ -1,4 +1,4 @@
-Contratto di Licenza con l'Utente Finale (EULA) per il software "Meridiana"
+Contratto di Licenza con l'Utente Finale (EULA) per il software "Foliarium"
 =========================================================================
 
 LEGGERE ATTENTAMENTE I TERMINI E LE CONDIZIONI SEGUENTI PRIMA DI UTILIZZARE QUESTO SOFTWARE. L'UTILIZZO DEL SOFTWARE IMPLICA L'ACCETTAZIONE DI QUESTI TERMINI.
@@ -6,7 +6,7 @@ LEGGERE ATTENTAMENTE I TERMINI E LE CONDIZIONI SEGUENTI PRIMA DI UTILIZZARE QUES
 Questo Contratto di Licenza con l'Utente Finale ("EULA") è un accordo legale tra l'utente finale (l'"Utente" o "Licenziatario") e l'autore del software, Marco Santoro (il "Licenziante").
 
 1. CONCESSIONE DELLA LICENZA
-Il Licenziante concede all'Archivio di Stato di Savona una licenza d'uso per il software "Meridiana" (il "Software") secondo i termini di un comodato d'uso gratuito. La presente licenza è concessa in via esclusiva, perpetua e non trasferibile, limitatamente all'uso da parte del personale autorizzato dell'Archivio di Stato di Savona per le finalità istituzionali di gestione dell'archivio catastale storico.
+Il Licenziante concede all'Archivio di Stato di Savona una licenza d'uso per il software "Foliarium" (il "Software") secondo i termini di un comodato d'uso gratuito. La presente licenza è concessa in via esclusiva, perpetua e non trasferibile, limitatamente all'uso da parte del personale autorizzato dell'Archivio di Stato di Savona per le finalità istituzionali di gestione dell'archivio catastale storico.
 
 2. COPYRIGHT E PROPRIETÀ INTELLETTUALE
 Il Software è di proprietà esclusiva di Marco Santoro e protetto dalle leggi italiane sul diritto d'autore e dai trattati internazionali. Tutti i diritti, titoli e interessi relativi al Software, inclusi tutti i diritti di proprietà intellettuale, sono e rimarranno di proprietà del Licenziante. La presente licenza non costituisce una vendita del Software, ma solo un diritto di utilizzo secondo i termini qui specificati.

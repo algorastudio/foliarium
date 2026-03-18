@@ -1,6 +1,6 @@
 # Import Massivo
 
-Meridiana supporta l'importazione di grandi quantità di dati da fonti esterne. Tutte le funzioni di import massivo sono accessibili dal menu **File** nella barra superiore o dai pulsanti **Importa CSV** nei pannelli di inserimento.
+Foliarium supporta l'importazione di grandi quantità di dati da fonti esterne. Tutte le funzioni di import massivo sono accessibili dal menu **File** nella barra superiore o dai pulsanti **Importa CSV** nei pannelli di inserimento.
 
 ---
 
@@ -14,7 +14,7 @@ Meridiana supporta l'importazione di grandi quantità di dati da fonti esterne. 
 
 1. Fare clic su **Scarica Template CSV** per ottenere il file con le intestazioni corrette
 2. Compilare il file CSV con i dati dei comuni
-3. Tornare in Meridiana e fare clic su **Sfoglia** per selezionare il file
+3. Tornare in Foliarium e fare clic su **Sfoglia** per selezionare il file
 4. Verificare l'anteprima (prime 20 righe)
 5. Fare clic su **Importa**
 
@@ -55,7 +55,7 @@ I comuni già presenti (stesso nome e provincia) vengono saltati senza errore.
 ### Procedura
 
 1. Inserire la **sigla provincia** (es. `SV`) per filtrare i risultati
-2. Fare clic su **Scarica da ISTAT** — Meridiana scarica automaticamente il file ufficiale ISTAT
+2. Fare clic su **Scarica da ISTAT** — Foliarium scarica automaticamente il file ufficiale ISTAT
 3. Attendere il download (può richiedere qualche secondo)
 4. Verificare l'anteprima dei comuni trovati
 5. Fare clic su **Importa**
@@ -116,7 +116,7 @@ Borgata Lavagnola;Borgata;
 > 📸 **Screenshot:** Dialog Import da OpenStreetMap con campo comune, checkbox e barra di avanzamento.
 
 !!! info "Overpass API"
-    Meridiana usa l'API pubblica Overpass (`overpass-api.de`) per interrogare i dati OpenStreetMap. Il servizio è gratuito e non richiede chiavi API. Rispettare il rate limit (~1 richiesta/secondo).
+    Foliarium usa l'API pubblica Overpass (`overpass-api.de`) per interrogare i dati OpenStreetMap. Il servizio è gratuito e non richiede chiavi API. Rispettare il rate limit (~1 richiesta/secondo).
 
 ---
 
@@ -142,7 +142,7 @@ Il dialog accetta sia file `.csv` che `.xlsx`.
 
 ### Modalità Excel multi-foglio
 
-Se il file `.xlsx` contiene più fogli, Meridiana utilizza il **primo foglio** per le partite. Assicurarsi che il primo foglio contenga i dati corretti.
+Se il file `.xlsx` contiene più fogli, Foliarium utilizza il **primo foglio** per le partite. Assicurarsi che il primo foglio contenga i dati corretti.
 
 ---
 
@@ -164,7 +164,7 @@ Bianchi Maria;;fu Carlo
 
 ## Riepilogo errori di importazione
 
-Al termine di ogni operazione di import, Meridiana mostra una finestra di riepilogo:
+Al termine di ogni operazione di import, Foliarium mostra una finestra di riepilogo:
 
 | Informazione | Descrizione |
 |---|---|
@@ -175,4 +175,4 @@ Al termine di ogni operazione di import, Meridiana mostra una finestra di riepil
 > 📸 **Screenshot:** Finestra riepilogo importazione con tabella successi/errori e pulsante "Chiudi".
 
 !!! warning "Importazione parziale"
-    In caso di errori su alcune righe, le righe precedenti già importate con successo NON vengono annullate. Meridiana usa SAVEPOINT per isolare gli errori riga per riga.
+    In caso di errori su alcune righe, le righe precedenti già importate con successo NON vengono annullate. Foliarium usa SAVEPOINT per isolare gli errori riga per riga.

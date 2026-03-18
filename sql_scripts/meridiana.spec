@@ -1,7 +1,7 @@
 # -*- mode: python ; coding: utf-8 -*-
 
 # ===================================================================
-#  File di Specifiche PyInstaller per Meridiana 1.3
+#  File di Specifiche PyInstaller per Foliarium 1.3
 #  Autore: Marco Santoro
 #  Data: 16/06/2025
 # ===================================================================
@@ -48,7 +48,7 @@ exe = EXE(
     a.zipfiles,
     a.datas, # Includiamo le risorse definite sopra
     [],
-    name='Meridiana',          # Nome del file .exe finale
+    name='Foliarium',          # Nome del file .exe finale
     debug=False,
     bootloader_ignore_signals=False,
     strip=False,
@@ -61,5 +61,5 @@ exe = EXE(
     target_arch=None,
     codesign_identity=None,
     entitlements_file=None,
-    icon='resources/logo_meridiana.ico' # Percorso del file icona (.ico)
+    icon='resources/icona_foliarium.ico' # Percorso del file icona (.ico)
 )
