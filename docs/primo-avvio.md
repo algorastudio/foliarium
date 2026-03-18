@@ -40,26 +40,28 @@ Se il database non è raggiungibile, Foliarium mostra una barra rossa nella part
 
 Dopo il login viene mostrata la finestra principale di Foliarium.
 
-> 📸 **Screenshot:** Finestra principale con toolbar superiore, barra laterale di navigazione e area contenuto centrale.
+> 📸 **Screenshot:** Finestra principale con top bar, sidebar verticale e area contenuto centrale.
 
 ### Componenti dell'interfaccia
 
 | Area | Descrizione |
 |---|---|
-| **Barra superiore** | Menu (File, Impostazioni, Aiuto), pulsanti rapidi |
-| **Tab di navigazione** | Accesso alle sezioni: Consultazione, Inserimento, Esportazioni, Reportistica, Statistiche |
-| **Area contenuto** | Pannello principale che cambia in base alla sezione selezionata |
-| **Barra di stato** | Utente connesso, stato DB, messaggi di sistema |
+| **Top bar** | Logo + titolo app a sinistra; indicatore connessione DB, nome utente, ruolo e pulsante **Logout** a destra |
+| **Sidebar sinistra** | Bottoni di navigazione raggruppati per sezione; la voce attiva è evidenziata; le sezioni visibili dipendono dal ruolo |
+| **Area contenuto** | Pannello principale che cambia in base alla sezione selezionata nella sidebar |
+| **Menu di sistema** | Menu **File**, **Impostazioni** e **Help** nella barra dei menu in cima alla finestra |
 
 ---
 
 ## Navigazione tra le sezioni
 
-Fare clic sulle tab nella barra superiore o sulle voci del menu laterale per passare da una sezione all'altra.
+Fare clic sui bottoni nella **sidebar sinistra** per passare da una sezione all'altra. Le scorciatoie da tastiera **Ctrl+1 … Ctrl+N** attivano rispettivamente il primo, secondo … N-esimo bottone visibile nella sidebar.
 
-Le tab disponibili variano in base al **ruolo utente**:
+Il tasto **F5** ricarica i dati della sezione corrente senza uscire dal pannello.
 
-| Ruolo | Tab disponibili |
+Le sezioni disponibili variano in base al **ruolo utente**:
+
+| Ruolo | Sezioni disponibili |
 |---|---|
 | **Guest** | Consultazione, Reportistica |
 | **Utente** | Consultazione, Inserimento, Esportazioni, Reportistica, Statistiche |
