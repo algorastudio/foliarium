@@ -55,6 +55,10 @@ SETTINGS_EMAIL_ON_LOGIN  = "Email/OnLogin"    # default True
 # --- Sicurezza sessione ---
 SETTINGS_SESSION_TIMEOUT = "Security/SessionTimeoutMinutes"  # default 15, 0 = disabilitato
 
+# --- Auto-updater ---
+SETTINGS_UPDATE_AUTO_CHECK  = "Update/AutoCheck"       # bool, default True
+SETTINGS_UPDATE_SKIPPED_VER = "Update/SkippedVersion"  # str, versione da ignorare
+
 # --- Temi usati dall'auto-rilevamento dark/light del sistema operativo ---
 AUTO_THEME_DARK = "dark_mode_stylesheet.qss"
 AUTO_THEME_LIGHT = "foliarium_styles.qss"

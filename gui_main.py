@@ -62,7 +62,8 @@ from config import (
     SETTINGS_DB_NAME, SETTINGS_DB_USER, SETTINGS_DB_SCHEMA, SETTINGS_DB_PASSWORD,
     SETTINGS_UI_CURRENT_STYLE, SETTINGS_UI_AUTO_THEME, SETTINGS_UI_WIN11_STYLE,
     AUTO_THEME_DARK, AUTO_THEME_LIGHT,
-    IS_TEST_ENV, SETTINGS_SESSION_TIMEOUT)
+    IS_TEST_ENV, SETTINGS_SESSION_TIMEOUT,
+    SETTINGS_UPDATE_AUTO_CHECK, SETTINGS_UPDATE_SKIPPED_VER)
 
 try:
     from fpdf import FPDF
@@ -908,13 +909,28 @@ class CatastoMainWindow(QMainWindow):
         show_manual_action.setShortcut(QKeySequence("F1"))
         show_manual_action.triggered.connect(self._apri_manuale_utente)
         help_menu.addAction(show_manual_action)
-            # --- INIZIO MODIFICA ---
+
+        help_menu.addSeparator()
+
+        check_update_action = QAction("Controlla aggiornamenti...", self)
+        check_update_action.triggered.connect(self._controlla_aggiornamenti_manuale)
+        help_menu.addAction(check_update_action)
+
+        auto_check_action = QAction("Controlla aggiornamenti all'avvio", self)
+        auto_check_action.setCheckable(True)
+        _settings_tmp = QSettings()
+        auto_check_action.setChecked(
+            _settings_tmp.value(SETTINGS_UPDATE_AUTO_CHECK, True, type=bool)
+        )
+        auto_check_action.toggled.connect(self._toggle_auto_update_check)
+        help_menu.addAction(auto_check_action)
+        self._auto_check_action = auto_check_action  # per aggiornarlo runtime se serve
+
         help_menu.addSeparator()
 
         show_eula_action = QAction("Informazioni su Foliarium / EULA...", self)
         show_eula_action.triggered.connect(self._show_about_eula_dialog)
         help_menu.addAction(show_eula_action)
-        # --- FINE MODIFICA ---
 
     def _change_stylesheet(self, filename: str):
         """Carica, applica e salva il nuovo stylesheet. Disabilita tema automatico e stile Win11."""
@@ -1842,6 +1858,17 @@ class CatastoMainWindow(QMainWindow):
         except Exception as e:
             self.logger.error(f"Errore apertura manuale: {e}", exc_info=True)
             QMessageBox.critical(self, "Errore", f"Impossibile aprire il manuale:\n{e}")
+
+    def _controlla_aggiornamenti_manuale(self):
+        """Controllo aggiornamenti lanciato manualmente dall'utente (menu Help)."""
+        worker = update_checker.start_background_check(self, manual=True)
+        if worker is not None:
+            self._update_worker = worker  # evita GC prematuro
+
+    def _toggle_auto_update_check(self, enabled: bool):
+        """Salva la preferenza controllo aggiornamenti automatico all'avvio."""
+        settings = QSettings()
+        settings.setValue(SETTINGS_UPDATE_AUTO_CHECK, enabled)
             
     def _show_backup_settings_dialog(self):
         dialog = BackupReminderSettingsDialog(self)
@@ -2120,7 +2147,12 @@ def run_gui_app():
             login_dialog.current_session_id_from_dialog
         )
 
-        QTimer.singleShot(1500, lambda: update_checker.check_for_updates(main_window_instance))
+        # Avvia il controllo aggiornamenti in background dopo 2s (non blocca la UI)
+        def _start_update_check():
+            worker = update_checker.start_background_check(main_window_instance)
+            if worker is not None:
+                main_window_instance._update_worker = worker  # evita GC prematuro
+        QTimer.singleShot(2000, _start_update_check)
 
         gui_logger.info("Setup completato. Avvio loop eventi.")
         sys.exit(app.exec())
