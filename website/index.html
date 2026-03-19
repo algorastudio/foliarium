@@ -1,0 +1,759 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Foliarium — Gestionale per il Catasto Storico</title>
+  <meta name="description" content="Foliarium è il software gestionale desktop per la gestione, consultazione e digitalizzazione del catasto storico presso gli Archivi di Stato italiani. Sviluppato da Algora Studio." />
+  <meta name="author" content="Algora Studio — Marco Santoro" />
+  <link rel="icon" href="../resources/favicon.ico" type="image/x-icon" />
+  <style>
+    /* ── Reset & base ── */
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    :root {
+      --green:   #1B4332;
+      --green2:  #2D6A4F;
+      --gold:    #C9962A;
+      --gold2:   #E6B84A;
+      --parchment: #F5F0E8;
+      --cream:   #FDFAF4;
+      --white:   #FFFFFF;
+      --text:    #1A1A1A;
+      --text2:   #4A4A4A;
+      --border:  #DDD5C4;
+      --shadow:  rgba(27,67,50,0.10);
+      --radius:  10px;
+      --radius-lg: 18px;
+      --font: 'Segoe UI', 'Helvetica Neue', Arial, sans-serif;
+    }
+    html { scroll-behavior: smooth; }
+    body {
+      font-family: var(--font);
+      background: var(--parchment);
+      color: var(--text);
+      font-size: 16px;
+      line-height: 1.65;
+    }
+    a { color: inherit; text-decoration: none; }
+    img { display: block; max-width: 100%; }
+
+    /* ── Nav ── */
+    nav {
+      position: sticky;
+      top: 0;
+      z-index: 100;
+      background: rgba(27,67,50,0.97);
+      backdrop-filter: blur(8px);
+      padding: 0 2rem;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      height: 62px;
+      box-shadow: 0 2px 12px rgba(0,0,0,0.18);
+    }
+    .nav-brand {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      color: #fff;
+      font-size: 1.2rem;
+      font-weight: 700;
+      letter-spacing: 0.02em;
+    }
+    .nav-brand span.leaf { font-size: 1.4rem; }
+    .nav-links {
+      display: flex;
+      gap: 1.8rem;
+      list-style: none;
+    }
+    .nav-links a {
+      color: rgba(255,255,255,0.82);
+      font-size: 0.9rem;
+      font-weight: 500;
+      letter-spacing: 0.01em;
+      transition: color 0.2s;
+    }
+    .nav-links a:hover { color: var(--gold2); }
+    .nav-cta {
+      background: var(--gold);
+      color: #fff !important;
+      padding: 6px 18px;
+      border-radius: 20px;
+      font-weight: 600 !important;
+      transition: background 0.2s !important;
+    }
+    .nav-cta:hover { background: var(--gold2) !important; color: #1A1A1A !important; }
+
+    /* ── Hero ── */
+    .hero {
+      background: linear-gradient(135deg, var(--green) 0%, #23503A 60%, #1B4332 100%);
+      color: #fff;
+      padding: 100px 2rem 80px;
+      text-align: center;
+      position: relative;
+      overflow: hidden;
+    }
+    .hero::before {
+      content: '';
+      position: absolute;
+      inset: 0;
+      background: url("data:image/svg+xml,%3Csvg width='60' height='60' viewBox='0 0 60 60' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='none' fill-rule='evenodd'%3E%3Cg fill='%23ffffff' fill-opacity='0.03'%3E%3Cpath d='M36 34v-4h-2v4h-4v2h4v4h2v-4h4v-2h-4zm0-30V0h-2v4h-4v2h4v4h2V6h4V4h-4zM6 34v-4H4v4H0v2h4v4h2v-4h4v-2H6zM6 4V0H4v4H0v2h4v4h2V6h4V4H6z'/%3E%3C/g%3E%3C/g%3E%3C/svg%3E");
+    }
+    .hero-inner { position: relative; max-width: 780px; margin: 0 auto; }
+    .hero-badge {
+      display: inline-block;
+      background: rgba(201,150,42,0.20);
+      border: 1px solid rgba(201,150,42,0.50);
+      color: var(--gold2);
+      padding: 4px 16px;
+      border-radius: 20px;
+      font-size: 0.82rem;
+      font-weight: 600;
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+      margin-bottom: 1.2rem;
+    }
+    .hero h1 {
+      font-size: clamp(2.4rem, 6vw, 4rem);
+      font-weight: 800;
+      letter-spacing: -0.02em;
+      line-height: 1.1;
+      margin-bottom: 0.5rem;
+    }
+    .hero h1 em {
+      font-style: normal;
+      color: var(--gold2);
+    }
+    .hero-subtitle {
+      font-size: 1.15rem;
+      color: rgba(255,255,255,0.75);
+      max-width: 580px;
+      margin: 1rem auto 0;
+    }
+    .hero-desc {
+      font-size: 1rem;
+      color: rgba(255,255,255,0.62);
+      max-width: 620px;
+      margin: 0.8rem auto 0;
+    }
+    .hero-ctas {
+      display: flex;
+      gap: 1rem;
+      justify-content: center;
+      flex-wrap: wrap;
+      margin-top: 2.2rem;
+    }
+    .btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      padding: 13px 28px;
+      border-radius: 8px;
+      font-size: 0.97rem;
+      font-weight: 600;
+      cursor: pointer;
+      border: none;
+      transition: transform 0.15s, box-shadow 0.15s;
+      text-decoration: none;
+    }
+    .btn:hover { transform: translateY(-2px); box-shadow: 0 8px 24px rgba(0,0,0,0.18); }
+    .btn-primary { background: var(--gold); color: #fff; }
+    .btn-primary:hover { background: var(--gold2); color: #1A1A1A; }
+    .btn-outline { background: transparent; color: #fff; border: 2px solid rgba(255,255,255,0.45); }
+    .btn-outline:hover { border-color: #fff; background: rgba(255,255,255,0.08); }
+    .hero-meta {
+      margin-top: 2.8rem;
+      display: flex;
+      gap: 2rem;
+      justify-content: center;
+      flex-wrap: wrap;
+    }
+    .hero-meta-item {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 0.85rem;
+      color: rgba(255,255,255,0.60);
+    }
+    .hero-meta-item strong { color: rgba(255,255,255,0.88); }
+
+    /* ── Sections generic ── */
+    section { padding: 80px 2rem; }
+    .section-inner { max-width: 1080px; margin: 0 auto; }
+    .section-label {
+      font-size: 0.78rem;
+      font-weight: 700;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      color: var(--gold);
+      margin-bottom: 0.5rem;
+    }
+    .section-title {
+      font-size: clamp(1.6rem, 3.5vw, 2.2rem);
+      font-weight: 800;
+      color: var(--green);
+      line-height: 1.2;
+      margin-bottom: 0.6rem;
+    }
+    .section-desc {
+      font-size: 1rem;
+      color: var(--text2);
+      max-width: 620px;
+      margin-bottom: 3rem;
+    }
+
+    /* ── Features ── */
+    #funzionalita { background: var(--cream); }
+    .features-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+      gap: 1.4rem;
+    }
+    .feature-card {
+      background: var(--white);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-lg);
+      padding: 1.8rem;
+      box-shadow: 0 2px 12px var(--shadow);
+      transition: transform 0.18s, box-shadow 0.18s;
+    }
+    .feature-card:hover {
+      transform: translateY(-4px);
+      box-shadow: 0 8px 28px var(--shadow);
+    }
+    .feature-icon {
+      width: 46px;
+      height: 46px;
+      border-radius: 12px;
+      background: rgba(27,67,50,0.08);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 1.5rem;
+      margin-bottom: 1rem;
+    }
+    .feature-card h3 {
+      font-size: 1.02rem;
+      font-weight: 700;
+      color: var(--green);
+      margin-bottom: 0.45rem;
+    }
+    .feature-card p {
+      font-size: 0.9rem;
+      color: var(--text2);
+      line-height: 1.55;
+    }
+
+    /* ── Target ── */
+    #destinatari { background: var(--parchment); }
+    .targets-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(230px, 1fr));
+      gap: 1.2rem;
+    }
+    .target-card {
+      background: var(--white);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-lg);
+      padding: 1.6rem;
+      display: flex;
+      flex-direction: column;
+      gap: 0.6rem;
+      box-shadow: 0 2px 8px var(--shadow);
+    }
+    .target-icon { font-size: 2rem; }
+    .target-card h3 { font-size: 0.97rem; font-weight: 700; color: var(--green); }
+    .target-card p { font-size: 0.88rem; color: var(--text2); }
+
+    /* ── Stack ── */
+    #tecnologie { background: var(--green); }
+    #tecnologie .section-title { color: #fff; }
+    #tecnologie .section-label { color: var(--gold2); }
+    #tecnologie .section-desc { color: rgba(255,255,255,0.65); }
+    .stack-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(170px, 1fr));
+      gap: 1rem;
+    }
+    .stack-item {
+      background: rgba(255,255,255,0.07);
+      border: 1px solid rgba(255,255,255,0.12);
+      border-radius: var(--radius);
+      padding: 1.3rem 1rem;
+      text-align: center;
+    }
+    .stack-item .si-icon { font-size: 2rem; margin-bottom: 0.5rem; }
+    .stack-item h4 { font-size: 0.95rem; font-weight: 700; color: #fff; }
+    .stack-item p { font-size: 0.78rem; color: rgba(255,255,255,0.55); margin-top: 2px; }
+
+    /* ── PNRR banner ── */
+    .pnrr-banner {
+      background: linear-gradient(90deg, var(--gold) 0%, #B07D1A 100%);
+      color: #fff;
+      padding: 2rem;
+      border-radius: var(--radius-lg);
+      display: flex;
+      align-items: center;
+      gap: 1.5rem;
+      flex-wrap: wrap;
+      margin-bottom: 3rem;
+    }
+    .pnrr-banner .pb-icon { font-size: 2.2rem; flex-shrink: 0; }
+    .pnrr-banner h3 { font-size: 1.05rem; font-weight: 700; margin-bottom: 0.2rem; }
+    .pnrr-banner p { font-size: 0.88rem; opacity: 0.88; }
+
+    /* ── Download ── */
+    #download { background: var(--cream); }
+    .download-box {
+      background: var(--white);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-lg);
+      padding: 2.4rem;
+      box-shadow: 0 2px 16px var(--shadow);
+      display: flex;
+      align-items: center;
+      gap: 2rem;
+      flex-wrap: wrap;
+    }
+    .download-box-text { flex: 1; min-width: 260px; }
+    .download-box-text h3 { font-size: 1.25rem; font-weight: 800; color: var(--green); margin-bottom: 0.4rem; }
+    .download-box-text p { font-size: 0.9rem; color: var(--text2); }
+    .download-box-actions { display: flex; gap: 0.8rem; flex-wrap: wrap; }
+    .btn-green { background: var(--green); color: #fff; }
+    .btn-green:hover { background: var(--green2); }
+    .btn-ghost { background: transparent; color: var(--green); border: 2px solid var(--green); }
+    .btn-ghost:hover { background: var(--green); color: #fff; }
+
+    /* ── Licenza ── */
+    #licenza { background: var(--parchment); }
+    .license-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 1.4rem;
+    }
+    @media (max-width: 600px) { .license-grid { grid-template-columns: 1fr; } }
+    .license-card {
+      border-radius: var(--radius-lg);
+      padding: 2rem;
+      border: 2px solid transparent;
+    }
+    .license-card.open {
+      background: rgba(27,67,50,0.06);
+      border-color: rgba(27,67,50,0.18);
+    }
+    .license-card.commercial {
+      background: rgba(201,150,42,0.07);
+      border-color: rgba(201,150,42,0.35);
+    }
+    .license-card h3 { font-size: 1.1rem; font-weight: 800; color: var(--green); margin-bottom: 0.8rem; }
+    .license-card.commercial h3 { color: #8B6414; }
+    .license-card ul { list-style: none; display: flex; flex-direction: column; gap: 0.5rem; }
+    .license-card ul li {
+      font-size: 0.9rem;
+      color: var(--text2);
+      display: flex;
+      align-items: flex-start;
+      gap: 8px;
+    }
+    .license-card ul li::before { content: '✓'; color: var(--green2); font-weight: 700; flex-shrink: 0; }
+    .license-card.commercial ul li::before { color: var(--gold); }
+    .license-card .lc-tag {
+      display: inline-block;
+      font-size: 0.72rem;
+      font-weight: 700;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      padding: 2px 10px;
+      border-radius: 12px;
+      margin-bottom: 0.8rem;
+    }
+    .open .lc-tag { background: rgba(27,67,50,0.12); color: var(--green); }
+    .commercial .lc-tag { background: rgba(201,150,42,0.18); color: #8B6414; }
+
+    /* ── Servizi ── */
+    #servizi { background: var(--cream); }
+    .services-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+      gap: 1.2rem;
+    }
+    .service-card {
+      background: var(--white);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-lg);
+      padding: 1.6rem;
+      box-shadow: 0 2px 8px var(--shadow);
+    }
+    .service-card h3 { font-size: 0.97rem; font-weight: 700; color: var(--green); margin-bottom: 0.4rem; }
+    .service-card p { font-size: 0.88rem; color: var(--text2); }
+    .service-icon { font-size: 1.7rem; margin-bottom: 0.8rem; }
+
+    /* ── Contatti ── */
+    #contatti { background: var(--green); color: #fff; text-align: center; }
+    #contatti .section-title { color: #fff; }
+    #contatti .section-label { color: var(--gold2); }
+    #contatti .section-desc { color: rgba(255,255,255,0.65); margin: 0 auto 2.5rem; }
+    .contact-card {
+      display: inline-flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 1.8rem;
+    }
+    .contact-email {
+      font-size: 1.15rem;
+      font-weight: 700;
+      color: var(--gold2);
+      border-bottom: 1px dashed rgba(201,150,42,0.5);
+      padding-bottom: 4px;
+    }
+    .contact-email:hover { color: #fff; }
+
+    /* ── Footer ── */
+    footer {
+      background: #111;
+      color: rgba(255,255,255,0.45);
+      text-align: center;
+      padding: 2rem;
+      font-size: 0.82rem;
+    }
+    footer strong { color: rgba(255,255,255,0.70); }
+    footer a { color: var(--gold); }
+
+    /* ── Divider line ── */
+    .divider { height: 1px; background: var(--border); max-width: 1080px; margin: 0 auto; }
+
+    /* ── Responsive nav ── */
+    @media (max-width: 720px) {
+      .nav-links { display: none; }
+      .hero { padding: 70px 1.2rem 60px; }
+      section { padding: 60px 1.2rem; }
+    }
+  </style>
+</head>
+<body>
+
+<!-- ── Navigation ── -->
+<nav>
+  <div class="nav-brand">
+    <span class="leaf">🌿</span> Foliarium
+  </div>
+  <ul class="nav-links">
+    <li><a href="#funzionalita">Funzionalità</a></li>
+    <li><a href="#destinatari">Destinatari</a></li>
+    <li><a href="#tecnologie">Tecnologie</a></li>
+    <li><a href="#licenza">Licenza</a></li>
+    <li><a href="#servizi">Servizi</a></li>
+    <li><a href="#contatti" class="nav-cta">Contattaci</a></li>
+  </ul>
+</nav>
+
+<!-- ── Hero ── -->
+<header class="hero">
+  <div class="hero-inner">
+    <div class="hero-badge">v1.0.0 — Stable</div>
+    <h1><em>Foliarium</em></h1>
+    <p class="hero-subtitle">Il gestionale desktop per il Catasto Storico degli Archivi di Stato italiani.</p>
+    <p class="hero-desc">
+      Gestisci fogli di mappa, particelle catastali, intestatari e variazioni storiche in modo efficiente,
+      su database centralizzato multi-utente. Progettato per chi lavora ogni giorno con i registri catastali storici.
+    </p>
+    <div class="hero-ctas">
+      <a class="btn btn-primary" href="https://github.com/algorastudio/foliarium/releases" target="_blank" rel="noopener">
+        ⬇ Scarica Foliarium
+      </a>
+      <a class="btn btn-outline" href="https://github.com/algorastudio/foliarium" target="_blank" rel="noopener">
+        ⭐ Vedi su GitHub
+      </a>
+      <a class="btn btn-outline" href="#contatti">
+        ✉ Contattaci
+      </a>
+    </div>
+    <div class="hero-meta">
+      <div class="hero-meta-item">🐍 <span>Python · PyQt6</span></div>
+      <div class="hero-meta-item">🗄 <span>PostgreSQL</span></div>
+      <div class="hero-meta-item">💻 <strong>Windows</strong> &amp; <strong>Linux</strong></div>
+      <div class="hero-meta-item">⚖ <span>AGPL-3.0 + Licenza Commerciale</span></div>
+    </div>
+  </div>
+</header>
+
+<!-- ── Funzionalità ── -->
+<section id="funzionalita">
+  <div class="section-inner">
+    <div class="section-label">Funzionalità</div>
+    <h2 class="section-title">Tutto ciò che serve per il catasto storico</h2>
+    <p class="section-desc">
+      Foliarium nasce dall'esperienza diretta con l'Archivio di Stato di Savona e risponde
+      alle esigenze concrete degli operatori archivistici.
+    </p>
+    <div class="features-grid">
+      <div class="feature-card">
+        <div class="feature-icon">🗂</div>
+        <h3>Gestione completa del catasto</h3>
+        <p>Fogli di mappa, particelle catastali, intestatari e variazioni storiche in un unico sistema integrato e strutturato.</p>
+      </div>
+      <div class="feature-card">
+        <div class="feature-icon">🔍</div>
+        <h3>Ricerca avanzata multi-criterio</h3>
+        <p>Cerca per intestatario, numero di particella, foglio o comune. Risultati precisi e rapidi anche su grandi archivi.</p>
+      </div>
+      <div class="feature-card">
+        <div class="feature-icon">📜</div>
+        <h3>Tracciamento delle variazioni</h3>
+        <p>Registra e consulta i passaggi di proprietà e le variazioni nel tempo mantenendo la piena tracciabilità storica.</p>
+      </div>
+      <div class="feature-card">
+        <div class="feature-icon">👥</div>
+        <h3>Gestione utenti e permessi</h3>
+        <p>Ruoli differenziati per operatori, supervisori e amministratori. Accesso sicuro e controllato ai dati d'archivio.</p>
+      </div>
+      <div class="feature-card">
+        <div class="feature-icon">🗄</div>
+        <h3>Database centralizzato multi-utente</h3>
+        <p>PostgreSQL garantisce affidabilità, scalabilità e accesso simultaneo da più postazioni di lavoro in rete.</p>
+      </div>
+      <div class="feature-card">
+        <div class="feature-icon">📤</div>
+        <h3>Esportazione in formati aperti</h3>
+        <p>Esporta i dati in CSV e PDF per reportistica, archiviazione documentale o integrazione con altri sistemi.</p>
+      </div>
+      <div class="feature-card">
+        <div class="feature-icon">🖥</div>
+        <h3>Interfaccia desktop intuitiva</h3>
+        <p>Progettata per operatori archivistici: chiara, reattiva e utilizzabile senza formazione informatica specialistica.</p>
+      </div>
+      <div class="feature-card">
+        <div class="feature-icon">🧩</div>
+        <h3>Architettura modulare ed estendibile</h3>
+        <p>Predisposta per integrazioni future: sistemi documentali, georeferenziazione mappe catastali e ricerca AI.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ── Destinatari ── -->
+<section id="destinatari">
+  <div class="section-inner">
+    <div class="section-label">Destinatari</div>
+    <h2 class="section-title">Per chi è pensato Foliarium</h2>
+    <p class="section-desc">
+      Il software si rivolge a tutti i soggetti che gestiscono o valorizzano
+      il patrimonio catastale storico italiano.
+    </p>
+
+    <div class="pnrr-banner">
+      <div class="pb-icon">🇮🇹</div>
+      <div>
+        <h3>Compatibile con i progetti PNRR</h3>
+        <p>Foliarium è progettato per integrarsi nei progetti di digitalizzazione del patrimonio archivistico finanziati con fondi PNRR (Missione 1, Componente 3) e risponde ai requisiti delle gare di digitalizzazione degli archivi catastali.</p>
+      </div>
+    </div>
+
+    <div class="targets-grid">
+      <div class="target-card">
+        <div class="target-icon">🏛</div>
+        <h3>Archivi di Stato</h3>
+        <p>Soluzione nativa per gli operatori degli archivi statali che gestiscono quotidianamente registri catastali storici.</p>
+      </div>
+      <div class="target-card">
+        <div class="target-icon">🏢</div>
+        <h3>Comuni e Province</h3>
+        <p>Enti locali che conservano o stanno digitalizzando il catasto storico del proprio territorio.</p>
+      </div>
+      <div class="target-card">
+        <div class="target-icon">💼</div>
+        <h3>Imprese di digitalizzazione</h3>
+        <p>Aziende che partecipano a gare PNRR per la digitalizzazione del patrimonio archivistico pubblico.</p>
+      </div>
+      <div class="target-card">
+        <div class="target-icon">🎓</div>
+        <h3>Ricercatori e Accademia</h3>
+        <p>Storici, archivisti e accademici che necessitano di strumenti professionali per la ricerca storico-catastale.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ── Tecnologie ── -->
+<section id="tecnologie">
+  <div class="section-inner">
+    <div class="section-label">Tecnologie</div>
+    <h2 class="section-title">Stack tecnico</h2>
+    <p class="section-desc">
+      Foliarium è costruito su tecnologie open source consolidate, affidabili e mantenibili nel lungo periodo.
+    </p>
+    <div class="stack-grid">
+      <div class="stack-item">
+        <div class="si-icon">🐍</div>
+        <h4>Python 3</h4>
+        <p>Linguaggio principale</p>
+      </div>
+      <div class="stack-item">
+        <div class="si-icon">🖥</div>
+        <h4>PyQt6</h4>
+        <p>Interfaccia grafica desktop</p>
+      </div>
+      <div class="stack-item">
+        <div class="si-icon">🗄</div>
+        <h4>PostgreSQL</h4>
+        <p>Database relazionale</p>
+      </div>
+      <div class="stack-item">
+        <div class="si-icon">📦</div>
+        <h4>PyInstaller</h4>
+        <p>Distribuzione eseguibile</p>
+      </div>
+      <div class="stack-item">
+        <div class="si-icon">💻</div>
+        <h4>Windows &amp; Linux</h4>
+        <p>Piattaforme supportate</p>
+      </div>
+      <div class="stack-item">
+        <div class="si-icon">⚖</div>
+        <h4>AGPL-3.0</h4>
+        <p>Licenza open source</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ── Download ── -->
+<section id="download">
+  <div class="section-inner">
+    <div class="section-label">Download</div>
+    <h2 class="section-title">Inizia subito</h2>
+    <p class="section-desc">
+      Foliarium è disponibile per Windows e Linux. Consulta la documentazione per la configurazione del database PostgreSQL.
+    </p>
+    <div class="download-box">
+      <div class="download-box-text">
+        <h3>🌿 Foliarium v1.0.0</h3>
+        <p>Rilascio stabile — Windows (.exe) e Linux. Richiede un'istanza PostgreSQL accessibile in rete.</p>
+      </div>
+      <div class="download-box-actions">
+        <a class="btn btn-green" href="https://github.com/algorastudio/foliarium/releases" target="_blank" rel="noopener">
+          ⬇ Scarica
+        </a>
+        <a class="btn btn-ghost" href="https://github.com/algorastudio/foliarium/blob/master/docs" target="_blank" rel="noopener">
+          📄 Documentazione
+        </a>
+        <a class="btn btn-ghost" href="https://github.com/algorastudio/foliarium" target="_blank" rel="noopener">
+          ⭐ GitHub
+        </a>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ── Licenza ── -->
+<section id="licenza">
+  <div class="section-inner">
+    <div class="section-label">Licenza</div>
+    <h2 class="section-title">Modello di licenza</h2>
+    <p class="section-desc">
+      Foliarium adotta un modello dual-license: open source per enti pubblici e ricerca, licenza commerciale per uso privato.
+    </p>
+    <div class="license-grid">
+      <div class="license-card open">
+        <span class="lc-tag">Open Source</span>
+        <h3>AGPL-3.0-or-later</h3>
+        <ul>
+          <li>Accesso completo al codice sorgente</li>
+          <li>Gratuita per usi conformi alla licenza</li>
+          <li>Ideale per enti pubblici e ricerca</li>
+          <li>Modifiche devono restare open source</li>
+          <li>Distribuita su GitHub</li>
+        </ul>
+      </div>
+      <div class="license-card commercial">
+        <span class="lc-tag">Commerciale</span>
+        <h3>Licenza Commerciale</h3>
+        <ul>
+          <li>Per aziende private e integratori</li>
+          <li>Uso senza obblighi AGPL</li>
+          <li>Include supporto tecnico dedicato</li>
+          <li>Personalizzazioni su misura disponibili</li>
+          <li>Contattare Algora Studio per preventivo</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ── Servizi ── -->
+<section id="servizi">
+  <div class="section-inner">
+    <div class="section-label">Algora Studio</div>
+    <h2 class="section-title">Servizi professionali</h2>
+    <p class="section-desc">
+      Algora Studio offre supporto completo per l'adozione e la personalizzazione di Foliarium
+      nei contesti archivistici più esigenti.
+    </p>
+    <div class="services-grid">
+      <div class="service-card">
+        <div class="service-icon">🚀</div>
+        <h3>Installazione e configurazione</h3>
+        <p>Setup completo dell'ambiente PostgreSQL, installazione del client e configurazione degli utenti e dei ruoli.</p>
+      </div>
+      <div class="service-card">
+        <div class="service-icon">🎓</div>
+        <h3>Formazione del personale</h3>
+        <p>Sessioni di formazione su misura per operatori archivistici, supervisori e amministratori di sistema.</p>
+      </div>
+      <div class="service-card">
+        <div class="service-icon">🔧</div>
+        <h3>Personalizzazione</h3>
+        <p>Sviluppo di funzionalità specifiche: integrazioni con sistemi documentali esistenti, reportistica dedicata, workflow personalizzati.</p>
+      </div>
+      <div class="service-card">
+        <div class="service-icon">🛡</div>
+        <h3>Supporto e manutenzione</h3>
+        <p>Contratti di supporto continuativo con SLA definiti per archivi e aziende che richiedono continuità operativa.</p>
+      </div>
+      <div class="service-card">
+        <div class="service-icon">📋</div>
+        <h3>Consulenza per gare PNRR</h3>
+        <p>Supporto tecnico nella predisposizione di offerte per gare di digitalizzazione archivi catastali con fondi PNRR.</p>
+      </div>
+      <div class="service-card">
+        <div class="service-icon">🗺</div>
+        <h3>Georeferenziazione mappe</h3>
+        <p>Sviluppo del modulo di georeferenziazione delle mappe catastali storiche — disponibile su richiesta.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ── Contatti ── -->
+<section id="contatti">
+  <div class="section-inner">
+    <div class="section-label">Contatti</div>
+    <h2 class="section-title">Parlaci del tuo progetto</h2>
+    <p class="section-desc">
+      Hai bisogno di una demo, un preventivo per la licenza commerciale o supporto per una gara PNRR?
+      Scrivici: ti risponderemo al più presto.
+    </p>
+    <div class="contact-card">
+      <a class="contact-email" href="mailto:santoromarco@gmail.com">santoromarco@gmail.com</a>
+      <div style="display:flex; gap:1rem; flex-wrap:wrap; justify-content:center;">
+        <a class="btn btn-primary" href="mailto:santoromarco@gmail.com">✉ Invia una email</a>
+        <a class="btn btn-outline" href="https://github.com/algorastudio/foliarium" target="_blank" rel="noopener">GitHub</a>
+      </div>
+      <p style="font-size:0.82rem; opacity:0.5; margin-top:0.5rem;">
+        Algora Studio — Marco Santoro
+      </p>
+    </div>
+  </div>
+</section>
+
+<!-- ── Footer ── -->
+<footer>
+  <p>
+    &copy; 2026 <strong>Algora Studio</strong> — Marco Santoro &nbsp;·&nbsp;
+    Foliarium è distribuito con licenza <a href="https://www.gnu.org/licenses/agpl-3.0.html" target="_blank" rel="noopener">AGPL-3.0</a> &nbsp;·&nbsp;
+    <a href="https://github.com/algorastudio/foliarium" target="_blank" rel="noopener">GitHub</a>
+  </p>
+</footer>
+
+</body>
+</html>
