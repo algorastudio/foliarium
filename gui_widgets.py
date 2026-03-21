@@ -4876,6 +4876,8 @@ class StatisticheWidget(LazyLoadedWidget):
         self.stats_comune_table.setHorizontalHeaderLabels(["Comune", "Provincia", "Totale Partite", "Partite Attive", "Partite Inattive", "Totale Possessori", "Totale Immobili"])
         self.stats_comune_table.setAlternatingRowColors(True)
         self.stats_comune_table.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeMode.Stretch)
+        self.stats_comune_table.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
+        self.stats_comune_table.customContextMenuRequested.connect(self._apri_menu_stats_comune)
         layout.addWidget(refresh_button)
         layout.addWidget(self.stats_comune_table)
         return widget
@@ -4902,6 +4904,8 @@ class StatisticheWidget(LazyLoadedWidget):
         self.immobili_table.setHorizontalHeaderLabels(["Comune", "Classificazione", "Numero Immobili", "Totale Piani", "Totale Vani", "Media Vani/Immobile"])
         self.immobili_table.setAlternatingRowColors(True)
         self.immobili_table.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeMode.Stretch)
+        self.immobili_table.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
+        self.immobili_table.customContextMenuRequested.connect(self._apri_menu_immobili_stats)
         layout.addWidget(self.immobili_table)
         return widget
 
@@ -5106,6 +5110,62 @@ class StatisticheWidget(LazyLoadedWidget):
         self.status_text.verticalScrollBar().setValue(self.status_text.verticalScrollBar().maximum())
         QApplication.processEvents()
 
+    def _apri_menu_stats_comune(self, position: QPoint):
+        """Context menu sulla tabella statistiche per comune."""
+        index = self.stats_comune_table.indexAt(position)
+        if not index.isValid():
+            return
+        row = index.row()
+        comune_item = self.stats_comune_table.item(row, 0)
+        prov_item = self.stats_comune_table.item(row, 1)
+        comune = comune_item.text() if comune_item else ""
+        prov = prov_item.text() if prov_item else ""
+
+        menu = QMenu(self.stats_comune_table)
+        if comune:
+            menu.addAction(f"Copia comune  ({comune})").triggered.connect(
+                lambda: QApplication.clipboard().setText(comune))
+        if prov:
+            menu.addAction(f"Copia provincia  ({prov})").triggered.connect(
+                lambda: QApplication.clipboard().setText(prov))
+        menu.addSeparator()
+        def _copia_riga():
+            parts = []
+            for col in range(self.stats_comune_table.columnCount()):
+                item = self.stats_comune_table.item(row, col)
+                parts.append(item.text() if item else "")
+            QApplication.clipboard().setText("\t".join(parts))
+        menu.addAction("Copia riga intera").triggered.connect(_copia_riga)
+        menu.exec(self.stats_comune_table.viewport().mapToGlobal(position))
+
+    def _apri_menu_immobili_stats(self, position: QPoint):
+        """Context menu sulla tabella statistiche immobili per tipologia."""
+        index = self.immobili_table.indexAt(position)
+        if not index.isValid():
+            return
+        row = index.row()
+        comune_item = self.immobili_table.item(row, 0)
+        class_item = self.immobili_table.item(row, 1)
+        comune = comune_item.text() if comune_item else ""
+        classificazione = class_item.text() if class_item else ""
+
+        menu = QMenu(self.immobili_table)
+        if comune:
+            menu.addAction(f"Copia comune  ({comune})").triggered.connect(
+                lambda: QApplication.clipboard().setText(comune))
+        if classificazione:
+            menu.addAction(f"Copia classificazione  ({classificazione})").triggered.connect(
+                lambda: QApplication.clipboard().setText(classificazione))
+        menu.addSeparator()
+        def _copia_riga():
+            parts = []
+            for col in range(self.immobili_table.columnCount()):
+                item = self.immobili_table.item(row, col)
+                parts.append(item.text() if item else "")
+            QApplication.clipboard().setText("\t".join(parts))
+        menu.addAction("Copia riga intera").triggered.connect(_copia_riga)
+        menu.exec(self.immobili_table.viewport().mapToGlobal(position))
+
 
 class GestioneUtentiWidget(LazyLoadedWidget):
     def __init__(self, db_manager: 'CatastoDBManager', current_user_info: Optional[Dict], parent=None):
@@ -5143,6 +5203,8 @@ class GestioneUtentiWidget(LazyLoadedWidget):
         self.user_table.setEditTriggers(QAbstractItemView.EditTrigger.NoEditTriggers)
         self.user_table.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeMode.Stretch)
         self.user_table.itemSelectionChanged.connect(self._update_action_buttons_state)
+        self.user_table.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
+        self.user_table.customContextMenuRequested.connect(self._apri_menu_contestuale_utente)
         layout.addWidget(self.user_table)
 
         # Pulsanti di gestione per utente selezionato
@@ -5449,6 +5511,37 @@ class GestioneUtentiWidget(LazyLoadedWidget):
                     self, "Annullato", "Username non corrispondente. Eliminazione annullata.")
             # else: l'utente ha premuto annulla su QInputDialog
 
+    def _apri_menu_contestuale_utente(self, position: QPoint):
+        """Context menu sulla tabella utenti."""
+        index = self.user_table.indexAt(position)
+        if not index.isValid():
+            return
+        row = index.row()
+        username_item = self.user_table.item(row, 1)
+        nome_item = self.user_table.item(row, 2)
+        email_item = self.user_table.item(row, 3)
+        username = username_item.text() if username_item else ""
+        nome = nome_item.text() if nome_item else ""
+        email = email_item.text() if email_item else ""
+
+        menu = QMenu(self.user_table)
+        menu.addAction(
+            QApplication.style().standardIcon(QStyle.StandardPixmap.SP_FileDialogContentsView),
+            "Modifica utente"
+        ).triggered.connect(self.modifica_utente_selezionato)
+        menu.addAction("Reset password").triggered.connect(self.reset_password_utente_selezionato)
+        menu.addSeparator()
+        if username:
+            menu.addAction(f"Copia username  ({username})").triggered.connect(
+                lambda: QApplication.clipboard().setText(username))
+        if nome:
+            menu.addAction(f"Copia nome  ({nome})").triggered.connect(
+                lambda: QApplication.clipboard().setText(nome))
+        if email and email != "N/D":
+            menu.addAction(f"Copia email  ({email})").triggered.connect(
+                lambda: QApplication.clipboard().setText(email))
+        menu.exec(self.user_table.viewport().mapToGlobal(position))
+
 
 class AuditLogViewerWidget(LazyLoadedWidget):
     def __init__(self, db_manager: CatastoDBManager, parent=None):
@@ -5619,6 +5712,8 @@ class AuditLogViewerWidget(LazyLoadedWidget):
         header.setSectionResizeMode(7, QHeaderView.ResizeMode.ResizeToContents)  # IP
         
         self.log_table.itemSelectionChanged.connect(self._display_log_details)
+        self.log_table.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
+        self.log_table.customContextMenuRequested.connect(self._apri_menu_contestuale_log)
         table_layout.addWidget(self.log_table)
         
         # Controlli paginazione
@@ -5863,7 +5958,46 @@ class AuditLogViewerWidget(LazyLoadedWidget):
             QMessageBox.information(self, "Successo", f"{len(logs)} record di audit esportati in Excel.")
         except ImportError: QMessageBox.critical(self, "Libreria Mancante", "L'esportazione in Excel richiede 'pandas' e 'openpyxl'.")
         except Exception as e: QMessageBox.critical(self, "Errore Esportazione", f"Errore durante l'esportazione Excel:\n{e}")
-# ... (Fine della classe AuditLogViewerWidget) ...
+
+    def _apri_menu_contestuale_log(self, position: QPoint):
+        """Context menu sulla tabella audit log."""
+        index = self.log_table.indexAt(position)
+        if not index.isValid():
+            return
+        row = index.row()
+        id_item = self.log_table.item(row, 0)
+        utente_item = self.log_table.item(row, 2)
+        azione_item = self.log_table.item(row, 5)
+        ip_item = self.log_table.item(row, 7)
+        id_text = id_item.text() if id_item else ""
+        utente_text = utente_item.text() if utente_item else ""
+        azione_text = azione_item.text() if azione_item else ""
+        ip_text = ip_item.text() if ip_item else ""
+
+        menu = QMenu(self.log_table)
+        if id_text:
+            menu.addAction(f"Copia ID  ({id_text})").triggered.connect(
+                lambda: QApplication.clipboard().setText(id_text))
+        if utente_text:
+            menu.addAction(f"Copia utente  ({utente_text})").triggered.connect(
+                lambda: QApplication.clipboard().setText(utente_text))
+        if azione_text:
+            menu.addAction(f"Copia azione  ({azione_text})").triggered.connect(
+                lambda: QApplication.clipboard().setText(azione_text))
+        if ip_text:
+            menu.addAction(f"Copia IP  ({ip_text})").triggered.connect(
+                lambda: QApplication.clipboard().setText(ip_text))
+        menu.addSeparator()
+        # Copia intera riga come testo tab-separato
+        def _copia_riga():
+            parts = []
+            for col in range(self.log_table.columnCount()):
+                item = self.log_table.item(row, col)
+                parts.append(item.text() if item else "")
+            QApplication.clipboard().setText("\t".join(parts))
+        menu.addAction("Copia riga intera").triggered.connect(_copia_riga)
+        menu.exec(self.log_table.viewport().mapToGlobal(position))
+
 
 class BackupWidget(QWidget):
     def __init__(self, db_manager: 'CatastoDBManager', parent=None):
@@ -7243,7 +7377,39 @@ class DashboardWidget(QWidget):
         stats_layout.addWidget(self.stat_possessori_label); stats_layout.addWidget(self.stat_immobili_label)
         main_layout.addLayout(stats_layout)
 
-        # 4. Attività Recenti e Azioni Rapide
+        # 4. Ultimi Inserimenti
+        recenti_group = QGroupBox("Ultimi Inserimenti")
+        recenti_layout = QVBoxLayout(recenti_group)
+        self.recenti_tabs = QTabWidget()
+        self.recenti_tabs.setMaximumHeight(140)
+
+        self.tab_comuni_recenti = QTableWidget(0, 2)
+        self.tab_comuni_recenti.setHorizontalHeaderLabels(["Comune", "Provincia"])
+        self.tab_comuni_recenti.horizontalHeader().setSectionResizeMode(0, QHeaderView.ResizeMode.Stretch)
+        self.tab_comuni_recenti.horizontalHeader().setSectionResizeMode(1, QHeaderView.ResizeMode.ResizeToContents)
+        self.tab_comuni_recenti.setEditTriggers(QAbstractItemView.EditTrigger.NoEditTriggers)
+        self.tab_comuni_recenti.verticalHeader().setVisible(False)
+        self.recenti_tabs.addTab(self.tab_comuni_recenti, "Comuni")
+
+        self.tab_partite_recenti = QTableWidget(0, 2)
+        self.tab_partite_recenti.setHorizontalHeaderLabels(["N. Partita", "Comune"])
+        self.tab_partite_recenti.horizontalHeader().setSectionResizeMode(0, QHeaderView.ResizeMode.ResizeToContents)
+        self.tab_partite_recenti.horizontalHeader().setSectionResizeMode(1, QHeaderView.ResizeMode.Stretch)
+        self.tab_partite_recenti.setEditTriggers(QAbstractItemView.EditTrigger.NoEditTriggers)
+        self.tab_partite_recenti.verticalHeader().setVisible(False)
+        self.recenti_tabs.addTab(self.tab_partite_recenti, "Partite")
+
+        self.tab_possessori_recenti = QTableWidget(0, 2)
+        self.tab_possessori_recenti.setHorizontalHeaderLabels(["Cognome/Nome", "Nome Completo"])
+        self.tab_possessori_recenti.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeMode.Stretch)
+        self.tab_possessori_recenti.setEditTriggers(QAbstractItemView.EditTrigger.NoEditTriggers)
+        self.tab_possessori_recenti.verticalHeader().setVisible(False)
+        self.recenti_tabs.addTab(self.tab_possessori_recenti, "Possessori")
+
+        recenti_layout.addWidget(self.recenti_tabs)
+        main_layout.addWidget(recenti_group)
+
+        # 5. Attività Recenti e Azioni Rapide
         bottom_layout = QHBoxLayout()
         
         recent_activity_group = QGroupBox("Attività Utenti Recenti") # Titolo più appropriato
@@ -7258,6 +7424,8 @@ class DashboardWidget(QWidget):
 
         self.audit_table.setEditTriggers(QAbstractItemView.EditTrigger.NoEditTriggers)
         self.audit_table.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeMode.Stretch)
+        self.audit_table.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
+        self.audit_table.customContextMenuRequested.connect(self._apri_menu_audit_dashboard)
         recent_activity_layout.addWidget(self.audit_table)
         bottom_layout.addWidget(recent_activity_group, 2)
 
@@ -7287,6 +7455,16 @@ class DashboardWidget(QWidget):
         
         actions_layout.addWidget(btn_new_prop); actions_layout.addWidget(btn_new_partita); actions_layout.addWidget(btn_new_consult) ; actions_layout.addWidget(btn_reports)
         actions_layout.addStretch()
+
+        # Mini-card stato backup
+        self.backup_status_label = QLabel("Backup: nessun dato")
+        self.backup_status_label.setWordWrap(True)
+        self.backup_status_label.setStyleSheet(
+            "QLabel { background: #F0F4F8; border: 1px solid #D0D8E4; border-radius: 6px; "
+            "padding: 6px 10px; font-size: 11px; color: #555; }"
+        )
+        actions_layout.addWidget(self.backup_status_label)
+
         bottom_layout.addWidget(actions_group, 1)
 
         main_layout.addLayout(bottom_layout, 1) # Stretch factor per la parte inferiore
@@ -7333,16 +7511,86 @@ class DashboardWidget(QWidget):
             
         self.audit_table.resizeColumnsToContents()
 
+        # Ultimi inserimenti
+        try:
+            ultimi = self.db_manager.get_ultimi_inserimenti_dashboard(limit=3)
+            comuni = ultimi.get("comuni", [])
+            self.tab_comuni_recenti.setRowCount(len(comuni))
+            for i, c in enumerate(comuni):
+                self.tab_comuni_recenti.setItem(i, 0, QTableWidgetItem(c.get("nome", "")))
+                self.tab_comuni_recenti.setItem(i, 1, QTableWidgetItem(c.get("provincia", "")))
+            partite = ultimi.get("partite", [])
+            self.tab_partite_recenti.setRowCount(len(partite))
+            for i, p in enumerate(partite):
+                self.tab_partite_recenti.setItem(i, 0, QTableWidgetItem(str(p.get("numero_partita", ""))))
+                self.tab_partite_recenti.setItem(i, 1, QTableWidgetItem(p.get("comune", "")))
+            possessori = ultimi.get("possessori", [])
+            self.tab_possessori_recenti.setRowCount(len(possessori))
+            for i, pos in enumerate(possessori):
+                self.tab_possessori_recenti.setItem(i, 0, QTableWidgetItem(pos.get("cognome_nome", "")))
+                self.tab_possessori_recenti.setItem(i, 1, QTableWidgetItem(pos.get("nome_completo", "")))
+        except Exception as e:
+            self.logger.warning(f"Errore caricamento ultimi inserimenti: {e}")
+
+        # Stato backup (legge da QSettings)
+        try:
+            from PyQt6.QtCore import QSettings
+            settings = QSettings()
+            last_backup = settings.value("Backup/LastBackupDate", "")
+            if last_backup:
+                from datetime import datetime as _dt2, timedelta
+                try:
+                    backup_dt = _dt2.fromisoformat(last_backup)
+                    days_ago = (_dt2.now() - backup_dt).days
+                    if days_ago == 0:
+                        color, testo = "#27AE60", f"Backup: oggi ({backup_dt.strftime('%H:%M')})"
+                    elif days_ago <= 7:
+                        color, testo = "#E67E22", f"Backup: {days_ago} giorni fa"
+                    else:
+                        color, testo = "#E74C3C", f"⚠ Backup: {days_ago} giorni fa — consigliato!"
+                    self.backup_status_label.setText(testo)
+                    self.backup_status_label.setStyleSheet(
+                        f"QLabel {{ background: #F0F4F8; border: 1px solid {color}; border-radius: 6px; "
+                        f"padding: 6px 10px; font-size: 11px; color: {color}; font-weight: bold; }}"
+                    )
+                except Exception:
+                    pass
+        except Exception:
+            pass
+
     def _avvia_ricerca_globale(self):
         """Emette un segnale per passare al tab di ricerca globale e inserire il testo."""
         testo_ricerca = self.search_edit.text().strip()
         if not testo_ricerca:
             return
-            
-        # --- INIZIO MODIFICA ---
-        # Sostituisci la vecchia logica con una singola riga che emette il segnale
         self.ricerca_globale_richiesta.emit(testo_ricerca)
-        # --- FINE MODIFICA ---
+
+    def _apri_menu_audit_dashboard(self, position: QPoint):
+        """Context menu sulla tabella attività recenti della dashboard."""
+        index = self.audit_table.indexAt(position)
+        if not index.isValid():
+            return
+        row = index.row()
+        utente_item = self.audit_table.item(row, 1)
+        azione_item = self.audit_table.item(row, 2)
+        ip_item = self.audit_table.item(row, 4)
+        utente = utente_item.text() if utente_item else ""
+        azione = azione_item.text() if azione_item else ""
+        ip = ip_item.text() if ip_item else ""
+
+        menu = QMenu(self.audit_table)
+        if utente:
+            menu.addAction(f"Copia utente  ({utente})").triggered.connect(
+                lambda: QApplication.clipboard().setText(utente))
+        if azione:
+            menu.addAction(f"Copia azione  ({azione})").triggered.connect(
+                lambda: QApplication.clipboard().setText(azione))
+        if ip:
+            menu.addAction(f"Copia IP  ({ip})").triggered.connect(
+                lambda: QApplication.clipboard().setText(ip))
+        menu.exec(self.audit_table.viewport().mapToGlobal(position))
+
+
 class WelcomeScreen(QDialog):
     def __init__(self, parent=None, logo_path: str = None, help_url: str = None):
         super().__init__(parent)

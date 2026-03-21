@@ -337,3 +337,56 @@ QRadioButton::indicator:checked {
     background-color: #2563EB;
     border: 2px solid #2563EB;
 }
+/* ── v1.5 Navigation (TopBar + Sidebar) ── */
+#topBar {
+    background: #ECEFF1;
+    border-bottom: 1px solid #B0BEC5;
+    min-height: 48px;
+    max-height: 48px;
+}
+#appTitle { font-size: 15px; font-weight: bold; color: #263238; }
+#dbIndicator { font-size: 11px; color: #546E7A; }
+#userLabel { font-size: 12px; color: #263238; }
+#roleChip { border-radius: 4px; padding: 2px 8px; font-size: 11px; font-weight: bold; }
+#roleChip[role="admin"]        { background: #FFEBEE; color: #B71C1C; }
+#roleChip[role="archivista"]   { background: #E8EAF6; color: #283593; }
+#roleChip[role="consultatore"] { background: #ECEFF1; color: #546E7A; }
+#logoutButton {
+    background: transparent;
+    border: 1px solid #B0BEC5;
+    color: #263238;
+    border-radius: 4px;
+    padding: 4px 12px;
+}
+#logoutButton:hover { background: #CFD8DC; }
+#sidebar {
+    background: #F5F5F5;
+    border-right: 1px solid #B0BEC5;
+    min-width: 220px;
+    max-width: 220px;
+}
+#sectionLabel {
+    color: #78909C;
+    font-size: 10px;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    padding: 12px 16px 4px;
+}
+QPushButton#navButton {
+    text-align: left;
+    padding: 8px 16px;
+    margin: 1px 8px;
+    background: transparent;
+    border: none;
+    border-radius: 6px;
+    color: #37474F;
+    font-size: 13px;
+}
+QPushButton#navButton:hover { background: #CFD8DC; }
+QPushButton#navButton[active="true"] {
+    background: #E8EAF6;
+    color: #283593;
+    font-weight: bold;
+    border-left: 3px solid #546E7A;
+}
+QStackedWidget { background: #F8F9FA; }

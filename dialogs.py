@@ -6898,7 +6898,7 @@ class SMTPSettingsDialog(QDialog):
         self.port_spin = QSpinBox()
         self.port_spin.setRange(1, 65535)
         self.port_spin.setValue(587)
-        self.port_spin.setFixedWidth(80)
+        self.port_spin.setMinimumWidth(80)
         self.tls_check = QCheckBox("Usa TLS (STARTTLS)")
         self.tls_check.setChecked(True)
         porta_layout.addWidget(self.port_spin)

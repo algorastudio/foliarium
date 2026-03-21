@@ -4188,6 +4188,34 @@ class CatastoDBManager:
         except Exception as e:
             self.logger.error(f"Errore durante il recupero delle statistiche per la dashboard: {e}", exc_info=True)
             return stats # Restituisce il dizionario con gli zeri in caso di errore
+    def get_ultimi_inserimenti_dashboard(self, limit: int = 3) -> Dict[str, List[Dict]]:
+        """Recupera gli ultimi N record inseriti per comuni, partite e possessori."""
+        result = {"comuni": [], "partite": [], "possessori": []}
+        try:
+            with self._get_connection() as conn:
+                with conn.cursor(cursor_factory=DictCursor) as cur:
+                    cur.execute(
+                        f"SELECT nome, provincia FROM {self.schema}.comune ORDER BY id DESC LIMIT %s",
+                        (limit,)
+                    )
+                    result["comuni"] = [dict(r) for r in cur.fetchall()]
+                    cur.execute(
+                        f"""SELECT p.numero_partita, c.nome AS comune
+                            FROM {self.schema}.partita p
+                            JOIN {self.schema}.comune c ON p.comune_id = c.id
+                            ORDER BY p.id DESC LIMIT %s""",
+                        (limit,)
+                    )
+                    result["partite"] = [dict(r) for r in cur.fetchall()]
+                    cur.execute(
+                        f"SELECT cognome_nome, nome_completo FROM {self.schema}.possessore ORDER BY id DESC LIMIT %s",
+                        (limit,)
+                    )
+                    result["possessori"] = [dict(r) for r in cur.fetchall()]
+        except Exception as e:
+            self.logger.warning(f"get_ultimi_inserimenti_dashboard: {e}")
+        return result
+
     def update_last_mv_refresh_timestamp(self):
         """Aggiorna il timestamp dell'ultimo refresh delle viste al tempo attuale (UTC)."""
         # Usiamo un "UPSERT" per inserire la chiave se non esiste, o aggiornarla se esiste.
