@@ -1,5 +1,61 @@
 # Changelog
 
+## v1.5.0 — Marzo 2026
+
+### Rebrand: Meridiana → Foliarium
+- Rinominati tutti i file risorsa (`logo_foliarium.svg`, `icona_foliarium.ico`, `foliarium_styles.qss`, `foliarium.spec`, ecc.)
+- Aggiornati tutti i riferimenti al nome in sorgenti Python, stili QSS, installer Inno Setup, pipeline CI/CD, documentazione (>45 occorrenze)
+- Nuovi logo ad alta risoluzione (`Logo_foliarium_1.png`, `Logo_foliarium_2.png`)
+- Keyring DB: `meridiana_db_*` → `foliarium_db_*`; log di sessione: `foliarium_session.log`
+
+### Splash screen all'avvio
+- `FoliariumSplashScreen` mostrata prima del login con logo e branding aggiornato
+- Fix: rimosso `WindowStaysOnTopHint` che bloccava EULA e login; chiusura automatica dopo 2,5 s
+- Saltata in ambiente CI/test
+
+### Enterprise — Setup e distribuzione
+- `setup/setup-database.ps1`: script PowerShell per inizializzare il DB su Windows (verifica PostgreSQL, esegue SQL scripts in ordine, salva credenziali in Windows Credential Manager)
+- `update_checker.py`: `UpdateCheckerWorker(QThread)` controlla GitHub Releases in background (timeout 5 s); segnali `update_available`, `up_to_date`, `check_failed`
+- Dialog aggiornamento con 3 pulsanti: *Scarica aggiornamento*, *Salta questa versione*, *Ricordamelo dopo*; release notes GitHub in `QTextBrowser`
+- Menu *Help → Controlla aggiornamenti...* (manuale) e *Controlla aggiornamenti all'avvio* (checkbox, persiste in `QSettings`)
+- Nuove costanti `config.py`: `SETTINGS_UPDATE_AUTO_CHECK`, `SETTINGS_UPDATE_SKIPPED_VER`
+
+### Temi — Supporto completo sidebar/top bar
+- Stili `#topBar`, `#sidebar`, `QPushButton#navButton` (con `:hover` e `[active="true"]`) aggiunti a tutti e 16 i temi QSS
+- Colori adattati coerentemente a ogni palette (light, dark, high contrast)
+
+### Dashboard arricchita
+- Nuova sezione **Ultimi Inserimenti** con `QTabWidget` (3 tab: Comuni / Partite / Possessori) alimentata da `get_ultimi_inserimenti_dashboard()` in `catasto_db_manager.py`
+- Mini-card **Stato Backup** con colore dinamico (verde / arancio / rosso) in base alla data dell'ultimo backup
+
+### Context menu (tasto destro) — tabelle aggiuntive
+- `GestioneUtentiWidget.user_table`: Modifica, Reset password, Copia username / nome / email
+- `AuditLogViewerWidget.log_table`: Copia ID / utente / azione / IP, Copia riga intera
+- `StatisticheWidget.stats_comune_table`: Copia comune / provincia, Copia riga
+- `StatisticheWidget.immobili_table`: Copia comune / classificazione, Copia riga
+- `DashboardWidget.audit_table`: Copia utente / azione / IP
+
+### Fix accessibilità temi
+- `SMTPSettingsDialog`: `setFixedWidth(80)` → `setMinimumWidth(80)` (HiDPI)
+
+### Script dati di test
+- `genera_dati_test.py`: popola il DB con 13 scenari workflow realistici (vendite, successioni, frazionamenti, donazioni, permute, ecc.), 6 comuni, 26 località, 13 possessori, 4 utenti, sessioni e consultazioni
+- Opzioni `--no-reset` e `--no-confirm`; variabili d'ambiente DB standard
+
+---
+
+## v1.4.7.0 — Marzo 2026
+
+### Redesign UI — Sidebar verticale + Top Bar
+- Navigazione a `QTabWidget` annidati (3 livelli) sostituita con sidebar verticale stile VS Code + `QStackedWidget` flat
+- **`TopBarWidget`**: barra fissa h=48px con logo SVG, titolo, indicatore DB, nome utente, chip ruolo, pulsante Logout
+- **`SidebarWidget`**: pannello w=220px scrollabile; sezioni ARCHIVIO / INSERIMENTO / ANALISI / SISTEMA; bottoni visibili in base al ruolo; stile attivo dinamico
+- Navigazione principale via `navigate_to(page_name)`; `activate_tab_and_sub_tab()` mantenuto come wrapper di compatibilità
+- Shortcut `Ctrl+1..N` rimappati alla lista flat sidebar
+- Stili QSS dedicati: `#topBar`, `#sidebar`, `QPushButton#navButton` con stati `:hover` e `[active="true"]`
+
+---
+
 ## v1.4.6.0 — Marzo 2026
 
 ### Miglioramenti UI/UX
