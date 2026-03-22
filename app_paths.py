@@ -107,28 +107,23 @@ def load_stylesheet(filename: str) -> str:
         logger.error(f"Impossibile caricare il file di stile '{filename}': {e}")
         return ""
 
-def get_logo_path() -> Path:
-    """Ritorna il percorso del file del logo (PNG, fallback)."""
-    for name in ("Logo_foliarium_1.png", "logo_meridiana.png"):
+def get_logo_path() -> Path | None:
+    """Ritorna il percorso del file del logo Foliarium (PNG), o None se non trovato."""
+    for name in ("Logo_foliarium_1.png", "logo_foliarium.png"):
         p = get_resource_path(name)
         if p.exists():
             return p
-    return get_resource_path("logo_meridiana.png")
+    return None
 
-def get_logo_svg_path(dark: bool = False) -> Path:
-    """Ritorna il percorso SVG del logo per rendering HiDPI nitido.
+def get_logo_svg_path(dark: bool = False) -> Path | None:
+    """Ritorna il percorso SVG del logo Foliarium per rendering HiDPI nitido.
     dark=True seleziona la variante per tema scuro.
-    Se il file SVG non esiste, ritorna il PNG come fallback."""
-    if dark:
-        for name in ("foliarium_dark.svg", "meridiana_dark.svg"):
-            p = get_resource_path(name)
-            if p.exists():
-                return p
-    else:
-        for name in ("logo_foliarium.svg", "logo meridiana.svg"):
-            p = get_resource_path(name)
-            if p.exists():
-                return p
+    Ritorna None se la risorsa non esiste."""
+    names = ("foliarium_dark.svg",) if dark else ("logo_foliarium.svg",)
+    for name in names:
+        p = get_resource_path(name)
+        if p.exists():
+            return p
     return get_logo_path()
 
 def get_icon_path(icon_name: str) -> Path:

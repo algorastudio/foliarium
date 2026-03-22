@@ -34,7 +34,7 @@ except:
     font_small = ImageFont.load_default()
 
 # Aggiungi testi
-draw_banner.text((82, 50), "MERIDIANA", font=font_title, fill=WHITE, anchor="mm")
+draw_banner.text((82, 50), "FOLIARIUM", font=font_title, fill=WHITE, anchor="mm")
 draw_banner.text((82, 80), "1.3", font=font_title, fill=WHITE, anchor="mm")
 draw_banner.text((82, 120), "Gestionale", font=font_subtitle, fill=WHITE, anchor="mm")
 draw_banner.text((82, 140), "Catasto Storico", font=font_subtitle, fill=WHITE, anchor="mm")

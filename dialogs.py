@@ -302,7 +302,7 @@ class DBConfigDialog(QDialog):
             if config.get("save_password", False) and config.get("password"):
                 if keyring:
                     try:
-                        keyring.set_password(f"meridiana_db_{config['host']}", config['user'], config['password'])
+                        keyring.set_password(f"foliarium_db_{config['host']}", config['user'], config['password'])
                         self.logger.info("Password salvata nel keyring di sistema.")
                     except Exception as e:
                         self.logger.error(f"Impossibile salvare la password nel keyring: {e}")

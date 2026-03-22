@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-Script per acquisire screenshot dell'applicazione Meridiana in modalità headless.
+Script per acquisire screenshot dell'applicazione Foliarium in modalità headless.
 Viene eseguito nel CI di GitHub Actions dopo i test, produce immagini PNG
 caricate come artifact e consultabili direttamente su GitHub.
 """

@@ -20,6 +20,7 @@ from PyQt6.QtCore import (QSettings,
 
 from PyQt6.QtGui import (QCloseEvent, QDesktopServices, QAction, QActionGroup, QGuiApplication,
                          QKeySequence, QShortcut)
+from PyQt6.QtCore import QSize
 from PyQt6.QtWidgets import QGraphicsOpacityEffect
 
 from PyQt6.QtWidgets import (QApplication,

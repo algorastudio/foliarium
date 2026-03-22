@@ -154,5 +154,5 @@ class TestAppPaths:
 
     def test_get_resource_path_returns_path(self):
         from app_paths import get_resource_path
-        p = get_resource_path("logo_meridiana.png")
-        assert str(p).endswith("logo_meridiana.png")
+        p = get_resource_path("Logo_foliarium_1.png")
+        assert str(p).endswith("Logo_foliarium_1.png")

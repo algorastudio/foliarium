@@ -59,7 +59,7 @@ SETTINGS_SESSION_TIMEOUT = "Security/SessionTimeoutMinutes"  # default 15, 0 = d
 
 # --- Temi usati dall'auto-rilevamento dark/light del sistema operativo ---
 AUTO_THEME_DARK = "dark_mode_stylesheet.qss"
-AUTO_THEME_LIGHT = "meridiana_styles.qss"
+AUTO_THEME_LIGHT = "foliarium_styles.qss"
 
 # --- COSTANTI TABELLE INTERFACCIA ---
 COLONNE_POSSESSORI_DETTAGLI_NUM = 6
