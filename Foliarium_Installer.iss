@@ -24,7 +24,7 @@ DisableProgramGroupPage=yes
 ; Specifica dove salvare l'installer finale e come chiamarlo.
 OutputDir=Installer
 OutputBaseFilename=Foliarium_{#MyAppVersion}_Setup
-SetupIconFile=resources\icona_meridiana.ico
+SetupIconFile=resources\icona_foliarium.ico
 UninstallDisplayIcon={app}\{#MyAppExeName}
 Compression=lzma2/max
 SolidCompression=yes

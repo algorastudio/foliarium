@@ -46,7 +46,7 @@ exe = EXE(
     target_arch=None,
     codesign_identity=None,
     entitlements_file=None,
-    icon='resources/icona_meridiana.ico', # Imposta l'icona dell'applicazione
+    icon='resources/icona_foliarium.ico', # Imposta l'icona dell'applicazione
     # --- Metadati del File Eseguibile ---
     version='version.txt', # File di versione per informazioni dettagliate
     copyright='Copyright © Marco Santoro. In gentile concessione gratuita all\'Archivio di Stato di Savona.'
