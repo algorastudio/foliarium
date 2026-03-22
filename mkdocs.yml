@@ -11,7 +11,7 @@ theme:
     - navigation.sections
     - toc.integrate
     - search.highlight
-  logo: assets/logo_meridiana.png
+  logo: assets/logo_foliarium.png
 
 plugins:
   - search
