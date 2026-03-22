@@ -1,12 +1,10 @@
-
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-Interfaccia Grafica per Gestionale Catasto Storico
-=================================================
+Foliarium — Archivio Catastale Storico
+=======================================
 Autore: Marco Santoro
 Data: 18/05/2025
-Versione: 1.3
 """
 import sys,bcrypt
 from gui_widgets import UnifiedFuzzySearchWidget
@@ -17,10 +15,12 @@ from typing import Optional, Dict
 # Importazioni PyQt6
 from PyQt6.QtCore import (QSettings,
                           QStandardPaths, Qt, QTimer, QUrl,
-                          pyqtSlot, pyqtSignal, QCoreApplication)
+                          pyqtSlot, pyqtSignal, QCoreApplication,
+                          QPropertyAnimation, QEasingCurve)
 
 from PyQt6.QtGui import (QCloseEvent, QDesktopServices, QAction, QActionGroup, QGuiApplication,
                          QKeySequence, QShortcut)
+from PyQt6.QtWidgets import QGraphicsOpacityEffect
 
 from PyQt6.QtWidgets import (QApplication,
                              QDialog, QFileDialog, QFrame, QGridLayout,
@@ -57,12 +57,13 @@ import update_checker
 
 
 from config import (
-    APP_VERSION,
+    APP_VERSION, APP_NAME, APP_SUBTITLE,
     SETTINGS_DB_TYPE, SETTINGS_DB_HOST, SETTINGS_DB_PORT,
     SETTINGS_DB_NAME, SETTINGS_DB_USER, SETTINGS_DB_SCHEMA, SETTINGS_DB_PASSWORD,
     SETTINGS_UI_CURRENT_STYLE, SETTINGS_UI_AUTO_THEME, SETTINGS_UI_WIN11_STYLE,
     AUTO_THEME_DARK, AUTO_THEME_LIGHT,
     IS_TEST_ENV, SETTINGS_SESSION_TIMEOUT)
+from app_paths import get_icon_path
 
 try:
     from fpdf import FPDF
@@ -482,46 +483,46 @@ class SidebarWidget(QWidget):
         layout = self._nav_layout
         stretch = layout.takeAt(0)  # rimuovi stretch temporaneamente
 
-        def insert(lbl, page):
-            self._add_nav_button(layout, lbl, page)
+        def insert(lbl, page, icon=""):
+            self._add_nav_button(layout, lbl, page, icon)
 
         # Home
-        insert("🏠  Home", "home")
+        insert("Home", "home", "home")
 
         # ARCHIVIO
         self._add_section(layout, "ARCHIVIO")
-        insert("Comuni", "comuni")
-        insert("Ricerca Partite", "partite")
-        insert("Ricerca Immobili", "immobili")
-        insert("Ricerca Documenti", "documenti")
+        insert("Comuni", "comuni", "building")
+        insert("Ricerca Partite", "partite", "search")
+        insert("Ricerca Immobili", "immobili", "search")
+        insert("Ricerca Documenti", "documenti", "file-text")
         if fuzzy_available:
-            insert("Ricerca Globale", "fuzzy")
+            insert("Ricerca Globale", "fuzzy", "globe")
 
         # INSERIMENTO
         self._add_section(layout, "INSERIMENTO")
-        insert("Comune", "ins_comune")
-        insert("Possessore", "ins_possessore")
-        insert("Partita", "ins_partita")
-        insert("Località", "ins_localita")
-        insert("Reg. Proprietà", "reg_proprieta")
-        insert("Operazioni", "operazioni")
-        insert("Reg. Consultazione", "reg_consult")
+        insert("Comune", "ins_comune", "building")
+        insert("Possessore", "ins_possessore", "user")
+        insert("Partita", "ins_partita", "file-text")
+        insert("Località", "ins_localita", "map-pin")
+        insert("Reg. Proprietà", "reg_proprieta", "key")
+        insert("Operazioni", "operazioni", "settings")
+        insert("Reg. Consultazione", "reg_consult", "book")
         if is_admin:
-            insert("Tipi Località", "tipi_localita")
-            insert("Periodi Storici", "periodi")
+            insert("Tipi Località", "tipi_localita", "map-pin")
+            insert("Periodi Storici", "periodi", "clock")
 
         # ANALISI
         self._add_section(layout, "ANALISI")
-        insert("Esportazioni", "esportazioni")
-        insert("Report", "report")
-        insert("Statistiche", "statistiche")
+        insert("Esportazioni", "esportazioni", "download")
+        insert("Report", "report", "report")
+        insert("Statistiche", "statistiche", "bar-chart")
 
         # SISTEMA (admin only)
         if is_admin:
             self._add_section(layout, "SISTEMA")
-            insert("Utenti", "utenti")
-            insert("Audit Log", "audit")
-            insert("Backup", "backup")
+            insert("Utenti", "utenti", "users")
+            insert("Audit Log", "audit", "shield")
+            insert("Backup", "backup", "database")
 
         layout.addStretch()
 
@@ -531,7 +532,8 @@ class SidebarWidget(QWidget):
         lbl.setEnabled(False)
         layout.addWidget(lbl)
 
-    def _add_nav_button(self, layout: QVBoxLayout, label: str, page_name: str):
+    def _add_nav_button(self, layout: QVBoxLayout, label: str, page_name: str,
+                        icon_name: str = ""):
         btn = QPushButton(label)
         btn.setObjectName("navButton")
         btn.setFlat(True)
@@ -539,6 +541,12 @@ class SidebarWidget(QWidget):
         btn.setProperty("active", "false")
         btn.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
         btn.setMinimumHeight(36)
+        if icon_name:
+            icon_path = get_icon_path(icon_name)
+            if icon_path.exists():
+                from PyQt6.QtGui import QIcon
+                btn.setIcon(QIcon(str(icon_path)))
+                btn.setIconSize(QSize(18, 18))
         btn.clicked.connect(lambda _, p=page_name: self.page_requested.emit(p))
         self._buttons[page_name] = btn
         layout.addWidget(btn)
@@ -1205,13 +1213,52 @@ class CatastoMainWindow(QMainWindow):
             widget.comune_combo.setFocus()
 
     def navigate_to(self, page_name: str):
-        """Naviga alla pagina indicata aggiornando stack e sidebar."""
+        """Naviga alla pagina con transizione fade (80ms out + 100ms in)."""
         if page_name not in self._page_index:
             self.logger.warning(f"navigate_to: pagina '{page_name}' non trovata.")
             return
-        idx = self._page_index[page_name]
-        self.stack.setCurrentIndex(idx)
+        new_idx = self._page_index[page_name]
+        if self.stack.currentIndex() == new_idx:
+            return
+
         self.sidebar.set_active(page_name)
+
+        old_widget = self.stack.currentWidget()
+        if old_widget is None:
+            self.stack.setCurrentIndex(new_idx)
+            self._on_stack_changed(new_idx)
+            return
+
+        eff_out = QGraphicsOpacityEffect(old_widget)
+        old_widget.setGraphicsEffect(eff_out)
+
+        anim_out = QPropertyAnimation(eff_out, b"opacity", self)
+        anim_out.setDuration(70)
+        anim_out.setStartValue(1.0)
+        anim_out.setEndValue(0.0)
+        anim_out.setEasingCurve(QEasingCurve.Type.OutQuad)
+
+        def _do_switch():
+            old_widget.setGraphicsEffect(None)
+            self.stack.setCurrentIndex(new_idx)
+            self._on_stack_changed(new_idx)
+            new_widget = self.stack.currentWidget()
+            if new_widget is None:
+                return
+            eff_in = QGraphicsOpacityEffect(new_widget)
+            new_widget.setGraphicsEffect(eff_in)
+            anim_in = QPropertyAnimation(eff_in, b"opacity", self)
+            anim_in.setDuration(110)
+            anim_in.setStartValue(0.0)
+            anim_in.setEndValue(1.0)
+            anim_in.setEasingCurve(QEasingCurve.Type.InQuad)
+            anim_in.finished.connect(lambda: new_widget.setGraphicsEffect(None))
+            anim_in.start()
+            self._anim_in = anim_in
+
+        anim_out.finished.connect(_do_switch)
+        anim_out.start()
+        self._anim_out = anim_out
 
     def update_ui_based_on_role(self):
         """Controlla la visibilità dei bottoni sidebar in base al ruolo utente."""

@@ -109,15 +109,35 @@ def load_stylesheet(filename: str) -> str:
 
 def get_logo_path() -> Path:
     """Ritorna il percorso del file del logo (PNG, fallback)."""
+    for name in ("Logo_foliarium_1.png", "logo_meridiana.png"):
+        p = get_resource_path(name)
+        if p.exists():
+            return p
     return get_resource_path("logo_meridiana.png")
 
 def get_logo_svg_path(dark: bool = False) -> Path:
     """Ritorna il percorso SVG del logo per rendering HiDPI nitido.
     dark=True seleziona la variante per tema scuro.
     Se il file SVG non esiste, ritorna il PNG come fallback."""
-    svg_name = "meridiana_dark.svg" if dark else "logo meridiana.svg"
-    svg_path = get_resource_path(svg_name)
-    return svg_path if svg_path.exists() else get_logo_path()
+    if dark:
+        for name in ("foliarium_dark.svg", "meridiana_dark.svg"):
+            p = get_resource_path(name)
+            if p.exists():
+                return p
+    else:
+        for name in ("logo_foliarium.svg", "logo meridiana.svg"):
+            p = get_resource_path(name)
+            if p.exists():
+                return p
+    return get_logo_path()
+
+def get_icon_path(icon_name: str) -> Path:
+    """Ritorna il percorso di un'icona SVG dalla cartella resources/icons/.
+    Esempio: get_icon_path('home') -> resources/icons/home.svg
+    """
+    icon_dir = RESOURCES_DIR / "icons"
+    path = icon_dir / f"{icon_name}.svg"
+    return path if path.exists() else icon_dir / f"{icon_name}.png"
 
 def get_doc_path(relative_path: str = "") -> Path:
     """

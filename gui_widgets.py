@@ -58,7 +58,7 @@ if TYPE_CHECKING:
     from catasto_db_manager import CatastoDBManager # Se serve anche per type hint
 
 # In gui_widgets.py, dopo le importazioni PyQt e standard:
-from custom_widgets import QPasswordLineEdit, LazyLoadedWidget
+from custom_widgets import QPasswordLineEdit, LazyLoadedWidget, StatCard
 from dialogs import (DBConfigDialog,DocumentViewerDialog, ModificaPossessoreDialog, PartiteComuneDialog, ModificaImmobileDialog,
                     PossessoriComuneDialog, LocalitaSelectionDialog, ModificaComuneDialog,PeriodoStoricoDetailsDialog,
                     PartitaDetailsDialog,CreateUserDialog)
@@ -7366,15 +7366,16 @@ class DashboardWidget(QWidget):
         search_layout.addWidget(self.search_edit); search_layout.addWidget(self.search_button)
         main_layout.addWidget(search_group)
 
-        # 3. Statistiche Rapide
+        # 3. Statistiche Rapide — StatCard pittate
         stats_layout = QHBoxLayout()
-        stats_layout.setSpacing(20)
-        self.stat_comuni_label = self._create_stat_card("Comuni", "0", "background-color: #e6f7ff; border-color: #91d5ff;")
-        self.stat_partite_label = self._create_stat_card("Partite", "0", "background-color: #f6ffed; border-color: #b7eb8f;")
-        self.stat_possessori_label = self._create_stat_card("Possessori", "0", "background-color: #fffbe6; border-color: #ffe58f;")
-        self.stat_immobili_label = self._create_stat_card("Immobili", "0", "background-color: #fff1f0; border-color: #ffccc7;")
-        stats_layout.addWidget(self.stat_comuni_label); stats_layout.addWidget(self.stat_partite_label)
-        stats_layout.addWidget(self.stat_possessori_label); stats_layout.addWidget(self.stat_immobili_label)
+        stats_layout.setSpacing(16)
+        self.stat_comuni_card    = StatCard("Comuni",     "#3F51B5")
+        self.stat_partite_card   = StatCard("Partite",    "#00897B")
+        self.stat_possessori_card = StatCard("Possessori", "#F57C00")
+        self.stat_immobili_card  = StatCard("Immobili",   "#C62828")
+        for card in (self.stat_comuni_card, self.stat_partite_card,
+                     self.stat_possessori_card, self.stat_immobili_card):
+            stats_layout.addWidget(card)
         main_layout.addLayout(stats_layout)
 
         # 4. Ultimi Inserimenti
@@ -7469,12 +7470,6 @@ class DashboardWidget(QWidget):
 
         main_layout.addLayout(bottom_layout, 1) # Stretch factor per la parte inferiore
         
-    def _create_stat_card(self, title, value, style):
-        card = QLabel(f"<h3>{title}</h3><p style='font-size: 24pt; font-weight: bold;'>{value}</p>")
-        card.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        card.setStyleSheet(f"QLabel {{ border: 1px solid; border-radius: 8px; padding: 10px; {style} }}")
-        card.setMinimumHeight(100)
-        return card
 
     # In gui_widgets.py, nel metodo DashboardWidget.load_initial_data
 
@@ -7483,10 +7478,10 @@ class DashboardWidget(QWidget):
         self.logger.info("Caricamento dati per la Dashboard...")
         # La parte delle statistiche rimane invariata
         stats = self.db_manager.get_dashboard_stats()
-        self.stat_comuni_label.setText(f"<h3>Comuni</h3><p style='font-size: 24pt; font-weight: bold;'>{stats.get('total_comuni', 0)}</p>")
-        self.stat_partite_label.setText(f"<h3>Partite</h3><p style='font-size: 24pt; font-weight: bold;'>{stats.get('total_partite', 0)}</p>")
-        self.stat_possessori_label.setText(f"<h3>Possessori</h3><p style='font-size: 24pt; font-weight: bold;'>{stats.get('total_possessori', 0)}</p>")
-        self.stat_immobili_label.setText(f"<h3>Immobili</h3><p style='font-size: 24pt; font-weight: bold;'>{stats.get('total_immobili', 0)}</p>")
+        self.stat_comuni_card.setValue(stats.get('total_comuni', 0))
+        self.stat_partite_card.setValue(stats.get('total_partite', 0))
+        self.stat_possessori_card.setValue(stats.get('total_possessori', 0))
+        self.stat_immobili_card.setValue(stats.get('total_immobili', 0))
 
         # Carica gli ultimi log di sessione
         session_logs = self.db_manager.get_recent_session_logs(limit=5)
