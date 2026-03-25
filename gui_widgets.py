@@ -7755,6 +7755,12 @@ class WelcomeScreen(QDialog):
         self.continue_btn.setMinimumHeight(36)
         self.continue_btn.setMinimumWidth(110)
         self.continue_btn.setEnabled(False)
+        self.continue_btn.setStyleSheet(
+            "QPushButton { background-color: #3F51B5; color: #FFFFFF; border: none;"
+            " border-radius: 4px; padding: 6px 16px; font-weight: bold; }"
+            "QPushButton:hover { background-color: #5C6BC0; }"
+            "QPushButton:disabled { background-color: #C5CAE9; color: #9FA8DA; }"
+        )
         self.continue_btn.clicked.connect(self._on_continue)
         btn_row.addWidget(self.continue_btn)
 
