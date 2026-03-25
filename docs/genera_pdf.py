@@ -77,7 +77,7 @@ class ManualePDF(FPDF):
         self.set_y(-15)
         self.set_font("Arial", "I", 7)
         self.set_text_color(160, 160, 160)
-        self.cell(0, 10, "Archivio di Stato di Savona  |  Marco Santoro", align="C")
+        self.cell(0, 10, "Algora Studio", align="C")
         self.set_text_color(0, 0, 0)
 
 
@@ -152,7 +152,7 @@ def write_cover(pdf: ManualePDF):
     pdf.set_font("Arial", "I", 9)
     pdf.set_text_color(200, 210, 230)
     pdf.cell(0, 6, "Marco Santoro", align="C", new_x="LMARGIN", new_y="NEXT")
-    pdf.cell(0, 6, "Archivio di Stato di Savona", align="C", new_x="LMARGIN", new_y="NEXT")
+    pdf.cell(0, 6, "Algora Studio", align="C", new_x="LMARGIN", new_y="NEXT")
 
     pdf.set_text_color(0, 0, 0)
 

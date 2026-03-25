@@ -1,8 +1,8 @@
-# Introduzione a Meridiana
+# Introduzione a Foliarium
 
-## Cos'è Meridiana
+## Cos'è Foliarium
 
-**Meridiana** è un'applicazione desktop sviluppata appositamente per l'Archivio di Stato di Savona per la gestione digitale del patrimonio documentale catastale storico. Permette di:
+**Foliarium** è un'applicazione desktop sviluppata da Algora Studio per la gestione digitale del patrimonio documentale catastale storico. Permette di:
 
 - Consultare e ricercare partite catastali, possessori e immobili storici
 - Inserire nuovi record nel rispetto della struttura archivistica originale
@@ -15,7 +15,7 @@
 
 ## Architettura del sistema
 
-Meridiana è composta da tre livelli:
+Foliarium è composta da tre livelli:
 
 ```
 ┌─────────────────────────────────┐

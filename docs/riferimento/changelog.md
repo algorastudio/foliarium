@@ -2,7 +2,7 @@
 
 ## v1.5.0 — Marzo 2026
 
-### Rebrand: Meridiana → Foliarium
+### Rebrand: Foliarium → Foliarium
 - Rinominati tutti i file risorsa (`logo_foliarium.svg`, `icona_foliarium.ico`, `foliarium_styles.qss`, `foliarium.spec`, ecc.)
 - Aggiornati tutti i riferimenti al nome in sorgenti Python, stili QSS, installer Inno Setup, pipeline CI/CD, documentazione (>45 occorrenze)
 - Nuovi logo ad alta risoluzione (`Logo_foliarium_1.png`, `Logo_foliarium_2.png`)

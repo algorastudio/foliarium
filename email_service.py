@@ -29,7 +29,7 @@ from config import (
 
 logger = logging.getLogger("CatastoGUI.email_service")
 
-_FOOTER = "\n\n--\nSistema Foliarium · Archivio di Stato di Savona"
+_FOOTER = "\n\n--\nSistema Foliarium · Algora Studio"
 
 
 class EmailService:

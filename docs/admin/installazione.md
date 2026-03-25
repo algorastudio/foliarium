@@ -36,11 +36,11 @@ openpyxl==3.1.5
 
 ## Installazione tramite installer (Windows)
 
-1. Eseguire **Meridiana_Setup_v1.4.exe** come amministratore
+1. Eseguire **Foliarium_Setup_v1.5exe** come amministratore
 2. Seguire la procedura guidata
 3. Al termine, configurare la connessione al database (vedi sezione successiva)
 
-> 📸 **Screenshot:** Procedura guidata di installazione Meridiana con barra di avanzamento.
+> 📸 **Screenshot:** Procedura guidata di installazione Foliarium con barra di avanzamento.
 
 ---
 
@@ -91,7 +91,7 @@ In pgAdmin: *Tools → Query Tool*, aprire ciascun file ed eseguire.
 
 ### Configurazione credenziali
 
-Meridiana legge le credenziali del database dalle **variabili d'ambiente** di Windows:
+Foliarium legge le credenziali del database dalle **variabili d'ambiente** di Windows:
 
 | Variabile | Default | Descrizione |
 |---|---|---|
@@ -103,7 +103,7 @@ Meridiana legge le credenziali del database dalle **variabili d'ambiente** di Wi
 
 #### Impostazione variabili su Windows
 
-**Metodo 1: Dialog GUI di Meridiana**
+**Metodo 1: Dialog GUI di Foliarium**
 Andare in *Impostazioni → Configura Connessione Database* e inserire i dati nella finestra.
 
 **Metodo 2: Variabili d'ambiente di sistema**
@@ -148,7 +148,7 @@ New-ItemProperty -Path "HKLM:\SYSTEM\CurrentControlSet\Control\FileSystem" `
 
 ## Verifica dell'installazione
 
-Dopo la configurazione, avviare Meridiana e verificare:
+Dopo la configurazione, avviare Foliarium e verificare:
 
 1. Il login funziona correttamente
 2. La barra di stato mostra "Database: Connesso"
@@ -183,4 +183,4 @@ Per generare il file `.exe` con PyInstaller:
 pyinstaller meridiana.spec
 ```
 
-L'eseguibile viene generato in `dist/Meridiana/`. Per creare l'installer Windows usare **Inno Setup** con lo script `Meridiana_Installer.iss`.
+L'eseguibile viene generato in `dist/Foliarium/`. Per creare l'installer Windows usare **Inno Setup** con lo script `Foliarium_Installer.iss`.

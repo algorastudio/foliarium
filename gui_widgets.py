@@ -7587,103 +7587,200 @@ class DashboardWidget(QWidget):
 
 
 class WelcomeScreen(QDialog):
-    def __init__(self, parent=None, logo_path: str = None, help_url: str = None):
+    """Splash/EULA screen mostrata all'avvio se la EULA non è ancora stata accettata.
+    Layout split: pannello sinistro (branding Indigo) + pannello destro (EULA + accettazione).
+    """
+
+    def __init__(self, parent=None):
         super().__init__(parent)
         self.logger = logging.getLogger(f"CatastoGUI.{self.__class__.__name__}")
-        self.setWindowTitle("Benvenuto - Foliarium")
+        self.setWindowTitle("Benvenuto in Foliarium — Accettazione Licenza")
         self.setModal(True)
-        self.setMinimumSize(800, 600)
-        self.resize(1024, 768)
-        self.setWindowFlags(Qt.WindowType.FramelessWindowHint | Qt.WindowType.WindowStaysOnTopHint)
+        self.setMinimumSize(900, 620)
+        self.resize(1060, 680)
+        self.setWindowFlags(Qt.WindowType.Dialog)
         self.setAttribute(Qt.WidgetAttribute.WA_DeleteOnClose)
-
-        self.help_url = help_url
-        self.logo_path = logo_path
-
         self._init_ui()
 
-    def _init_ui(self):
-        main_layout = QVBoxLayout(self)
-        main_layout.setContentsMargins(20, 20, 20, 20)
-        main_layout.setSpacing(15)
+    # ── UI ──────────────────────────────────────────────────────────────────
 
-        # --- NUOVA STRUTTURA DI LAYOUT PER CENTRATURA VERTICALE ---
-        # 1. Spaziatore superiore per spingere il contenuto verso il basso
-        main_layout.addStretch(1)
+    def _init_ui(self):
+        from app_paths import get_resource_path, get_logo_path
+        from config import APP_NAME, APP_SUBTITLE, EULA_VERSION
+
+        root = QHBoxLayout(self)
+        root.setContentsMargins(0, 0, 0, 0)
+        root.setSpacing(0)
+
+        # ── Pannello sinistro (branding) ────────────────────────────────────
+        left = QFrame()
+        left.setFixedWidth(320)
+        left.setStyleSheet("background-color: #3F51B5;")
+        left_layout = QVBoxLayout(left)
+        left_layout.setContentsMargins(28, 40, 28, 28)
+        left_layout.setSpacing(12)
 
         # Logo
-        logo_layout = QHBoxLayout()
-        logo_layout.addStretch(1)
-        if self.logo_path and os.path.exists(self.logo_path):
-            logo_path_str = str(self.logo_path)
+        logo_path = get_logo_path()
+        logo_path_str = str(logo_path)
+        if os.path.exists(logo_path_str):
             if logo_path_str.lower().endswith('.svg'):
                 try:
                     from PyQt6.QtSvgWidgets import QSvgWidget
-                    logo_widget = QSvgWidget(logo_path_str)
-                    # Mantieni le proporzioni naturali del SVG entro i limiti
-                    natural = logo_widget.renderer().defaultSize()
-                    if natural.isValid() and natural.height() > 0:
-                        ratio = natural.width() / natural.height()
-                        h = min(300, natural.height())
-                        w = min(int(h * ratio), 750)
-                        logo_widget.setMaximumSize(w, h)
-                    logo_layout.addWidget(logo_widget)
+                    logo_w = QSvgWidget(logo_path_str)
+                    logo_w.setFixedSize(100, 100)
+                    logo_w.setStyleSheet("background: transparent;")
+                    logo_layout = QHBoxLayout()
+                    logo_layout.addStretch()
+                    logo_layout.addWidget(logo_w)
+                    logo_layout.addStretch()
+                    left_layout.addLayout(logo_layout)
                 except ImportError:
-                    logo_label = QLabel()
-                    pixmap = QPixmap(logo_path_str)
-                    logo_label.setPixmap(pixmap.scaled(750, 300, Qt.AspectRatioMode.KeepAspectRatio, Qt.TransformationMode.SmoothTransformation))
-                    logo_layout.addWidget(logo_label)
+                    pass
             else:
-                logo_label = QLabel()
-                pixmap = QPixmap(logo_path_str)
-                logo_label.setPixmap(pixmap.scaled(750, 300, Qt.AspectRatioMode.KeepAspectRatio, Qt.TransformationMode.SmoothTransformation))
-                logo_layout.addWidget(logo_label)
-        logo_layout.addStretch(1)
-        main_layout.addLayout(logo_layout)
+                lbl = QLabel()
+                px = QPixmap(logo_path_str)
+                lbl.setPixmap(px.scaled(100, 100, Qt.AspectRatioMode.KeepAspectRatio,
+                                        Qt.TransformationMode.SmoothTransformation))
+                lbl.setAlignment(Qt.AlignmentFlag.AlignCenter)
+                lbl.setStyleSheet("background: transparent;")
+                left_layout.addWidget(lbl)
 
-        # Titolo e Sottotitolo
-        title_label = QLabel("Foliarium"); title_label.setFont(QFont("Segoe UI", 28, QFont.Weight.Bold)); title_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        main_layout.addWidget(title_label)
-        
-        subtitle_label = QLabel("Gestionale Catasto Storico - Archivio di Stato di Savona"); subtitle_label.setFont(QFont("Segoe UI", 14)); subtitle_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        main_layout.addWidget(subtitle_label)
+        left_layout.addSpacing(16)
 
-        # Crediti
-        credits_label = QLabel("Sviluppato da: Marco Santoro\nCopyright © 2025 - Tutti i diritti riservati\nConcesso in comodato d'uso gratuito all'Archivio di Stato di Savona"); credits_label.setFont(QFont("Segoe UI", 9)); credits_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        credits_label.setStyleSheet("color: #6c757d;")
-        main_layout.addWidget(credits_label)
-        main_layout.addSpacing(20)
+        app_lbl = QLabel(APP_NAME)
+        app_lbl.setFont(QFont("Segoe UI", 26, QFont.Weight.Bold))
+        app_lbl.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        app_lbl.setStyleSheet("color: #FFFFFF; background: transparent;")
+        left_layout.addWidget(app_lbl)
 
-        # Pulsante Guida
-        if self.help_url:
-            help_button = QPushButton("Apri Manuale Utente"); help_button.setFont(QFont("Segoe UI", 11)); help_button.setMinimumHeight(40)
-            help_button.clicked.connect(self._open_help_url)
-            help_button_layout = QHBoxLayout(); help_button_layout.addStretch(); help_button_layout.addWidget(help_button); help_button_layout.addStretch()
-            main_layout.addLayout(help_button_layout)
+        sub_lbl = QLabel(APP_SUBTITLE)
+        sub_lbl.setFont(QFont("Segoe UI", 11))
+        sub_lbl.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        sub_lbl.setWordWrap(True)
+        sub_lbl.setStyleSheet("color: #C5CAE9; background: transparent;")
+        left_layout.addWidget(sub_lbl)
 
-        # 2. Spaziatore inferiore per spingere il contenuto verso l'alto
-        main_layout.addStretch(1)
-        # --- FINE NUOVA STRUTTURA ---
+        left_layout.addStretch(1)
 
-        self.setLayout(main_layout)
+        separator = QFrame()
+        separator.setFrameShape(QFrame.Shape.HLine)
+        separator.setStyleSheet("color: #5C6BC0;")
+        left_layout.addWidget(separator)
 
-    def _open_help_url(self):
-        if not self.help_url: return
-        self.logger.info(f"Apertura del manuale richiesta: {self.help_url}")
-        # La logica che gestisce sia URL che file locali
-        if self.help_url.lower().startswith(('http://', 'https://')):
-            QDesktopServices.openUrl(QUrl(self.help_url))
-        elif os.path.exists(self.help_url):
-            QDesktopServices.openUrl(QUrl.fromLocalFile(self.help_url))
-        else:
-            QMessageBox.warning(self, "File Non Trovato", f"Il file della guida non è stato trovato:\n{self.help_url}")
+        algora_lbl = QLabel("Algora Studio")
+        algora_lbl.setFont(QFont("Segoe UI", 12, QFont.Weight.Bold))
+        algora_lbl.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        algora_lbl.setStyleSheet("color: #E8EAF6; background: transparent;")
+        left_layout.addWidget(algora_lbl)
 
-    def mousePressEvent(self, event):
-        # Chiude la finestra con un click, come richiesto
-        self.logger.info("Welcome Screen chiusa tramite click del mouse.")
-        self.accept()
+        copy_lbl = QLabel(f"© 2025 Algora Studio\nVersione {APP_VERSION}")
+        copy_lbl.setFont(QFont("Segoe UI", 9))
+        copy_lbl.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        copy_lbl.setStyleSheet("color: #9FA8DA; background: transparent;")
+        left_layout.addWidget(copy_lbl)
 
-    def keyPressEvent(self, event):
-        # Chiude la finestra con un tasto, come richiesto
-        self.logger.info(f"Welcome Screen chiusa tramite pressione del tasto: {event.key()}")
-        self.accept()
+        root.addWidget(left)
+
+        # ── Pannello destro (EULA) ──────────────────────────────────────────
+        right = QFrame()
+        right.setStyleSheet("background-color: #FFFFFF;")
+        right_layout = QVBoxLayout(right)
+        right_layout.setContentsMargins(32, 32, 32, 24)
+        right_layout.setSpacing(14)
+
+        title_lbl = QLabel("Contratto di Licenza")
+        title_lbl.setFont(QFont("Segoe UI", 16, QFont.Weight.Bold))
+        title_lbl.setStyleSheet("color: #3F51B5;")
+        right_layout.addWidget(title_lbl)
+
+        info_lbl = QLabel(
+            "Leggi attentamente il contratto di licenza prima di utilizzare Foliarium.\n"
+            "Devi accettare i termini per continuare."
+        )
+        info_lbl.setFont(QFont("Segoe UI", 9))
+        info_lbl.setStyleSheet("color: #757575;")
+        info_lbl.setWordWrap(True)
+        right_layout.addWidget(info_lbl)
+
+        # Testo EULA
+        self.eula_browser = QTextBrowser()
+        self.eula_browser.setReadOnly(True)
+        self.eula_browser.setFont(QFont("Consolas", 9))
+        self.eula_browser.setStyleSheet(
+            "border: 1px solid #C5CAE9; border-radius: 6px; "
+            "background: #F8F9FA; padding: 8px; color: #212121;"
+        )
+        eula_path = get_resource_path("EULA.txt")
+        try:
+            with open(str(eula_path), "r", encoding="utf-8") as f:
+                self.eula_browser.setPlainText(f.read())
+        except Exception:
+            self.eula_browser.setPlainText(
+                "Impossibile caricare il testo della licenza.\n"
+                "Contatta Algora Studio per una copia del contratto."
+            )
+        right_layout.addWidget(self.eula_browser, 1)
+
+        # Checkbox accettazione
+        self.accept_cb = QCheckBox(
+            "Ho letto e accetto i termini del Contratto di Licenza con l'Utente Finale (EULA)"
+        )
+        self.accept_cb.setFont(QFont("Segoe UI", 9, QFont.Weight.Bold))
+        self.accept_cb.setStyleSheet("color: #212121;")
+        self.accept_cb.toggled.connect(self._on_accept_toggled)
+        right_layout.addWidget(self.accept_cb)
+
+        # Pulsanti
+        btn_row = QHBoxLayout()
+        btn_row.setSpacing(10)
+
+        self.help_btn = QPushButton("Manuale Utente")
+        self.help_btn.setObjectName("secondaryButton")
+        self.help_btn.setMinimumHeight(36)
+        self.help_btn.setToolTip("Apri il manuale utente integrato")
+        self.help_btn.clicked.connect(self._open_help)
+        btn_row.addWidget(self.help_btn)
+
+        btn_row.addStretch()
+
+        self.cancel_btn = QPushButton("Annulla")
+        self.cancel_btn.setObjectName("secondaryButton")
+        self.cancel_btn.setMinimumHeight(36)
+        self.cancel_btn.setMinimumWidth(90)
+        self.cancel_btn.clicked.connect(self.reject)
+        btn_row.addWidget(self.cancel_btn)
+
+        self.continue_btn = QPushButton("Continua →")
+        self.continue_btn.setMinimumHeight(36)
+        self.continue_btn.setMinimumWidth(110)
+        self.continue_btn.setEnabled(False)
+        self.continue_btn.clicked.connect(self._on_continue)
+        btn_row.addWidget(self.continue_btn)
+
+        right_layout.addLayout(btn_row)
+        root.addWidget(right, 1)
+
+    # ── Handlers ────────────────────────────────────────────────────────────
+
+    def _on_accept_toggled(self, checked: bool):
+        self.continue_btn.setEnabled(checked)
+
+    def _on_continue(self):
+        if self.accept_cb.isChecked():
+            self.logger.info("EULA accettata dall'utente.")
+            self.accept()
+
+    def _open_help(self):
+        """Apre il manuale utente integrato (HelpViewerDialog se disponibile)."""
+        try:
+            from dialogs import HelpViewerDialog
+            dlg = HelpViewerDialog(self)
+            dlg.exec()
+        except Exception as e:
+            self.logger.warning(f"Impossibile aprire HelpViewerDialog: {e}")
+            QMessageBox.information(
+                self, "Manuale",
+                "Il manuale utente integrato non è disponibile in questo momento.\n"
+                "Consulta la documentazione fornita con il software."
+            )

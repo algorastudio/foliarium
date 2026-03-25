@@ -1,6 +1,6 @@
 # Esportazioni
 
-Il modulo **Esportazioni** di Meridiana permette di estrarre i dati dal database catastale in vari formati per consultazione offline, stampa istituzionale o rielaborazione in altri software.
+Il modulo **Esportazioni** di Foliarium permette di estrarre i dati dal database catastale in vari formati per consultazione offline, stampa istituzionale o rielaborazione in altri software.
 
 > 📸 **Screenshot:** Sezione Esportazioni con menu a tendina tipo esportazione, filtro comune e pulsanti formato.
 
@@ -80,16 +80,16 @@ Il pulsante **"Archivio Completo (.xlsx)"** genera un unico file Excel con **4 f
 > 📸 **Screenshot:** File Excel aperto con 4 tab in basso: Partite, Possessori, Immobili, Variazioni.
 
 !!! warning "Tempo di elaborazione"
-    L'esportazione dell'archivio completo può richiedere alcuni minuti su database di grandi dimensioni. Non chiudere Meridiana durante l'operazione.
+    L'esportazione dell'archivio completo può richiedere alcuni minuti su database di grandi dimensioni. Non chiudere Foliarium durante l'operazione.
 
 ---
 
 ## Cartella di salvataggio
 
-Per impostazione predefinita, Meridiana suggerisce di salvare i file nella cartella:
+Per impostazione predefinita, Foliarium suggerisce di salvare i file nella cartella:
 
 ```
-Documenti\Esportazioni Meridiana\
+Documenti\Esportazioni Foliarium\
 ```
 
 È comunque possibile scegliere una cartella diversa tramite la finestra di salvataggio standard di Windows.

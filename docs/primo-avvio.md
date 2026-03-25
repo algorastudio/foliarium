@@ -2,17 +2,17 @@
 
 ## Avvio dell'applicazione
 
-Per avviare Meridiana, fare doppio clic sull'icona **Meridiana.exe** sul desktop o nella cartella di installazione.
+Per avviare Foliarium, fare doppio clic sull'icona **Foliarium.exe** sul desktop o nella cartella di installazione.
 
-> 📸 **Screenshot:** Icona di Meridiana sul desktop di Windows.
+> 📸 **Screenshot:** Icona di Foliarium sul desktop di Windows.
 
 ---
 
 ## Schermata di benvenuto
 
-Al primo avvio (o dopo un lungo periodo di inattività) compare la schermata di benvenuto con il logo Meridiana e un breve messaggio introduttivo.
+Al primo avvio (o dopo un lungo periodo di inattività) compare la schermata di benvenuto con il logo Foliarium e un breve messaggio introduttivo.
 
-> 📸 **Screenshot:** Schermata di benvenuto con logo Meridiana e pulsante "Continua".
+> 📸 **Screenshot:** Schermata di benvenuto con logo Foliarium e pulsante "Continua".
 
 ---
 
@@ -29,7 +29,7 @@ Nella schermata di login inserire:
 
 ### Errori di connessione
 
-Se il database non è raggiungibile, Meridiana mostra una barra rossa nella parte superiore della finestra con il messaggio **"Modalità offline"**. In questa modalità è possibile consultare i dati in cache ma non eseguire modifiche.
+Se il database non è raggiungibile, Foliarium mostra una barra rossa nella parte superiore della finestra con il messaggio **"Modalità offline"**. In questa modalità è possibile consultare i dati in cache ma non eseguire modifiche.
 
 !!! warning "Modalità offline"
     In modalità offline le funzioni di inserimento, modifica ed esportazione aggiornata non sono disponibili. Contattare l'amministratore se il problema persiste.
@@ -38,7 +38,7 @@ Se il database non è raggiungibile, Meridiana mostra una barra rossa nella part
 
 ## Finestra principale
 
-Dopo il login viene mostrata la finestra principale di Meridiana.
+Dopo il login viene mostrata la finestra principale di Foliarium.
 
 > 📸 **Screenshot:** Finestra principale con toolbar superiore, barra laterale di navigazione e area contenuto centrale.
 
@@ -69,7 +69,7 @@ Le tab disponibili variano in base al **ruolo utente**:
 
 ## Selezione del tema grafico
 
-Meridiana include 16 temi grafici selezionabili dal menu **Impostazioni → Cambia Tema Grafico**.
+Foliarium include 16 temi grafici selezionabili dal menu **Impostazioni → Cambia Tema Grafico**.
 
 > 📸 **Screenshot:** Menu Impostazioni con sottomenu temi grafici espanso.
 
@@ -81,13 +81,13 @@ Meridiana include 16 temi grafici selezionabili dal menu **Impostazioni → Camb
 | **Stile Nativo Windows 11** | Usa lo stile nativo di Windows 11 (disponibile solo su Windows 11 con Qt 6.7+) |
 
 !!! info "Tema scuro su Windows"
-    Attivando il tema scuro in *Impostazioni di Windows → Personalizzazione → Colori*, Meridiana si adatta automaticamente se è attivo il "Tema Automatico".
+    Attivando il tema scuro in *Impostazioni di Windows → Personalizzazione → Colori*, Foliarium si adatta automaticamente se è attivo il "Tema Automatico".
 
 ---
 
 ## Timeout di sessione
 
-Per sicurezza, Meridiana disconnette automaticamente l'utente dopo un periodo di inattività.
+Per sicurezza, Foliarium disconnette automaticamente l'utente dopo un periodo di inattività.
 
 Quando la sessione sta per scadere compare un dialog di avviso con un countdown di 60 secondi:
 
@@ -103,7 +103,7 @@ Quando la sessione sta per scadere compare un dialog di avviso con un countdown 
 
 ## Chiusura dell'applicazione
 
-Per chiudere Meridiana usare:
+Per chiudere Foliarium usare:
 - Il pulsante **X** in alto a destra della finestra
 - Il menu **File → Esci**
 - La combinazione di tasti **Alt+F4**

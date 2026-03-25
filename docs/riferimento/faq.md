@@ -24,9 +24,9 @@ Le password sono memorizzate con hashing bcrypt e non sono recuperabili. Chieder
 
 ---
 
-### Meridiana si avvia in "Modalità offline" — cosa significa?
+### Foliarium si avvia in "Modalità offline" — cosa significa?
 
-Significa che Meridiana non riesce a raggiungere il database PostgreSQL. In questa modalità:
+Significa che Foliarium non riesce a raggiungere il database PostgreSQL. In questa modalità:
 - I dati in cache locale (ultima sessione) sono accessibili in sola lettura
 - Le funzioni di inserimento, modifica ed esportazione aggiornata sono disabilitate
 
@@ -42,7 +42,7 @@ Menu **Impostazioni → Cambia Tema Grafico** → selezionare uno dei 16 temi di
 
 ### Il tema non si aggiorna dopo il cambio
 
-Alcune modifiche al tema richiedono il riavvio dell'applicazione. Chiudere e riaprire Meridiana.
+Alcune modifiche al tema richiedono il riavvio dell'applicazione. Chiudere e riaprire Foliarium.
 
 ### Non vedo le tab "Gestione Utenti" e "Backup"
 
@@ -85,7 +85,7 @@ Il file `.xlsx` di destinazione è probabilmente aperto in Excel. Chiuderlo prim
 
 ## Performance
 
-### Meridiana è lenta ad avviarsi
+### Foliarium è lenta ad avviarsi
 
 Il primo avvio può richiedere più tempo per inizializzare la connessione al database. Se il problema persiste:
 - Verificare le prestazioni del server PostgreSQL
@@ -106,18 +106,18 @@ pip install "matplotlib>=3.9.0"
 
 Verificare che il file `meridiana.spec` sia aggiornato con tutti i data files e i hidden imports. Controllare il log di avvio in:
 ```
-%LOCALAPPDATA%\Meridiana\logs\
+%LOCALAPPDATA%\Foliarium\logs\
 ```
 
 ### L'installer Inno Setup non trova l'eseguibile
 
-Eseguire prima `pyinstaller meridiana.spec` e verificare che `dist/Meridiana/Meridiana.exe` esista prima di compilare l'installer.
+Eseguire prima `pyinstaller meridiana.spec` e verificare che `dist/Foliarium/Foliarium.exe` esista prima di compilare l'installer.
 
 ---
 
 ## Domande sul manuale
 
-### Dove trovo le istruzioni per installare Meridiana su un nuovo PC?
+### Dove trovo le istruzioni per installare Foliarium su un nuovo PC?
 
 Consultare la sezione [Installazione e Configurazione](../admin/installazione.md) nella Guida Amministratore.
 

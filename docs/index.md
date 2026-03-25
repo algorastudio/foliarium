@@ -1,8 +1,8 @@
-# Meridiana — Archivio Catastale Storico
+# Foliarium — Archivio Catastale Storico
 
-**Meridiana** è il sistema di gestione digitale dell'Archivio Catastale Storico dell'Archivio di Stato di Savona. Consente agli archivisti di consultare, inserire ed esportare le registrazioni storiche delle partite catastali e dei possessori in modo rapido e strutturato.
+**Foliarium** è il sistema di gestione digitale dell'Archivio Catastale Storico. Consente agli archivisti di consultare, inserire ed esportare le registrazioni storiche delle partite catastali e dei possessori in modo rapido e strutturato.
 
-> 📸 **Screenshot:** Schermata principale di Meridiana con dashboard e tab di navigazione.
+> 📸 **Screenshot:** Schermata principale di Foliarium con dashboard e tab di navigazione.
 
 ---
 
@@ -10,9 +10,9 @@
 
 | Campo | Valore |
 |---|---|
-| Versione | **1.4.6.0** |
+| Versione | **1.5.0** |
 | Data rilascio | Marzo 2026 |
-| Autore | Marco Santoro |
+| Sviluppatore | Algora Studio |
 | Piattaforma | Windows 10 / Windows 11 |
 
 ---
@@ -21,7 +21,7 @@
 
 | Sezione | Destinatari | Contenuto |
 |---|---|---|
-| [Introduzione](introduzione.md) | Tutti | Cos'è Meridiana, architettura, requisiti di sistema |
+| [Introduzione](introduzione.md) | Tutti | Cos'è Foliarium, architettura, requisiti di sistema |
 | [Primo Avvio](primo-avvio.md) | Tutti | Login, interfaccia, temi grafici |
 | [Guida Utente](consultazione.md) | Archivisti | Consultazione, inserimento, ricerca, report, statistiche, esportazioni |
 | [Guida Amministratore](admin/index.md) | Amministratori | Installazione, utenti, backup, import massivo |
@@ -33,14 +33,15 @@
 ## Avvio rapido
 
 ```
-1. Aprire Meridiana.exe (o python gui_main.py)
-2. Inserire le credenziali di accesso
-3. Selezionare il comune di riferimento dalla barra laterale
-4. Navigare tra le tab: Consultazione · Inserimento · Esportazioni
+1. Aprire Foliarium.exe (o python gui_main.py)
+2. Accettare la licenza EULA (solo al primo avvio)
+3. Inserire le credenziali di accesso
+4. Selezionare il comune di riferimento dalla barra laterale
+5. Navigare: Consultazione · Inserimento · Esportazioni
 ```
 
 ---
 
 ## Contatti e supporto
 
-Per segnalazioni tecniche o richieste di supporto rivolgersi all'amministratore di sistema dell'Archivio di Stato di Savona.
+Per segnalazioni tecniche o richieste di supporto commerciale: **info@algorastudio.it**

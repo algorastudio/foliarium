@@ -57,6 +57,10 @@ SETTINGS_EMAIL_ON_LOGIN  = "Email/OnLogin"    # default True
 # --- Sicurezza sessione ---
 SETTINGS_SESSION_TIMEOUT = "Security/SessionTimeoutMinutes"  # default 15, 0 = disabilitato
 
+# --- EULA / Licenza ---
+EULA_VERSION = "1.0"
+SETTINGS_EULA_ACCEPTED = "Legal/AcceptedEULAVersion"
+
 # --- Temi usati dall'auto-rilevamento dark/light del sistema operativo ---
 AUTO_THEME_DARK = "dark_mode_stylesheet.qss"
 AUTO_THEME_LIGHT = "foliarium_styles.qss"

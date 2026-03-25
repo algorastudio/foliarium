@@ -1,6 +1,6 @@
 # Backup e Ripristino
 
-La sezione **Backup** di Meridiana consente di eseguire backup del database catastale e di ripristinarlo in caso di necessità. È accessibile solo agli utenti con ruolo Amministratore.
+La sezione **Backup** di Foliarium consente di eseguire backup del database catastale e di ripristinarlo in caso di necessità. È accessibile solo agli utenti con ruolo Amministratore.
 
 > 📸 **Screenshot:** Sezione Backup con pulsanti Backup Manuale, Pianifica Backup, Ripristina, e log backup recenti.
 
@@ -16,7 +16,7 @@ La sezione **Backup** di Meridiana consente di eseguire backup del database cata
 3. Scegliere la cartella di destinazione (o confermare quella predefinita)
 4. Attendere il completamento
 
-Meridiana esegue un `pg_dump` del database e salva il file `.backup` con la data nel nome:
+Foliarium esegue un `pg_dump` del database e salva il file `.backup` con la data nel nome:
 
 ```
 meridiana_backup_2026-03-02_14-30-00.backup
@@ -31,7 +31,7 @@ meridiana_backup_2026-03-02_14-30-00.backup
 Il backup viene salvato nella cartella configurata nelle impostazioni. Il percorso predefinito è:
 
 ```
-C:\Users\[utente]\Documents\Meridiana Backup\
+C:\Users\[utente]\Documents\Foliarium Backup\
 ```
 
 Modificabile da *Impostazioni → Cartella Backup*.
@@ -85,7 +85,7 @@ Fare clic su **Verifica Backup** per controllare che il file di backup seleziona
 2. Selezionare il file `.backup` da ripristinare
 3. Leggere attentamente l'avviso e fare clic su **Confermo, procedi**
 4. Attendere il completamento del ripristino
-5. Riavviare Meridiana
+5. Riavviare Foliarium
 
 > 📸 **Screenshot:** Dialog di conferma ripristino con avviso in rosso e campo di conferma testuale.
 
@@ -93,7 +93,7 @@ Fare clic su **Verifica Backup** per controllare che il file di backup seleziona
 
 ## Backup di emergenza tramite pgAdmin
 
-In caso di malfunzionamento di Meridiana, è possibile eseguire il backup direttamente tramite pgAdmin:
+In caso di malfunzionamento di Foliarium, è possibile eseguire il backup direttamente tramite pgAdmin:
 
 1. Aprire pgAdmin e connettersi al server
 2. Espandere *Databases → catasto_storico*

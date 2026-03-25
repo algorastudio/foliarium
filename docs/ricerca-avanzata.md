@@ -1,6 +1,6 @@
 # Ricerca Avanzata
 
-Meridiana offre due modalità di ricerca avanzata: la **ricerca fuzzy unificata** per trovare possessori e partite con nomi approssimativi, e la **ricerca full-text documenti** per esplorare il contenuto dell'archivio documentale.
+Foliarium offre due modalità di ricerca avanzata: la **ricerca fuzzy unificata** per trovare possessori e partite con nomi approssimativi, e la **ricerca full-text documenti** per esplorare il contenuto dell'archivio documentale.
 
 ---
 

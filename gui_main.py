@@ -63,7 +63,8 @@ from config import (
     SETTINGS_DB_NAME, SETTINGS_DB_USER, SETTINGS_DB_SCHEMA, SETTINGS_DB_PASSWORD,
     SETTINGS_UI_CURRENT_STYLE, SETTINGS_UI_AUTO_THEME, SETTINGS_UI_WIN11_STYLE,
     AUTO_THEME_DARK, AUTO_THEME_LIGHT,
-    IS_TEST_ENV, SETTINGS_SESSION_TIMEOUT)
+    IS_TEST_ENV, SETTINGS_SESSION_TIMEOUT,
+    EULA_VERSION, SETTINGS_EULA_ACCEPTED)
 from app_paths import get_icon_path
 
 try:
@@ -1900,7 +1901,7 @@ class CatastoMainWindow(QMainWindow):
 def setup_logging():
     """Configura il logging per scrivere nella cartella AppData dell'utente."""
     # Imposta i metadati dell'applicazione per creare un percorso univoco
-    QCoreApplication.setOrganizationName("ArchivioDiStatoSavona")
+    QCoreApplication.setOrganizationName("AlgoraStudio")
     QCoreApplication.setApplicationName("Foliarium")
 
     # Trova la cartella standard e scrivibile per i dati dell'applicazione
@@ -1931,7 +1932,7 @@ def setup_global_logging():
     nella cartella AppData dell'utente, che e' sempre scrivibile.
     """
     # Imposta i metadati necessari a PyQt per trovare il percorso corretto
-    QCoreApplication.setOrganizationName("ArchivioDiStatoSavona")
+    QCoreApplication.setOrganizationName("AlgoraStudio")
     QCoreApplication.setApplicationName("Foliarium")
     
     # Ottieni il percorso standard e scrivibile per i dati dell'applicazione
@@ -1964,7 +1965,7 @@ def run_gui_app():
         # Imposta i metadati dell'applicazione.
         # Questo è FONDAMENTALE affinché QStandardPaths possa generare
         # percorsi di dati scrivibili e univoci per l'app.
-        QCoreApplication.setOrganizationName("Marco Santoro")
+        QCoreApplication.setOrganizationName("AlgoraStudio")
         QCoreApplication.setApplicationName("Foliarium")
         # --- FINE MODIFICA ---
 
@@ -2009,20 +2010,17 @@ def run_gui_app():
             stylesheet = load_stylesheet(current_style_file)
             if stylesheet:
                 app.setStyleSheet(stylesheet)
-        # --- INIZIO BLOCCO CONTROLLO EULA ---
+        # --- CONTROLLO EULA / WELCOME SCREEN ---
         settings = QSettings()
-        eula_accepted = settings.value("EULA/accepted", False, type=bool)
-
-        if not eula_accepted:
-            eula_dialog = EulaDialog()
-            if eula_dialog.exec() == QDialog.DialogCode.Accepted:
-                # L'utente ha accettato, salva l'impostazione e procedi
-                settings.setValue("EULA/accepted", True)
-                settings.sync()
-            else:
-                # L'utente ha rifiutato, esci dall'applicazione
+        accepted_version = settings.value(SETTINGS_EULA_ACCEPTED, "", type=str)
+        if accepted_version != EULA_VERSION:
+            welcome = WelcomeScreen(parent=None)
+            if welcome.exec() != QDialog.DialogCode.Accepted:
+                gui_logger.info("EULA non accettata. Uscita.")
                 sys.exit(0)
-        # --- FINE BLOCCO CONTROLLO EULA ---
+            settings.setValue(SETTINGS_EULA_ACCEPTED, EULA_VERSION)
+            settings.sync()
+        # --- FINE CONTROLLO EULA ---
         
         gui_logger.info("Avvio dell'applicazione GUI Catasto Storico...")
         db_manager_gui: Optional[CatastoDBManager] = None
@@ -2139,28 +2137,7 @@ def run_gui_app():
             gui_logger.info("Login utente annullato. Uscita.")
             sys.exit(0)
 
-        # 4. LOGIN UTENTE OK, MOSTRA WELCOME SCREEN E AVVIA L'APP
-        base_dir_app = os.path.dirname(os.path.abspath(sys.argv[0]))
-        is_dark = QGuiApplication.styleHints().colorScheme() == Qt.ColorScheme.Dark
-        logo_path = get_logo_svg_path(dark=is_dark)
-        manuale_path = None
-        if getattr(sys, 'frozen', False):
-            exe_dir = os.path.dirname(sys.executable)
-            possible_manual_paths = [
-                os.path.join(exe_dir, "resources", "manuale_utente.pdf"),
-                os.path.join(exe_dir, "_internal", "resources", "manuale_utente.pdf")
-            ]
-        else:
-            base_dir = os.path.dirname(os.path.abspath(sys.argv[0]))
-            possible_manual_paths = [
-                os.path.join(base_dir, "resources", "manuale_utente.pdf")
-            ]
-
-        welcome_screen = WelcomeScreen(parent=None, logo_path=logo_path, help_url=manuale_path)
-        if welcome_screen.exec() != QDialog.DialogCode.Accepted:
-            gui_logger.info("Welcome screen chiusa. Uscita.")
-            sys.exit(0)
-            
+        # 4. LOGIN UTENTE OK, AVVIA L'APP
         main_window_instance.perform_initial_setup(
             db_manager_gui,
             login_dialog.logged_in_user_id,
