@@ -1007,6 +1007,7 @@ class PartitaDetailsDialog(QDialog):
         if filename_pdf:
             try:
                 pdf = GenericTextReportPDF(report_title=pdf_report_title)
+                pdf.alias_nb_pages()
                 pdf.add_page()
                 pdf.add_report_text(text_content)
                 pdf.output(filename_pdf)

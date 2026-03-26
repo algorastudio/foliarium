@@ -51,7 +51,7 @@ if FPDF_AVAILABLE:
     class ModernCatastoPDF(FPDF):
         """Base class condivisa per tutti i report PDF di Foliarium."""
 
-        APP_NAME  = "Foliarium — Archivio Catastale Storico"
+        APP_NAME  = "Foliarium - Archivio Catastale Storico"
         C_HEADER  = (26,  54,  93)   # navy scuro  — banda header
         C_SECTION = (41,  98, 155)   # blu medio   — titoli sezione / header tabella
         C_WHITE   = (255, 255, 255)
@@ -190,7 +190,7 @@ if FPDF_AVAILABLE:
             self.set_line_width(0.1)
             for key, value in data_dict.items():
                 label   = key.replace('_', ' ').title()
-                val_str = str(value) if value is not None else '—'
+                val_str = str(value) if value is not None else 'N/D'
                 self.set_font('Helvetica', 'B', 9)
                 self.set_text_color(*self.C_LABEL)
                 self.cell(lw, 6, label, border='B',
@@ -231,7 +231,7 @@ if FPDF_AVAILABLE:
                 self.set_text_color(*self.C_VALUE)
                 for i, item in enumerate(row):
                     is_last = i == len(row) - 1
-                    text = str(item) if item is not None else '—'
+                    text = str(item) if item is not None else ''
                     self.cell(col_widths[i], 6, text, fill=True, align='L',
                               new_x=XPos.LMARGIN if is_last else XPos.RIGHT,
                               new_y=YPos.NEXT    if is_last else YPos.TOP)
@@ -511,7 +511,7 @@ def gui_esporta_partita_pdf(parent_widget, db_manager: CatastoDBManager, partita
         if p.get('suffisso_partita'):
             num_display += f"/{p.get('suffisso_partita')}"
         pdf.cover_block(
-            title=f"PARTITA CATASTALE {num_display} — {p.get('comune_nome', '')}",
+            title=f"PARTITA CATASTALE {num_display} - {p.get('comune_nome', '')}",
             note=f"Tipo: {p.get('tipo', 'N/D')}   •   Stato: {p.get('stato', 'N/D')}",
             chips=[
                 ("Data impianto", p.get('data_impianto')),
@@ -723,7 +723,7 @@ def gui_esporta_possessore_pdf(parent_widget, db_manager: CatastoDBManager, poss
         nome = p_info.get('nome_completo') or p_info.get('cognome_nome', 'N/D')
         stato_str = "Attivo" if p_info.get('attivo') else "Non attivo"
         pdf.cover_block(
-            title=f"POSSESSORE — {nome}",
+            title=f"POSSESSORE - {nome}",
             note=f"Stato: {stato_str}   •   Comune: {p_info.get('comune_nome', 'N/D')}",
             chips=[
                 ("Paternità", p_info.get('paternita')),
@@ -891,7 +891,7 @@ if FPDF_AVAILABLE:
             self.set_xy(8, 4)
             self.set_font('Helvetica', 'B', 10)
             self.set_text_color(*self.C_WHITE)
-            self.cell(self.w - 50, 6, f'{self.APP_NAME}  —  {self.report_title}', align='L')
+            self.cell(self.w - 50, 6, f'{self.APP_NAME}  |  {self.report_title}', align='L')
             from datetime import date as _d
             self.set_xy(0, 4)
             self.set_font('Helvetica', '', 8)
