@@ -1,5 +1,41 @@
 # Changelog
 
+## v1.5.1 — Marzo 2026
+
+### Redesign PDF — Report professionali (`app_utils.py`)
+
+Introdotta la classe base `ModernCatastoPDF(FPDF)` da cui ereditano tutte le classi PDF
+(`PDFPartita`, `PDFPossessore`, `GenericTextReportPDF`, `BulkReportPDF`).
+
+**Header e footer:**
+- Banda colorata navy (RGB 26,54,93) con logo PNG integrato (se presente), nome app, data e titolo report
+- Footer con linea separatrice blu, disclaimer a sinistra, numero pagina `Pag. N/TOT` a destra
+
+**Blocco riepilogativo iniziale (`cover_block`):**
+- Riquadro con sfondo azzurro chiaro e barra laterale blu
+- Numero partita/nome possessore in grande (13pt, blu istituzionale)
+- Riga info compatta (tipo, stato) e chip con data impianto, provenienza, ID
+
+**Titoli sezione (`section_title`):**
+- Banda blu (RGB 41,98,155) con testo bianco; sostituisce il semplice testo in grassetto
+
+**Campi chiave-valore (`info_block`):**
+- Due colonne: etichetta in grigio + valore in nero; linea separatrice sottile su ogni riga
+
+**Tabelle (`styled_table`):**
+- Intestazione blu/bianco, righe alternate bianco/azzurro chiaro, linea di chiusura; nessun bordo a griglia pesante
+
+**`BulkReportPDF`:** landscape con header colorato, righe alternate, intestazione tabella ripetuta su ogni pagina
+
+**`GenericTextReportPDF`:** testo preformattato su sfondo grigio chiaro (`#F8F9FA`), font `Courier 8pt`
+
+**Altre migliorie:**
+- Dopo il salvataggio PDF viene proposto "Vuoi aprirlo ora?" (`prompt_to_open_file`) invece del solo messaggio di conferma
+- Fix: rimossi due `pdf.alias_nb_pages()` nelle funzioni CSV dove `pdf` non esisteva (potenziale `NameError`)
+- Rimossi gli override di margini superflui (gestiti in `ModernCatastoPDF.__init__`)
+
+---
+
 ## v1.5.0 — Marzo 2026
 
 ### Rebrand: Foliarium → Foliarium

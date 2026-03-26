@@ -47,180 +47,236 @@ except ImportError:
 # --- Classi PDF (versione moderna con new_x e new_y) ---
 
 if FPDF_AVAILABLE:
-    class PDFPartita(FPDF):
-        def header(self):
-            self.set_font('Helvetica', 'B', 12)
-            self.cell(0, 10, 'Dettaglio Partita Catastale', 0, new_x=XPos.LMARGIN, new_y=YPos.NEXT, align='C')
-            self.ln(5)
+    # ── Palette colori istituzionale ────────────────────────────────────────
+    class ModernCatastoPDF(FPDF):
+        """Base class condivisa per tutti i report PDF di Foliarium."""
 
-        def footer(self):
-            self.set_y(-15)  # Posizione a 1.5 cm dal fondo
-            self.set_font('Helvetica', 'I', 8)  # Font in corsivo e più piccolo
+        APP_NAME  = "Foliarium — Archivio Catastale Storico"
+        C_HEADER  = (26,  54,  93)   # navy scuro  — banda header
+        C_SECTION = (41,  98, 155)   # blu medio   — titoli sezione / header tabella
+        C_WHITE   = (255, 255, 255)
+        C_ALT_ROW = (232, 241, 252)  # azzurro chiarissimo — righe alternate
+        C_LABEL   = (105, 105, 105)  # grigio — etichette campo
+        C_VALUE   = (25,  25,  25)   # quasi-nero — valori
+        C_FOOTER  = (155, 155, 155)  # grigio chiaro — testo footer
+        C_ACCENT  = (41,  98, 155)   # linea separatrice
 
-            # Aggiungi la dicitura
-            disclaimer = "Il presente report ha valore puramente storico e documentale."
-            self.cell(0, 5, disclaimer, align='C', new_x='LMARGIN', new_y='NEXT')
-
-            # Aggiungi il numero di pagina sotto la dicitura
-            self.cell(0, 5, f'Pagina {self.page_no()}/{{nb}}', align='C')
-
-        def chapter_title(self, title):
-            self.set_font('Helvetica', 'B', 12)
-            self.cell(0, 6, title, 0, new_x=XPos.LMARGIN, new_y=YPos.NEXT, align='L')
-            self.ln(2)
-
-        def chapter_body(self, data_dict):
-            self.set_font('Helvetica', '', 10)
-            page_width = self.w - self.l_margin - self.r_margin
-            for key, value in data_dict.items():
-                text_to_write = f"{key.replace('_', ' ').title()}: {value if value is not None else 'N/D'}"
-                self.multi_cell(page_width, 5, text_to_write, border=0, new_x=XPos.LMARGIN, new_y=YPos.NEXT)
-            self.ln(2)
-
-        def simple_table(self, headers, data_rows, col_widths_percent=None):
-            self.set_font('Helvetica', 'B', 9)  # Header in grassetto
-            effective_page_width = self.w - self.l_margin - self.r_margin
-
-            if col_widths_percent:
-                col_widths = [effective_page_width *
-                              (p/100) for p in col_widths_percent]
-            else:
-                num_cols = len(headers)
-                default_col_width = effective_page_width / \
-                    num_cols if num_cols > 0 else effective_page_width
-                col_widths = [default_col_width] * num_cols
-
-            for i, header in enumerate(headers):
-                align = 'C'  # Centra gli header
-                if i == len(headers) - 1:  # Ultima cella della riga header
-                    self.cell(col_widths[i], 7, header, border=1,
-                              new_x=XPos.LMARGIN, new_y=YPos.NEXT, align=align)
-                else:
-                    self.cell(col_widths[i], 7, header, border=1,
-                              new_x=XPos.RIGHT, new_y=YPos.TOP, align=align)
-
-            self.set_font('Helvetica', '', 8)
-            for row in data_rows:
-                for i, item in enumerate(row):
-                    text = str(item) if item is not None else ''
-                    align = 'L'  # Dati allineati a sinistra
-                    if i == len(row) - 1:  # Ultima cella della riga dati
-                        self.cell(
-                            col_widths[i], 6, text, border=1, new_x=XPos.LMARGIN, new_y=YPos.NEXT, align=align)
-                    else:
-                        self.cell(
-                            col_widths[i], 6, text, border=1, new_x=XPos.RIGHT, new_y=YPos.TOP, align=align)
-            self.ln(4)
-
-    class PDFPossessore(FPDF):
-        def header(self):
-            self.set_font('Helvetica', 'B', 12)
-            self.cell(0, 10, 'Dettaglio Possessore Catastale', border=0, new_x=XPos.LMARGIN, new_y=YPos.NEXT, align='C')
-            self.ln(5)
-
-        def footer(self):
-            self.set_y(-15)
-            self.set_font('Helvetica', 'I', 8)
-            
-            disclaimer = "Il presente report ha valore puramente storico e documentale."
-            self.cell(0, 5, disclaimer, align='C', new_x='LMARGIN', new_y='NEXT')
-
-            self.cell(0, 5, f'Pagina {self.page_no()}/{{nb}}', align='C')
-
-        def chapter_title(self, title):
-            self.set_font('Helvetica', 'B', 12)
-            self.cell(0, 6, title, border=0, new_x=XPos.LMARGIN,
-                      new_y=YPos.NEXT, align='L')
-            self.ln(2)
-
-        def chapter_body(self, data_dict):
-            self.set_font('Helvetica', '', 10)
-            page_width = self.w - self.l_margin - self.r_margin
-            for key, value in data_dict.items():
-                text_to_write = f"{key.replace('_', ' ').title()}: {value if value is not None else 'N/D'}"
-                try:
-                    self.multi_cell(page_width, 5, text_to_write, border=0,
-                                    new_x=XPos.LMARGIN, new_y=YPos.NEXT, align='L')
-                except Exception as e:  # FPDFException
-                    if "Not enough horizontal space" in str(e):
-                        logging.getLogger("CatastoGUI").warning(
-                            f"FPDFException (chapter_body possessore): {e} per testo: {text_to_write[:100]}...")
-                        self.multi_cell(
-                            page_width, 5, f"{key.replace('_', ' ').title()}: [DATI TROPPO LUNGHI]", border=0, new_x=XPos.LMARGIN, new_y=YPos.NEXT, align='L')
-                    else:
-                        raise e
-            self.ln(2)
-
-        def simple_table(self, headers, data_rows, col_widths_percent=None):
-            self.set_font('Helvetica', 'B', 9)
-            effective_page_width = self.w - self.l_margin - self.r_margin
-
-            if col_widths_percent:
-                col_widths = [effective_page_width *
-                              (p/100) for p in col_widths_percent]
-            else:
-                num_cols = len(headers)
-                default_col_width = effective_page_width / \
-                    num_cols if num_cols > 0 else effective_page_width
-                col_widths = [default_col_width] * num_cols
-
-            for i, header in enumerate(headers):
-                align = 'C'
-                if i == len(headers) - 1:
-                    self.cell(col_widths[i], 7, header, border=1,
-                              new_x=XPos.LMARGIN, new_y=YPos.NEXT, align=align)
-                else:
-                    self.cell(col_widths[i], 7, header, border=1,
-                              new_x=XPos.RIGHT, new_y=YPos.TOP, align=align)
-
-            self.set_font('Helvetica', '', 8)
-            for row in data_rows:
-                for i, item in enumerate(row):
-                    text = str(item) if item is not None else ''
-                    align = 'L'
-                    if i == len(row) - 1:
-                        self.cell(
-                            col_widths[i], 6, text, border=1, new_x=XPos.LMARGIN, new_y=YPos.NEXT, align=align)
-                    else:
-                        self.cell(
-                            col_widths[i], 6, text, border=1, new_x=XPos.RIGHT, new_y=YPos.TOP, align=align)
-            self.ln(4)
-if FPDF_AVAILABLE:
-    class GenericTextReportPDF(FPDF):
-        def __init__(self, orientation='P', unit='mm', format='A4', report_title="Report"):
+        def __init__(self, report_title="Report", orientation='P', unit='mm', format='A4'):
             super().__init__(orientation, unit, format)
             self.report_title = report_title
-            self.set_auto_page_break(auto=True, margin=15)
+            self._logo_path = None
+            try:
+                from app_paths import get_logo_path
+                lp = get_logo_path()
+                if lp and lp.exists():
+                    self._logo_path = str(lp)
+            except Exception:
+                pass
+            self.set_auto_page_break(auto=True, margin=18)
             self.set_left_margin(15)
             self.set_right_margin(15)
-            # Font di default per il corpo del report
-            self.set_font('Helvetica', '', 10)
 
         def header(self):
-            self.set_font('Helvetica', 'B', 12)
-            self.cell(0, 10, self.report_title, 0, new_x=XPos.LMARGIN, new_y=YPos.NEXT, align='C')
-            self.ln(5)
+            # Banda colorata
+            self.set_fill_color(*self.C_HEADER)
+            self.rect(0, 0, self.w, 18, 'F')
+            # Logo (se disponibile)
+            logo_x = 4
+            if self._logo_path:
+                try:
+                    self.image(self._logo_path, x=logo_x, y=2, h=14)
+                    logo_x = 22
+                except Exception:
+                    pass
+            # Nome applicazione
+            self.set_xy(logo_x, 3)
+            self.set_font('Helvetica', 'B', 10)
+            self.set_text_color(*self.C_WHITE)
+            self.cell(self.w - logo_x - 30, 6, self.APP_NAME, align='L')
+            # Data (destra)
+            from datetime import date as _d
+            self.set_xy(0, 3)
+            self.set_font('Helvetica', '', 8)
+            self.set_text_color(190, 210, 235)
+            self.cell(self.w - self.r_margin, 6, _d.today().strftime('%d/%m/%Y'), align='R')
+            # Titolo report (riga secondaria)
+            self.set_xy(logo_x, 11)
+            self.set_font('Helvetica', 'I', 8)
+            self.set_text_color(190, 210, 235)
+            self.cell(self.w - logo_x - self.r_margin, 5, self.report_title, align='L')
+            # Reset
+            self.set_text_color(*self.C_VALUE)
+            self.set_y(23)
 
         def footer(self):
-            self.set_y(-15)
-            self.set_font('Helvetica', 'I', 8)
-            
-            disclaimer = "Il presente report ha valore puramente storico e documentale."
-            self.cell(0, 5, disclaimer, align='C', new_x='LMARGIN', new_y='NEXT')
+            self.set_y(-13)
+            y = self.get_y()
+            self.set_draw_color(*self.C_ACCENT)
+            self.set_line_width(0.3)
+            self.line(self.l_margin, y, self.w - self.r_margin, y)
+            self.set_line_width(0.2)
+            self.ln(1)
+            pw = self.w - self.l_margin - self.r_margin
+            self.set_font('Helvetica', 'I', 7)
+            self.set_text_color(*self.C_FOOTER)
+            self.cell(pw * 0.78, 5,
+                      "Il presente report ha valore puramente storico e documentale.",
+                      align='L')
+            self.set_font('Helvetica', '', 7)
+            self.cell(0, 5, f'Pag. {self.page_no()}/{{nb}}', align='R')
+            self.set_draw_color(0, 0, 0)
+            self.set_text_color(*self.C_VALUE)
 
-            self.cell(0, 5, f'Pagina {self.page_no()}/{{nb}}', align='C')
+        # ── Blocco riepilogativo iniziale ──────────────────────────────────
+        def cover_block(self, title, note=None, chips=None):
+            """
+            Riquadro in evidenza con barra laterale colorata.
+              title : stringa principale es. "PARTITA N. 1234/A — Savona"
+              note  : riga secondaria es. "Tipo: Urbano  •  Stato: Attivo"
+              chips : lista di tuple (label, value) per info compatte
+            """
+            pw = self.w - self.l_margin - self.r_margin
+            n_extra = (1 if note else 0) + (1 if chips else 0)
+            block_h = 8 + n_extra * 7 + 6
+            sy = self.get_y()
+            # Sfondo azzurro chiaro
+            self.set_fill_color(*self.C_ALT_ROW)
+            self.rect(self.l_margin, sy, pw, block_h, 'F')
+            # Barra sinistra blu
+            self.set_fill_color(*self.C_SECTION)
+            self.rect(self.l_margin, sy, 3.5, block_h, 'F')
+            cx = self.l_margin + 7
+            self.set_xy(cx, sy + 4)
+            # Titolo principale
+            self.set_font('Helvetica', 'B', 13)
+            self.set_text_color(*self.C_SECTION)
+            self.cell(pw - 7, 8, title, new_x=XPos.LMARGIN, new_y=YPos.NEXT)
+            self.set_x(cx)
+            if note:
+                self.set_font('Helvetica', '', 9)
+                self.set_text_color(*self.C_LABEL)
+                self.cell(pw - 7, 6, note, new_x=XPos.LMARGIN, new_y=YPos.NEXT)
+                self.set_x(cx)
+            if chips:
+                self.set_font('Helvetica', '', 9)
+                self.set_text_color(*self.C_LABEL)
+                chips_text = '    |    '.join(
+                    f"{lbl}: {val}"
+                    for lbl, val in chips
+                    if val is not None and val != ''
+                )
+                self.cell(pw - 7, 6, chips_text, new_x=XPos.LMARGIN, new_y=YPos.NEXT)
+            self.set_text_color(*self.C_VALUE)
+            self.set_y(sy + block_h + 5)
+
+        # ── Titolo sezione ─────────────────────────────────────────────────
+        def section_title(self, title):
+            self.ln(3)
+            pw = self.w - self.l_margin - self.r_margin
+            self.set_fill_color(*self.C_SECTION)
+            self.set_text_color(*self.C_WHITE)
+            self.set_font('Helvetica', 'B', 10)
+            self.cell(pw, 7, f'  {title}', fill=True,
+                      new_x=XPos.LMARGIN, new_y=YPos.NEXT)
+            self.set_text_color(*self.C_VALUE)
+            self.ln(2)
+
+        # ── Coppie chiave-valore ───────────────────────────────────────────
+        def info_block(self, data_dict):
+            pw  = self.w - self.l_margin - self.r_margin
+            lw  = pw * 0.36
+            vw  = pw - lw
+            self.set_draw_color(210, 220, 230)
+            self.set_line_width(0.1)
+            for key, value in data_dict.items():
+                label   = key.replace('_', ' ').title()
+                val_str = str(value) if value is not None else '—'
+                self.set_font('Helvetica', 'B', 9)
+                self.set_text_color(*self.C_LABEL)
+                self.cell(lw, 6, label, border='B',
+                          new_x=XPos.RIGHT, new_y=YPos.TOP)
+                self.set_font('Helvetica', '', 9)
+                self.set_text_color(*self.C_VALUE)
+                try:
+                    self.multi_cell(vw, 6, val_str, border='B',
+                                    new_x=XPos.LMARGIN, new_y=YPos.NEXT)
+                except Exception:
+                    self.multi_cell(vw, 6, '[valore non visualizzabile]', border='B',
+                                    new_x=XPos.LMARGIN, new_y=YPos.NEXT)
+            self.set_draw_color(0, 0, 0)
+            self.set_line_width(0.2)
+            self.ln(3)
+
+        # ── Tabella con righe alternate ────────────────────────────────────
+        def styled_table(self, headers, data_rows, col_widths_percent=None):
+            pw = self.w - self.l_margin - self.r_margin
+            if col_widths_percent:
+                col_widths = [pw * p / 100 for p in col_widths_percent]
+            else:
+                n = len(headers) or 1
+                col_widths = [pw / n] * len(headers)
+            # Intestazione
+            self.set_fill_color(*self.C_SECTION)
+            self.set_text_color(*self.C_WHITE)
+            self.set_font('Helvetica', 'B', 8)
+            for i, h in enumerate(headers):
+                is_last = i == len(headers) - 1
+                self.cell(col_widths[i], 7, h, fill=True, align='C',
+                          new_x=XPos.LMARGIN if is_last else XPos.RIGHT,
+                          new_y=YPos.NEXT    if is_last else YPos.TOP)
+            # Righe dati
+            self.set_font('Helvetica', '', 8)
+            for row_i, row in enumerate(data_rows):
+                self.set_fill_color(*(self.C_ALT_ROW if row_i % 2 else self.C_WHITE))
+                self.set_text_color(*self.C_VALUE)
+                for i, item in enumerate(row):
+                    is_last = i == len(row) - 1
+                    text = str(item) if item is not None else '—'
+                    self.cell(col_widths[i], 6, text, fill=True, align='L',
+                              new_x=XPos.LMARGIN if is_last else XPos.RIGHT,
+                              new_y=YPos.NEXT    if is_last else YPos.TOP)
+            # Linea di chiusura
+            self.set_draw_color(*self.C_ACCENT)
+            self.set_line_width(0.5)
+            self.line(self.l_margin, self.get_y(), self.w - self.r_margin, self.get_y())
+            self.set_line_width(0.2)
+            self.set_draw_color(0, 0, 0)
+            self.ln(4)
+
+        # ── Alias di compatibilità con il codice chiamante ─────────────────
+        def chapter_title(self, title):
+            self.section_title(title)
+
+        def chapter_body(self, data_dict):
+            self.info_block(data_dict)
+
+        def simple_table(self, headers, data_rows, col_widths_percent=None):
+            self.styled_table(headers, data_rows, col_widths_percent)
+
+
+    class PDFPartita(ModernCatastoPDF):
+        def __init__(self):
+            super().__init__(report_title="Dettaglio Partita Catastale")
+
+
+    class PDFPossessore(ModernCatastoPDF):
+        def __init__(self):
+            super().__init__(report_title="Dettaglio Possessore Catastale")
+if FPDF_AVAILABLE:
+    class GenericTextReportPDF(ModernCatastoPDF):
+        def __init__(self, orientation='P', unit='mm', format='A4', report_title="Report"):
+            super().__init__(report_title=report_title, orientation=orientation,
+                             unit=unit, format=format)
 
         def add_report_text(self, text_content: str):
-            """Aggiunge il contenuto testuale del report al PDF."""
-            self.set_font(
-                'Courier', '', 9)  # Usiamo un font monospazio per testo preformattato
-            # Potrebbe scegliere 'Helvetica' se preferisce
-            # Sostituisci i caratteri di tabulazione con spazi per un rendering migliore in PDF
+            """Aggiunge testo preformattato con sfondo grigio chiaro."""
             text_content = text_content.replace('\t', '    ')
-
-            # multi_cell gestisce automaticamente i ritorni a capo e il wrapping del testo
-            # Larghezza 0 = larghezza piena, altezza riga 5mm
-            self.multi_cell(0, 5, text_content)
+            pw = self.w - self.l_margin - self.r_margin
+            self.set_fill_color(248, 249, 250)
+            self.set_font('Courier', '', 8)
+            self.set_text_color(*self.C_VALUE)
+            self.multi_cell(pw, 5, text_content, fill=True,
+                            new_x=XPos.LMARGIN, new_y=YPos.NEXT)
             self.ln()
 
 def get_local_ip_address():
@@ -335,7 +391,6 @@ def gui_esporta_partita_csv(parent_widget, db_manager: CatastoDBManager, partita
 
     preview_dialog = CSVApreviewDialog(preview_headers, preview_data_rows, parent_widget,
                                        title=f"Anteprima CSV - Partita ID {partita_id}")
-    pdf.alias_nb_pages()
     if preview_dialog.exec() != QDialog.DialogCode.Accepted:
         logging.getLogger("CatastoGUI").info(f"Esportazione CSV per partita ID {partita_id} annullata dall'utente dopo anteprima.")
         return
@@ -448,21 +503,30 @@ def gui_esporta_partita_pdf(parent_widget, db_manager: CatastoDBManager, partita
     try:
         pdf = PDFPartita()
         pdf.alias_nb_pages()
-        pdf.set_auto_page_break(auto=True, margin=15)
-        pdf.set_left_margin(10)
-        pdf.set_right_margin(10)
         pdf.add_page()
 
         p = partita_data['partita']
+        # ── Blocco riepilogativo in evidenza ──────────────────────────────
+        num_display = f"N. {p.get('numero_partita', '')}"
+        if p.get('suffisso_partita'):
+            num_display += f"/{p.get('suffisso_partita')}"
+        pdf.cover_block(
+            title=f"PARTITA CATASTALE {num_display} — {p.get('comune_nome', '')}",
+            note=f"Tipo: {p.get('tipo', 'N/D')}   •   Stato: {p.get('stato', 'N/D')}",
+            chips=[
+                ("Data impianto", p.get('data_impianto')),
+                ("Provenienza N.", p.get('numero_provenienza')),
+                ("ID", p.get('id')),
+            ]
+        )
+        # ─────────────────────────────────────────────────────────────────
+
         pdf.chapter_title('Dettagli Partita')
-        # --- MODIFICA QUI ---
-        # Aggiungiamo 'suffisso_partita' all'elenco dei campi da visualizzare
         campi_da_visualizzare = [
-            'id', 'comune_nome', 'numero_partita', 'suffisso_partita', 
+            'id', 'comune_nome', 'numero_partita', 'suffisso_partita',
             'tipo', 'data_impianto', 'stato', 'data_chiusura', 'numero_provenienza'
         ]
         pdf.chapter_body({k: p.get(k) for k in campi_da_visualizzare})
-        # --- FINE MODIFICA ---
 
         if partita_data.get('possessori'):
             pdf.chapter_title('Possessori')
@@ -490,8 +554,7 @@ def gui_esporta_partita_pdf(parent_widget, db_manager: CatastoDBManager, partita
             pdf.simple_table(headers, data_rows)
 
         pdf.output(filename)
-        QMessageBox.information(parent_widget, "Esportazione PDF",
-                                f"Partita esportata con successo in:\n{filename}")
+        prompt_to_open_file(parent_widget, filename)
     except Exception as e:
         logging.getLogger("CatastoGUI").exception(
             "Errore esportazione PDF partita (GUI)")
@@ -557,7 +620,6 @@ def gui_esporta_possessore_csv(parent_widget, db_manager: CatastoDBManager, poss
 
     preview_dialog = CSVApreviewDialog(preview_headers, preview_data_rows, parent_widget,
                                        title=f"Anteprima CSV - Possessore ID {possessore_id}")
-    pdf.alias_nb_pages()
     if preview_dialog.exec() != QDialog.DialogCode.Accepted:
         logging.getLogger("CatastoGUI").info(f"Esportazione CSV per possessore ID {possessore_id} annullata dall'utente.")
         return
@@ -654,12 +716,22 @@ def gui_esporta_possessore_pdf(parent_widget, db_manager: CatastoDBManager, poss
     try:
         pdf = PDFPossessore()
         pdf.alias_nb_pages()
-        pdf.set_auto_page_break(auto=True, margin=15)
-        pdf.set_left_margin(10)
-        pdf.set_right_margin(10)
         pdf.add_page()
 
         p_info = possessore_data['possessore']
+        # ── Blocco riepilogativo in evidenza ──────────────────────────────
+        nome = p_info.get('nome_completo') or p_info.get('cognome_nome', 'N/D')
+        stato_str = "Attivo" if p_info.get('attivo') else "Non attivo"
+        pdf.cover_block(
+            title=f"POSSESSORE — {nome}",
+            note=f"Stato: {stato_str}   •   Comune: {p_info.get('comune_nome', 'N/D')}",
+            chips=[
+                ("Paternità", p_info.get('paternita')),
+                ("ID", p_info.get('id')),
+            ]
+        )
+        # ─────────────────────────────────────────────────────────────────
+
         pdf.chapter_title('Dettagli Possessore')
         details_poss = {
             'ID Possessore': p_info.get('id'), 'Nome Completo': p_info.get('nome_completo'),
@@ -701,8 +773,7 @@ def gui_esporta_possessore_pdf(parent_widget, db_manager: CatastoDBManager, poss
             pdf.simple_table(headers, data_rows_imm, col_widths_percent_imm)
 
         pdf.output(filename)
-        QMessageBox.information(parent_widget, "Esportazione PDF",
-                                f"Possessore esportato con successo in:\n{filename}")
+        prompt_to_open_file(parent_widget, filename)
     except Exception as e:
         logging.getLogger("CatastoGUI").exception(
             "Errore esportazione PDF possessore (GUI)")
@@ -804,62 +875,64 @@ def get_alternative_filename(original_path):
 
 
 if FPDF_AVAILABLE:
-    class BulkReportPDF(FPDF):
-        """
-        Classe PDF specializzata per creare report tabellari lunghi
-        con intestazioni ripetute su ogni pagina.
-        """
+    class BulkReportPDF(ModernCatastoPDF):
+        """Report tabellare bulk in formato landscape con intestazioni ripetute."""
+
         def __init__(self, orientation='L', unit='mm', format='A4', report_title="Report Dati"):
-            super().__init__(orientation, unit, format) # 'L' per Landscape, più adatto a tabelle
-            self.report_title = report_title
-            self.headers = []
+            super().__init__(report_title=report_title, orientation=orientation,
+                             unit=unit, format=format)
+            self.headers    = []
             self.col_widths = []
 
         def header(self):
-            self.set_font('Helvetica', 'B', 12)
-            self.cell(0, 10, self.report_title, 0, 1, 'C')
-            self.ln(5)
-            # Stampa l'intestazione della tabella su ogni pagina
-            if self.headers:
+            # Banda header
+            self.set_fill_color(*self.C_HEADER)
+            self.rect(0, 0, self.w, 16, 'F')
+            self.set_xy(8, 4)
+            self.set_font('Helvetica', 'B', 10)
+            self.set_text_color(*self.C_WHITE)
+            self.cell(self.w - 50, 6, f'{self.APP_NAME}  —  {self.report_title}', align='L')
+            from datetime import date as _d
+            self.set_xy(0, 4)
+            self.set_font('Helvetica', '', 8)
+            self.set_text_color(190, 210, 235)
+            self.cell(self.w - self.r_margin, 6, _d.today().strftime('%d/%m/%Y'), align='R')
+            self.set_text_color(*self.C_VALUE)
+            # Intestazione tabella ripetuta su ogni pagina
+            if self.headers and self.col_widths:
+                self.set_y(20)
+                self.set_fill_color(*self.C_SECTION)
+                self.set_text_color(*self.C_WHITE)
                 self.set_font('Helvetica', 'B', 8)
-                self.set_fill_color(230, 230, 230)
-                for i, header in enumerate(self.headers):
-                    self.cell(self.col_widths[i], 7, header, 1, 0, 'C', 1)
-                self.ln()
-
-        def footer(self):
-            self.set_y(-15)
-            self.set_font('Helvetica', 'I', 8)
-            
-            disclaimer = "Il presente report ha valore puramente storico e documentale."
-            self.cell(0, 5, disclaimer, align='C', new_x='LMARGIN', new_y='NEXT')
-
-            self.cell(0, 5, f'Pagina {self.page_no()}/{{nb}}', align='C')
+                for i, h in enumerate(self.headers):
+                    is_last = i == len(self.headers) - 1
+                    self.cell(self.col_widths[i], 7, h, fill=True, align='C',
+                              new_x=XPos.LMARGIN if is_last else XPos.RIGHT,
+                              new_y=YPos.NEXT    if is_last else YPos.TOP)
+                self.set_text_color(*self.C_VALUE)
+            else:
+                self.set_y(21)
 
         def print_table(self, headers, data):
-            if not data: return
-            
+            if not data:
+                return
             self.headers = headers
-            # Calcola larghezza colonne (semplice divisione)
-            effective_width = self.w - self.l_margin - self.r_margin
-            self.col_widths = [effective_width / len(headers)] * len(headers)
-            
+            ew = self.w - self.l_margin - self.r_margin
+            self.col_widths = [ew / len(headers)] * len(headers)
             self.set_font('Helvetica', '', 8)
             self.add_page()
-            
-            for row in data:
-                # Controlla se c'è spazio per la riga, altrimenti vai a pagina nuova
+            for row_i, row in enumerate(data):
                 if self.get_y() + 6 > self.page_break_trigger:
                     self.add_page()
-
+                self.set_fill_color(*(self.C_ALT_ROW if row_i % 2 else self.C_WHITE))
+                self.set_text_color(*self.C_VALUE)
                 for i, header in enumerate(headers):
-                    # Usiamo .get(header) se i dati sono dict, o l'indice se sono liste/tuple
-                    if isinstance(row, dict):
-                        cell_value = str(row.get(header, ''))
-                    else:
-                        cell_value = str(row[i]) if i < len(row) else ''
-                    self.cell(self.col_widths[i], 6, cell_value, 1, 0, 'L')
-                self.ln()
+                    cell_value = (str(row.get(header, '')) if isinstance(row, dict)
+                                  else (str(row[i]) if i < len(row) else ''))
+                    is_last = i == len(headers) - 1
+                    self.cell(self.col_widths[i], 6, cell_value, fill=True, align='L',
+                              new_x=XPos.LMARGIN if is_last else XPos.RIGHT,
+                              new_y=YPos.NEXT    if is_last else YPos.TOP)
 # In fondo al file app_utils.py
 
 # --- DIALOGHI DI ANTEPRIMA SPOSTATI QUI PER RISOLVERE IMPORTAZIONE CIRCOLARE ---
