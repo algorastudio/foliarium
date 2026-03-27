@@ -1,5 +1,30 @@
 # Changelog
 
+## v1.5.2 — Marzo 2026
+
+### Fix temi QSS — campi tagliati e warning Qt (`styles/`)
+
+**`box-shadow` rimosso (6 temi):**
+- Qt non supporta `box-shadow` nei QSS e stampava "Unknown property box-shadow" a ogni ridisegno
+- Rimosso da: `azzurro_ligure`, `sunset_orange`, `purple_royal`, `classic_business`, `ocean_blue`, `nature_green`
+
+**Padding `QComboBox`/`QSpinBox` normalizzato (6 temi):**
+- Padding orizzontale eccessivo (`7px 12px`, `6px 10px`, `8px`) causava il taglio dei campi nei form
+- Tutti i temi allineati al valore di riferimento `5px 8px` (come `foliarium_styles.qss`)
+- Temi corretti: `nature_green`, `ocean_blue`, `purple_royal`, `sunset_orange`, `classic_business`, `high_contrast`
+
+**`font-size` globale normalizzato (`high_contrast_stylesheet.qss`):**
+- `11pt` → `10pt` per allineamento con tutti gli altri temi; il font più grande allargava le etichette del 10% comprimendo i widget adiacenti
+
+### Fix PDF — `FPDFUnicodeEncodingException` (`app_utils.py`, `dialogs.py`)
+
+- Il font built-in `Helvetica` supporta solo Latin-1: l'em dash `—` (U+2014) causava crash a ogni `add_page()`
+- Sostituiti tutti i testi passati a FPDF: `APP_NAME`, titoli `cover_block`, separatore `BulkReportPDF`
+- Fallback valori nulli: `—` → `N/D` in `info_block`, stringa vuota nelle tabelle
+- Aggiunto `alias_nb_pages()` mancante in `dialogs.py` per `GenericTextReportPDF`
+
+---
+
 ## v1.5.1 — Marzo 2026
 
 ### Redesign PDF — Report professionali (`app_utils.py`)
