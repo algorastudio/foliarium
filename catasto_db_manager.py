@@ -122,7 +122,7 @@ class CatastoDBManager:
             "minconn": self._min_conn_pool,
             "maxconn": self._max_conn_pool,
             **self._main_db_conn_params,
-            "options": f"-c search_path={self.schema},public -c application_name='{self.application_name}_{target_dbname}'"
+            "options": f"-c search_path={self.schema},public -c application_name='{self.application_name}_{target_dbname}' -c client_encoding=UTF8"
         }
         
         try:
