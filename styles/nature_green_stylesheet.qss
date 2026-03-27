@@ -27,7 +27,7 @@ QLineEdit, QTextEdit, QSpinBox, QDoubleSpinBox, QDateEdit, QDateTimeEdit, QCombo
     color: #1B4332;
     border: 2px solid #81C784;
     border-radius: 8px;
-    padding: 7px 12px;
+    padding: 5px 8px;
     selection-background-color: #4CAF50;
     selection-color: white;
 }

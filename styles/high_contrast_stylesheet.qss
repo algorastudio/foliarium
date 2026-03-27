@@ -1,7 +1,7 @@
 /* High Contrast Theme per Foliarium - Accessibilità massima */
 * {
     font-family: "Arial Black", Arial, sans-serif;
-    font-size: 11pt;
+    font-size: 10pt;
     color: #000000;
     font-weight: bold;
 }
@@ -29,7 +29,7 @@ QLineEdit, QTextEdit, QSpinBox, QDoubleSpinBox, QDateEdit, QDateTimeEdit, QCombo
     color: #000000;
     border: 3px solid #000000;
     border-radius: 0px;
-    padding: 8px;
+    padding: 5px 8px;
     selection-background-color: #000000;
     selection-color: #FFFFFF;
     font-weight: bold;
@@ -234,7 +234,7 @@ QStatusBar {
     color: #FFFFFF;
     border-top: 3px solid #FFFFFF;
     font-weight: bold;
-    padding: 8px;
+    padding: 5px 8px;
 }
 
 /* Group Box */
