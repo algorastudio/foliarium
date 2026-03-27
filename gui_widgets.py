@@ -4221,6 +4221,9 @@ class EsportazioniWidget(LazyLoadedWidget):
                     if header_map:
                         cols_presenti = [c for c in header_map.keys() if c in df.columns]
                         df = df[cols_presenti].rename(columns=header_map)
+                    for col in df.columns:
+                        df[col] = df[col].apply(
+                            lambda x: x.isoformat() if hasattr(x, 'isoformat') and not isinstance(x, str) else x)
                     df.to_excel(writer, sheet_name=sheet_name, index=False)
                     totali.append((sheet_name, len(df)))
 
