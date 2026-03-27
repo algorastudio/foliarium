@@ -4050,7 +4050,7 @@ class EsportazioniWidget(LazyLoadedWidget):
         if not filename: return
 
         try:
-            with open(filename, 'w', newline='', encoding='utf-8') as csvfile:
+            with open(filename, 'w', newline='', encoding='utf-8-sig') as csvfile:
                 writer = csv.writer(csvfile, delimiter=';')
                 writer.writerow(user_friendly_headers)
                 # Scrive i dati accedendoli tramite le chiavi originali ordinate
@@ -4101,9 +4101,13 @@ class EsportazioniWidget(LazyLoadedWidget):
             # Seleziona solo le colonne che abbiamo mappato, nell'ordine corretto
             if header_map:
                 df = df[list(header_map.keys())]
+            # Converte date objects in stringhe ISO (gestisce date pre-1900 non supportate da Excel)
+            for col in df.columns:
+                df[col] = df[col].apply(
+                    lambda x: x.isoformat() if hasattr(x, 'isoformat') and not isinstance(x, str) else x)
             # Rinomina le colonne del DataFrame usando la nostra mappa
             df.rename(columns=header_map, inplace=True)
-            
+
             df.to_excel(filename, index=False, engine='openpyxl')
             
             # Crea il link cliccabile per il log
