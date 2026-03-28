@@ -196,4 +196,4 @@ Se necessario, esegui gli script SQL aggiornati per le migrazioni dello schema.
 
 Per assistenza nell'installazione e configurazione, contatta **ALGORASTUDIO**:
 - Email: santoromarco@gmail.com
-- Sito: [algorastudio.it](https://algorastudio.it)
+- Sito: [algorastudio.it](https://www.algorastudio.it)
