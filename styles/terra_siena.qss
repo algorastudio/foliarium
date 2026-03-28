@@ -29,6 +29,7 @@ QLineEdit, QTextEdit, QSpinBox, QDoubleSpinBox, QDateEdit, QComboBox {
     border: 1px solid #BCAAA4;
     border-radius: 4px;
     padding: 5px;
+    min-height: 28px;
 }
 
 QLineEdit:focus, QTextEdit:focus, QSpinBox:focus, QDoubleSpinBox:focus, QDateEdit:focus, QComboBox:focus {
