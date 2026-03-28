@@ -20,6 +20,7 @@
         border: 1px solid #CCCCCC;
         border-radius: 4px;
         padding: 5px;
+        min-height: 28px;
         selection-background-color: #0078D4; /* Blu per selezione testo */
         selection-color: white;
     }
