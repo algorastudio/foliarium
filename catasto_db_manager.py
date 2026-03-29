@@ -303,6 +303,77 @@ class CatastoDBManager:
                 self.pool.putconn(conn)
     
     # ------------------------------------------------------------------ #
+    #  Transaction manager ad alto livello                                 #
+    # ------------------------------------------------------------------ #
+
+    @contextmanager
+    def transaction(self):
+        """
+        Context manager per transazioni esplicite multi-operazione.
+
+        Ottiene una connessione dal pool e la mantiene aperta per l'intera
+        durata del blocco `with`.  Il commit viene eseguito solo all'uscita
+        senza eccezioni; in caso di errore viene eseguito il rollback.
+
+        Utilizzo::
+
+            with db.transaction() as conn:
+                with conn.cursor() as cur:
+                    cur.execute("INSERT INTO ...", params1)
+                    cur.execute("INSERT INTO ...", params2)
+            # commit automatico qui
+
+        A differenza di `_get_connection()` (che viene usato per singole
+        operazioni atomiche), `transaction()` è pensato per raggruppare
+        operazioni correlate in un'unica transazione ACID.
+
+        Raises:
+            psycopg2.OperationalError: Se il pool non è inizializzato.
+            Qualunque eccezione sollevata nel blocco provoca il rollback.
+        """
+        conn = None
+        try:
+            if not self.pool:
+                raise psycopg2.pool.PoolError(
+                    "Il pool di connessioni non è inizializzato."
+                )
+            conn = self.pool.getconn()
+            # Disabilitiamo l'autocommit per gestire la transazione manualmente
+            conn.autocommit = False
+            yield conn
+            conn.commit()
+            self.logger.debug("transaction(): commit eseguito con successo.")
+        except psycopg2.pool.PoolError as pe:
+            self.logger.error(
+                "transaction(): impossibile ottenere connessione dal pool: %s", pe
+            )
+            raise psycopg2.OperationalError(
+                f"Impossibile ottenere una connessione valida dal pool: {pe}"
+            )
+        except Exception as e:
+            if conn:
+                try:
+                    conn.rollback()
+                    self.logger.warning(
+                        "transaction(): rollback eseguito per eccezione: %s", e
+                    )
+                except psycopg2.Error as rb_err:
+                    self.logger.error(
+                        "transaction(): errore durante rollback: %s", rb_err,
+                        exc_info=True,
+                    )
+                    if isinstance(e, psycopg2.OperationalError):
+                        self.logger.critical(
+                            "transaction(): connessione persa — chiusura pool."
+                        )
+                        self.close_pool()
+            raise
+        finally:
+            if conn:
+                conn.autocommit = True   # Ripristina il default per il pool
+                self.pool.putconn(conn)
+
+    # ------------------------------------------------------------------ #
     #  Cache locale per modalità offline                                   #
     # ------------------------------------------------------------------ #
 
