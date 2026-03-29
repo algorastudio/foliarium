@@ -303,43 +303,86 @@ class DBSearchMixin:
 
     def ricerca_avanzata_immobili_gui(self, comune_id: Optional[int] = None, localita_id: Optional[int] = None,
                                       natura_search: Optional[str] = None, classificazione_search: Optional[str] = None,
-                                      consistenza_search: Optional[str] = None, # Ricerca testuale per consistenza
+                                      consistenza_search: Optional[str] = None,
                                       piani_min: Optional[int] = None, piani_max: Optional[int] = None,
                                       vani_min: Optional[int] = None, vani_max: Optional[int] = None,
                                       nome_possessore_search: Optional[str] = None,
-                                      data_inizio_possesso_search: Optional[date] = None, # Previsto per il futuro
-                                      data_fine_possesso_search: Optional[date] = None    # Previsto per il futuro
+                                      data_inizio_possesso_search: Optional[date] = None,
+                                      data_fine_possesso_search: Optional[date] = None,
                                      ) -> List[Dict[str, Any]]:
+        """Ricerca avanzata immobili con query diretta (non usa stored procedure)."""
         try:
+            conditions: List[str] = []
+            params: List[Any] = []
+
+            joins = f"""
+                FROM {self.schema}.immobile i
+                JOIN {self.schema}.partita p ON i.partita_id = p.id
+                JOIN {self.schema}.comune c ON p.comune_id = c.id
+                JOIN {self.schema}.localita l ON i.localita_id = l.id
+                LEFT JOIN {self.schema}.tipo_localita tl ON l.tipo_id = tl.id
+            """
+
+            if comune_id is not None:
+                conditions.append("p.comune_id = %s"); params.append(comune_id)
+            if localita_id is not None:
+                conditions.append("i.localita_id = %s"); params.append(localita_id)
+            if natura_search:
+                conditions.append("i.natura ILIKE %s"); params.append(f"%{natura_search}%")
+            if classificazione_search:
+                conditions.append("i.classificazione ILIKE %s"); params.append(f"%{classificazione_search}%")
+            if consistenza_search:
+                conditions.append("i.consistenza ILIKE %s"); params.append(f"%{consistenza_search}%")
+            if piani_min is not None:
+                conditions.append("i.numero_piani >= %s"); params.append(piani_min)
+            if piani_max is not None:
+                conditions.append("i.numero_piani <= %s"); params.append(piani_max)
+            if vani_min is not None:
+                conditions.append("i.numero_vani >= %s"); params.append(vani_min)
+            if vani_max is not None:
+                conditions.append("i.numero_vani <= %s"); params.append(vani_max)
+            if nome_possessore_search:
+                joins += f"""
+                    JOIN {self.schema}.partita_possessore pp_f ON p.id = pp_f.partita_id
+                    JOIN {self.schema}.possessore pos_f ON pp_f.possessore_id = pos_f.id
+                """
+                conditions.append("pos_f.nome_completo ILIKE %s")
+                params.append(f"%{nome_possessore_search}%")
+
+            where = ("WHERE " + " AND ".join(conditions)) if conditions else ""
+
+            query = f"""
+                SELECT DISTINCT
+                    i.id AS id_immobile,
+                    p.numero_partita,
+                    c.nome AS comune_nome,
+                    l.nome AS localita_nome,
+                    l.civico AS civico,
+                    tl.nome AS localita_tipo,
+                    i.natura,
+                    i.classificazione,
+                    i.consistenza,
+                    i.numero_piani,
+                    i.numero_vani,
+                    (SELECT string_agg(DISTINCT pos_agg.nome_completo, ', ')
+                     FROM {self.schema}.partita_possessore pp_agg
+                     JOIN {self.schema}.possessore pos_agg ON pp_agg.possessore_id = pos_agg.id
+                     WHERE pp_agg.partita_id = p.id AND pos_agg.attivo = TRUE) AS possessori_attuali
+                {joins}
+                {where}
+                ORDER BY c.nome, p.numero_partita, i.natura
+            """
+
             with self._get_connection() as conn:
                 with conn.cursor(cursor_factory=psycopg2.extras.DictCursor) as cur:
-                    # La stringa della query ora corrisponde ai 12 parametri della funzione SQL estesa
-                    # I cast ::TIPODATO sono una buona pratica se i default nella funzione SQL non sono espliciti con ::TIPODATO
-                    # o se si vuole essere estremamente sicuri.
-                    # Se la funzione SQL ha DEFAULT NULL e tipi chiari, i cast qui potrebbero non essere strettamente necessari
-                    # ma non fanno male.
-                    query = f"""
-                        SELECT * FROM {self.schema}.ricerca_avanzata_immobili(
-                            %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s
-                        )
-                    """
-                    # Nota: i parametri devono essere nell'ordine esatto definito dalla funzione SQL
-                    params = (
-                        comune_id, localita_id, natura_search, classificazione_search, consistenza_search,
-                        piani_min, piani_max, vani_min, vani_max, nome_possessore_search,
-                        data_inizio_possesso_search, data_fine_possesso_search
-                    )
-
-                    self.logger.debug(f"Chiamata a {self.schema}.ricerca_avanzata_immobili con parametri POSIZIONALI: {params}")
                     cur.execute(query, params)
                     results = [dict(row) for row in cur.fetchall()]
-                    self.logger.info(f"Ricerca avanzata immobili ha restituito {len(results)} risultati.")
+                    self.logger.info(f"Ricerca avanzata immobili: {len(results)} risultati.")
                     return results
         except psycopg2.Error as e:
-            self.logger.error(f"Errore DB specifico durante l'esecuzione di ricerca_avanzata_immobili_gui: {e}", exc_info=True)
-            # Potresti voler sollevare un'eccezione personalizzata o gestire l'errore qui
+            self.logger.error(f"Errore DB ricerca_avanzata_immobili_gui: {e}", exc_info=True)
             return []
         except Exception as e:
-            self.logger.error(f"Errore generico durante ricerca_avanzata_immobili_gui: {e}", exc_info=True)
+            self.logger.error(f"Errore ricerca_avanzata_immobili_gui: {e}", exc_info=True)
             return []
 
