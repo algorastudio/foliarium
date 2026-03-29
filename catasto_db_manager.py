@@ -52,24 +52,14 @@ COLONNE_POSSESSORI_DETTAGLI_LABELS = ["ID Poss.", "Nome Completo", "Cognome Nome
 import logging
 logger = logging.getLogger(__name__)
 # ------------ ECCEZIONI PERSONALIZZATE ------------
-class DBMError(Exception):
-    """Classe base per errori specifici del DBManager."""
-    pass
-
-class DBUniqueConstraintError(DBMError):
-    """Sollevata quando un vincolo di unicità viene violato."""
-    def __init__(self, message, constraint_name=None, details=None):
-        super().__init__(message)
-        self.constraint_name = constraint_name
-        self.details = details
-
-class DBNotFoundError(DBMError):
-    """Sollevata quando un record atteso non viene trovato per un'operazione."""
-    pass
-
-class DBDataError(DBMError):
-    """Sollevata per errori relativi a dati o parametri forniti non validi."""
-    pass
+# Definite in catasto_exceptions.py; re-esportate qui per backward compatibility.
+# Importare preferibilmente da catasto_exceptions direttamente.
+from catasto_exceptions import (
+    DBMError,
+    DBUniqueConstraintError,
+    DBNotFoundError,
+    DBDataError,
+)
 # -------------------------------------------------
 
 class CatastoDBManager:

@@ -108,27 +108,15 @@ except ImportError:
                              "Non è possibile importare CatastoDBManager. "
                              "Assicurati che catasto_db_manager.py sia accessibile.")
         sys.exit(1)
+# Hash/verifica password: logica centralizzata in core.auth_manager
+from core.auth_manager import AuthManager as _AuthManager
 def _hash_password(password: str) -> str:
-        """Genera un hash sicuro per la password usando bcrypt."""
-        password_bytes = password.encode('utf-8')
-        salt = bcrypt.gensalt()
-        hashed_bytes = bcrypt.hashpw(password_bytes, salt)
-        return hashed_bytes.decode('utf-8')
+    """Genera un hash sicuro per la password usando bcrypt."""
+    return _AuthManager._hash_password(password)
 
 def _verify_password(stored_hash: str, provided_password: str) -> bool:
-        """Verifica se la password fornita corrisponde all'hash memorizzato."""
-        try:
-            stored_hash_bytes = stored_hash.encode('utf-8')
-            provided_password_bytes = provided_password.encode('utf-8')
-            return bcrypt.checkpw(provided_password_bytes, stored_hash_bytes)
-        except ValueError:
-            logging.getLogger("CatastoGUI").error(
-                f"Tentativo di verifica con hash non valido: {stored_hash[:10]}...")
-            return False
-        except Exception as e:
-            logging.getLogger("CatastoGUI").error(
-                f"Errore imprevisto durante la verifica bcrypt: {e}")
-            return False
+    """Verifica se la password fornita corrisponde all'hash memorizzato."""
+    return _AuthManager._verify_password(stored_hash, provided_password)
 
 # ---------------------------------------------------------------------------
 # Splash screen Foliarium
