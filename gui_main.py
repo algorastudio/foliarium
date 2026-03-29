@@ -66,6 +66,7 @@ from config import (
     IS_TEST_ENV, SETTINGS_SESSION_TIMEOUT,
     EULA_VERSION, SETTINGS_EULA_ACCEPTED)
 from app_paths import get_icon_path
+from core.session_manager import SessionManager
 
 try:
     from fpdf import FPDF
@@ -581,6 +582,9 @@ class CatastoMainWindow(QMainWindow):
         self.current_session_id: Optional[str] = None
         self.client_ip_address_gui = client_ip_address_gui
 
+        # Gestione sessione centralizzata (nuovo sistema modulare)
+        self.session = SessionManager()
+
         # --- INIZIO CORREZIONE DEFINITIVA: Aggiungi questa riga ---
         self.pool_initialized_successful: bool = False
         # --- FINE CORREZIONE DEFINITIVA ---
@@ -699,6 +703,20 @@ class CatastoMainWindow(QMainWindow):
         self.logged_in_user_id = user_id
         self.logged_in_user_info = user_info
         self.current_session_id = session_id  # Memorizza l'UUID della sessione
+
+        # Sincronizza il SessionManager centralizzato
+        if user_id is not None and user_info:
+            self.session.login(
+                user_id=user_id,
+                user_info={
+                    "nome": user_info.get("nome_completo") or user_info.get("username", ""),
+                    "ruolo": user_info.get("ruolo", ""),
+                    "email": user_info.get("email"),
+                    "username": user_info.get("username", ""),
+                },
+                session_id=session_id,
+                client_ip=self.client_ip_address_gui,
+            )
 
         # --- Aggiornamento etichetta stato DB ---
         db_name_configured = "N/Config"  # Default
@@ -1582,6 +1600,7 @@ class CatastoMainWindow(QMainWindow):
             self.logged_in_user_id = None
             self.logged_in_user_info = None
             self.current_session_id = None
+            self.session.logout()  # Sincronizza il SessionManager centralizzato
 
             # Aggiorna la top bar
             self.top_bar.update_user_info("", "", False)
