@@ -408,6 +408,69 @@
     }
     .contact-email:hover { color: #fff; }
 
+    /* ── Form contatti ── */
+    .contact-form {
+      width: 100%;
+      max-width: 560px;
+      display: flex;
+      flex-direction: column;
+      gap: 1rem;
+      text-align: left;
+    }
+    .contact-form .form-row {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 1rem;
+    }
+    @media (max-width: 560px) { .contact-form .form-row { grid-template-columns: 1fr; } }
+    .contact-form label {
+      display: flex;
+      flex-direction: column;
+      gap: 0.35rem;
+      font-size: 0.8rem;
+      font-weight: 700;
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+      color: rgba(255,255,255,0.55);
+    }
+    .contact-form input,
+    .contact-form select,
+    .contact-form textarea {
+      background: rgba(255,255,255,0.07);
+      border: 1.5px solid rgba(255,255,255,0.15);
+      border-radius: 8px;
+      color: #fff;
+      font-family: inherit;
+      font-size: 0.95rem;
+      padding: 0.65rem 0.9rem;
+      transition: border-color 0.2s;
+      outline: none;
+    }
+    .contact-form input:focus,
+    .contact-form select:focus,
+    .contact-form textarea:focus { border-color: var(--gold2); }
+    .contact-form select option { background: #1a1a2e; color: #fff; }
+    .contact-form textarea { resize: vertical; min-height: 110px; }
+    .contact-form .btn-submit {
+      align-self: flex-start;
+      background: var(--gold);
+      color: #1a1100;
+      font-weight: 800;
+      border: none;
+      cursor: pointer;
+      padding: 0.75rem 2rem;
+      border-radius: 8px;
+      font-size: 0.95rem;
+      letter-spacing: 0.04em;
+      transition: background 0.2s, transform 0.15s;
+    }
+    .contact-form .btn-submit:hover { background: var(--gold2); transform: translateY(-2px); }
+    .contact-form-note {
+      font-size: 0.78rem;
+      color: rgba(255,255,255,0.35);
+      margin-top: 0.2rem;
+    }
+
     /* ── Footer ── */
     footer {
       background: #111;
@@ -718,11 +781,42 @@
     </p>
     <div class="contact-card">
       <a class="contact-email" href="mailto:info@algorastudio.it">info@algorastudio.it</a>
-      <div style="display:flex; gap:1rem; flex-wrap:wrap; justify-content:center;">
-        <a class="btn btn-primary" href="mailto:info@algorastudio.it">✉ Invia una email</a>
-        <a class="btn btn-outline" href="https://www.algorastudio.it" target="_blank" rel="noopener">Sito web</a>
-        <a class="btn btn-outline" href="mailto:info@algorastudio.it?subject=Demo%20Foliarium">🎬 Richiedi una demo</a>
-      </div>
+      <!-- Formspree: sostituisci YOUR_FORM_ID con l'ID ottenuto su formspree.io -->
+      <form class="contact-form" action="https://formspree.io/f/YOUR_FORM_ID" method="POST">
+        <div class="form-row">
+          <label>
+            Nome e cognome
+            <input type="text" name="nome" placeholder="Mario Rossi" required>
+          </label>
+          <label>
+            Email
+            <input type="email" name="email" placeholder="mario@ente.it" required>
+          </label>
+        </div>
+        <label>
+          Ente / Organizzazione
+          <input type="text" name="ente" placeholder="Archivio di Stato di…">
+        </label>
+        <label>
+          Richiesta
+          <select name="richiesta" required>
+            <option value="" disabled selected>Seleziona…</option>
+            <option value="demo">Richiesta demo</option>
+            <option value="preventivo">Preventivo licenza</option>
+            <option value="pnrr">Supporto gara PNRR</option>
+            <option value="informazioni">Informazioni generali</option>
+          </select>
+        </label>
+        <label>
+          Messaggio
+          <textarea name="messaggio" placeholder="Descrivi brevemente il tuo progetto o la tua esigenza…" required></textarea>
+        </label>
+        <button type="submit" class="btn-submit">✉ Invia richiesta</button>
+        <p class="contact-form-note">
+          Risponderemo entro 24–48 ore lavorative. In alternativa scrivi direttamente a
+          <a href="mailto:info@algorastudio.it" style="color:var(--gold2);">info@algorastudio.it</a>
+        </p>
+      </form>
       <p style="font-size:0.82rem; opacity:0.5; margin-top:0.5rem;">
         <a href="https://www.algorastudio.it" target="_blank" rel="noopener">Algora Studio</a> — Marco Santoro
       </p>
