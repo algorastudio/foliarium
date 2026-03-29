@@ -11,6 +11,9 @@ from datetime import date, datetime
 import psycopg2
 from psycopg2.extras import DictCursor
 
+from PyQt6.QtWidgets import QApplication, QProgressDialog, QMessageBox
+from PyQt6.QtCore import Qt
+
 from catasto_exceptions import DBMError, DBUniqueConstraintError, DBNotFoundError, DBDataError
 
 if TYPE_CHECKING:

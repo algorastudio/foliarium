@@ -24,7 +24,7 @@ RETURNS TABLE (
     numero_partita INTEGER,
     comune_nome VARCHAR,
     localita_nome VARCHAR,
-    civico INTEGER,         -- Aggiunto per completezza località
+    civico VARCHAR,         -- Aggiunto per completezza località
     localita_tipo VARCHAR,  -- Aggiunto per completezza località
     natura VARCHAR,
     classificazione VARCHAR,
