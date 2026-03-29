@@ -41,7 +41,7 @@ BEGIN
         c.nome AS comune_nome,
         l.nome AS localita_nome,
         l.civico AS civico,
-        l.tipo AS localita_tipo,
+        tl.nome AS localita_tipo,
         i.natura,
         i.classificazione,
         i.consistenza,
@@ -59,6 +59,8 @@ BEGIN
         catasto.comune c ON p.comune_id = c.id
     JOIN
         catasto.localita l ON i.localita_id = l.id
+    LEFT JOIN
+        catasto.tipo_localita tl ON l.tipo_id = tl.id
     -- LEFT JOIN opzionale per il filtro possessore (se p_nome_possessore_search è fornito)
     LEFT JOIN
         catasto.partita_possessore pp_filter ON p.id = pp_filter.partita_id AND p_nome_possessore_search IS NOT NULL
