@@ -4590,7 +4590,7 @@ class LocalitaSelectionDialog(QDialog):
                 civico_item_text = self.localita_table.item(current_row, 3).text()
 
                 self.selected_localita_name = nome
-                if civico_item_text and civico_item_text != "-" and civico_item_text.strip() != self.civico_spinbox_nuova.specialValueText(): # Verifica anche il testo speciale
+                if civico_item_text and civico_item_text.strip() not in ("", "-", "0"):
                     self.selected_localita_name += f", civ. {civico_item_text}"
                 if tipo:
                     self.selected_localita_name += f" ({tipo})"
