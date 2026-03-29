@@ -353,10 +353,14 @@ class DBPartiteMixin:
             self.logger.debug(f"search_partite - Query: {query} - Params: {tuple(params)}")
 
             # Esecuzione della query con il context manager
+            self.logger.debug(f"search_partite - SQL: {query}")
+            self.logger.debug(f"search_partite - params: {tuple(params)}")
             with self._get_connection() as conn:
                 with conn.cursor(cursor_factory=DictCursor) as cur:
                     cur.execute(query, tuple(params))
-                    results = [dict(row) for row in cur.fetchall()]
+                    raw = cur.fetchall()
+                    self.logger.debug(f"search_partite - raw fetchall count: {len(raw)}")
+                    results = [dict(row) for row in raw]
                     self.logger.info(f"search_partite - Trovate {len(results)} partite.")
                     return results
 
