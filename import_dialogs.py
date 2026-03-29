@@ -20,7 +20,7 @@ import io
 import json
 import logging
 import urllib.request
-from typing import Optional, List, Dict, Any, TYPE_CHECKING
+from typing import Optional, List, Dict, Any, Tuple, TYPE_CHECKING
 
 from PyQt6.QtCore import (
     QSettings, QThread, QTimer, Qt, pyqtSignal,
