@@ -748,6 +748,7 @@ class RicercaAvanzataImmobiliWidget(QWidget):
     def __init__(self, db_manager: CatastoDBManager, parent=None):
         super().__init__(parent)
         self.db_manager = db_manager
+        self.logger = logging.getLogger(f"CatastoGUI.{self.__class__.__name__}")
         self.selected_comune_id: Optional[int] = None
         self.selected_localita_id: Optional[int] = None
 
