@@ -20,6 +20,8 @@ import logging
 from datetime import date, datetime
 from typing import Optional, List, Dict, Any, Tuple, TYPE_CHECKING
 
+import pandas as pd
+
 from PyQt6.QtCore import (
     QDate, QPoint, QSettings, QStandardPaths, Qt, QTimer, QUrl, pyqtSignal,
 )
