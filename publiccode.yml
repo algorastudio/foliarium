@@ -100,9 +100,9 @@ description:
       - "Modular and extensible architecture"
 
 legal:
-  license: AGPL-3.0-or-later
+  license: LicenseRef-Commercial
   repoOwner: "ALGORASTUDIO"
-  # Dual licensing: commercial license available — contact santoromarco@gmail.com
+  # Licenza commerciale proprietaria — contact santoromarco@gmail.com
 
 maintenance:
   type: internal

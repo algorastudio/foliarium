@@ -36,7 +36,7 @@ Grazie per il tuo interesse nel contribuire a Foliarium! Questo documento descri
 
 ## Licenza
 
-Contribuendo a Foliarium, accetti che i tuoi contributi siano rilasciati sotto la stessa licenza AGPL-3.0-or-later del progetto.
+Contribuendo a Foliarium, accetti i termini del [Contributor License Agreement](CLA.md). I contributi saranno incorporati nel progetto distribuito con licenza commerciale proprietaria.
 
 ## Contatti
 

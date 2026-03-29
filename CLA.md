@@ -18,8 +18,7 @@ gratuita e irrevocabile** per:
 
 - riprodurre, preparare opere derivate, distribuire pubblicamente e sublicenziare
   il contributo come parte del progetto Foliarium
-- **includere il contributo in versioni rilasciate sotto licenza commerciale proprietaria**,
-  mantenendo al contempo la disponibilità del contributo sotto AGPL-3.0-or-later
+- **includere il contributo in versioni rilasciate sotto licenza commerciale proprietaria**
 
 ### 2. Licenza di brevetto
 

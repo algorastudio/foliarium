@@ -2,7 +2,7 @@
 
 **Gestionale per il Catasto Storico degli Archivi di Stato**
 
-[![License: AGPL v3](https://img.shields.io/badge/License-AGPL_v3-blue.svg)](https://www.gnu.org/licenses/agpl-3.0)
+[![License: Commercial](https://img.shields.io/badge/License-Commercial-gold.svg)](LICENSE)
 [![publiccode.yml](https://img.shields.io/badge/publiccode-available-brightgreen)](publiccode.yml)
 
 ---
@@ -62,7 +62,7 @@ foliarium/
 ├── requirements.txt           # Dipendenze Python
 ├── config.example.ini         # Configurazione di esempio
 ├── publiccode.yml             # Metadati per il software pubblico italiano
-├── LICENSE                    # AGPL-3.0-or-later
+├── LICENSE                    # Licenza commerciale proprietaria
 ├── CONTRIBUTING.md            # Linee guida per contribuire
 ├── .gitignore
 ├── src/                       # Codice sorgente Python
@@ -240,26 +240,15 @@ Servizi disponibili:
 
 ## Licenza
 
-Foliarium è disponibile con **due modelli di licenza**:
+Foliarium è distribuito esclusivamente con **licenza commerciale proprietaria**.
+La licenza è richiesta per tutti i soggetti: aziende private, enti pubblici, Pubblica Amministrazione e istituti di ricerca.
 
-### Licenza Open Source (AGPL-3.0-or-later)
+La licenza include:
+- supporto tecnico dedicato
+- SLA garantiti su richiesta
+- personalizzazioni su misura
 
-[![License: AGPL v3](https://img.shields.io/badge/License-AGPL_v3-blue.svg)](LICENSE)
-
-Uso gratuito per enti pubblici e privati, **a condizione** che eventuali modifiche al codice
-vengano rilasciate pubblicamente sotto la stessa licenza AGPL-3.0-or-later.
-Testo completo: [LICENSE](LICENSE)
-
-### Licenza Commerciale
-
-Per chi necessita di:
-- personalizzazioni proprietarie non divulgabili
-- integrazioni con sistemi terzi riservati
-- SLA garantiti e supporto prioritario
-- utilizzo in ambienti che non possono rispettare i vincoli AGPL
-
-è disponibile una **licenza commerciale** che non impone l'obbligo di pubblicare
-le modifiche. Contatta ALGORASTUDIO per un preventivo.
+Per un preventivo contatta ALGORASTUDIO.
 
 **Email:** santoromarco@gmail.com
 
