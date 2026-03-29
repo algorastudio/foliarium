@@ -3540,14 +3540,19 @@ class CatastoDBManager:
                                     period_id: Optional[int] = None, year_start: Optional[int] = None,
                                     year_end: Optional[int] = None, partita_id: Optional[int] = None) -> List[Dict]:
         """Chiama la funzione SQL ricerca_documenti_storici (SQL aggiornata per join)."""
+        query = "SELECT * FROM ricerca_documenti_storici(%s, %s, %s, %s, %s, %s)"
+        params = (title, doc_type, period_id, year_start, year_end, partita_id)
         try:
-            # Funzione SQL aggiornata per join corretti
-            query = "SELECT * FROM ricerca_documenti_storici(%s, %s, %s, %s, %s, %s)"
-            params = (title, doc_type, period_id, year_start, year_end, partita_id)
-            if self.execute_query(query, params): return self.fetchall()
-        except psycopg2.Error as db_err: logger.error(f"Errore DB search_historical_documents: {db_err}"); return []
-        except Exception as e: logger.error(f"Errore Python search_historical_documents: {e}"); return []
-        return []
+            with self._get_connection() as conn:
+                with conn.cursor(cursor_factory=DictCursor) as cur:
+                    cur.execute(query, params)
+                    return [dict(r) for r in cur.fetchall()]
+        except psycopg2.Error as db_err:
+            logger.error(f"Errore DB search_historical_documents: {db_err}")
+            return []
+        except Exception as e:
+            logger.error(f"Errore Python search_historical_documents: {e}")
+            return []
     
 
     def get_periodo_storico_details(self, periodo_id: int) -> Optional[Dict[str, Any]]:
