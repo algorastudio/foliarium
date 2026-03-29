@@ -225,9 +225,9 @@ Il software risponde ai requisiti dei progetti di digitalizzazione finanziati co
 
 Foliarium è software libero. Per supporto professionale, personalizzazioni, formazione e servizi di integrazione:
 
-**ALGORASTUDIO**
+**[ALGORASTUDIO](https://www.algorastudio.it)**
 - Email: santoromarco@gmail.com
-- Sito: [algorastudio.it](https://algorastudio.it)
+- Sito: [algorastudio.it](https://www.algorastudio.it)
 
 Servizi disponibili:
 - Installazione e configurazione presso la vostra sede
@@ -261,4 +261,4 @@ e il [Contributor License Agreement](CLA.md).
 
 ---
 
-*Un progetto [ALGORASTUDIO](https://algorastudio.it) — Software per il patrimonio culturale italiano.*
+*Un progetto [ALGORASTUDIO](https://www.algorastudio.it) — Software per il patrimonio culturale italiano.*

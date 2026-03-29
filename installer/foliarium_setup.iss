@@ -13,7 +13,7 @@
 #define AppName         "Foliarium"
 #define AppVersion      "1.0.0"
 #define AppPublisher    "ALGORASTUDIO — Marco Santoro"
-#define AppURL          "https://algorastudio.it"
+#define AppURL          "https://www.algorastudio.it"
 #define AppExeName      "Foliarium.exe"
 #define AppDescription  "Gestionale Catasto Storico per Archivi di Stato"
 
