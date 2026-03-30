@@ -1,5 +1,72 @@
 # Changelog
 
+## v1.5.3 — Marzo 2026
+
+### Refactoring architetturale — DB layer e test coverage
+
+#### Migrazione PyQt6 (completata in v1.3.0.0, nota)
+Tutte le applicazioni usano esclusivamente PyQt6. Gli enum PyQt4/5-style
+(`Qt.AlignLeft`, `QFont.Bold`, ecc.) sono stati eliminati e sostituiti con la
+sintassi completa PyQt6 (`Qt.AlignmentFlag.AlignLeft`, `QFont.Weight.Bold`).
+
+#### Suddivisione `catasto_db_manager.py` in package `db/`
+Il file monolitico da 4 745 righe e 169 metodi è stato suddiviso in 14 mixin
+specializzati, ognuno con responsabilità singola:
+
+| Modulo | Responsabilità |
+|--------|---------------|
+| `db/base.py` | Pool connessioni, context manager, cache offline |
+| `db/comuni.py` | CRUD comuni |
+| `db/localita.py` | CRUD località |
+| `db/possessori.py` | CRUD possessori |
+| `db/partite.py` | CRUD partite, genealogia, report |
+| `db/immobili.py` | CRUD immobili |
+| `db/variazioni.py` | Variazioni e contratti |
+| `db/ricerca.py` | Ricerche avanzate |
+| `db/audit.py` | Audit log, sessioni, consultazioni |
+| `db/utenti.py` | Autenticazione, permessi |
+| `db/backup.py` | Backup e ripristino |
+| `db/documenti.py` | Documenti storici, periodi |
+| `db/stats.py` | Statistiche, viste materializzate |
+| `db/io.py` | Import/export massivo |
+
+`catasto_db_manager.py` è ora una facade di 19 righe che assembla i mixin
+tramite ereditarietà multipla Python. Tutti gli import esistenti continuano
+a funzionare senza modifiche.
+
+#### Fix API interna — eliminazione `self.execute_query` residui
+31 metodi su 9 file mixin che usavano ancora la vecchia API monolitica
+(`self.execute_query` / `self.fetchall` / `self.commit` / `self.rollback`) sono
+stati riscritti con il pattern corretto `_get_connection()` + `DictCursor`.
+Questo elimina potenziali `AttributeError` silenti a runtime.
+
+File corretti: `db/partite.py`, `db/audit.py`, `db/variazioni.py`,
+`db/immobili.py`, `db/utenti.py`, `db/backup.py`, `db/documenti.py`,
+`db/comuni.py`, `db/possessori.py`.
+
+#### Estrazione widget GUI in moduli dedicati
+| Nuovo modulo | Widget estratti da `gui_widgets.py` |
+|---|---|
+| `admin_widgets.py` | `GestioneUtentiWidget`, `AuditLogViewerWidget`, `BackupWidget` |
+| `import_dialogs.py` | `ImportComuniDialog`, `ImportLocalitaDialog` |
+| `reporting_widgets.py` | `RicercaDocumentiWidget`, `EsportazioniWidget`, `ReportisticaWidget`, `StatisticheWidget` |
+
+`gui_widgets.py` mantiene i re-export per backward compatibility.
+
+#### Fix dipendenza Qt in DB layer
+`db/stats.py`: gli import `QProgressDialog`, `QMessageBox`, `Qt` spostati
+dentro `refresh_materialized_views()` (lazy import) per permettere l'import
+del modulo in ambienti headless e test CI senza display.
+
+#### Test coverage
+- 53 nuovi unit test in `tests/unit/test_db_mixins.py` (9 classi, una per mixin)
+- Coverage totale: **7% → 19.6%**; `db/variazioni.py` 61%, `db/audit.py` 32%
+- `pytest.ini` aggiornato: aggiunto `--cov=db` per coverage del package `db/`
+- Pattern mock standard per testare metodi DB senza connessione reale:
+  `patch.object(mgr, "_get_connection", return_value=mock_conn_cm)`
+
+---
+
 ## v1.5.2 — Marzo 2026
 
 ### Fix temi QSS — campi tagliati e warning Qt (`styles/`)

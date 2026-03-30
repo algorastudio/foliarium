@@ -11,8 +11,10 @@ from datetime import date, datetime
 import psycopg2
 from psycopg2.extras import DictCursor
 
-from PyQt6.QtWidgets import QApplication, QProgressDialog, QMessageBox
-from PyQt6.QtCore import Qt
+# Nota: le classi Qt (QProgressDialog, QMessageBox) vengono importate in modo
+# lazy all'interno di refresh_materialized_views() per evitare una dipendenza
+# circolare tra il layer DB e il layer GUI, e per permettere l'import del modulo
+# in ambienti headless (test CI senza display).
 
 from catasto_exceptions import DBMError, DBUniqueConstraintError, DBNotFoundError, DBDataError
 
@@ -128,11 +130,17 @@ class DBStatsMixin:
 
     def refresh_materialized_views(self, show_success_message: bool = False) -> bool:
         """Aggiorna tutte le viste materializzate del database in modo sicuro."""
+        # Import lazy: evita dipendenza diretta GUI→DB a livello di modulo.
+        # In ambiente headless (CI) QApplication potrebbe non esistere, quindi
+        # importiamo Qt solo quando il metodo viene effettivamente chiamato.
+        from PyQt6.QtWidgets import QApplication, QProgressDialog, QMessageBox
+        from PyQt6.QtCore import Qt
+
         if not self.pool:
             self.logger.error("Pool di connessioni non inizializzato per refresh viste materializzate.")
             QMessageBox.critical(None, "Errore", "Pool di connessioni non attivo. Impossibile aggiornare le viste.")
             return False
-        
+
         progress_dialog = QProgressDialog("Aggiornamento viste materializzate in corso...", "Annulla", 0, 0, None)
         progress_dialog.setWindowModality(Qt.WindowModality.WindowModal)
         progress_dialog.setCancelButton(None)
