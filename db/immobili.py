@@ -46,64 +46,52 @@ class DBImmobiliMixin:
         except Exception as e:
             raise DBMError(f"Impossibile recuperare l'elenco degli immobili: {e}") from e
 
-    def search_immobili(self, partita_id: Optional[int] = None, comune_id: Optional[int] = None, # Usa comune_id
+    def search_immobili(self, partita_id: Optional[int] = None, comune_id: Optional[int] = None,
                         localita_id: Optional[int] = None, natura: Optional[str] = None,
                         classificazione: Optional[str] = None) -> List[Dict]:
-        """Chiama la funzione SQL cerca_immobili (MODIFICATA per comune_id)."""
+        """Chiama la funzione SQL cerca_immobili con filtri opzionali su partita, comune, località, natura."""
         try:
-            # Funzione SQL aggiornata per comune_id
             query = "SELECT * FROM cerca_immobili(%s, %s, %s, %s, %s)"
-            params = (partita_id, comune_id, localita_id, natura, classificazione) # Passa ID
-            if self.execute_query(query, params): return self.fetchall()
-        except psycopg2.Error as db_err: logger.error(f"Errore DB in search_immobili: {db_err}")
-        except Exception as e: logger.error(f"Errore Python in search_immobili: {e}")
+            params = (partita_id, comune_id, localita_id, natura, classificazione)
+            # Usa il context manager per una connessione sicura dal pool
+            with self._get_connection() as conn:
+                with conn.cursor(cursor_factory=DictCursor) as cur:
+                    cur.execute(query, params)
+                    return [dict(row) for row in cur.fetchall()]
+        except psycopg2.Error as db_err: self.logger.error(f"Errore DB in search_immobili: {db_err}")
+        except Exception as e: self.logger.error(f"Errore Python in search_immobili: {e}")
         return []
 
     def update_immobile(self, immobile_id: int, **kwargs) -> bool:
-        """Chiama la procedura SQL aggiorna_immobile."""
+        """Chiama la procedura SQL aggiorna_immobile. Il commit è automatico."""
         params = {'p_id': immobile_id, 'p_natura': kwargs.get('natura'), 'p_numero_piani': kwargs.get('numero_piani'),
                   'p_numero_vani': kwargs.get('numero_vani'), 'p_consistenza': kwargs.get('consistenza'),
                   'p_classificazione': kwargs.get('classificazione'), 'p_localita_id': kwargs.get('localita_id')}
         call_proc = "CALL aggiorna_immobile(%(p_id)s, %(p_natura)s, %(p_numero_piani)s, %(p_numero_vani)s, %(p_consistenza)s, %(p_classificazione)s, %(p_localita_id)s)"
         try:
-            if self.execute_query(call_proc, params): self.commit(); logger.info(f"Immobile ID {immobile_id} aggiornato."); return True
-            return False
-        except psycopg2.Error as db_err: logger.error(f"Errore DB aggiornamento immobile ID {immobile_id}: {db_err}"); return False
-        except Exception as e: logger.error(f"Errore Python aggiornamento immobile ID {immobile_id}: {e}"); self.rollback(); return False
+            with self._get_connection() as conn:
+                with conn.cursor() as cur:
+                    cur.execute(call_proc, params)
+            self.logger.info(f"Immobile ID {immobile_id} aggiornato.")
+            return True
+        except psycopg2.Error as db_err: self.logger.error(f"Errore DB aggiornamento immobile ID {immobile_id}: {db_err}"); return False
+        except Exception as e: self.logger.error(f"Errore Python aggiornamento immobile ID {immobile_id}: {e}"); return False
 
-    def delete_immobile(self, immobile_id):
+    def delete_immobile(self, immobile_id: int) -> bool:
         """
-        Elimina un immobile dal database utilizzando una procedura memorizzata
-        e gestendo la transazione in modo sicuro con il connection pool.
+        Elimina un immobile tramite la funzione SQL delete_immobile_by_id.
+        Il commit e il rollback sono gestiti automaticamente dal context manager _get_connection.
         """
-        call_proc = "SELECT public.delete_immobile_by_id(%s);"
-        conn = None  # Inizializza la variabile della connessione
+        call_proc = f"SELECT {self.schema}.delete_immobile_by_id(%s);"
         try:
-            # 1. Ottieni una connessione dal pool
-            conn = self.pool.getconn()
-            
-            # 2. Utilizza la connessione con un blocco 'with' per il cursore
-            with conn.cursor() as cur:
-                # 3. Esegui la query/procedura sul cursore
-                cur.execute(call_proc, (immobile_id,))
-                
-                # 4. Esegui il commit sulla connessione
-                conn.commit()
-                
-                logger.info(f"Immobile ID {immobile_id} eliminato con successo.")
-                return True
-                
+            with self._get_connection() as conn:
+                with conn.cursor() as cur:
+                    cur.execute(call_proc, (immobile_id,))
+            self.logger.info(f"Immobile ID {immobile_id} eliminato con successo.")
+            return True
         except Exception as e:
-            # Se si verifica un errore, esegui il rollback
-            if conn:
-                conn.rollback()
-            logger.error(f"Errore durante l'eliminazione dell'immobile ID {immobile_id}: {e}")
+            self.logger.error(f"Errore durante l'eliminazione dell'immobile ID {immobile_id}: {e}")
             return False
-            
-        finally:
-            # 5. Rilascia SEMPRE la connessione al pool
-            if conn:
-                self.pool.putconn(conn)
 
     def transfer_immobile(self, immobile_id: int, nuova_partita_id: int, registra_variazione: bool = False) -> bool:
         """

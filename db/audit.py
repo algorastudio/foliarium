@@ -66,27 +66,31 @@ class DBAuditMixin:
             if data_inizio: conditions.append("timestamp >= %s"); params.append(data_inizio)
             if data_fine: data_fine_end_day = datetime.combine(data_fine, datetime.max.time()); conditions.append("timestamp <= %s"); params.append(data_fine_end_day)
             if utente_db: conditions.append("db_user = %s"); params.append(utente_db)
-            # Attenzione: filtro su app_user_id deve usare alias tabella originale se vista non lo include direttamente con alias
-            # La vista v_audit_dettagliato JOIN u ON al.app_user_id = u.id, quindi al.app_user_id non è direttamente selezionato
-            # Modifichiamo la vista o filtriamo su app_username? Filtriamo su ID per ora, assumendo che la vista possa essere modificata o che funzioni.
-            if app_user_id is not None: conditions.append("al.app_user_id = %s"); params.append(app_user_id) # Usa al.app_user_id (potrebbe richiedere modifica vista)
+            if app_user_id is not None: conditions.append("al.app_user_id = %s"); params.append(app_user_id)
             if session_id: conditions.append("session_id = %s"); params.append(session_id)
 
             if conditions: query += " WHERE " + " AND ".join(conditions)
             query += " ORDER BY timestamp DESC LIMIT %s"; params.append(limit)
 
-            if self.execute_query(query, tuple(params)): return self.fetchall()
-        except psycopg2.Error as db_err: logger.error(f"Errore DB get_audit_log: {db_err}"); return []
-        except Exception as e: logger.error(f"Errore Python get_audit_log: {e}"); return []
+            # Usa il context manager per una connessione sicura dal pool
+            with self._get_connection() as conn:
+                with conn.cursor(cursor_factory=DictCursor) as cur:
+                    cur.execute(query, tuple(params))
+                    return [dict(row) for row in cur.fetchall()]
+        except psycopg2.Error as db_err: self.logger.error(f"Errore DB get_audit_log: {db_err}"); return []
+        except Exception as e: self.logger.error(f"Errore Python get_audit_log: {e}"); return []
         return []
 
     def get_record_history(self, tabella: str, record_id: int) -> List[Dict]:
-        """Chiama la funzione SQL get_record_history."""
+        """Chiama la funzione SQL get_record_history e restituisce la cronologia delle modifiche di un record."""
         try:
             query = "SELECT * FROM get_record_history(%s, %s)"
-            if self.execute_query(query, (tabella, record_id)): return self.fetchall()
-        except psycopg2.Error as db_err: logger.error(f"Errore DB get_record_history: {db_err}"); return []
-        except Exception as e: logger.error(f"Errore Python get_record_history: {e}"); return []
+            with self._get_connection() as conn:
+                with conn.cursor(cursor_factory=DictCursor) as cur:
+                    cur.execute(query, (tabella, record_id))
+                    return [dict(row) for row in cur.fetchall()]
+        except psycopg2.Error as db_err: self.logger.error(f"Errore DB get_record_history: {db_err}"); return []
+        except Exception as e: self.logger.error(f"Errore Python get_record_history: {e}"); return []
         return []
 
     def get_audit_logs(self,
@@ -255,55 +259,31 @@ class DBAuditMixin:
 
     def close_user_session(self, session_id: str) -> bool:
         """
-        Aggiorna la sessione di un utente nel database, impostando l'ora di fine (logout).
-
-        Args:
-            session_id: L'UUID della sessione da chiudere.
-
-        Returns:
-            True se la sessione è stata chiusa con successo, False altrimenti.
+        Imposta data_fine sulla sessione per registrare il logout.
+        Il commit è automatico all'uscita dal context manager _get_connection.
         """
-        if not self.pool:
-            logger.error("Impossibile chiudere la sessione utente: pool di connessioni non disponibile.")
-            return False
-
         if not session_id:
-            logger.warning("Nessun ID di sessione fornito, impossibile chiudere la sessione nel DB.")
+            self.logger.warning("Nessun ID di sessione fornito, impossibile chiudere la sessione nel DB.")
             return False
 
-        conn = None
+        # Imposta la data_fine solo se la sessione è ancora aperta (data_fine IS NULL)
+        query = f"""
+            UPDATE {self.schema}.sessioni
+            SET data_fine = CURRENT_TIMESTAMP
+            WHERE id = %s AND data_fine IS NULL;
+        """
         try:
-            conn = self.get_connection()
-            with conn.cursor() as cur:
-                logger.info(f"Chiusura della sessione utente con ID: {session_id}")
-                
-                # Query per aggiornare la data_fine della sessione specificata
-                # che non è ancora stata chiusa.
-                query = """
-                    UPDATE catasto.sessioni
-                    SET data_fine = CURRENT_TIMESTAMP
-                    WHERE id = %s AND data_fine IS NULL;
-                """
-                cur.execute(query, (session_id,))
-                conn.commit()
-                
-                # psycopg2 fornisce rowcount per sapere se una riga è stata effettivamente aggiornata
-                if cur.rowcount > 0:
-                    logger.info(f"Sessione {session_id} chiusa con successo nel database.")
-                else:
-                    logger.warning(f"Tentativo di chiudere la sessione {session_id}, ma non è stata trovata o era già chiusa.")
-                
-                return True
-        
-        except (Exception, psycopg2.Error) as e:
-            logger.error(f"Errore database durante la chiusura della sessione {session_id}: {e}")
-            if conn:
-                conn.rollback()
+            with self._get_connection() as conn:
+                with conn.cursor() as cur:
+                    cur.execute(query, (session_id,))
+                    if cur.rowcount > 0:
+                        self.logger.info(f"Sessione {session_id} chiusa con successo.")
+                    else:
+                        self.logger.warning(f"Sessione {session_id} non trovata o già chiusa.")
+            return True
+        except Exception as e:
+            self.logger.error(f"Errore DB durante la chiusura della sessione {session_id}: {e}")
             return False
-        
-        finally:
-            if conn:
-                self.release_connection(conn)
 
     def registra_nuova_consultazione(self,
                                     data_consultazione: date,
@@ -355,45 +335,57 @@ class DBAuditMixin:
     def registra_consultazione(self, data: date, richiedente: str, documento_identita: Optional[str],
                              motivazione: Optional[str], materiale_consultato: Optional[str],
                              funzionario_autorizzante: Optional[str]) -> bool:
-        """Chiama la procedura SQL registra_consultazione (invariata rispetto a comune_id)."""
+        """Chiama la procedura SQL registra_consultazione. Il commit è automatico."""
         try:
             call_proc = "CALL registra_consultazione(%s, %s, %s, %s, %s, %s)"
             params = (data, richiedente, documento_identita, motivazione, materiale_consultato, funzionario_autorizzante)
-            if self.execute_query(call_proc, params): self.commit(); logger.info(f"Registrata consultazione: Richiedente '{richiedente}', Data {data}"); return True
-            return False
-        except psycopg2.Error as db_err: logger.error(f"Errore DB registrazione consultazione: {db_err}"); return False
-        except Exception as e: logger.error(f"Errore Python registrazione consultazione: {e}"); self.rollback(); return False
+            with self._get_connection() as conn:
+                with conn.cursor() as cur:
+                    cur.execute(call_proc, params)
+            self.logger.info(f"Consultazione registrata — richiedente: '{richiedente}', data: {data}")
+            return True
+        except psycopg2.Error as db_err: self.logger.error(f"Errore DB registrazione consultazione: {db_err}"); return False
+        except Exception as e: self.logger.error(f"Errore Python registrazione consultazione: {e}"); return False
 
     def update_consultazione(self, consultazione_id: int, **kwargs) -> bool:
-        """Chiama la procedura SQL aggiorna_consultazione."""
+        """Chiama la procedura SQL aggiorna_consultazione. Il commit è automatico."""
         params = {'p_id': consultazione_id, 'p_data': kwargs.get('data'), 'p_richiedente': kwargs.get('richiedente'),
                   'p_documento_identita': kwargs.get('documento_identita'), 'p_motivazione': kwargs.get('motivazione'),
                   'p_materiale_consultato': kwargs.get('materiale_consultato'), 'p_funzionario_autorizzante': kwargs.get('funzionario_autorizzante')}
         call_proc = "CALL aggiorna_consultazione(%(p_id)s, %(p_data)s, %(p_richiedente)s, %(p_documento_identita)s, %(p_motivazione)s, %(p_materiale_consultato)s, %(p_funzionario_autorizzante)s)"
         try:
-            if self.execute_query(call_proc, params): self.commit(); logger.info(f"Consultazione ID {consultazione_id} aggiornata."); return True
-            return False
-        except psycopg2.Error as db_err: logger.error(f"Errore DB aggiornamento consultazione ID {consultazione_id}: {db_err}"); return False
-        except Exception as e: logger.error(f"Errore Python aggiornamento consultazione ID {consultazione_id}: {e}"); self.rollback(); return False
+            with self._get_connection() as conn:
+                with conn.cursor() as cur:
+                    cur.execute(call_proc, params)
+            self.logger.info(f"Consultazione ID {consultazione_id} aggiornata.")
+            return True
+        except psycopg2.Error as db_err: self.logger.error(f"Errore DB aggiornamento consultazione ID {consultazione_id}: {db_err}"); return False
+        except Exception as e: self.logger.error(f"Errore Python aggiornamento consultazione ID {consultazione_id}: {e}"); return False
 
     def delete_consultazione(self, consultazione_id: int) -> bool:
-        """Chiama la procedura SQL elimina_consultazione."""
+        """Chiama la procedura SQL elimina_consultazione. Il commit è automatico."""
         call_proc = "CALL elimina_consultazione(%s)"
         try:
-            if self.execute_query(call_proc, (consultazione_id,)): self.commit(); logger.info(f"Consultazione ID {consultazione_id} eliminata."); return True
-            return False
-        except psycopg2.Error as db_err: logger.error(f"Errore DB eliminazione consultazione ID {consultazione_id}: {db_err}"); return False
-        except Exception as e: logger.error(f"Errore Python eliminazione consultazione ID {consultazione_id}: {e}"); self.rollback(); return False
+            with self._get_connection() as conn:
+                with conn.cursor() as cur:
+                    cur.execute(call_proc, (consultazione_id,))
+            self.logger.info(f"Consultazione ID {consultazione_id} eliminata.")
+            return True
+        except psycopg2.Error as db_err: self.logger.error(f"Errore DB eliminazione consultazione ID {consultazione_id}: {db_err}"); return False
+        except Exception as e: self.logger.error(f"Errore Python eliminazione consultazione ID {consultazione_id}: {e}"); return False
 
     def search_consultazioni(self, data_inizio: Optional[date] = None, data_fine: Optional[date] = None,
                              richiedente: Optional[str] = None, funzionario: Optional[str] = None) -> List[Dict]:
-        """Chiama la funzione SQL cerca_consultazioni (invariata rispetto a comune_id)."""
+        """Chiama la funzione SQL cerca_consultazioni con filtri opzionali su periodo, richiedente e funzionario."""
         try:
             query = "SELECT * FROM cerca_consultazioni(%s, %s, %s, %s)"
             params = (data_inizio, data_fine, richiedente, funzionario)
-            if self.execute_query(query, params): return self.fetchall()
-        except psycopg2.Error as db_err: logger.error(f"Errore DB in search_consultazioni: {db_err}")
-        except Exception as e: logger.error(f"Errore Python in search_consultazioni: {e}")
+            with self._get_connection() as conn:
+                with conn.cursor(cursor_factory=DictCursor) as cur:
+                    cur.execute(query, params)
+                    return [dict(row) for row in cur.fetchall()]
+        except psycopg2.Error as db_err: self.logger.error(f"Errore DB in search_consultazioni: {db_err}")
+        except Exception as e: self.logger.error(f"Errore Python in search_consultazioni: {e}")
         return []
 
     def get_recent_session_logs(self, limit: int = 5) -> List[Dict[str, Any]]:

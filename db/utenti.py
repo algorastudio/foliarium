@@ -157,13 +157,16 @@ class DBUtentiMixin:
             return False
 
     def check_permission(self, utente_id: int, permesso_nome: str) -> bool:
-        """Chiama la funzione SQL ha_permesso."""
+        """Chiama la funzione SQL ha_permesso e restituisce True se l'utente ha il permesso richiesto."""
         try:
             query = "SELECT ha_permesso(%s, %s) AS permesso"
-            if self.execute_query(query, (utente_id, permesso_nome)): result = self.fetchone(); return result.get('permesso', False) if result else False
-            return False
-        except psycopg2.Error as db_err: logger.error(f"Errore DB verifica permesso '{permesso_nome}' per utente ID {utente_id}: {db_err}"); return False
-        except Exception as e: logger.error(f"Errore Python verifica permesso '{permesso_nome}' per utente ID {utente_id}: {e}"); return False
+            with self._get_connection() as conn:
+                with conn.cursor(cursor_factory=DictCursor) as cur:
+                    cur.execute(query, (utente_id, permesso_nome))
+                    result = cur.fetchone()
+                    return bool(result['permesso']) if result else False
+        except psycopg2.Error as db_err: self.logger.error(f"Errore DB verifica permesso '{permesso_nome}' per utente ID {utente_id}: {db_err}"); return False
+        except Exception as e: self.logger.error(f"Errore Python verifica permesso '{permesso_nome}' per utente ID {utente_id}: {e}"); return False
 
     def get_utenti(self, solo_attivi: Optional[bool] = None) -> List[Dict[str, Any]]:
         """Recupera un elenco di utenti in modo sicuro, con filtro opzionale."""
