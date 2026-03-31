@@ -3,6 +3,7 @@ import os,csv,sys,logging,json
 from datetime import date, datetime
 from typing import Optional, List, Dict, Any, Tuple, TYPE_CHECKING
 from app_utils import BulkReportPDF, FPDF_AVAILABLE, _get_default_export_path, prompt_to_open_file
+from app_paths import get_icon_path
 import pandas as pd # Importa pandas
 
 # Importazioni PyQt6
@@ -3442,8 +3443,8 @@ class StatisticheWidget(LazyLoadedWidget):
         maintenance_tab = self._create_maintenance_tab()
 
         # Aggiunta dei tab principali
-        self.main_tabs.addTab(stats_container_widget, "📊 Statistiche")
-        self.main_tabs.addTab(maintenance_tab, "🔧 Manutenzione Database")
+        self.main_tabs.addTab(stats_container_widget, QIcon(str(get_icon_path("bar-chart"))), "Statistiche")
+        self.main_tabs.addTab(maintenance_tab, QIcon(str(get_icon_path("settings"))), "Manutenzione Database")
         
     def _create_stats_comune_tab(self):
         """Crea il widget per il tab 'Statistiche per Comune'."""
@@ -3868,13 +3869,17 @@ class UnifiedFuzzySearchWidget(QWidget):
         search_layout.setContentsMargins(10, 8, 10, 8)
         # ... (il codice interno di search_frame, search_row, controls_row rimane identico)
         search_row = QHBoxLayout()
-        search_row.addWidget(QLabel("🔍"))
+        _lbl_search = QLabel()
+        _lbl_search.setPixmap(QIcon(str(get_icon_path("search"))).pixmap(QSize(16, 16)))
+        search_row.addWidget(_lbl_search)
         self.search_edit = QLineEdit()
         self.search_edit.setPlaceholderText("Cerca in possessori, località, immobili, variazioni, contratti, partite...")
         search_row.addWidget(self.search_edit, 1)
         self.search_btn = QPushButton("Cerca")
         search_row.addWidget(self.search_btn)
-        self.clear_btn = QPushButton("🗑️")
+        self.clear_btn = QPushButton()
+        self.clear_btn.setIcon(self.style().standardIcon(QStyle.StandardPixmap.SP_LineEditClearButton))
+        self.clear_btn.setToolTip("Pulisci ricerca")
         self.clear_btn.setMaximumWidth(30)
         search_row.addWidget(self.clear_btn)
         search_layout.addLayout(search_row)
@@ -3923,12 +3928,12 @@ class UnifiedFuzzySearchWidget(QWidget):
         types_group = QGroupBox("Cerca in:")
         types_group_layout = QHBoxLayout(types_group)
         # ... (tutte le checkbox vengono create e aggiunte a types_group_layout come prima) ...
-        self.search_possessori_cb = QCheckBox("👥 Possessori"); self.search_possessori_cb.setChecked(True); types_group_layout.addWidget(self.search_possessori_cb)
-        self.search_localita_cb = QCheckBox("🏘️ Località"); self.search_localita_cb.setChecked(True); types_group_layout.addWidget(self.search_localita_cb)
-        self.search_immobili_cb = QCheckBox("🏢 Immobili"); self.search_immobili_cb.setChecked(True); types_group_layout.addWidget(self.search_immobili_cb)
-        self.search_variazioni_cb = QCheckBox("📋 Variazioni"); self.search_variazioni_cb.setChecked(True); types_group_layout.addWidget(self.search_variazioni_cb)
-        self.search_contratti_cb = QCheckBox("📄 Contratti"); self.search_contratti_cb.setChecked(True); types_group_layout.addWidget(self.search_contratti_cb)
-        self.search_partite_cb = QCheckBox("📊 Partite"); self.search_partite_cb.setChecked(True); types_group_layout.addWidget(self.search_partite_cb)
+        self.search_possessori_cb = QCheckBox("Possessori"); self.search_possessori_cb.setIcon(QIcon(str(get_icon_path("users")))); self.search_possessori_cb.setChecked(True); types_group_layout.addWidget(self.search_possessori_cb)
+        self.search_localita_cb = QCheckBox("Località"); self.search_localita_cb.setIcon(QIcon(str(get_icon_path("map-pin")))); self.search_localita_cb.setChecked(True); types_group_layout.addWidget(self.search_localita_cb)
+        self.search_immobili_cb = QCheckBox("Immobili"); self.search_immobili_cb.setIcon(QIcon(str(get_icon_path("building")))); self.search_immobili_cb.setChecked(True); types_group_layout.addWidget(self.search_immobili_cb)
+        self.search_variazioni_cb = QCheckBox("Variazioni"); self.search_variazioni_cb.setIcon(QIcon(str(get_icon_path("report")))); self.search_variazioni_cb.setChecked(True); types_group_layout.addWidget(self.search_variazioni_cb)
+        self.search_contratti_cb = QCheckBox("Contratti"); self.search_contratti_cb.setIcon(QIcon(str(get_icon_path("file-text")))); self.search_contratti_cb.setChecked(True); types_group_layout.addWidget(self.search_contratti_cb)
+        self.search_partite_cb = QCheckBox("Partite"); self.search_partite_cb.setIcon(QIcon(str(get_icon_path("bar-chart")))); self.search_partite_cb.setChecked(True); types_group_layout.addWidget(self.search_partite_cb)
         types_layout.addWidget(types_group)
 
         content_layout.addLayout(types_layout) # AGGIUNTO AL CONTENT_LAYOUT
@@ -3937,13 +3942,13 @@ class UnifiedFuzzySearchWidget(QWidget):
         self.results_tabs = QTabWidget()
         self.results_tabs.setMinimumHeight(400)
         # ... (tutta la creazione delle tabelle e l'aggiunta a results_tabs rimane identica) ...
-        self.unified_table = self._create_table_widget(["Tipo", "Nome/Descrizione", "Dettagli", "Similarità", "Campo"], [1, 2], 3); self.results_tabs.addTab(self.unified_table, "🔍 Tutti")
-        self.possessori_table = self._create_table_widget(["Nome Completo", "Comune", "Partite", "Similitud."], [0], 3); self.results_tabs.addTab(self.possessori_table, "👥 Possessori")
-        self.localita_table = self._create_table_widget(["Nome", "Tipo", "Civico", "Comune", "Immobili", "Similitud."], [0, 3], 5); self.results_tabs.addTab(self.localita_table, "📍 Località")
-        self.immobili_table = self._create_table_widget(["Natura", "Classificazione", "Partita", "Suffisso", "Comune", "Similitud."], [1, 4], 5); self.results_tabs.addTab(self.immobili_table, "🏢 Immobili")
+        self.unified_table = self._create_table_widget(["Tipo", "Nome/Descrizione", "Dettagli", "Similarità", "Campo"], [1, 2], 3); self.results_tabs.addTab(self.unified_table, QIcon(str(get_icon_path("search"))), "Tutti")
+        self.possessori_table = self._create_table_widget(["Nome Completo", "Comune", "Partite", "Similitud."], [0], 3); self.results_tabs.addTab(self.possessori_table, QIcon(str(get_icon_path("users"))), "Possessori")
+        self.localita_table = self._create_table_widget(["Nome", "Tipo", "Civico", "Comune", "Immobili", "Similitud."], [0, 3], 5); self.results_tabs.addTab(self.localita_table, QIcon(str(get_icon_path("map-pin"))), "Località")
+        self.immobili_table = self._create_table_widget(["Natura", "Classificazione", "Partita", "Suffisso", "Comune", "Similitud."], [1, 4], 5); self.results_tabs.addTab(self.immobili_table, QIcon(str(get_icon_path("building"))), "Immobili")
         self.variazioni_table = self._create_table_widget(["Tipo", "Data", "Rif. e Partita Origine", "Similitud."], [2], 3)
-        self.results_tabs.addTab(self.variazioni_table, "📋 Variazioni")
-        self.contratti_table = self._create_table_widget(["Tipo", "Data", "Partita", "Similitud."], [0], 3); self.results_tabs.addTab(self.contratti_table, "📄 Contratti")
+        self.results_tabs.addTab(self.variazioni_table, QIcon(str(get_icon_path("report"))), "Variazioni")
+        self.contratti_table = self._create_table_widget(["Tipo", "Data", "Partita", "Similitud."], [0], 3); self.results_tabs.addTab(self.contratti_table, QIcon(str(get_icon_path("file-text"))), "Contratti")
         # --- MODIFICA QUESTA RIGA ---
         self.partite_table = self._create_table_widget(
             ["Numero", "Suffisso", "Possessori", "Tipo", "Stato", "Data Impianto", "Comune", "Similitud."],
@@ -3951,7 +3956,7 @@ class UnifiedFuzzySearchWidget(QWidget):
             7        # L'indice della colonna 'Similitud.' ora è 7
         )
         # --- FINE MODIFICA --- 
-        self.results_tabs.addTab(self.partite_table, "📊 Partite")
+        self.results_tabs.addTab(self.partite_table, QIcon(str(get_icon_path("bar-chart"))), "Partite")
 
         content_layout.addWidget(self.results_tabs) # AGGIUNTO AL CONTENT_LAYOUT
 
@@ -4032,16 +4037,16 @@ class UnifiedFuzzySearchWidget(QWidget):
     def _check_gin_status(self):
         """Verifica lo stato degli indici GIN."""
         if not self.gin_search or not hasattr(self.gin_search, 'verify_gin_indices'):
-            self.indices_status_label.setText("❌ Ricerca non disponibile")
+            self.indices_status_label.setText("Ricerca non disponibile")
             return
         try:
             result = self.gin_search.verify_gin_indices()
             if result.get('status') == 'OK' and result.get('gin_indices', 0) > 0:
-                self.indices_status_label.setText(f"✅ Indici GIN attivi ({result['gin_indices']})")
+                self.indices_status_label.setText(f"Indici GIN attivi ({result['gin_indices']})")
             else:
-                self.indices_status_label.setText("⚠️ Indici GIN mancanti o non validi")
+                self.indices_status_label.setText("Indici GIN mancanti o non validi")
         except Exception as e:
-            self.indices_status_label.setText("❌ Errore verifica indici")
+            self.indices_status_label.setText("Errore verifica indici")
             self.logger.error(f"Errore verifica indici GIN: {e}")
 
     def _on_search_text_changed(self, text):
@@ -4147,18 +4152,24 @@ class UnifiedFuzzySearchWidget(QWidget):
     def _populate_unified_table(self, results_by_type: Dict[str, List]):
         self.unified_table.setRowCount(0)
         row = 0
-        type_icons = {
-            'possessore': '👥', 'localita': '🏘️', 'immobile': '🏢', 
-            'variazione': '📋', 'contratto': '📄', 'partita': '📊'
+        _type_icon_names = {
+            'possessore': 'users', 'localita': 'map-pin', 'immobile': 'building',
+            'variazione': 'report', 'contratto': 'file-text', 'partita': 'bar-chart'
+        }
+        _type_labels = {
+            'possessore': 'Possessore', 'localita': 'Località', 'immobile': 'Immobile',
+            'variazione': 'Variazione', 'contratto': 'Contratto', 'partita': 'Partita'
         }
         for entity_type, entities in results_by_type.items():
             for entity in entities:
                 self.unified_table.insertRow(row)
-                icon = type_icons.get(entity_type, '📁')
-                
+                _icon_name = _type_icon_names.get(entity_type, 'file-text')
+                _tipo_item = QTableWidgetItem(_type_labels.get(entity_type, entity_type.title()))
+                _tipo_item.setIcon(QIcon(str(get_icon_path(_icon_name))))
+
                 # ["Tipo", "Nome/Descrizione", "Dettagli", "Similarità", "Campo"]
-                self.unified_table.setItem(row, 0, QTableWidgetItem(f"{icon} {entity_type.title()}"))
-                self.unified_table.item(row,0).setData(Qt.ItemDataRole.UserRole, {'type': entity_type, 'data': entity}) # Salva dati per doppio click
+                self.unified_table.setItem(row, 0, _tipo_item)
+                self.unified_table.item(row, 0).setData(Qt.ItemDataRole.UserRole, {'type': entity_type, 'data': entity}) # Salva dati per doppio click
                 
                 self.unified_table.setItem(row, 1, QTableWidgetItem(entity.get('display_text', '')))
                 self.unified_table.setItem(row, 2, QTableWidgetItem(entity.get('detail_text', '')))
@@ -4220,14 +4231,13 @@ class UnifiedFuzzySearchWidget(QWidget):
     def _update_tab_counters(self, results_by_type: Dict[str, List]):
         """Aggiorna i contatori nei titoli dei tab."""
         # --- MODIFICA: La logica di base_index non è più necessaria ---
-        self.results_tabs.setTabText(0, f"🔍 Tutti ({sum(len(v) for v in results_by_type.values())})")
-        self.results_tabs.setTabText(1, f"👥 Possessori ({len(results_by_type.get('possessore', []))})")
-        self.results_tabs.setTabText(2, f"🏘️ Località ({len(results_by_type.get('localita', []))})")
-        self.results_tabs.setTabText(3, f"🏢 Immobili ({len(results_by_type.get('immobile', []))})")
-        # --- AGGIUNGERE QUESTE RIGHE ---
-        self.results_tabs.setTabText(4, f"📋 Variazioni ({len(results_by_type.get('variazione', []))})")
-        self.results_tabs.setTabText(5, f"📄 Contratti ({len(results_by_type.get('contratto', []))})")
-        self.results_tabs.setTabText(6, f"📊 Partite ({len(results_by_type.get('partita', []))})")
+        self.results_tabs.setTabText(0, f"Tutti ({sum(len(v) for v in results_by_type.values())})")
+        self.results_tabs.setTabText(1, f"Possessori ({len(results_by_type.get('possessore', []))})")
+        self.results_tabs.setTabText(2, f"Località ({len(results_by_type.get('localita', []))})")
+        self.results_tabs.setTabText(3, f"Immobili ({len(results_by_type.get('immobile', []))})")
+        self.results_tabs.setTabText(4, f"Variazioni ({len(results_by_type.get('variazione', []))})")
+        self.results_tabs.setTabText(5, f"Contratti ({len(results_by_type.get('contratto', []))})")
+        self.results_tabs.setTabText(6, f"Partite ({len(results_by_type.get('partita', []))})")
 
     def _clear_results(self):
         """Pulisce tutti i risultati e i contatori."""
@@ -4251,7 +4261,7 @@ class UnifiedFuzzySearchWidget(QWidget):
     def _handle_search_error(self, error_message):
         """Gestisce gli errori di ricerca."""
         self.search_btn.setEnabled(True)
-        self.stats_label.setText("❌ Errore ricerca")
+        self.stats_label.setText("Errore ricerca")
         self.logger.error(f"Errore ricerca fuzzy: {error_message}")
         QMessageBox.critical(self, "Errore Ricerca", f"Si è verificato un errore:\n{error_message}")
 
@@ -4684,7 +4694,7 @@ class DashboardWidget(QWidget):
                     elif days_ago <= 7:
                         color, testo = "#E67E22", f"Backup: {days_ago} giorni fa"
                     else:
-                        color, testo = "#E74C3C", f"⚠ Backup: {days_ago} giorni fa — consigliato!"
+                        color, testo = "#E74C3C", f"Backup: {days_ago} giorni fa — consigliato!"
                     self.backup_status_label.setText(testo)
                     self.backup_status_label.setStyleSheet(
                         f"QLabel {{ background: #F0F4F8; border: 1px solid {color}; border-radius: 6px; "
