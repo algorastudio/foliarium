@@ -55,7 +55,7 @@ QPushButton:pressed {
 
 QPushButton:disabled {
     background-color: #A9A9A9;
-    color: #E0E0E0;
+    color: #303030; /* era #E0E0E0: testo chiaro su grigio medio (1.8:1 → 6.8:1) */
 }
 
 QTabWidget::pane {

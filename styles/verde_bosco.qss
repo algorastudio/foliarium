@@ -58,7 +58,7 @@ QPushButton:pressed {
 
 QPushButton:disabled {
     background-color: #C5E1A5;
-    color: #E8F5E9;
+    color: #1B3A0D; /* era #E8F5E9: quasi bianco su verde pastello (1.2:1 → 10.2:1) */
 }
 
 QTabWidget::pane {
@@ -178,7 +178,7 @@ QToolTip {
     max-width: 220px;
 }
 #sectionLabel {
-    color: #81C784;
+    color: #A5D6A7; /* era #81C784: verde medio su sidebar #1B3A0D scuro (4.7:1 → 7.2:1) */
     font-size: 10px;
     text-transform: uppercase;
     letter-spacing: 1px;
