@@ -475,13 +475,13 @@ class DBConnectionBase:
                 return risultati # Se DictCursor restituisce direttamente una lista di dizionari (o oggetti DictRow)
                 # oppure: return [dict(row) for row in risultati] # Se necessario convertire esplicitamente
             except psycopg2.ProgrammingError: # Si verifica se si tenta di fetch da una query che non restituisce risultati
-                logger.warning("Nessun risultato da recuperare per l'ultima query (fetchall).")
+                self.logger.warning("Nessun risultato da recuperare per l'ultima query (fetchall).")
                 return []
             except Exception as e:
-                logger.error(f"Errore generico durante fetchall: {e}")
+                self.logger.error(f"Errore generico durante fetchall: {e}")
                 return []
         else: # self.cursor è None o è chiuso
-            logger.warning("Tentativo di fetchall senza un cursore valido o su un cursore chiuso.")
+            self.logger.warning("Tentativo di fetchall senza un cursore valido o su un cursore chiuso.")
             return []
 
     def fetchone(self) -> Optional[Dict[str, Any]]:
@@ -490,8 +490,8 @@ class DBConnectionBase:
             try:
                 return self.cursor.fetchone()
             except psycopg2.Error as e:
-                logger.error(f"Errore DB durante fetchone: {e}")
+                self.logger.error(f"Errore DB durante fetchone: {e}")
                 return None
         else:
-            logger.warning("Tentativo di fetchone senza un cursore valido.")
+            self.logger.warning("Tentativo di fetchone senza un cursore valido.")
             return None

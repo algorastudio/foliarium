@@ -142,10 +142,10 @@ class DBDocumentiMixin:
                     cur.execute(query, params)
                     return [dict(r) for r in cur.fetchall()]
         except psycopg2.Error as db_err:
-            logger.error(f"Errore DB search_historical_documents: {db_err}")
+            self.logger.error(f"Errore DB search_historical_documents: {db_err}")
             return []
         except Exception as e:
-            logger.error(f"Errore Python search_historical_documents: {e}")
+            self.logger.error(f"Errore Python search_historical_documents: {e}")
             return []
 
     def link_document_to_partita(self, document_id: int, partita_id: int,
@@ -328,7 +328,7 @@ class DBDocumentiMixin:
     def get_cadastral_stats_by_period(self, comune_id: Optional[int] = None, year_start: int = 1900, # Usa comune_id
                                        year_end: Optional[int] = None) -> List[Dict]:
         """Chiama la funzione SQL statistiche_catastali_periodo (MODIFICATA per comune_id)."""
-        logger.warning("La funzione SQL 'statistiche_catastali_periodo' potrebbe non essere aggiornata per comune_id.")
+        self.logger.warning("La funzione SQL 'statistiche_catastali_periodo' potrebbe non essere aggiornata per comune_id.")
         try:
             if year_end is None: year_end = datetime.now().year
             query = "SELECT * FROM statistiche_catastali_periodo(%s, %s, %s)"
