@@ -3,24 +3,10 @@ db/base.py — DBConnectionBase: pool, connessione, cache, transazioni.
 Classe base per CatastoDBManager (non usare direttamente).
 """
 
-#!/usr/bin/env python3
-# -*- coding: utf-8 -*-
-"""
-Gestore Database Catasto Storico (MODIFICATO per comune.id PK)
-==============================================================
-Script per la gestione del database catastale con supporto
-per operazioni CRUD, chiamate alle stored procedure, gestione utenti,
-audit, backup e funzionalità avanzate.
-
-Autore: Marco Santoro (Versione rivista e pulita)
-Data: 29/04/2025
-"""
-
 import psycopg2
-import psycopg2.errors # Importa specificamente gli errori
+import psycopg2.errors
 from psycopg2.extras import DictCursor
-from psycopg2.extensions import ISOLATION_LEVEL_SERIALIZABLE,ISOLATION_LEVEL_AUTOCOMMIT
-
+from psycopg2.extensions import ISOLATION_LEVEL_SERIALIZABLE, ISOLATION_LEVEL_AUTOCOMMIT
 from psycopg2 import sql, extras, pool
 import sys, csv
 import logging
@@ -29,23 +15,8 @@ from typing import List, Dict, Any, Optional, Tuple, Union
 import json
 import uuid
 import os
-import shutil # Per trovare i percorsi degli eseguibili
+import shutil
 from contextlib import contextmanager
-from PyQt6.QtWidgets import (QAbstractItemView, QApplication, 
-                             QCheckBox, QComboBox, QDateEdit, QDateTimeEdit,
-                             QDialog, QDialogButtonBox, QDoubleSpinBox,
-                             QFileDialog, QFormLayout, QFrame, QGridLayout,
-                             QGroupBox, QHBoxLayout, QHeaderView, QInputDialog,
-                             QLabel, QLineEdit, QListWidget, QListWidgetItem,
-                             QMainWindow, QMenu, QMessageBox, QProgressBar,
-                             QPushButton, QScrollArea, QSizePolicy, QSpacerItem,
-                             QSpinBox, QStyle, QStyleFactory, QTabWidget,
-                             QTableWidget, QTableWidgetItem, QTextEdit,
-                             QVBoxLayout,QProgressDialog)
-from PyQt6.QtCore import (QDate, QDateTime, QPoint, QProcess, QSettings, 
-                          QSize, QStandardPaths, Qt, QTimer, QUrl, 
-                          pyqtSignal,QProcessEnvironment,QObject)
-from PyQt6.QtGui import QAction
 
 
 
@@ -504,13 +475,13 @@ class DBConnectionBase:
                 return risultati # Se DictCursor restituisce direttamente una lista di dizionari (o oggetti DictRow)
                 # oppure: return [dict(row) for row in risultati] # Se necessario convertire esplicitamente
             except psycopg2.ProgrammingError: # Si verifica se si tenta di fetch da una query che non restituisce risultati
-                logger.warning("Nessun risultato da recuperare per l'ultima query (fetchall).")
+                self.logger.warning("Nessun risultato da recuperare per l'ultima query (fetchall).")
                 return []
             except Exception as e:
-                logger.error(f"Errore generico durante fetchall: {e}")
+                self.logger.error(f"Errore generico durante fetchall: {e}")
                 return []
         else: # self.cursor è None o è chiuso
-            logger.warning("Tentativo di fetchall senza un cursore valido o su un cursore chiuso.")
+            self.logger.warning("Tentativo di fetchall senza un cursore valido o su un cursore chiuso.")
             return []
 
     def fetchone(self) -> Optional[Dict[str, Any]]:
@@ -519,8 +490,8 @@ class DBConnectionBase:
             try:
                 return self.cursor.fetchone()
             except psycopg2.Error as e:
-                logger.error(f"Errore DB durante fetchone: {e}")
+                self.logger.error(f"Errore DB durante fetchone: {e}")
                 return None
         else:
-            logger.warning("Tentativo di fetchone senza un cursore valido.")
+            self.logger.warning("Tentativo di fetchone senza un cursore valido.")
             return None

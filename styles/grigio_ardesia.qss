@@ -56,7 +56,7 @@ QPushButton:pressed {
 
 QPushButton:disabled {
     background-color: #566573;
-    color: #99A3A4;
+    color: #DCE0E2; /* era #99A3A4: grigio su grigio-ardesia scuro (2.1:1 → 5.8:1) */
 }
 
 QTabWidget::pane {
@@ -109,7 +109,7 @@ QTableWidget::item:selected {
 #roleChip { border-radius: 4px; padding: 2px 8px; font-size: 11px; font-weight: bold; }
 #roleChip[role="admin"]        { background: #5A1A1A; color: #FC8181; }
 #roleChip[role="archivista"]   { background: #1A3555; color: #90CDF4; }
-#roleChip[role="consultatore"] { background: #4A5568; color: #A0AEC0; }
+#roleChip[role="consultatore"] { background: #4A5568; color: #E2E8F0; } /* era #A0AEC0: testo grigio chiaro su grigio scuro (3.9:1 → 7.5:1) */
 #logoutButton {
     background: transparent;
     border: 1px solid #718096;

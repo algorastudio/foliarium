@@ -4,7 +4,7 @@
 
 **Meridiana** is a desktop application for managing historical Italian cadastral records (archivio catastale storico), developed for the State Archive of Savona. It allows archivists to search, insert, and export property records (partite catastali) and owners (possessori).
 
-- **Current version:** 1.5.0
+- **Current version:** 1.5.3
 - **Author:** Marco Santoro
 - **Primary platform:** Windows 10+
 - **Code/UI language:** Italian
@@ -528,3 +528,141 @@ Tutto il lavoro e sul branch `claude/summarize-dev-status-vDVnI`.
 - `docs/riferimento/changelog.md`: aggiunte sezioni v1.4.2.0, v1.4.3.0, v1.4.4.0
 - `docs/admin/gestione-utenti.md`: aggiornati requisiti password, aggiunte note notifiche email
 - `docs/primo-avvio.md`: aggiunta sezione "Timeout di sessione"
+
+---
+
+## Changelog sessione corrente (v1.5.3)
+
+Tutto il lavoro è sul branch `claude/improve-foliarium-system-5aDC6`.
+
+### Nota: migrazione PyQt6 (completata in v1.3.0.0)
+
+L'applicazione usa **esclusivamente PyQt6**. Tutti gli enum sono nella forma
+a tre parti obbligatoria:
+
+```python
+# CORRETTO (PyQt6)
+Qt.AlignmentFlag.AlignLeft
+Qt.ItemFlag.ItemIsSelectable
+QSizePolicy.Policy.Expanding
+QFont.Weight.Bold
+
+# ERRATO (PyQt4/5 — genera AttributeError a runtime)
+Qt.AlignLeft
+Qt.ItemIsSelectable
+QFont.Bold
+```
+
+### Refactoring: suddivisione `catasto_db_manager.py` in package `db/`
+
+Il file monolitico (4 745 righe, 169 metodi) è stato suddiviso in 14 mixin
+tramite ereditarietà multipla Python (MRO). `catasto_db_manager.py` è ora
+una facade di 19 righe:
+
+```python
+class CatastoDBManager(
+    DBComuniMixin, DBLocalitaMixin, DBPossessoriMixin,
+    DBPartiteMixin, DBImmobiliMixin, DBVariazioniMixin,
+    DBSearchMixin, DBAuditMixin, DBUtentiMixin,
+    DBBackupMixin, DBDocumentiMixin, DBStatsMixin,
+    DBIOMixin, DBConnectionBase,
+):
+    pass
+```
+
+Pattern corretto per ogni metodo DB (commit/rollback automatici):
+
+```python
+with self._get_connection() as conn:
+    with conn.cursor(cursor_factory=DictCursor) as cur:
+        cur.execute(query, params)
+        return [dict(row) for row in cur.fetchall()]
+```
+
+### Fix: eliminazione `self.execute_query` residui (`db/` package)
+
+31 metodi su 9 file mixin usavano ancora la vecchia API della classe
+monolitica (`self.execute_query`, `self.fetchall`, `self.commit`,
+`self.rollback`). Tutti riscritti con il pattern `_get_connection()`.
+
+File corretti: `db/partite.py` (6), `db/audit.py` (6+1 close_user_session),
+`db/variazioni.py` (6), `db/immobili.py` (2+1 delete_immobile),
+`db/utenti.py` (1), `db/backup.py` (3), `db/documenti.py` (2),
+`db/comuni.py` (1 completo riscrittura registra_comune_nel_db),
+`db/possessori.py` (1).
+
+Rimossi anche:
+- 3 log di debug temporanei da `db/partite.py`
+- Tutti i `logger.xxx()` bare → `self.logger.xxx()` in tutti i mixin
+- `self.cursor`, `self.pool.getconn()`, `self.get_connection()`,
+  `self.release_connection()` (tutti riferimenti all'API vecchia)
+
+### Fix: dipendenza Qt in `db/stats.py`
+
+Gli import `QProgressDialog`, `QMessageBox`, `Qt` spostati dentro
+`refresh_materialized_views()` (lazy import). Il modulo può ora essere
+importato in ambienti headless (test CI) senza che Qt sia disponibile.
+
+### Estrazione widget GUI in moduli dedicati
+
+`gui_widgets.py` (originale >7 000 righe) ridotto estraendo:
+
+| Nuovo modulo | Widget |
+|---|---|
+| `admin_widgets.py` | `GestioneUtentiWidget`, `AuditLogViewerWidget`, `BackupWidget` |
+| `import_dialogs.py` | `ImportComuniDialog`, `ImportLocalitaDialog` |
+| `reporting_widgets.py` | `RicercaDocumentiWidget`, `EsportazioniWidget`, `ReportisticaWidget`, `StatisticheWidget` |
+
+`gui_widgets.py` mantiene i re-export per backward compatibility degli import
+esistenti.
+
+### Fix runtime emersi durante il refactoring
+
+| Errore | File | Soluzione |
+|--------|------|-----------|
+| `NameError: CatastoDBManager` | `admin_widgets.py` | `from __future__ import annotations` |
+| `NameError: Tuple` | `import_dialogs.py` | Aggiunto `Tuple` agli import typing |
+| `NameError: QStyle, QProgressDialog, pd` | `reporting_widgets.py` | Aggiunti import mancanti |
+| `AttributeError: execute_query` | `db/documenti.py` | Riscritto con `_get_connection()` |
+| `DatatypeMismatch civico` | `db/ricerca.py` + SQL | `civico INTEGER` → `VARCHAR` nella SP + riscrittura come query diretta |
+| `AttributeError: civico_spinbox_nuova` | `dialogs.py` | Rimosso riferimento al spinbox in modalità selezione |
+
+### Test coverage (`tests/unit/test_db_mixins.py`)
+
+Nuovo file con **53 unit test** suddivisi in 9 classi (una per mixin).
+Ogni test patcha `_get_connection()` con un mock connection:
+
+```python
+conn_cm, cur = make_mock_conn(rows=[{"id": 1, "nome": "Savona"}])
+with patch.object(mgr, "_get_connection", return_value=conn_cm):
+    result = mgr.get_comuni()
+assert len(result) == 2
+```
+
+Coverage totale: **7% → 19.6%**
+
+| Mixin | Coverage |
+|-------|---------|
+| `db/variazioni.py` | 61% |
+| `db/audit.py` | 32% |
+| `db/immobili.py` | 38% |
+| `db/comuni.py` | 29% |
+| `db/backup.py` | 29% |
+
+`pytest.ini`: aggiunto `--cov=db`.
+
+### Documentazione aggiornata
+
+- `docs/index.md`: versione → 1.5.3
+- `docs/riferimento/changelog.md`: aggiunta sezione v1.5.3 con dettaglio refactoring
+- `CLAUDE.md`: aggiornato a v1.5.3, aggiunta nota PyQt6, aggiunto changelog sessione
+
+### Debiti tecnici noti
+
+- `db/base.py` contiene ancora import Qt massivi (eredità della classe monolitica);
+  da rimuovere in una sessione dedicata verificando quali classi sono effettivamente usate
+- `gui_widgets.py` è ancora a ~5 000 righe; i widget di inserimento
+  (`InserimentoComuneWidget`, `InserimentoPartitaWidget`, ecc.) sono candidati
+  all'estrazione in `insertion_widgets.py`
+- Test coverage dei metodi con logica SQL complessa in `db/possessori.py`,
+  `db/partite.py`, `db/ricerca.py` da completare

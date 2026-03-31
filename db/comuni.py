@@ -75,75 +75,50 @@ class DBComuniMixin:
             raise DBMError(f"Errore database durante l'aggiunta del comune: {e}") from e
 
     def registra_comune_nel_db(self, nome: str, provincia: str, regione: str) -> Optional[int]:
-            comune_id: Optional[int] = None
-            query_insert = """
-            INSERT INTO catasto.comune (nome, provincia, regione)
+        """
+        Inserisce un comune se non esiste (ON CONFLICT DO NOTHING) e restituisce il suo ID.
+        Gestito in una singola transazione: se l'INSERT non produce righe (conflitto sul nome),
+        si esegue un SELECT per recuperare l'ID del comune già presente.
+        """
+        query_insert = f"""
+            INSERT INTO {self.schema}.comune (nome, provincia, regione)
             VALUES (%s, %s, %s)
             ON CONFLICT (nome) DO NOTHING
             RETURNING id;
-            """
-            query_select = "SELECT id FROM catasto.comune WHERE nome = %s;"
+        """
+        query_select = f"SELECT id FROM {self.schema}.comune WHERE nome = %s;"
 
-            try:
-                if self.execute_query(query_insert, (nome, provincia, regione)):
-                    # execute_query DEVE aver impostato self.cursor se ha restituito True
-                    if self.cursor is None: # Controllo di sicurezza aggiuntivo
-                        logger.error(f"Errore critico: self.cursor è None dopo execute_query riuscita per INSERT comune '{nome}'.")
-                        self.rollback()
-                        return None
+        try:
+            # Una singola connessione per entrambe le query: INSERT e l'eventuale SELECT di fallback
+            with self._get_connection() as conn:
+                with conn.cursor(cursor_factory=DictCursor) as cur:
+                    cur.execute(query_insert, (nome, provincia, regione))
+                    risultato_insert = cur.fetchone()
 
-                    risultato_insert = None
-                    if self.cursor.description: # Verifica se la query poteva ritornare risultati
-                        try:
-                            risultato_insert = self.cursor.fetchone() # Prova a fare fetch
-                        except psycopg2.ProgrammingError as pe: # Es. "no results to fetch"
-                            logger.warning(f"Nessun risultato da fetchone() per INSERT comune '{nome}' (probabile ON CONFLICT DO NOTHING): {pe}")
-                            risultato_insert = None
-
-                    if risultato_insert and 'id' in risultato_insert:
+                    if risultato_insert and risultato_insert['id']:
+                        # INSERT riuscito: il comune è stato creato ora
                         comune_id = risultato_insert['id']
-                        self.commit()
-                        logger.info(f"Comune '{nome}' (ID: {comune_id}) inserito con successo nel database.")
+                        self.logger.info(f"Comune '{nome}' inserito con successo (ID: {comune_id}).")
                         return comune_id
-                    else: # L'INSERT non ha inserito (ON CONFLICT DO NOTHING) o ID non recuperato
-                        logger.info(f"Comune '{nome}' non inserito da INSERT (probabile conflitto). Tentativo di SELECT.")
-                        if self.execute_query(query_select, (nome,)):
-                            if self.cursor is None: # Controllo di sicurezza
-                                logger.error(f"Errore critico: self.cursor è None dopo execute_query riuscita per SELECT comune '{nome}'.")
-                                self.rollback()
-                                return None
-                            
-                            risultato_select = self.fetchone() # fetchone() ora dovrebbe usare il cursore del SELECT
-                            if risultato_select and 'id' in risultato_select:
-                                comune_id = risultato_select['id']
-                                self.commit() 
-                                logger.info(f"Comune '{nome}' (ID: {comune_id}) già esistente, operazione confermata.")
-                                return comune_id
-                            else:
-                                logger.error(f"Errore logico: Comune '{nome}' non inserito e non trovato dopo ON CONFLICT e successivo SELECT.")
-                                self.rollback()
-                                return None
-                        else: # Errore durante il SELECT
-                            # execute_query dovrebbe aver già gestito il rollback
-                            logger.error(f"Errore DB nel selezionare il comune '{nome}' dopo un potenziale conflitto.")
+                    else:
+                        # ON CONFLICT DO NOTHING: il comune esiste già, recuperiamo l'ID
+                        self.logger.info(f"Comune '{nome}' già presente nel DB. Recupero ID via SELECT.")
+                        cur.execute(query_select, (nome,))
+                        risultato_select = cur.fetchone()
+                        if risultato_select and risultato_select['id']:
+                            comune_id = risultato_select['id']
+                            self.logger.info(f"Comune '{nome}' già esistente (ID: {comune_id}).")
+                            return comune_id
+                        else:
+                            self.logger.error(f"Comune '{nome}' non trovato dopo INSERT + ON CONFLICT.")
                             return None
-                else: # Errore durante l'INSERT iniziale
-                    # execute_query dovrebbe aver già gestito il rollback
-                    logger.error(f"Errore DB iniziale durante l'inserimento del comune '{nome}'.")
-                    return None
 
-            except psycopg2.Error as db_err:
-                logger.error(f"Errore database (psycopg2) in registra_comune_nel_db per '{nome}': {db_err}")
-                self.rollback()
-                return None
-            except AttributeError as ae: # Specifico per l'errore 'has no attribute cursor' se persiste
-                logger.error(f"AttributeError in registra_comune_nel_db per '{nome}': {ae}. Controllare gestione self.cursor.")
-                self.rollback()
-                return None
-            except Exception as e:
-                logger.error(f"Errore Python generico in registra_comune_nel_db per '{nome}': {e}")
-                self.rollback()
-                return None
+        except psycopg2.Error as db_err:
+            self.logger.error(f"Errore DB in registra_comune_nel_db per '{nome}': {db_err}")
+            return None
+        except Exception as e:
+            self.logger.error(f"Errore Python in registra_comune_nel_db per '{nome}': {e}")
+            return None
 
     def get_comuni(self, search_term: Optional[str] = None) -> List[Dict[str, Any]]:
         query = f"SELECT id, nome, provincia, regione FROM {self.schema}.comune"

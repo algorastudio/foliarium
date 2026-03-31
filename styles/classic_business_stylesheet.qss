@@ -350,7 +350,7 @@ QRadioButton::indicator:checked {
 #roleChip { border-radius: 4px; padding: 2px 8px; font-size: 11px; font-weight: bold; }
 #roleChip[role="admin"]        { background: #FFEBEE; color: #B71C1C; }
 #roleChip[role="archivista"]   { background: #E8EAF6; color: #283593; }
-#roleChip[role="consultatore"] { background: #ECEFF1; color: #546E7A; }
+#roleChip[role="consultatore"] { background: #ECEFF1; color: #37474F; } /* era #546E7A: grigio-blu su grigio chiaro (4.3:1 → 7.1:1) */
 #logoutButton {
     background: transparent;
     border: 1px solid #B0BEC5;

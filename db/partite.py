@@ -350,18 +350,12 @@ class DBPartiteMixin:
                 query += " WHERE " + " AND ".join(conditions)
             query += " ORDER BY c.nome, p.numero_partita"
 
-            self.logger.debug(f"search_partite - Query: {query} - Params: {tuple(params)}")
-
-            # Esecuzione della query con il context manager
-            self.logger.debug(f"search_partite - SQL: {query}")
-            self.logger.debug(f"search_partite - params: {tuple(params)}")
+            # Esecuzione della query con il context manager del pool di connessioni
             with self._get_connection() as conn:
                 with conn.cursor(cursor_factory=DictCursor) as cur:
                     cur.execute(query, tuple(params))
-                    raw = cur.fetchall()
-                    self.logger.debug(f"search_partite - raw fetchall count: {len(raw)}")
-                    results = [dict(row) for row in raw]
-                    self.logger.info(f"search_partite - Trovate {len(results)} partite.")
+                    results = [dict(row) for row in cur.fetchall()]
+                    self.logger.info(f"search_partite — trovate {len(results)} partite.")
                     return results
 
         except Exception as e:
@@ -612,9 +606,13 @@ class DBPartiteMixin:
                  query += " WHERE stato = %s"; params.append(stato.lower())
 
             query += " ORDER BY comune_nome, numero_partita LIMIT %s"; params.append(limit)
-            if self.execute_query(query, tuple(params)): return self.fetchall()
-        except psycopg2.Error as db_err: logger.error(f"Errore DB get_partite_complete_view: {db_err}"); return []
-        except Exception as e: logger.error(f"Errore Python get_partite_complete_view: {e}"); return []
+            # Usa il context manager per una connessione sicura dal pool
+            with self._get_connection() as conn:
+                with conn.cursor(cursor_factory=DictCursor) as cur:
+                    cur.execute(query, tuple(params))
+                    return [dict(row) for row in cur.fetchall()]
+        except psycopg2.Error as db_err: self.logger.error(f"Errore DB get_partite_complete_view: {db_err}"); return []
+        except Exception as e: self.logger.error(f"Errore Python get_partite_complete_view: {e}"); return []
 
     def aggiorna_legame_partita_possessore(self, partita_possessore_id: int, titolo: str, quota: Optional[str]) -> bool:
         """Aggiorna i dettagli di un legame partita-possessore in modo transazionale."""
@@ -670,23 +668,32 @@ class DBPartiteMixin:
                 query += " WHERE tipo_variazione = %s"; params.append(tipo_variazione)
 
             query += " ORDER BY data_variazione DESC LIMIT %s"; params.append(limit)
-            if self.execute_query(query, tuple(params)): return self.fetchall()
-        except psycopg2.Error as db_err: logger.error(f"Errore DB get_cronologia_variazioni: {db_err}"); return []
-        except Exception as e: logger.error(f"Errore Python get_cronologia_variazioni: {e}"); return []
+            # Usa il context manager per una connessione sicura dal pool
+            with self._get_connection() as conn:
+                with conn.cursor(cursor_factory=DictCursor) as cur:
+                    cur.execute(query, tuple(params))
+                    return [dict(row) for row in cur.fetchall()]
+        except psycopg2.Error as db_err: self.logger.error(f"Errore DB get_cronologia_variazioni: {db_err}"); return []
+        except Exception as e: self.logger.error(f"Errore Python get_cronologia_variazioni: {e}"); return []
 
     def export_partita_json(self, partita_id: int) -> Optional[str]:
-        """Chiama la funzione SQL esporta_partita_json (SQL aggiornata)."""
+        """Chiama la funzione SQL esporta_partita_json e restituisce il JSON come stringa."""
         try:
-            # Funzione SQL aggiornata per fare JOIN
             query = "SELECT esporta_partita_json(%s) AS partita_json"
-            if self.execute_query(query, (partita_id,)):
-                result = self.fetchone()
-                if result and result.get('partita_json'):
-                     try: return json.dumps(result['partita_json'], indent=4, ensure_ascii=False)
-                     except (TypeError, ValueError) as json_err: logger.error(f"Errore JSON export partita {partita_id}: {json_err}"); return str(result['partita_json'])
-            logger.warning(f"Nessun JSON per partita ID {partita_id}.")
-        except psycopg2.Error as db_err: logger.error(f"Errore DB export_partita_json (ID: {partita_id}): {db_err}")
-        except Exception as e: logger.error(f"Errore Python export_partita_json (ID: {partita_id}): {e}")
+            with self._get_connection() as conn:
+                with conn.cursor(cursor_factory=DictCursor) as cur:
+                    cur.execute(query, (partita_id,))
+                    result = cur.fetchone()
+                    if result and result['partita_json']:
+                        try:
+                            # La funzione SQL restituisce già un oggetto JSON: lo serializziamo come stringa indentata
+                            return json.dumps(result['partita_json'], indent=4, ensure_ascii=False)
+                        except (TypeError, ValueError) as json_err:
+                            self.logger.error(f"Errore serializzazione JSON per partita {partita_id}: {json_err}")
+                            return str(result['partita_json'])
+            self.logger.warning(f"Nessun JSON restituito per partita ID {partita_id}.")
+        except psycopg2.Error as db_err: self.logger.error(f"Errore DB export_partita_json (ID: {partita_id}): {db_err}")
+        except Exception as e: self.logger.error(f"Errore Python export_partita_json (ID: {partita_id}): {e}")
         return None
 
     def get_property_genealogy(self, partita_id: int) -> List[Dict]:
@@ -701,32 +708,39 @@ class DBPartiteMixin:
             self.logger.error(f"Errore DB in get_property_genealogy (ID: {partita_id}): {e}", exc_info=True)
             return []
 
-    def get_report_annuale_partite(self, comune_id: int, anno: int) -> List[Dict]: # Usa comune_id
-        """Chiama la funzione SQL report_annuale_partite (MODIFICATA per comune_id)."""
+    def get_report_annuale_partite(self, comune_id: int, anno: int) -> List[Dict]:
+        """Chiama la funzione SQL report_annuale_partite, filtrata per ID comune e anno."""
         try:
-            # Funzione SQL aggiornata per comune_id
             query = "SELECT * FROM report_annuale_partite(%s, %s)"
-            if self.execute_query(query, (comune_id, anno)): return self.fetchall()
-        except psycopg2.Error as db_err: logger.error(f"Errore DB get_report_annuale_partite: {db_err}"); return []
-        except Exception as e: logger.error(f"Errore Python get_report_annuale_partite: {e}"); return []
+            with self._get_connection() as conn:
+                with conn.cursor(cursor_factory=DictCursor) as cur:
+                    cur.execute(query, (comune_id, anno))
+                    return [dict(row) for row in cur.fetchall()]
+        except psycopg2.Error as db_err: self.logger.error(f"Errore DB get_report_annuale_partite: {db_err}"); return []
+        except Exception as e: self.logger.error(f"Errore Python get_report_annuale_partite: {e}"); return []
 
     def get_report_proprieta_possessore(self, possessore_id: int, data_inizio: date, data_fine: date) -> List[Dict]:
-        """Chiama la funzione SQL report_proprieta_possessore (SQL aggiornata per nome comune)."""
+        """Chiama la funzione SQL report_proprieta_possessore per ricavare le proprietà di un possessore nel periodo."""
         try:
-            # Funzione SQL aggiornata per JOIN
             query = "SELECT * FROM report_proprieta_possessore(%s, %s, %s)"
-            if self.execute_query(query, (possessore_id, data_inizio, data_fine)): return self.fetchall()
-        except psycopg2.Error as db_err: logger.error(f"Errore DB get_report_proprieta_possessore: {db_err}"); return []
-        except Exception as e: logger.error(f"Errore Python get_report_proprieta_possessore: {e}"); return []
+            with self._get_connection() as conn:
+                with conn.cursor(cursor_factory=DictCursor) as cur:
+                    cur.execute(query, (possessore_id, data_inizio, data_fine))
+                    return [dict(row) for row in cur.fetchall()]
+        except psycopg2.Error as db_err: self.logger.error(f"Errore DB get_report_proprieta_possessore: {db_err}"); return []
+        except Exception as e: self.logger.error(f"Errore Python get_report_proprieta_possessore: {e}"); return []
 
-    def get_report_comune(self, comune_id: int) -> Optional[Dict]: # Usa comune_id
-        """Chiama la funzione SQL genera_report_comune (MODIFICATA per comune_id)."""
+    def get_report_comune(self, comune_id: int) -> Optional[Dict]:
+        """Chiama la funzione SQL genera_report_comune e restituisce il riepilogo del comune come dict."""
         try:
-            # Funzione SQL aggiornata per comune_id
             query = "SELECT * FROM genera_report_comune(%s)"
-            if self.execute_query(query, (comune_id,)): return self.fetchone()
-        except psycopg2.Error as db_err: logger.error(f"Errore DB get_report_comune: {db_err}"); return None
-        except Exception as e: logger.error(f"Errore Python get_report_comune: {e}"); return None
+            with self._get_connection() as conn:
+                with conn.cursor(cursor_factory=DictCursor) as cur:
+                    cur.execute(query, (comune_id,))
+                    row = cur.fetchone()
+                    return dict(row) if row else None
+        except psycopg2.Error as db_err: self.logger.error(f"Errore DB get_report_comune: {db_err}"); return None
+        except Exception as e: self.logger.error(f"Errore Python get_report_comune: {e}"); return None
 
     def genera_report_proprieta(self, partita_id: int) -> Optional[str]:
         """Chiama la funzione SQL catasto.genera_report_proprieta in modo sicuro."""

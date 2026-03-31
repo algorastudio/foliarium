@@ -473,18 +473,23 @@ class DBPossessoriMixin:
             return None
 
     def export_possessore_json(self, possessore_id: int) -> Optional[str]:
-        """Chiama la funzione SQL esporta_possessore_json (SQL aggiornata)."""
+        """Chiama la funzione SQL esporta_possessore_json e restituisce il JSON come stringa indentata."""
         try:
-            # Funzione SQL aggiornata per fare JOIN
             query = "SELECT esporta_possessore_json(%s) AS possessore_json"
-            if self.execute_query(query, (possessore_id,)):
-                result = self.fetchone()
-                if result and result.get('possessore_json'):
-                     try: return json.dumps(result['possessore_json'], indent=4, ensure_ascii=False)
-                     except (TypeError, ValueError) as json_err: logger.error(f"Errore JSON export possessore {possessore_id}: {json_err}"); return str(result['possessore_json'])
-            logger.warning(f"Nessun JSON per possessore ID {possessore_id}.")
-        except psycopg2.Error as db_err: logger.error(f"Errore DB export_possessore_json (ID: {possessore_id}): {db_err}")
-        except Exception as e: logger.error(f"Errore Python export_possessore_json (ID: {possessore_id}): {e}")
+            with self._get_connection() as conn:
+                with conn.cursor(cursor_factory=DictCursor) as cur:
+                    cur.execute(query, (possessore_id,))
+                    result = cur.fetchone()
+                    if result and result['possessore_json']:
+                        try:
+                            # La funzione SQL restituisce già un oggetto JSON: lo serializziamo come stringa indentata
+                            return json.dumps(result['possessore_json'], indent=4, ensure_ascii=False)
+                        except (TypeError, ValueError) as json_err:
+                            self.logger.error(f"Errore serializzazione JSON per possessore {possessore_id}: {json_err}")
+                            return str(result['possessore_json'])
+            self.logger.warning(f"Nessun JSON restituito per possessore ID {possessore_id}.")
+        except psycopg2.Error as db_err: self.logger.error(f"Errore DB export_possessore_json (ID: {possessore_id}): {db_err}")
+        except Exception as e: self.logger.error(f"Errore Python export_possessore_json (ID: {possessore_id}): {e}")
         return None
 
     def ricerca_avanzata_possessori(self, query_text: str, similarity_threshold: Optional[float] = 0.2) -> List[Dict[str, Any]]:

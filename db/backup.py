@@ -24,17 +24,23 @@ class DBBackupMixin:
     def register_backup_log(self, nome_file: str, utente: str, tipo: str, esito: bool,
                             percorso_file: str, dimensione_bytes: Optional[int] = None,
                             messaggio: Optional[str] = None) -> Optional[int]:
-        """Chiama la funzione SQL registra_backup."""
+        """Chiama la funzione SQL registra_backup e restituisce l'ID del log creato."""
         try:
-            query = "SELECT registra_backup(%s, %s, %s, %s, %s, %s, %s)"
+            query = "SELECT registra_backup(%s, %s, %s, %s, %s, %s, %s) AS backup_id"
             params = (nome_file, utente, dimensione_bytes, tipo, esito, messaggio, percorso_file)
-            if self.execute_query(query, params):
-                 result = self.fetchone(); self.commit(); backup_id = result.get('registra_backup') if result else None
-                 if backup_id: logger.info(f"Log backup registrato ID: {backup_id} per '{nome_file}'")
-                 else: logger.error(f"registra_backup non ha restituito ID per '{nome_file}'.")
-                 return backup_id
-        except psycopg2.Error as db_err: logger.error(f"Errore DB reg log backup '{nome_file}': {db_err}")
-        except Exception as e: logger.error(f"Errore Python reg log backup '{nome_file}': {e}"); self.rollback()
+            # La funzione SQL restituisce l'ID del record inserito nella tabella backup_registro
+            with self._get_connection() as conn:
+                with conn.cursor(cursor_factory=DictCursor) as cur:
+                    cur.execute(query, params)
+                    result = cur.fetchone()
+                    backup_id = result['backup_id'] if result else None
+            if backup_id:
+                self.logger.info(f"Log backup registrato con ID {backup_id} per '{nome_file}'")
+            else:
+                self.logger.error(f"registra_backup non ha restituito un ID per '{nome_file}'.")
+            return backup_id
+        except psycopg2.Error as db_err: self.logger.error(f"Errore DB reg log backup '{nome_file}': {db_err}")
+        except Exception as e: self.logger.error(f"Errore Python reg log backup '{nome_file}': {e}")
         return None
 
     def _find_executable(self, name: str) -> Optional[str]:
@@ -131,22 +137,28 @@ class DBBackupMixin:
             return None
 
     def cleanup_old_backup_logs(self, giorni_conservazione: int = 30) -> bool:
-        """Chiama la procedura SQL pulizia_backup_vecchi."""
+        """Chiama la procedura SQL pulizia_backup_vecchi per eliminare log più vecchi di N giorni."""
         try:
             call_proc = "CALL pulizia_backup_vecchi(%s)"
-            if self.execute_query(call_proc, (giorni_conservazione,)): self.commit(); logger.info(f"Eseguita pulizia log backup più vecchi di {giorni_conservazione} giorni."); return True
-            return False
-        except psycopg2.Error as db_err: logger.error(f"Errore DB pulizia log backup: {db_err}"); return False
-        except Exception as e: logger.error(f"Errore Python pulizia log backup: {e}"); self.rollback(); return False
+            with self._get_connection() as conn:
+                with conn.cursor() as cur:
+                    cur.execute(call_proc, (giorni_conservazione,))
+            self.logger.info(f"Pulizia log backup: eliminati record più vecchi di {giorni_conservazione} giorni.")
+            return True
+        except psycopg2.Error as db_err: self.logger.error(f"Errore DB pulizia log backup: {db_err}"); return False
+        except Exception as e: self.logger.error(f"Errore Python pulizia log backup: {e}"); return False
 
     def generate_backup_script(self, backup_dir: str) -> Optional[str]:
-        """Chiama la funzione SQL genera_script_backup_automatico."""
+        """Chiama la funzione SQL genera_script_backup_automatico e restituisce lo script come stringa."""
         try:
             query = "SELECT genera_script_backup_automatico(%s) AS script_content"
-            if self.execute_query(query, (backup_dir,)): result = self.fetchone(); return result.get('script_content') if result else None
-        except psycopg2.Error as db_err: logger.error(f"Errore DB gen script backup: {db_err}"); return None
-        except Exception as e: logger.error(f"Errore Python gen script backup: {e}"); return None
-        return None
+            with self._get_connection() as conn:
+                with conn.cursor(cursor_factory=DictCursor) as cur:
+                    cur.execute(query, (backup_dir,))
+                    result = cur.fetchone()
+                    return result['script_content'] if result else None
+        except psycopg2.Error as db_err: self.logger.error(f"Errore DB generazione script backup: {db_err}"); return None
+        except Exception as e: self.logger.error(f"Errore Python generazione script backup: {e}"); return None
 
     def get_backup_logs(self, limit: int = 20) -> List[Dict]:
         """Recupera gli ultimi N log di backup dal registro."""

@@ -41,7 +41,7 @@ QDoubleSpinBox:focus, QDateEdit:focus, QDateTimeEdit:focus, QComboBox:focus {
 
 QLineEdit[readOnly="true"], QTextEdit[readOnly="true"] {
     background-color: #FFF3E0;
-    color: #FF8A65;
+    color: #BF360C; /* era #FF8A65: arancio chiaro su pesca chiaro (1.5:1 → 8.7:1) */
     border: 2px solid #FFCC02;
 }
 
@@ -71,8 +71,8 @@ QPushButton:pressed {
 
 QPushButton:disabled {
     background-color: #FFCC02;
-    color: #FFB74D;
-    border: 1px solid #FFCC02;
+    color: #7B3100; /* era #FFB74D: giallo chiaro su giallo vivo (1.8:1 → 5.8:1) */
+    border: 1px solid #E65100;
     text-shadow: none;
 }
 

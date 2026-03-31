@@ -142,25 +142,36 @@ class DBDocumentiMixin:
                     cur.execute(query, params)
                     return [dict(r) for r in cur.fetchall()]
         except psycopg2.Error as db_err:
-            logger.error(f"Errore DB search_historical_documents: {db_err}")
+            self.logger.error(f"Errore DB search_historical_documents: {db_err}")
             return []
         except Exception as e:
-            logger.error(f"Errore Python search_historical_documents: {e}")
+            self.logger.error(f"Errore Python search_historical_documents: {e}")
             return []
 
     def link_document_to_partita(self, document_id: int, partita_id: int,
                                  relevance: str = 'correlata', notes: Optional[str] = None) -> bool:
-        """Collega un documento storico a una partita."""
-        if relevance not in ['primaria', 'secondaria', 'correlata']: logger.error(f"Rilevanza non valida: '{relevance}'"); return False
-        query = """
-            INSERT INTO documento_partita (documento_id, partita_id, rilevanza, note) VALUES (%s, %s, %s, %s)
-            ON CONFLICT (documento_id, partita_id) DO UPDATE SET rilevanza = EXCLUDED.rilevanza, note = EXCLUDED.note
+        """
+        Collega un documento storico a una partita (INSERT ... ON CONFLICT DO UPDATE).
+        Se il link esiste già, aggiorna rilevanza e note.
+        """
+        if relevance not in ['primaria', 'secondaria', 'correlata']:
+            self.logger.error(f"Rilevanza non valida: '{relevance}'")
+            return False
+        query = f"""
+            INSERT INTO {self.schema}.documento_partita (documento_id, partita_id, rilevanza, note)
+            VALUES (%s, %s, %s, %s)
+            ON CONFLICT (documento_id, partita_id) DO UPDATE
+                SET rilevanza = EXCLUDED.rilevanza, note = EXCLUDED.note
         """
         try:
-            if self.execute_query(query, (document_id, partita_id, relevance, notes)): self.commit(); logger.info(f"Link creato/aggiornato Doc {document_id} - Partita {partita_id}."); return True
-            return False
-        except psycopg2.Error as db_err: logger.error(f"Errore DB link doc-partita: {db_err}"); return False
-        except Exception as e: logger.error(f"Errore Python link doc-partita: {e}"); self.rollback(); return False
+            # Il commit è automatico all'uscita del context manager
+            with self._get_connection() as conn:
+                with conn.cursor() as cur:
+                    cur.execute(query, (document_id, partita_id, relevance, notes))
+            self.logger.info(f"Link creato/aggiornato Doc {document_id} → Partita {partita_id}.")
+            return True
+        except psycopg2.Error as db_err: self.logger.error(f"Errore DB link doc-partita: {db_err}"); return False
+        except Exception as e: self.logger.error(f"Errore Python link doc-partita: {e}"); return False
 
     def get_historical_periods(self) -> List[Dict[str, Any]]:
         """
@@ -317,15 +328,18 @@ class DBDocumentiMixin:
     def get_cadastral_stats_by_period(self, comune_id: Optional[int] = None, year_start: int = 1900, # Usa comune_id
                                        year_end: Optional[int] = None) -> List[Dict]:
         """Chiama la funzione SQL statistiche_catastali_periodo (MODIFICATA per comune_id)."""
-        logger.warning("La funzione SQL 'statistiche_catastali_periodo' potrebbe non essere aggiornata per comune_id.")
+        self.logger.warning("La funzione SQL 'statistiche_catastali_periodo' potrebbe non essere aggiornata per comune_id.")
         try:
-            # Assumiamo funzione SQL aggiornata per comune_id
             if year_end is None: year_end = datetime.now().year
             query = "SELECT * FROM statistiche_catastali_periodo(%s, %s, %s)"
-            params = (comune_id, year_start, year_end) # Passa ID
-            if self.execute_query(query, params): return self.fetchall()
-        except psycopg2.errors.UndefinedFunction: logger.warning("Funzione 'statistiche_catastali_periodo' non trovata."); return []
-        except psycopg2.Error as db_err: logger.error(f"Errore DB get_cadastral_stats_by_period: {db_err}"); return []
-        except Exception as e: logger.error(f"Errore Python get_cadastral_stats_by_period: {e}"); return []
+            params = (comune_id, year_start, year_end)
+            # Usa il context manager per una connessione sicura dal pool
+            with self._get_connection() as conn:
+                with conn.cursor(cursor_factory=DictCursor) as cur:
+                    cur.execute(query, params)
+                    return [dict(row) for row in cur.fetchall()]
+        except psycopg2.errors.UndefinedFunction: self.logger.warning("Funzione 'statistiche_catastali_periodo' non trovata nel DB."); return []
+        except psycopg2.Error as db_err: self.logger.error(f"Errore DB get_cadastral_stats_by_period: {db_err}"); return []
+        except Exception as e: self.logger.error(f"Errore Python get_cadastral_stats_by_period: {e}"); return []
         return []
 
