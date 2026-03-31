@@ -133,9 +133,49 @@ class DBDocumentiMixin:
     def search_historical_documents(self, title: Optional[str] = None, doc_type: Optional[str] = None,
                                     period_id: Optional[int] = None, year_start: Optional[int] = None,
                                     year_end: Optional[int] = None, partita_id: Optional[int] = None) -> List[Dict]:
-        """Chiama la funzione SQL ricerca_documenti_storici (SQL aggiornata per join)."""
-        query = "SELECT * FROM ricerca_documenti_storici(%s, %s, %s, %s, %s, %s)"
-        params = (title, doc_type, period_id, year_start, year_end, partita_id)
+        """Ricerca documenti storici con query diretta (la SP aveva p.comune_nome inesistente)."""
+        conditions = []
+        params: list = []
+
+        if title:
+            conditions.append("d.titolo ILIKE %s")
+            params.append(f"%{title}%")
+        if doc_type:
+            conditions.append("d.tipo_documento = %s")
+            params.append(doc_type)
+        if period_id is not None:
+            conditions.append("d.periodo_id = %s")
+            params.append(period_id)
+        if year_start is not None:
+            conditions.append("d.anno >= %s")
+            params.append(year_start)
+        if year_end is not None:
+            conditions.append("d.anno <= %s")
+            params.append(year_end)
+        if partita_id is not None:
+            conditions.append("dp.partita_id = %s")
+            params.append(partita_id)
+
+        where = ("WHERE " + " AND ".join(conditions)) if conditions else ""
+
+        query = f"""
+            SELECT
+                d.id AS documento_id,
+                d.titolo,
+                d.descrizione,
+                d.anno,
+                ps.nome AS periodo_nome,
+                d.tipo_documento,
+                string_agg(DISTINCT c.nome || ' - ' || p.numero_partita::TEXT, ', ') AS partite_correlate
+            FROM documento_storico d
+            JOIN periodo_storico ps ON d.periodo_id = ps.id
+            LEFT JOIN documento_partita dp ON d.id = dp.documento_id
+            LEFT JOIN partita p ON dp.partita_id = p.id
+            LEFT JOIN comune c ON p.comune_id = c.id
+            {where}
+            GROUP BY d.id, d.titolo, d.descrizione, d.anno, ps.nome, d.tipo_documento
+            ORDER BY d.anno DESC, d.titolo
+        """
         try:
             with self._get_connection() as conn:
                 with conn.cursor(cursor_factory=DictCursor) as cur:

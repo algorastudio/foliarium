@@ -413,7 +413,7 @@ class ElencoComuniWidget(LazyLoadedWidget):
             lambda: self._slot_modifica_dati_comune(comune_id_selezionato)
         )
         
-        menu.exec_(self.comuni_table.viewport().mapToGlobal(position))
+        menu.exec(self.comuni_table.viewport().mapToGlobal(position))
 
    
     def _slot_vedi_partite_comune(self, comune_id: int, nome_comune: str):

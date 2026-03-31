@@ -192,11 +192,12 @@ BEGIN
         d.anno,
         ps.nome AS periodo_nome,
         d.tipo_documento,
-        string_agg(DISTINCT p.comune_nome || ' - ' || p.numero_partita, ', ') AS partite_correlate
+        string_agg(DISTINCT c.nome || ' - ' || p.numero_partita::TEXT, ', ') AS partite_correlate
     FROM documento_storico d
     JOIN periodo_storico ps ON d.periodo_id = ps.id
     LEFT JOIN documento_partita dp ON d.id = dp.documento_id
     LEFT JOIN partita p ON dp.partita_id = p.id
+    LEFT JOIN comune c ON p.comune_id = c.id
     WHERE 
         (p_titolo IS NULL OR d.titolo ILIKE '%' || p_titolo || '%') AND
         (p_tipo IS NULL OR d.tipo_documento = p_tipo) AND
