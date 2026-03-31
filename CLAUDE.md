@@ -33,9 +33,13 @@
 ```
 catasto/
 ├── gui_main.py              # Entry point — QMainWindow, app init
-├── gui_widgets.py           # All main UI panels/widgets (largest file)
-├── dialogs.py               # Dialog windows
-├── catasto_db_manager.py    # Database layer (CatastoDBManager class)
+├── gui_widgets.py           # Main UI panels/widgets (re-export facade)
+├── insertion_widgets.py     # Widget inserimento: Comune, Possessore, Località, Partita
+├── admin_widgets.py         # Widget admin: Utenti, Audit, Backup, TipiLocalità, Periodi
+├── reporting_widgets.py     # Widget report: Documenti, Esportazioni, Reportistica, Statistiche
+├── import_dialogs.py        # Dialog import CSV/ISTAT/OSM per Comuni e Località
+├── dialogs.py               # Dialog windows (tutti gli altri dialog)
+├── catasto_db_manager.py    # Database layer — facade per il package db/
 ├── app_utils.py             # PDF/report utilities
 ├── app_paths.py             # Path resolution & resource loading
 ├── config.py                # App config, logging, env-var DB credentials
@@ -659,10 +663,10 @@ Coverage totale: **7% → 19.6%**
 
 ### Debiti tecnici noti
 
-- `db/base.py` contiene ancora import Qt massivi (eredità della classe monolitica);
-  da rimuovere in una sessione dedicata verificando quali classi sono effettivamente usate
-- `gui_widgets.py` è ancora a ~5 000 righe; i widget di inserimento
-  (`InserimentoComuneWidget`, `InserimentoPartitaWidget`, ecc.) sono candidati
-  all'estrazione in `insertion_widgets.py`
-- Test coverage dei metodi con logica SQL complessa in `db/possessori.py`,
-  `db/partite.py`, `db/ricerca.py` da completare
+Nessun debito tecnico aperto. Tutti i debiti precedenti sono stati risolti:
+
+| Debito | Risolto in |
+|--------|-----------|
+| `db/base.py` import Qt massivi | commit `bcf65bd` |
+| `gui_widgets.py` estrazione widget inserimento | `insertion_widgets.py` (commit `3fc3af7`) |
+| Test coverage `db/possessori`, `db/partite`, `db/ricerca` | `test_db_possessori_partite_ricerca.py` (commit `3fc3af7`) |
