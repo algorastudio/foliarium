@@ -46,7 +46,9 @@ sudo apt-get install -y -q \
     libxcb-icccm4 libxcb-image0 libxcb-keysyms1 \
     libxcb-randr0 libxcb-render-util0 \
     libxcb-xinerama0 libxcb-xfixes0 \
-    libpq-dev
+    libpq-dev \
+    qt6-base-dev \
+    libqt6gui6 libqt6widgets6 libqt6svg6
 
 # ── 3. Dipendenze Python ──────────────────────────────────────────────────────
 step "[3/5] Installazione dipendenze Python"
@@ -61,8 +63,9 @@ else
 fi
 
 "$PIP" install --quiet --upgrade pip
-"$PIP" install --quiet -r requirements.txt
-"$PIP" install --quiet -r tests/requirements-test.txt
+# --prefer-binary: forza l'uso di wheel pre-compilate (evita build dai sorgenti per PyQt6)
+"$PIP" install --quiet --prefer-binary -r requirements.txt
+"$PIP" install --quiet --prefer-binary -r tests/requirements-test.txt
 
 echo "  Python: $($PYTHON --version)"
 echo "  Pip:    $($PIP --version)"
