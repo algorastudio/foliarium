@@ -53,7 +53,14 @@ catasto/
 ├── .devcontainer/           # Dev container config (VS Code / Codespaces)
 ├── .github/workflows/       # CI/CD pipeline
 ├── meridiana.spec           # PyInstaller build spec
-└── Meridiana_Installer.iss  # Inno Setup installer script
+├── foliarium_demo.spec      # PyInstaller spec versione demo (include PG portabile)
+├── Meridiana_Installer.iss  # Inno Setup installer script
+├── demo_launcher.py         # Avvia/ferma PostgreSQL portabile (solo demo)
+├── prepare_demo_db.py       # Script CI: initdb + schema + dati demo
+├── demo_config.ini          # Credenziali DB demo + guida inizializzazione
+├── license_manager.py       # Gestione licenze (fingerprint, validazione, seat rete)
+├── generate_license.py      # CLI utility: genera/ispeziona file .license
+└── update_checker.py        # Verifica e download automatico aggiornamenti
 ```
 
 ---
@@ -63,6 +70,24 @@ catasto/
 ```bash
 # Run the application
 python gui_main.py
+
+# Run in demo mode (embedded PostgreSQL portabile)
+python gui_main.py --demo
+
+# Generate a license file for a client
+python generate_license.py generate \
+    --to "Archivio di Stato di Savona" \
+    --type standard --seats 2 \
+    --expiry 2027-12-31 --out savona.license
+
+# Inspect a license file
+python generate_license.py inspect savona.license
+
+# Show hardware fingerprint of current machine
+python generate_license.py fingerprint
+
+# Prepare demo_data/ locally (requires pgsql/ portable in project root)
+python prepare_demo_db.py --pgsql-dir pgsql
 
 # Run all tests
 pytest
@@ -670,3 +695,107 @@ Nessun debito tecnico aperto. Tutti i debiti precedenti sono stati risolti:
 | `db/base.py` import Qt massivi | commit `bcf65bd` |
 | `gui_widgets.py` estrazione widget inserimento | `insertion_widgets.py` (commit `3fc3af7`) |
 | Test coverage `db/possessori`, `db/partite`, `db/ricerca` | `test_db_possessori_partite_ricerca.py` (commit `3fc3af7`) |
+
+---
+
+## Changelog sessione corrente (v1.5.3 — demo + licenze + aggiornamenti)
+
+Tutto il lavoro è sul branch `claude/create-demo-version-qUbik`.
+
+### Feature: Versione Demo portabile (PostgreSQL embedded)
+
+**`demo_launcher.py`** (nuovo):
+- `start_demo_postgres()` — avvia `pg_ctl` sulla porta 15432, attende `pg_isready`
+- `stop_demo_postgres()` — arresto fast, chiamato da `closeEvent` e da `atexit`
+- `is_embedded_available()` — verifica presenza di `pgsql/` e `demo_data/` nel bundle
+- Fallback scrittura: se `demo_data/` è in sola lettura (USB/CD), copia in `%LOCALAPPDATA%\Foliarium\demo_data`
+- Porta dedicata 15432 — non interferisce con PostgreSQL di produzione sulla 5432
+
+**`prepare_demo_db.py`** (nuovo, script CI):
+- `initdb` con superuser `postgres`, locale C, encoding UTF-8
+- Modifica `pg_hba.conf` (trust 127.0.0.1) e `postgresql.conf` (porta, shared_buffers)
+- Crea ruolo `demo_user` e database `catasto_storico`
+- Esegue `02_creazione-schema-tabelle.sql`, `03_funzioni-procedure.sql`, `05_demo_dataset.sql`
+- Inserisce utente applicativo `demo` con hash bcrypt in tabella `utenti`
+- Rimuove `postmaster.pid` per portabilità
+- Uso: `python prepare_demo_db.py --pgsql-dir pgsql`
+
+**`foliarium_demo.spec`** (aggiornato):
+- Include `pgsql/bin`, `pgsql/lib`, `pgsql/share` e `demo_data/` nel COLLECT
+- Runtime hook inietta `FOLIARIUM_DEMO=1` prima di qualsiasi import
+- Gestisce assenza di `pgsql/` o `demo_data/` con warning (build non bloccante)
+
+**`gui_main.py`** — modalità demo:
+- `IS_DEMO_MODE`: rileva `--demo` CLI o `FOLIARIUM_DEMO=1` env var
+- Badge arancione **DEMO** nella top bar
+- Dialog di attesa con progress bar durante avvio PostgreSQL embedded
+- Login automatico come utente `demo` (senza dialogo)
+- `closeEvent`: chiama `demo_launcher.stop_demo_postgres()`
+
+**Pipeline CI `build-demo`** (aggiornato):
+- Scarica PostgreSQL 14 portabile da EnterpriseDB, rimuove pgAdmin4/doc/include/symbols
+- Esegue `prepare_demo_db.py` per creare `demo_data/`
+- Verifica presenza file critici nel bundle prima dello ZIP
+- Produce `Foliarium_Demo_<versione>_Portabile.zip` (~150 MB)
+
+**Flusso utente finale:**
+1. Estrarre ZIP in qualsiasi cartella → doppio clic su `Foliarium_Demo.exe`
+2. Dialog "Avvio database demo" (~3-5 s) → login automatico → app pronta
+3. Dati dimostrativi: Provincia di Savona, 1870-1985, ~300 partite, 120 possessori
+4. Chiusura: PostgreSQL si ferma automaticamente
+
+### Feature: Gestione Licenze
+
+**`license_manager.py`** (nuovo):
+- `get_hardware_fingerprint()` — SHA-256(MAC+hostname), 16 hex
+- `generate_license(...)` — produce JSON firmato HMAC-SHA256
+- `_validate_file(path)` — verifica firma, hardware ID, scadenza → `LicenseInfo`
+- Seat di rete: file-lock JSON in cartella condivisa UNC, TTL 2 min, refresh ogni 60 s
+- `LicenseManager` — facade: `validate()`, `acquire_seat()`, `release_seat()`, `refresh_seat()`
+- Demo mode: restituisce sempre licenza demo valida senza leggere file
+
+**`generate_license.py`** (nuovo, CLI utility):
+- `generate` — crea file `.license` per un cliente (`--to`, `--type`, `--seats`, `--expiry`, `--hardware`, `--bind-local`)
+- `inspect` — mostra stato e validità di un file `.license`
+- `fingerprint` — mostra MAC, hostname e ID hardware del computer corrente
+
+**`dialogs.py`** — `LicenseDialog`:
+- Stato licenza in tempo reale (validità, intestatario, tipo, seat, scadenza, hardware ID)
+- Sfoglia file `.license`, configura cartella condivisa UNC per seat di rete
+- Pulsante "Copia ID hardware" → clipboard per richiedere una licenza
+- Accesso: *Impostazioni → Gestione Licenza…*
+
+**`gui_main.py`** — verifica all'avvio:
+- `LicenseManager.validate()` prima del dialogo DB — blocca se non valida
+- `acquire_seat()` — blocca se seat di rete esauriti
+- `release_seat()` al `closeEvent` e al logout
+- Timer refresh seat ogni 60 s (`QTimer`)
+
+### Feature: Auto-Aggiornamento con download automatico
+
+**`update_checker.py`** (riscritto):
+- Chiama GitHub API, confronta versioni semantiche
+- Dialog aggiornato con note di rilascio (prime 3 righe del body) e pulsanti:
+  - **"Scarica e installa automaticamente"** (solo se asset `.exe` trovato)
+  - **"Apri pagina download"** → browser
+- `DownloadWorker(QThread)`: progress bar 0–100%, gestione annullamento
+- Verifica SHA-256 opzionale (file `.sha256` accanto all'installer su GitHub)
+- Lancia installer Inno Setup con `/SILENT /CLOSEAPPLICATIONS /RESTARTAPPLICATIONS`
+- Demo e test env saltano il controllo aggiornamenti
+
+### File aggiunti/modificati
+
+| File | Tipo | Note |
+|------|------|------|
+| `demo_launcher.py` | Nuovo | PostgreSQL embedded lifecycle |
+| `prepare_demo_db.py` | Nuovo | Script CI inizializzazione DB demo |
+| `generate_license.py` | Nuovo | CLI utility licenze |
+| `license_manager.py` | Nuovo | Core licenze |
+| `foliarium_demo.spec` | Nuovo | Build spec demo |
+| `demo_config.ini` | Nuovo | Guida + credenziali demo |
+| `update_checker.py` | Modificato | Auto-download + progress |
+| `config.py` | Modificato | Costanti demo/licenza, porta 15432 |
+| `gui_main.py` | Modificato | Integrazione demo + licenza |
+| `dialogs.py` | Modificato | `LicenseDialog` aggiunto |
+| `.gitignore` | Modificato | `pgsql/`, `demo_data/`, `*.license` |
+| `pipeline_foliarium.yml` | Modificato | Job `build-demo` completo |

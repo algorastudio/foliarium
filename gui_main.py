@@ -64,7 +64,11 @@ from config import (
     SETTINGS_UI_CURRENT_STYLE, SETTINGS_UI_AUTO_THEME, SETTINGS_UI_WIN11_STYLE,
     AUTO_THEME_DARK, AUTO_THEME_LIGHT,
     IS_TEST_ENV, SETTINGS_SESSION_TIMEOUT,
-    EULA_VERSION, SETTINGS_EULA_ACCEPTED)
+    EULA_VERSION, SETTINGS_EULA_ACCEPTED,
+    IS_DEMO_MODE,
+    DEMO_DB_HOST, DEMO_DB_NAME, DEMO_DB_USER, DEMO_DB_PASS, DEMO_DB_PORT,
+    DEMO_LOGIN_USER, DEMO_LOGIN_PASS,
+    SETTINGS_LICENSE_FILE_PATH, SETTINGS_LICENSE_NETWORK_SHARE)
 from app_paths import get_icon_path
 from core.session_manager import SessionManager
 
@@ -372,6 +376,16 @@ class TopBarWidget(QFrame):
         title_label.setObjectName("appTitle")
         layout.addWidget(title_label)
 
+        # Badge visibile solo in modalità demo
+        if IS_DEMO_MODE:
+            demo_badge = QLabel("  DEMO  ")
+            demo_badge.setObjectName("demoBadge")
+            demo_badge.setStyleSheet(
+                "background: #FF6D00; color: white; font-weight: bold; "
+                "font-size: 10px; border-radius: 4px; padding: 2px 6px;"
+            )
+            layout.addWidget(demo_badge)
+
         layout.addStretch()
 
         # Indicatore DB
@@ -577,6 +591,10 @@ class CatastoMainWindow(QMainWindow):
         self.pool_initialized_successful: bool = False
         # --- FINE CORREZIONE DEFINITIVA ---
 
+        # --- Gestione licenza ---
+        self._license_manager = None   # impostato in run_gui_app prima di perform_initial_setup
+        self._seat_refresh_timer = None
+
         # --- Session timeout (inattività) ---
         from PyQt6.QtCore import QTimer, QEvent
         self._inactivity_timer = QTimer(self)
@@ -769,6 +787,12 @@ class CatastoMainWindow(QMainWindow):
 
         self.check_mv_refresh_status()
         self._check_offline_mode()
+
+        # --- Refresh periodico del seat di rete (ogni 60 secondi) ---
+        if hasattr(self, '_license_manager') and self._license_manager:
+            self._seat_refresh_timer = QTimer(self)
+            self._seat_refresh_timer.timeout.connect(self._license_manager.refresh_seat)
+            self._seat_refresh_timer.start(60_000)
         # --- FINE AGGIUNTA ---
 # In gui_main.py, SOSTITUISCI il metodo _check_backup_reminder
 
@@ -875,10 +899,17 @@ class CatastoMainWindow(QMainWindow):
         )
         timeout_action.triggered.connect(self._configura_timeout_sessione)
 
+        license_action = QAction(
+            self.style().standardIcon(QStyle.StandardPixmap.SP_FileDialogDetailedView),
+            "&Gestione Licenza...", self
+        )
+        license_action.triggered.connect(self._apri_gestione_licenza)
+
         settings_menu.addAction(config_db_action)
         settings_menu.addAction(config_refresh_action)
         settings_menu.addAction(email_action)
         settings_menu.addAction(timeout_action)
+        settings_menu.addAction(license_action)
         settings_menu.addSeparator()
 
         # --- Menu dinamico per i temi ---
@@ -987,6 +1018,12 @@ class CatastoMainWindow(QMainWindow):
         settings.setValue(SETTINGS_UI_AUTO_THEME, False)
         self.auto_theme_action.setChecked(False)
         self.logger.info("Stile nativo Windows 11 attivato.")
+
+    def _apri_gestione_licenza(self):
+        """Apre il dialogo di gestione licenza."""
+        from dialogs import LicenseDialog
+        dlg = LicenseDialog(self)
+        dlg.exec()
 
     def _reset_app_style(self):
         """Ripristina lo stile Qt predefinito (necessario prima di applicare un QSS)."""
@@ -1639,6 +1676,18 @@ class CatastoMainWindow(QMainWindow):
             logging.getLogger("CatastoGUI").warning(
                 "DB Manager non disponibile durante closeEvent o pool già None.")
 
+        # Rilascia il seat di licenza di rete
+        if hasattr(self, '_license_manager') and self._license_manager:
+            self._license_manager.release_seat()
+
+        # Ferma il PostgreSQL portabile (solo in modalità demo con embedded PG)
+        if IS_DEMO_MODE:
+            try:
+                import demo_launcher
+                demo_launcher.stop_demo_postgres()
+            except Exception:
+                pass
+
         logging.getLogger("CatastoGUI").info(
             "Applicazione GUI Catasto Storico terminata via closeEvent.")
         event.accept()
@@ -2028,25 +2077,178 @@ def run_gui_app():
             settings.setValue(SETTINGS_EULA_ACCEPTED, EULA_VERSION)
             settings.sync()
         # --- FINE CONTROLLO EULA ---
-        
+
+        # --- VERIFICA LICENZA ---
+        from license_manager import LicenseManager
+        _license_mgr = LicenseManager()
+        _license_info = _license_mgr.validate()
+        if not _license_info.is_valid:
+            QMessageBox.critical(
+                None,
+                "Licenza non valida",
+                f"<b>Foliarium non può essere avviato.</b><br><br>"
+                f"{_license_info.error_message}<br><br>"
+                "Contatta il tuo amministratore per ottenere una licenza valida."
+            )
+            gui_logger.error(f"Licenza non valida: {_license_info.error_message}")
+            sys.exit(1)
+
+        # Controllo seat di rete (skip per demo — max_seats=1 e no share)
+        _allowed, _seats, _max = _license_mgr.acquire_seat()
+        if not _allowed:
+            QMessageBox.critical(
+                None,
+                "Numero di licenze esaurito",
+                f"<b>Impossibile avviare Foliarium.</b><br><br>"
+                f"Sono già attive <b>{_seats - 1}</b> istanze su {_max} consentite dalla licenza.<br>"
+                "Chiudi un'altra sessione e riprova."
+            )
+            gui_logger.error(f"Seat di rete esauriti ({_seats}/{_max})")
+            sys.exit(1)
+        gui_logger.info(
+            f"Licenza OK — intestata a: {_license_info.licensed_to} "
+            f"| tipo: {_license_info.license_type} | seat: {_seats}/{_max}"
+        )
+        # --- FINE VERIFICA LICENZA ---
+
         gui_logger.info("Avvio dell'applicazione GUI Catasto Storico...")
         db_manager_gui: Optional[CatastoDBManager] = None
         main_window_instance = CatastoMainWindow(client_ip_address_gui)
+        main_window_instance._license_manager = _license_mgr  # per il refresh timer
+
+        # ================================================================
+        # MODALITÀ DEMO — avvio PostgreSQL embedded + login automatico
+        # ================================================================
+        if IS_DEMO_MODE:
+            gui_logger.info("Avvio in MODALITÀ DEMO")
+
+            # --- Avvia PostgreSQL portabile (se presente nel bundle) ---
+            try:
+                import demo_launcher
+                if demo_launcher.is_embedded_available():
+                    gui_logger.info("PostgreSQL portabile rilevato — avvio in corso…")
+
+                    # Dialog di attesa durante l'avvio del server
+                    _pg_dlg = QDialog(None)
+                    _pg_dlg.setWindowTitle("Foliarium Demo")
+                    _pg_dlg.setWindowFlag(Qt.WindowType.WindowCloseButtonHint, False)
+                    _pg_dlg.setMinimumWidth(340)
+                    _pg_vlay = QVBoxLayout(_pg_dlg)
+                    _pg_lbl  = QLabel("<b>Avvio del database demo in corso…</b><br>"
+                                      "Attendere, l'operazione richiede qualche secondo.")
+                    _pg_lbl.setWordWrap(True)
+                    _pg_vlay.addWidget(_pg_lbl)
+                    from PyQt6.QtWidgets import QProgressBar
+                    _pg_bar = QProgressBar()
+                    _pg_bar.setRange(0, 0)   # indeterminato
+                    _pg_vlay.addWidget(_pg_bar)
+                    _pg_dlg.show()
+                    QApplication.processEvents()
+
+                    _pg_ok, _pg_err = demo_launcher.start_demo_postgres()
+
+                    _pg_dlg.close()
+                    QApplication.processEvents()
+
+                    if not _pg_ok:
+                        QMessageBox.critical(
+                            None, "Demo — Avvio database fallito",
+                            f"<b>Impossibile avviare il database demo.</b><br><br>"
+                            f"{_pg_err}<br><br>"
+                            "Verifica che la cartella demo_data/ e pgsql/ siano "
+                            "presenti accanto all'eseguibile."
+                        )
+                        sys.exit(1)
+
+                    gui_logger.info(
+                        f"PostgreSQL demo avviato su 127.0.0.1:{demo_launcher.DEMO_PG_PORT}"
+                    )
+                else:
+                    gui_logger.info(
+                        "PostgreSQL portabile non trovato nel bundle — "
+                        "uso credenziali DEMO_DB_* da env/config."
+                    )
+            except ImportError:
+                gui_logger.warning("demo_launcher non disponibile.")
+
+            gui_logger.info("Connessione al DB demo…")
+            try:
+                db_manager_gui = CatastoDBManager(
+                    host=DEMO_DB_HOST,
+                    port=int(DEMO_DB_PORT),
+                    dbname=DEMO_DB_NAME,
+                    user=DEMO_DB_USER,
+                    password=DEMO_DB_PASS,
+                )
+                if not db_manager_gui.initialize_main_pool():
+                    QMessageBox.critical(
+                        None, "Demo — DB non raggiungibile",
+                        f"Impossibile connettersi al database demo.\n\n"
+                        f"Host: {DEMO_DB_HOST}:{DEMO_DB_PORT}\n"
+                        f"DB:   {DEMO_DB_NAME}\n\n"
+                        "Verifica che il servizio PostgreSQL demo sia attivo."
+                    )
+                    _license_mgr.release_seat()
+                    sys.exit(1)
+            except Exception as e_demo:
+                QMessageBox.critical(None, "Demo — Errore DB", str(e_demo))
+                _license_mgr.release_seat()
+                sys.exit(1)
+
+            main_window_instance.db_manager = db_manager_gui
+            main_window_instance.pool_initialized_successful = True
+
+            # Auto-login come utente demo (deve esistere nel DB demo)
+            _demo_creds = db_manager_gui.get_user_credentials(DEMO_LOGIN_USER)
+            if _demo_creds and _demo_creds.get('attivo'):
+                _demo_uid = _demo_creds['id']
+                _demo_session = db_manager_gui.register_access(
+                    user_id=_demo_uid,
+                    action='login',
+                    esito=True,
+                    indirizzo_ip=client_ip_address_gui,
+                    application_name='CatastoAppGUI-Demo',
+                )
+                db_manager_gui.set_audit_session_variables(_demo_uid, _demo_session or '')
+                main_window_instance.perform_initial_setup(
+                    db_manager_gui, _demo_uid, _demo_creds, _demo_session
+                )
+            else:
+                # Fallback: apri il login normale
+                gui_logger.warning("Utente demo non trovato nel DB, apertura login manuale.")
+                login_dialog = LoginDialog(db_manager_gui, client_ip_address_gui,
+                                           parent=main_window_instance)
+                if login_dialog.exec() != QDialog.DialogCode.Accepted:
+                    _license_mgr.release_seat()
+                    sys.exit(0)
+                main_window_instance.perform_initial_setup(
+                    db_manager_gui,
+                    login_dialog.logged_in_user_id,
+                    login_dialog.logged_in_user_info,
+                    login_dialog.current_session_id_from_dialog,
+                )
+
+            QTimer.singleShot(1500, lambda: update_checker.check_for_updates(main_window_instance))
+            gui_logger.info("Setup DEMO completato. Avvio loop eventi.")
+            sys.exit(app.exec())
+        # ================================================================
+        # MODALITÀ NORMALE
+        # ================================================================
 
         # --- NUOVO FLUSSO DI AVVIO ---
 
-         # 1. TENTATIVO DI CONNESSIONE AUTOMATICA
+        # 1. TENTATIVO DI CONNESSIONE AUTOMATICA
         gui_logger.info("Tentativo di connessione automatica con le impostazioni salvate...")
-        
+
         # --- CORREZIONE: Gestisci la password in modo più robusto ---
         saved_password = settings.value(SETTINGS_DB_PASSWORD, "", type=str)
-        
+
         # Se non c'è password salvata, prova a prenderla dal keyring
         if not saved_password:
             db_host = settings.value(SETTINGS_DB_HOST, "localhost", type=str)
             db_user = settings.value(SETTINGS_DB_USER, "postgres", type=str)
             saved_password = get_password_from_keyring(db_host, db_user)
-        
+
         saved_config = {
             "host": settings.value(SETTINGS_DB_HOST, "localhost", type=str),
             "port": settings.value(SETTINGS_DB_PORT, 5432, type=int),
@@ -2054,7 +2256,7 @@ def run_gui_app():
             "user": settings.value(SETTINGS_DB_USER, "postgres", type=str),
             "password": saved_password or ""  # Assicurati che ci sia sempre una password (anche vuota)
         }
-        
+
         # Prova a connettere solo se sono presenti i dati essenziali E la password
         if saved_config["dbname"] and saved_config["user"] and saved_config["password"]:
             try:
@@ -2072,7 +2274,7 @@ def run_gui_app():
             gui_logger.info("Dati di connessione incompleti (manca password o altri parametri essenziali). Skip connessione automatica.")
             db_manager_gui = None
         # --- FINE CORREZIONE ---
-        
+
         # 2. FALLBACK A CONFIGURAZIONE MANUALE se la connessione automatica è fallita
         if not db_manager_gui or not db_manager_gui.pool:
             gui_logger.warning("Connessione automatica fallita. Apertura dialogo di configurazione manuale.")
@@ -2088,29 +2290,30 @@ def run_gui_app():
                 db_user = settings.value("Database/User", "postgres", type=str)
                 db_password = get_password_from_keyring(db_host, db_user)
                 # --- FINE MODIFICA ---
-                
+
                 if config_dialog.exec() != QDialog.DialogCode.Accepted:
                     gui_logger.info("Configurazione manuale annullata. Uscita.")
+                    _license_mgr.release_seat()
                     sys.exit(0)
 
                 current_config = config_dialog.get_config_values(include_password=True)
-                
+
                 # --- CORREZIONE: Filtra solo i parametri supportati da CatastoDBManager ---
                 db_manager_params = {
                     'host': current_config.get('host'),
-                    'port': current_config.get('port'), 
+                    'port': current_config.get('port'),
                     'dbname': current_config.get('dbname'),
                     'user': current_config.get('user'),
                     'password': current_config.get('password', '')  # Assicurati che ci sia sempre una password
                 }
-                
+
                 # Rimuovi eventuali chiavi con valore None (ma mantieni password vuota se necessario)
                 db_manager_params = {k: v for k, v in db_manager_params.items() if v is not None}
-                
+
                 # Assicurati che password sia sempre presente
                 if 'password' not in db_manager_params:
                     db_manager_params['password'] = ''
-                
+
                 try:
                     db_manager_gui = CatastoDBManager(**db_manager_params)
                 except Exception as e:
@@ -2118,7 +2321,7 @@ def run_gui_app():
                     QMessageBox.critical(None, "Errore Configurazione", f"Errore nella configurazione del database: {e}")
                     continue  # Riprova il loop di configurazione
                 # --- FINE CORREZIONE ---
-                
+
                 if db_manager_gui.initialize_main_pool():
                     main_window_instance.db_manager = db_manager_gui
                     main_window_instance.pool_initialized_successful = True
@@ -2129,19 +2332,17 @@ def run_gui_app():
                     error_details = db_manager_gui.get_last_connect_error_details() or {}
                     pgcode = error_details.get('pgcode')
                     pgerror_msg = error_details.get('pgerror')
-                    
-                    if pgcode == '28P01': 
+
+                    if pgcode == '28P01':
                         QMessageBox.critical(None, "Errore Autenticazione", "Password o utente errati.")
-                    else: 
+                    else:
                         QMessageBox.critical(None, "Errore Connessione", f"Impossibile connettersi.\n{pgerror_msg}")
 
         # 3. SE LA CONNESSIONE (auto o manuale) è OK, PROCEDI CON IL LOGIN UTENTE
-        # --- INIZIO MODIFICA ---
-        # Passiamo la variabile 'client_ip_address_gui' al costruttore del LoginDialog
         login_dialog = LoginDialog(db_manager_gui, client_ip_address_gui, parent=main_window_instance)
-        # --- FINE MODIFICA ---
         if login_dialog.exec() != QDialog.DialogCode.Accepted:
             gui_logger.info("Login utente annullato. Uscita.")
+            _license_mgr.release_seat()
             sys.exit(0)
 
         # 4. LOGIN UTENTE OK, AVVIA L'APP
