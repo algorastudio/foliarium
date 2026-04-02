@@ -101,6 +101,68 @@ Quando la sessione sta per scadere compare un dialog di avviso con un countdown 
 
 ---
 
+## Modalità Demo
+
+La versione Demo è una build portabile che include PostgreSQL già configurato con dati
+dimostrativi. Non richiede installazione né un database esterno.
+
+### Avvio della versione demo
+
+1. Estrarre `Foliarium_Demo_*_Portabile.zip` in qualsiasi cartella
+2. Fare doppio clic su **`Foliarium_Demo.exe`**
+3. Attendere il dialog **"Avvio database demo"** (3–5 secondi)
+4. L'applicazione si apre con login automatico come utente `demo`
+
+> 📸 **Screenshot:** Dialog di avvio con barra di avanzamento "Avvio database demo in corso..."
+
+Un badge arancione **DEMO** compare nella barra superiore per indicare la modalità attiva.
+
+!!! info "Dati inclusi nella demo"
+    La demo contiene dati dimostrativi della Provincia di Savona (1870–1985):
+    ~300 partite catastali e 120 possessori. I dati sono di sola lettura e non
+    rappresentano archivi reali.
+
+!!! warning "Chiusura corretta"
+    Chiudere sempre la demo con il pulsante **X** o **File → Esci**, non
+    terminando il processo dal Task Manager. In caso contrario PostgreSQL potrebbe
+    non fermarsi correttamente.
+
+---
+
+## Licenza
+
+Al primo avvio (versione completa), Foliarium verifica la presenza di un file di licenza
+valido. Senza licenza valida l'applicazione non si avvia.
+
+### Dove posizionare il file di licenza
+
+Copiare il file **`foliarium.license`** ricevuto da Algora Studio nella stessa cartella
+dell'eseguibile (`Foliarium.exe`) oppure configurare il percorso da
+*Impostazioni → Gestione Licenza…*
+
+### Dialog Gestione Licenza
+
+Accessibile da **Impostazioni → Gestione Licenza…**, mostra:
+
+| Campo | Descrizione |
+|---|---|
+| **Stato** | Valida / Non valida / Scaduta |
+| **Intestata a** | Nome ente/organizzazione |
+| **Tipo** | Standard / Enterprise |
+| **Scadenza** | Data di scadenza o "Perpetua" |
+| **Seat attivi** | Istanze in uso / massimo consentito (licenze di rete) |
+| **ID hardware** | Fingerprint del computer (per licenze vincolate all'hardware) |
+
+Il pulsante **"Copia ID hardware"** copia il fingerprint negli appunti per inviarlo
+ad Algora Studio e ricevere una licenza vincolata al PC.
+
+!!! info "Licenze di rete (multi-seat)"
+    Le licenze Enterprise con più seat usano una cartella condivisa UNC per
+    coordinare le istanze attive. Configurare il percorso UNC da
+    *Impostazioni → Gestione Licenza…*
+
+---
+
 ## Chiusura dell'applicazione
 
 Per chiudere Foliarium usare:
