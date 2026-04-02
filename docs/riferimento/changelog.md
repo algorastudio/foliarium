@@ -1,5 +1,96 @@
 # Changelog
 
+## v1.6.0 — Aprile 2026
+
+### Versione Demo portabile (PostgreSQL embedded)
+
+Nuova modalità **Demo** completamente autonoma: nessuna installazione richiesta,
+nessun PostgreSQL di sistema. Basta estrarre lo ZIP ed eseguire `Foliarium_Demo.exe`.
+
+**Funzionamento:**
+- `demo_launcher.py` avvia PostgreSQL 14 portabile sulla porta **15432** all'avvio
+  e lo ferma automaticamente alla chiusura (anche via `atexit`)
+- Se `demo_data/` è su supporto in sola lettura (USB/CD), i dati vengono copiati
+  in `%LOCALAPPDATA%\Foliarium\demo_data` prima dell'avvio
+- Login automatico come utente `demo` senza dialogo di autenticazione
+- Badge arancione **DEMO** visibile nella barra superiore
+
+**Dati dimostrativi inclusi:** Provincia di Savona, 1870–1985, ~300 partite catastali,
+120 possessori, generate con `sql_scripts/05_demo_dataset.sql`.
+
+**Build automatica nel pipeline CI (`build-demo`):**
+- Download PostgreSQL 14 portabile (EnterpriseDB); rimozione di pgAdmin4/doc/include/symbols
+- `prepare_demo_db.py` esegue `initdb`, configura `pg_hba.conf` (trust 127.0.0.1),
+  carica gli script SQL e crea l'utente `demo` con hash bcrypt
+- Le password demo (`DEMO_DB_PASS`, `DEMO_LOGIN_PASS`) sono lette da GitHub Secrets
+- Verifica presenza file critici nel bundle prima della creazione ZIP
+- Artefatto finale: `Foliarium_Demo_<versione>_Portabile.zip`
+
+**Attivazione modalità demo (sorgente):**
+```bash
+python gui_main.py --demo
+# oppure
+set FOLIARIUM_DEMO=1 && python gui_main.py
+```
+
+---
+
+### Gestione Licenze
+
+Sistema di licenze basato su file `.license` firmati HMAC-SHA256.
+
+**`license_manager.py`** — modulo core:
+- `get_hardware_fingerprint()` — SHA-256(MAC+hostname), 16 hex
+- `generate_license(...)` — produce JSON firmato con chiave HMAC interna
+- `_validate_file(path)` — verifica firma, hardware ID, data di scadenza → `LicenseInfo`
+- Seat di rete: file-lock JSON in cartella condivisa UNC, TTL 120 s, refresh ogni 60 s
+- In modalità demo restituisce sempre una licenza demo valida senza leggere file
+
+**`generate_license.py`** — CLI utility:
+```bash
+# Genera licenza per un cliente
+python generate_license.py generate \
+    --to "Archivio di Stato di Savona" \
+    --type standard --seats 2 \
+    --expiry 2027-12-31 --out foliarium.license
+
+# Ispeziona un file .license esistente
+python generate_license.py inspect foliarium.license
+
+# Mostra l'hardware fingerprint del computer corrente
+python generate_license.py fingerprint
+```
+
+**Tipi di licenza:** `demo` (embedded, nessun file), `standard`, `enterprise`
+
+**Verifica all'avvio:** la licenza viene validata prima del dialogo DB; se non valida
+o se i seat di rete sono esauriti, l'avvio è bloccato con messaggio esplicativo.
+
+**Dialog in-app:** *Impostazioni → Gestione Licenza…*
+- Stato in tempo reale (tipo, intestatario, scadenza, seat usati/massimi)
+- Sfoglia file `.license` locale o cartella UNC condivisa
+- Pulsante "Copia ID hardware" per richiedere licenza vincolata al PC
+
+!!! warning "Nome file licenza"
+    Il file deve chiamarsi **`foliarium.license`** (default) oppure il percorso
+    va configurato da *Impostazioni → Gestione Licenza…*
+
+---
+
+### Auto-Aggiornamento con download automatico
+
+**`update_checker.py`** (riscritto):
+- Interroga le GitHub Releases per confrontare versioni semantiche
+- Se disponibile un asset `.exe`, mostra pulsante **"Scarica e installa automaticamente"**
+  con barra di avanzamento (0–100 %) e verifica SHA-256 opzionale
+- `DownloadWorker(QThread)` gestisce download in background con supporto annullamento
+- L'installer viene lanciato in modalità silenziosa:
+  `/SILENT /CLOSEAPPLICATIONS /RESTARTAPPLICATIONS`
+- Altrimenti pulsante **"Apri pagina download"** → browser
+- Il controllo aggiornamenti è disabilitato in modalità demo e in CI
+
+---
+
 ## v1.5.3 — Marzo 2026
 
 ### Refactoring architetturale — DB layer e test coverage

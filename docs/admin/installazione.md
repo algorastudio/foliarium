@@ -177,10 +177,85 @@ bash .devcontainer/setup.sh
 
 ## Build dell'eseguibile
 
-Per generare il file `.exe` con PyInstaller:
+### Build standard (versione completa)
 
 ```bash
-pyinstaller meridiana.spec
+pyinstaller foliarium.spec
 ```
 
-L'eseguibile viene generato in `dist/Foliarium/`. Per creare l'installer Windows usare **Inno Setup** con lo script `Foliarium_Installer.iss`.
+L'eseguibile viene generato in `dist/Foliarium/`. Per creare l'installer Windows usare
+**Inno Setup** con lo script `Foliarium_Installer.iss`.
+
+### Build Demo portabile
+
+La build demo include PostgreSQL 14 portabile e i dati dimostrativi. Viene prodotta
+automaticamente dal pipeline CI (`build-demo`), ma può essere generata localmente:
+
+```bash
+# 1. Scarica e posiziona PostgreSQL 14 portabile in pgsql/
+#    (EnterpriseDB binaries: https://www.enterprisedb.com/download-postgresql-binaries)
+
+# 2. Prepara il database demo (initdb + schema + dati Savona)
+python prepare_demo_db.py --pgsql-dir pgsql
+
+# 3. Compila il bundle demo
+pyinstaller foliarium_demo.spec
+
+# 4. Crea lo ZIP portabile
+Compress-Archive -Path dist\Foliarium_Demo\* -DestinationPath Foliarium_Demo_Portabile.zip
+```
+
+Il bundle `dist/Foliarium_Demo/` contiene:
+- `Foliarium_Demo.exe` — eseguibile principale
+- `pgsql/` — binari PostgreSQL 14 portabili
+- `demo_data/` — cluster PostgreSQL pre-inizializzato con dati Savona
+
+---
+
+## Gestione della licenza
+
+### File di licenza
+
+Foliarium richiede un file **`foliarium.license`** nella cartella dell'eseguibile
+(o nel percorso configurato da *Impostazioni → Gestione Licenza…*).
+
+Per generare una licenza per un cliente:
+
+```bash
+python generate_license.py generate \
+    --to "Archivio di Stato di Savona" \
+    --type standard \
+    --seats 2 \
+    --expiry 2027-12-31 \
+    --out foliarium.license
+```
+
+Per vincolare la licenza a un hardware specifico (PC singolo):
+
+```bash
+# Prima mostrare il fingerprint del PC del cliente
+python generate_license.py fingerprint
+
+# Poi generare la licenza con --hardware
+python generate_license.py generate \
+    --to "Comune di Albenga" \
+    --type standard \
+    --seats 1 \
+    --hardware a1b2c3d4e5f6a7b8 \
+    --out albenga.license
+```
+
+### Verifica di un file .license esistente
+
+```bash
+python generate_license.py inspect foliarium.license
+```
+
+### Licenze multi-seat (rete)
+
+Per installazioni con più istanze simultanee (tipo Enterprise), configurare
+una cartella condivisa UNC accessibile da tutti i PC:
+
+1. Creare una cartella condivisa, es. `\\SERVER\Foliarium\`
+2. In ogni installazione: *Impostazioni → Gestione Licenza… → Cartella condivisa UNC*
+3. Il coordinamento dei seat avviene automaticamente con TTL 120 s
