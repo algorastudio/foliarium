@@ -54,6 +54,7 @@ DATA_DIR      = HERE / "demo_data"
 SQL_SCRIPTS = [
     HERE / "sql_scripts" / "02_creazione-schema-tabelle.sql",
     HERE / "sql_scripts" / "03_funzioni-procedure.sql",
+    HERE / "sql_scripts" / "07_user-management.sql",
     HERE / "sql_scripts" / "05_demo_dataset.sql",
 ]
 
@@ -157,8 +158,9 @@ def create_app_demo_user(pg_bin: Path) -> None:
     pwd_hash_escaped = pwd_hash.replace("'", "''")
 
     sql = (
-        f"INSERT INTO utenti (username, password_hash, nome_completo, ruolo, attivo, email) "
-        f"VALUES ('{DEMO_APP_USER}', '{pwd_hash_escaped}', 'Utente Demo', 'admin', true, NULL) "
+        f"SET search_path TO catasto, public; "
+        f"INSERT INTO utente (username, password_hash, nome_completo, email, ruolo, attivo) "
+        f"VALUES ('{DEMO_APP_USER}', '{pwd_hash_escaped}', 'Utente Demo', 'demo@foliarium.demo', 'admin', true) "
         f"ON CONFLICT (username) DO UPDATE SET "
         f"  password_hash = EXCLUDED.password_hash, "
         f"  attivo = true;"
