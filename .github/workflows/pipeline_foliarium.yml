@@ -214,10 +214,22 @@ jobs:
 
     # ----------------------------------------------------------
     # Compila Foliarium_Demo.exe con PyInstaller
-    # (pgsql/ e demo_data/ vengono inclusi dallo spec)
     # ----------------------------------------------------------
     - name: Compilazione Build Demo con PyInstaller
       run: pyinstaller foliarium_demo.spec
+
+    # ----------------------------------------------------------
+    # Copia pgsql/ e demo_data/ nella root del bundle
+    # (NON tramite datas di PyInstaller: in v6+ finirebbero in _internal/)
+    # demo_launcher.py li cerca accanto a Foliarium_Demo.exe
+    # ----------------------------------------------------------
+    - name: Copia pgsql e demo_data nel bundle
+      run: |
+        Copy-Item -Recurse -Force pgsql     dist\Foliarium_Demo\pgsql
+        Copy-Item -Recurse -Force demo_data dist\Foliarium_Demo\demo_data
+        Write-Host "Copia completata."
+        Write-Host "  pgsql: $((Get-ChildItem dist\Foliarium_Demo\pgsql -Recurse -File).Count) file"
+        Write-Host "  demo_data: $((Get-ChildItem dist\Foliarium_Demo\demo_data -Recurse -File).Count) file"
 
     # ----------------------------------------------------------
     # Verifica che il bundle contenga i componenti critici

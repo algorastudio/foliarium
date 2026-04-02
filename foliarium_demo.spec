@@ -35,30 +35,18 @@ with open(_rthook_path, 'w') as _f:
 # ---------------------------------------------------------------------------
 _extra_datas = []
 
-# PostgreSQL portabile
-if Path('pgsql').exists():
-    # Includi bin/ e lib/ (necessari per runtime); skip doc/, include/, pgAdmin4/
-    _extra_datas.append(('pgsql/bin', 'pgsql/bin'))
-    _extra_datas.append(('pgsql/lib', 'pgsql/lib'))
-    # share/ contiene i timezone data e messaggi di errore localizzati
-    if Path('pgsql/share').exists():
-        _extra_datas.append(('pgsql/share', 'pgsql/share'))
-    print("[spec] PostgreSQL portabile trovato — incluso nel bundle.")
-else:
+# NOTA: pgsql/ e demo_data/ NON vengono inclusi come PyInstaller datas perché
+# in PyInstaller 6+ i datas finiscono in _internal/ (non nella root del bundle).
+# Vengono copiati direttamente nella root del bundle dal pipeline CI dopo
+# l'esecuzione di pyinstaller (vedi step "Copia pgsql e demo_data nel bundle").
+
+if not Path('pgsql').exists():
     print("[spec] ATTENZIONE: cartella pgsql/ non trovata. "
-          "Il bundle non sarà autonomo.")
+          "Ricorda di copiarla nel bundle dopo la build.")
 
-# Cluster dati PostgreSQL pre-inizializzato
-if Path('demo_data').exists():
-    _extra_datas.append(('demo_data', 'demo_data'))
-    print("[spec] demo_data/ trovato — incluso nel bundle.")
-else:
+if not Path('demo_data').exists():
     print("[spec] ATTENZIONE: cartella demo_data/ non trovata. "
-          "Eseguire prima prepare_demo_db.py.")
-
-# File di configurazione demo opzionale
-if Path('demo_config.ini').exists():
-    _extra_datas.append(('demo_config.ini', '.'))
+          "Eseguire prima prepare_demo_db.py, poi copiare nel bundle.")
 
 # ---------------------------------------------------------------------------
 a = Analysis(
