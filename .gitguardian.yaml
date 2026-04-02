@@ -1,0 +1,14 @@
+# .gitguardian.yaml — Esclusioni GitGuardian per credenziali demo/test
+#
+# Le password nei file elencati sono credenziali DEMO intenzionali e pubbliche
+# (utente 'demo_user'/'demo' con password 'demo2025' sul DB dimostrativo).
+# Non sono segreti di produzione e non danneggiano nessun servizio reale.
+
+version: 2
+
+ignore-known-secrets: true
+
+ignored-paths:
+  - demo_config.ini        # credenziali DB demo (pubbliche per design)
+  - prepare_demo_db.py     # script CI che imposta il DB demo con password di default
+  - demo_launcher.py       # usa le stesse costanti demo

@@ -1,11 +1,12 @@
 # config.py
 
-APP_VERSION = "1.5.0"
+APP_VERSION = "1.5.3"
 APP_NAME    = "Foliarium"
 APP_SUBTITLE = "Archivio Catastale Storico"
 
 import logging
 import os
+import sys
 from logging.handlers import RotatingFileHandler
 
 # Ora questo import è sicuro, perché app_paths è autonomo
@@ -17,6 +18,22 @@ from PyQt6.QtCore import QStandardPaths, QCoreApplication
 # GitHub Actions imposta automaticamente le variabili 'CI' e 'GITHUB_ACTIONS' a 'true'.
 # Usiamo questo flag per capire se l'app sta girando sul server di test o sul PC di un utente.
 IS_TEST_ENV = os.environ.get('CI') == 'true' or os.environ.get('GITHUB_ACTIONS') == 'true'
+
+# --- MODALITÀ DEMO ---
+# Attivata con argomento --demo oppure variabile d'ambiente FOLIARIUM_DEMO=1
+IS_DEMO_MODE = '--demo' in sys.argv or os.environ.get('FOLIARIUM_DEMO', '') == '1'
+
+# Credenziali del DB demo.
+# In modalità embedded (PostgreSQL portabile nel bundle) demo_launcher.py
+# sovrascrive queste env var con 127.0.0.1:15432 prima della connessione.
+DEMO_DB_HOST = os.environ.get('DEMO_DB_HOST', '127.0.0.1')
+DEMO_DB_NAME = os.environ.get('DEMO_DB_NAME', 'catasto_storico')
+DEMO_DB_USER = os.environ.get('DEMO_DB_USER', 'demo_user')
+DEMO_DB_PASS = os.environ.get('DEMO_DB_PASS', 'demo2025')
+DEMO_DB_PORT = os.environ.get('DEMO_DB_PORT', '15432')   # porta dedicata demo
+# Username/password autologin per la modalità demo
+DEMO_LOGIN_USER = 'demo'
+DEMO_LOGIN_PASS = 'demo2025'
 
 # Leggiamo le credenziali dalle variabili d'ambiente (fornite dal file .yml di GitHub Actions).
 # Se non ci sono (es. uso normale), usiamo dei valori di default sicuri.
@@ -60,6 +77,16 @@ SETTINGS_SESSION_TIMEOUT = "Security/SessionTimeoutMinutes"  # default 15, 0 = d
 # --- EULA / Licenza ---
 EULA_VERSION = "1.0"
 SETTINGS_EULA_ACCEPTED = "Legal/AcceptedEULAVersion"
+
+# --- GESTIONE LICENZA ---
+SETTINGS_LICENSE_FILE_PATH  = "License/FilePath"
+SETTINGS_LICENSE_NETWORK_SHARE = "License/NetworkSharePath"
+# Percorso default del file di licenza (accanto all'eseguibile)
+LICENSE_DEFAULT_FILENAME = "foliarium.license"
+
+# --- AGGIORNAMENTI AUTOMATICI ---
+SETTINGS_UPDATE_AUTO_CHECK  = "Updates/AutoCheck"       # bool, default True
+SETTINGS_UPDATE_CHANNEL     = "Updates/Channel"         # "stable" | "beta"
 
 # --- Temi usati dall'auto-rilevamento dark/light del sistema operativo ---
 AUTO_THEME_DARK = "dark_mode_stylesheet.qss"

@@ -2,7 +2,7 @@ name: CI/CD Foliarium (Test & Build)
 
 on:
   push:
-    branches: [ "main", "master", "foliarium/enterprise", "claude/summarize-dev-status-vDVnI" ]
+    branches: [ "main", "master", "foliarium/enterprise", "claude/summarize-dev-status-vDVnI", "claude/create-demo-version-qUbik" ]
   workflow_dispatch: # Permette di avviare l'azione manualmente da GitHub
 
 permissions:
@@ -149,3 +149,120 @@ jobs:
       with:
         name: Foliarium-Setup-Windows
         path: Installer\*.exe
+
+  # ==========================================
+  # FASE 3: BUILD DEMO (su Windows, portabile)
+  # Versione senza installazione per demo live
+  # Include PostgreSQL portabile + dati demo
+  # ==========================================
+  build-demo:
+    needs: test-database-and-code  # Parte solo se i test passano
+    runs-on: windows-latest
+
+    steps:
+    - name: Checkout del codice
+      uses: actions/checkout@v4
+
+    - name: Setup Python
+      uses: actions/setup-python@v5
+      with:
+        python-version: '3.12'
+
+    - name: Installazione Dipendenze per Build Demo
+      run: |
+        python -m pip install --upgrade pip
+        pip install -r requirements.txt
+        pip install pyinstaller bcrypt
+
+    # ----------------------------------------------------------
+    # Scarica PostgreSQL 14 portabile (zip binaries, no installer)
+    # Viene estratto in pgsql/ e incluso nel bundle demo
+    # ----------------------------------------------------------
+    - name: Download PostgreSQL 14 portabile
+      run: |
+        $PG_VERSION = "14.13-1"
+        $PG_URL = "https://get.enterprisedb.com/postgresql/postgresql-${PG_VERSION}-windows-x64-binaries.zip"
+        Write-Host "Download PostgreSQL portabile: $PG_URL"
+        Invoke-WebRequest -Uri $PG_URL -OutFile pg_portable.zip -UseBasicParsing
+        Write-Host "Estrazione..."
+        Expand-Archive -Path pg_portable.zip -DestinationPath . -Force
+        # L'archivio estrae in pgsql/ automaticamente
+        if (Test-Path "pgsql\bin\pg_ctl.exe") {
+          Write-Host "PostgreSQL portabile pronto in pgsql\"
+        } else {
+          Write-Error "Estrazione fallita: pgsql\bin\pg_ctl.exe non trovato"
+          exit 1
+        }
+        # Pulizia: rimuovi componenti non necessari per il runtime
+        Remove-Item -Recurse -Force -ErrorAction SilentlyContinue pgsql\pgAdmin4
+        Remove-Item -Recurse -Force -ErrorAction SilentlyContinue pgsql\include
+        Remove-Item -Recurse -Force -ErrorAction SilentlyContinue pgsql\doc
+        Remove-Item -Recurse -Force -ErrorAction SilentlyContinue pgsql\symbols
+        Remove-Item pg_portable.zip
+
+    # ----------------------------------------------------------
+    # Prepara demo_data/: initdb + schema + dati dimostrativi
+    # ----------------------------------------------------------
+    - name: Preparazione database demo (initdb + SQL)
+      run: |
+        Write-Host "Esecuzione prepare_demo_db.py..."
+        python prepare_demo_db.py --pgsql-dir pgsql
+      env:
+        PGPASSWORD: ""
+        DEMO_DB_PASS:    ${{ secrets.DEMO_DB_PASS }}
+        DEMO_LOGIN_PASS: ${{ secrets.DEMO_LOGIN_PASS }}
+
+    # ----------------------------------------------------------
+    # Compila Foliarium_Demo.exe con PyInstaller
+    # (pgsql/ e demo_data/ vengono inclusi dallo spec)
+    # ----------------------------------------------------------
+    - name: Compilazione Build Demo con PyInstaller
+      run: pyinstaller foliarium_demo.spec
+
+    # ----------------------------------------------------------
+    # Verifica che il bundle contenga i componenti critici
+    # ----------------------------------------------------------
+    - name: Verifica contenuto bundle demo
+      run: |
+        $bundle = "dist\Foliarium_Demo"
+        Write-Host "Contenuto bundle:"
+        Get-ChildItem $bundle | Select-Object Name, Length
+        Write-Host ""
+        $checks = @(
+          "$bundle\Foliarium_Demo.exe",
+          "$bundle\pgsql\bin\pg_ctl.exe",
+          "$bundle\pgsql\bin\postgres.exe",
+          "$bundle\demo_data\postgresql.conf",
+          "$bundle\demo_data\PG_VERSION"
+        )
+        $ok = $true
+        foreach ($f in $checks) {
+          if (Test-Path $f) {
+            Write-Host "  [OK] $f"
+          } else {
+            Write-Warning "  [MANCANTE] $f"
+            $ok = $false
+          }
+        }
+        if (-not $ok) { exit 1 }
+
+    # ----------------------------------------------------------
+    # Crea il ZIP portabile finale
+    # Basta estrarlo ed eseguire Foliarium_Demo.exe
+    # ZERO installazione richiesta
+    # ----------------------------------------------------------
+    - name: Creazione ZIP Portabile Demo
+      run: |
+        $version = (python -c "from config import APP_VERSION; print(APP_VERSION)" 2>$null) -replace '\s',''
+        if (-not $version) { $version = "demo" }
+        $zipName = "Foliarium_Demo_${version}_Portabile.zip"
+        Write-Host "Creazione $zipName..."
+        Compress-Archive -Path dist\Foliarium_Demo\* -DestinationPath $zipName
+        $sizeMB = [math]::Round((Get-Item $zipName).Length / 1MB, 1)
+        Write-Host "ZIP creato: $zipName ($sizeMB MB)"
+
+    - name: Caricamento Build Demo Portabile
+      uses: actions/upload-artifact@v4
+      with:
+        name: Foliarium-Demo-Portabile-Windows
+        path: Foliarium_Demo_*_Portabile.zip

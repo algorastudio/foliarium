@@ -128,3 +128,11 @@ secrets.json
 *.xlsx
 *.ppt
 *.pptx
+
+# Demo portabile — cartelle generate dalla CI, non committare
+pgsql/
+demo_data/
+pg_portable.zip
+
+# File di licenza cliente (generati localmente, non versionare)
+*.license
