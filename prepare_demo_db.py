@@ -7,7 +7,7 @@ Richiede che la cartella pgsql/ (PostgreSQL portabile Windows) sia già
 presente nella directory corrente.
 
 Operazioni svolte:
-  1. initdb  → crea demo_data/ con superuser 'postgres' (trust locale)
+  1. initdb  -> crea demo_data/ con superuser 'postgres' (trust locale)
   2. Avvia il server temporaneamente sulla porta 15432
   3. Crea ruolo 'demo_user' e DB 'catasto_storico'
   4. Esegue sql_scripts/02, 03, 05_demo_dataset.sql
@@ -26,6 +26,7 @@ Uso (locale, test):
 from __future__ import annotations
 
 import argparse
+import io
 import os
 import platform
 import shutil
@@ -33,6 +34,12 @@ import subprocess
 import sys
 import time
 from pathlib import Path
+
+# Force UTF-8 output on Windows (avoids cp1252 UnicodeEncodeError)
+if sys.stdout.encoding and sys.stdout.encoding.lower() != "utf-8":
+    sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding="utf-8", errors="replace")
+if sys.stderr.encoding and sys.stderr.encoding.lower() != "utf-8":
+    sys.stderr = io.TextIOWrapper(sys.stderr.buffer, encoding="utf-8", errors="replace")
 
 HERE = Path(__file__).parent
 
@@ -47,6 +54,7 @@ DATA_DIR      = HERE / "demo_data"
 SQL_SCRIPTS = [
     HERE / "sql_scripts" / "02_creazione-schema-tabelle.sql",
     HERE / "sql_scripts" / "03_funzioni-procedure.sql",
+    HERE / "sql_scripts" / "07_user-management.sql",
     HERE / "sql_scripts" / "05_demo_dataset.sql",
 ]
 
@@ -94,7 +102,7 @@ def wait_ready(pg_bin: Path, attempts: int = 30) -> bool:
         )
         if r.returncode == 0:
             return True
-        print(f"    Attesa PostgreSQL… ({i+1}/{attempts})")
+        print(f"    Attesa PostgreSQL... ({i+1}/{attempts})")
         time.sleep(1)
     return False
 
@@ -150,8 +158,9 @@ def create_app_demo_user(pg_bin: Path) -> None:
     pwd_hash_escaped = pwd_hash.replace("'", "''")
 
     sql = (
-        f"INSERT INTO utenti (username, password_hash, nome_completo, ruolo, attivo, email) "
-        f"VALUES ('{DEMO_APP_USER}', '{pwd_hash_escaped}', 'Utente Demo', 'admin', true, NULL) "
+        f"SET search_path TO catasto, public; "
+        f"INSERT INTO utente (username, password_hash, nome_completo, email, ruolo, attivo) "
+        f"VALUES ('{DEMO_APP_USER}', '{pwd_hash_escaped}', 'Utente Demo', 'demo@foliarium.demo', 'admin', true) "
         f"ON CONFLICT (username) DO UPDATE SET "
         f"  password_hash = EXCLUDED.password_hash, "
         f"  attivo = true;"
@@ -190,10 +199,10 @@ def main() -> None:
         if args.skip_if_exists:
             print(f"\n  demo_data/ già esistente, skip (--skip-if-exists).")
             return
-        print(f"\n  Rimozione demo_data/ esistente…")
+        print(f"\n  Rimozione demo_data/ esistente...")
         shutil.rmtree(data_dir)
 
-    print("\n[1/6] initdb — inizializzazione cluster PostgreSQL…")
+    print("\n[1/6] initdb — inizializzazione cluster PostgreSQL...")
     env = os.environ.copy()
     # Disabilita eventuali variabili PGDATA che potrebbero interferire
     env.pop("PGDATA", None)
@@ -208,7 +217,7 @@ def main() -> None:
     ], env=env)
 
     # --- 2. Configura pg_hba.conf e postgresql.conf ---
-    print("\n[2/6] Configurazione pg_hba.conf e postgresql.conf…")
+    print("\n[2/6] Configurazione pg_hba.conf e postgresql.conf...")
     make_pg_hba(data_dir)
     make_postgresql_conf(data_dir, DEMO_PORT)
 
@@ -216,7 +225,7 @@ def main() -> None:
     pg_ctl  = _exe(pg_bin, "pg_ctl")
     log_file = data_dir / "pg_init.log"
 
-    print(f"\n[3/6] Avvio PostgreSQL temporaneo sulla porta {DEMO_PORT}…")
+    print(f"\n[3/6] Avvio PostgreSQL temporaneo sulla porta {DEMO_PORT}...")
     run([
         str(pg_ctl), "start",
         "-D", str(data_dir),
@@ -232,7 +241,7 @@ def main() -> None:
 
     try:
         # --- 4. Crea ruolo e database ---
-        print(f"\n[4/6] Creazione ruolo '{DEMO_ROLE}' e database '{DEMO_DB_NAME}'…")
+        print(f"\n[4/6] Creazione ruolo '{DEMO_ROLE}' e database '{DEMO_DB_NAME}'...")
         run_psql(pg_bin,
             f"DO $$ BEGIN "
             f"  IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname='{DEMO_ROLE}') THEN "
@@ -260,10 +269,10 @@ def main() -> None:
             dbname=DEMO_DB_NAME)
 
         # --- 5. Schema, procedure e dati demo ---
-        print(f"\n[5/6] Esecuzione script SQL…")
+        print(f"\n[5/6] Esecuzione script SQL...")
         for sql_file in SQL_SCRIPTS:
             if sql_file.exists():
-                print(f"  → {sql_file.name}")
+                print(f"  -> {sql_file.name}")
                 run_psql_file(pg_bin, sql_file, DEMO_DB_NAME)
             else:
                 print(f"  ATTENZIONE: {sql_file} non trovato, saltato.")
@@ -275,12 +284,12 @@ def main() -> None:
             dbname=DEMO_DB_NAME)
 
         # --- 6. Utente applicativo demo ---
-        print(f"\n[6/6] Creazione utente applicativo '{DEMO_APP_USER}'…")
+        print(f"\n[6/6] Creazione utente applicativo '{DEMO_APP_USER}'...")
         create_app_demo_user(pg_bin)
 
     finally:
         # --- Ferma il server ---
-        print("\n  Arresto server PostgreSQL temporaneo…")
+        print("\n  Arresto server PostgreSQL temporaneo...")
         subprocess.run(
             [str(pg_ctl), "stop", "-D", str(data_dir), "-m", "fast"],
             capture_output=True,
