@@ -45,6 +45,9 @@ _STARTUP_TIMEOUT = 30
 _PG_CTL = "pg_ctl.exe" if platform.system() == "Windows" else "pg_ctl"
 _PG_ISREADY = "pg_isready.exe" if platform.system() == "Windows" else "pg_isready"
 
+# Flag per nascondere la finestra console nera su Windows
+_NO_WINDOW = subprocess.CREATE_NO_WINDOW if platform.system() == "Windows" else 0
+
 
 # ---------------------------------------------------------------------------
 # Risoluzione dei percorsi
@@ -165,6 +168,7 @@ class EmbeddedPostgres:
                 capture_output=True,
                 text=True,
                 timeout=_STARTUP_TIMEOUT + 5,
+                creationflags=_NO_WINDOW,
             )
         except subprocess.TimeoutExpired:
             return False, "Timeout: PostgreSQL demo non si è avviato in tempo."
@@ -202,6 +206,7 @@ class EmbeddedPostgres:
                 [str(pg_ctl), "stop", "-D", str(self._data_dir), "-m", "fast"],
                 capture_output=True,
                 timeout=15,
+                creationflags=_NO_WINDOW,
             )
         except Exception as e:
             logger.warning(f"[DemoLauncher] Errore arresto PostgreSQL: {e}")
@@ -217,6 +222,7 @@ class EmbeddedPostgres:
                     [str(pg_isready), "-h", "127.0.0.1", "-p", str(self._port)],
                     capture_output=True,
                     timeout=2,
+                    creationflags=_NO_WINDOW,
                 )
                 if r.returncode == 0:
                     return True
