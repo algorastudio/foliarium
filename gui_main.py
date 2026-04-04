@@ -2145,7 +2145,31 @@ def run_gui_app():
                     _pg_dlg.show()
                     QApplication.processEvents()
 
-                    _pg_ok, _pg_err = demo_launcher.start_demo_postgres()
+                    # Avvia PostgreSQL in un thread separato per non bloccare il GUI
+                    from PyQt6.QtCore import QThread, pyqtSignal as _Signal, QEventLoop
+
+                    class _DemoStartWorker(QThread):
+                        done = _Signal(bool, str)
+                        def run(self):
+                            ok, err = demo_launcher.start_demo_postgres()
+                            self.done.emit(ok, err)
+
+                    _pg_result = [False, ""]
+                    _pg_loop   = QEventLoop()
+
+                    def _on_pg_done(ok, err):
+                        _pg_result[0] = ok
+                        _pg_result[1] = err
+                        _pg_loop.quit()
+
+                    _pg_worker = _DemoStartWorker()
+                    _pg_worker.done.connect(_on_pg_done)
+                    _pg_worker.start()
+                    _pg_loop.exec()   # processa eventi finché il thread non finisce
+                    _pg_worker.wait()
+
+                    _pg_ok  = _pg_result[0]
+                    _pg_err = _pg_result[1]
 
                     _pg_dlg.close()
                     QApplication.processEvents()
