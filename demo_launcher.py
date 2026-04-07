@@ -31,7 +31,7 @@ import subprocess
 import sys
 import time
 from pathlib import Path
-from typing import Optional, Tuple
+from typing import Callable, Optional, Tuple
 
 logger = logging.getLogger("CatastoGUI")
 
@@ -123,11 +123,17 @@ class EmbeddedPostgres:
         self._started: bool = False
 
     # ------------------------------------------------------------------
-    def start(self) -> Tuple[bool, str]:
+    def start(self, status_cb: Optional[Callable[[str], None]] = None) -> Tuple[bool, str]:
         """
         Avvia il server PostgreSQL.
         Restituisce (successo, messaggio_errore).
+        status_cb: callable opzionale invocato con messaggi di stato (per aggiornare la GUI).
         """
+        def _status(msg: str) -> None:
+            logger.info(f"[DemoLauncher] {msg}")
+            if status_cb:
+                status_cb(msg)
+
         pg_bin = _pgsql_bin()
         if pg_bin is None:
             return False, (
@@ -143,6 +149,7 @@ class EmbeddedPostgres:
                 f"Percorso atteso: {src_data}"
             )
 
+        _status("Preparazione cartella dati...")
         try:
             self._data_dir = _writable_data_dir()
         except Exception as e:
@@ -151,40 +158,58 @@ class EmbeddedPostgres:
         pg_ctl = pg_bin / _PG_CTL
         log_file = self._data_dir / "pg_demo.log"
 
-        logger.info(f"[DemoLauncher] Avvio PostgreSQL portabile (porta {self._port})…")
+        logger.info(f"[DemoLauncher] Avvio PostgreSQL portabile (porta {self._port})")
         logger.info(f"[DemoLauncher]   data_dir = {self._data_dir}")
         logger.info(f"[DemoLauncher]   pg_ctl   = {pg_ctl}")
 
+        # Avvia senza -w (non bloccante): pg_ctl lancia il processo e ritorna subito.
+        # Il polling successivo con pg_isready verifica quando il server è pronto.
+        # Questo evita che pg_ctl blocchi il thread per 30+ secondi.
+        _status("Avvio server PostgreSQL...")
         try:
             result = subprocess.run(
                 [
                     str(pg_ctl), "start",
                     "-D", str(self._data_dir),
                     "-l", str(log_file),
-                    "-w",           # attende che il server sia pronto
-                    "-t", str(_STARTUP_TIMEOUT),
+                    # Nessun -w: ritorna subito dopo aver avviato il processo
                     "-o", f"-p {self._port} -h 127.0.0.1",
                 ],
                 capture_output=True,
                 text=True,
-                timeout=_STARTUP_TIMEOUT + 5,
+                timeout=10,          # solo il lancio del processo, non l'avvio completo
                 creationflags=_NO_WINDOW,
             )
         except subprocess.TimeoutExpired:
-            return False, "Timeout: PostgreSQL demo non si è avviato in tempo."
+            return False, (
+                "pg_ctl non risponde (timeout 10s).\n"
+                "Possibile causa: antivirus o Windows Defender sta bloccando\n"
+                "l'eseguibile estratto dal ZIP. Prova a sbloccare il file\n"
+                "nelle proprietà oppure esegui come amministratore."
+            )
         except FileNotFoundError:
             return False, f"Eseguibile non trovato: {pg_ctl}"
         except Exception as e:
             return False, f"Errore avvio PostgreSQL: {e}"
 
-        if result.returncode not in (0, 1):   # 1 = già in esecuzione
+        # returncode 0 = avviato, 1 = già in esecuzione, altro = errore
+        if result.returncode not in (0, 1):
             stderr = result.stderr.strip() or result.stdout.strip()
-            return False, f"pg_ctl start fallito (codice {result.returncode}):\n{stderr}"
+            log_content = _read_pg_log(log_file)
+            return False, (
+                f"pg_ctl start fallito (codice {result.returncode}):\n{stderr}\n\n"
+                f"Log PostgreSQL:\n{log_content}"
+            )
 
-        # Verifica finale con pg_isready
-        ok = self._wait_ready(pg_bin)
+        # Polling con pg_isready e aggiornamenti di stato visibili
+        _status("Attesa disponibilità database...")
+        ok = self._wait_ready(pg_bin, status_cb=status_cb)
         if not ok:
-            return False, "PostgreSQL demo avviato ma non risponde. Controlla pg_demo.log."
+            log_content = _read_pg_log(log_file)
+            return False, (
+                f"PostgreSQL non risponde dopo {_STARTUP_TIMEOUT}s.\n\n"
+                f"Log:\n{log_content}"
+            )
 
         self._started = True
         logger.info(f"[DemoLauncher] PostgreSQL demo pronto su 127.0.0.1:{self._port}")
@@ -213,10 +238,21 @@ class EmbeddedPostgres:
         self._started = False
 
     # ------------------------------------------------------------------
-    def _wait_ready(self, pg_bin: Path, attempts: int = 20) -> bool:
-        """Poll pg_isready fino a che il server accetta connessioni."""
+    def _wait_ready(
+        self,
+        pg_bin: Path,
+        status_cb: Optional[Callable[[str], None]] = None,
+    ) -> bool:
+        """
+        Poll pg_isready ogni 0.5s fino a _STARTUP_TIMEOUT secondi.
+        Emette aggiornamenti di stato ogni 3 secondi.
+        """
         pg_isready = pg_bin / _PG_ISREADY
-        for _ in range(attempts):
+        total_attempts = _STARTUP_TIMEOUT * 2   # 2 tentativi al secondo
+        next_status_at = 3                       # primo aggiornamento dopo 3s
+
+        for i in range(total_attempts):
+            elapsed = i * 0.5
             try:
                 r = subprocess.run(
                     [str(pg_isready), "-h", "127.0.0.1", "-p", str(self._port)],
@@ -228,6 +264,9 @@ class EmbeddedPostgres:
                     return True
             except Exception:
                 pass
+            if status_cb and elapsed >= next_status_at:
+                status_cb(f"Avvio database... ({int(elapsed)}s)")
+                next_status_at += 3
             time.sleep(0.5)
         return False
 
@@ -241,11 +280,24 @@ class EmbeddedPostgres:
         return self._started
 
 
+def _read_pg_log(log_file: Path, max_lines: int = 25) -> str:
+    """Legge le ultime righe del log PostgreSQL per i messaggi di errore."""
+    try:
+        text = log_file.read_text(encoding="utf-8", errors="replace")
+        lines = text.splitlines()
+        snippet = lines[-max_lines:] if len(lines) > max_lines else lines
+        return "\n".join(snippet) if snippet else "(log vuoto)"
+    except Exception:
+        return f"(impossibile leggere {log_file})"
+
+
 # Istanza singleton usata da gui_main.py
 _embedded_pg: Optional[EmbeddedPostgres] = None
 
 
-def start_demo_postgres() -> Tuple[bool, str]:
+def start_demo_postgres(
+    status_cb: Optional[Callable[[str], None]] = None,
+) -> Tuple[bool, str]:
     """
     Avvia PostgreSQL portabile e aggiorna le variabili d'ambiente DEMO_DB_*.
     Chiamato da gui_main.run_gui_app() prima della connessione al DB demo.
@@ -254,7 +306,7 @@ def start_demo_postgres() -> Tuple[bool, str]:
     """
     global _embedded_pg
     _embedded_pg = EmbeddedPostgres()
-    ok, err = _embedded_pg.start()
+    ok, err = _embedded_pg.start(status_cb=status_cb)
     if ok:
         # Aggiorna le env var in modo che config.py le legga correttamente
         os.environ["DEMO_DB_HOST"] = "127.0.0.1"
