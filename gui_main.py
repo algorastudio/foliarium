@@ -2132,11 +2132,14 @@ def run_gui_app():
                     _pg_dlg = QDialog(None)
                     _pg_dlg.setWindowTitle("Foliarium Demo")
                     _pg_dlg.setWindowFlag(Qt.WindowType.WindowCloseButtonHint, False)
-                    _pg_dlg.setMinimumWidth(340)
+                    _pg_dlg.setMinimumWidth(380)
                     _pg_vlay = QVBoxLayout(_pg_dlg)
-                    _pg_lbl  = QLabel("<b>Avvio del database demo in corso…</b><br>"
-                                      "Attendere, l'operazione richiede qualche secondo.")
+                    _pg_title = QLabel("<b>Avvio del database demo in corso...</b>")
+                    _pg_title.setWordWrap(True)
+                    _pg_vlay.addWidget(_pg_title)
+                    _pg_lbl = QLabel("Preparazione in corso...")
                     _pg_lbl.setWordWrap(True)
+                    _pg_lbl.setStyleSheet("color: gray; font-size: 11px;")
                     _pg_vlay.addWidget(_pg_lbl)
                     from PyQt6.QtWidgets import QProgressBar
                     _pg_bar = QProgressBar()
@@ -2149,9 +2152,12 @@ def run_gui_app():
                     from PyQt6.QtCore import QThread, pyqtSignal as _Signal, QEventLoop
 
                     class _DemoStartWorker(QThread):
-                        done = _Signal(bool, str)
+                        done   = _Signal(bool, str)
+                        status = _Signal(str)
                         def run(self):
-                            ok, err = demo_launcher.start_demo_postgres()
+                            ok, err = demo_launcher.start_demo_postgres(
+                                status_cb=self.status.emit
+                            )
                             self.done.emit(ok, err)
 
                     _pg_result = [False, ""]
@@ -2163,6 +2169,7 @@ def run_gui_app():
                         _pg_loop.quit()
 
                     _pg_worker = _DemoStartWorker()
+                    _pg_worker.status.connect(lambda msg: _pg_lbl.setText(msg))
                     _pg_worker.done.connect(_on_pg_done)
                     _pg_worker.start()
                     _pg_loop.exec()   # processa eventi finché il thread non finisce
