@@ -2,7 +2,7 @@ name: CI/CD Foliarium (Test & Build)
 
 on:
   push:
-    branches: [ "main", "master", "foliarium/enterprise", "claude/summarize-dev-status-vDVnI", "claude/create-demo-version-qUbik" ]
+    branches: [ "main", "master", "foliarium/enterprise", "claude/summarize-dev-status-vDVnI", "claude/create-demo-version-qUbik", "claude/analyze-dev-progress-sPWUb" ]
   workflow_dispatch: # Permette di avviare l'azione manualmente da GitHub
 
 permissions:
@@ -278,3 +278,99 @@ jobs:
       with:
         name: Foliarium-Demo-Portabile-Windows
         path: Foliarium_Demo_*_Portabile.zip
+
+  # ==========================================
+  # FASE 4: BUILD UNIFIED (Windows)
+  # Installer unico: Foliarium + PostgreSQL + DB
+  # L'utente non deve installare nulla separatamente
+  # ==========================================
+  build-unified:
+    needs: test-database-and-code
+    runs-on: windows-latest
+
+    steps:
+    - name: Checkout del codice
+      uses: actions/checkout@v4
+
+    - name: Setup Python
+      uses: actions/setup-python@v5
+      with:
+        python-version: '3.12'
+
+    - name: Installazione Dipendenze per Build
+      run: |
+        python -m pip install --upgrade pip
+        pip install -r requirements.txt
+        pip install pyinstaller
+
+    - name: Compilazione Eseguibile con PyInstaller
+      run: pyinstaller foliarium.spec
+
+    # ----------------------------------------------------------
+    # Scarica PostgreSQL 14 portabile (stesso approccio della demo)
+    # ----------------------------------------------------------
+    - name: Download PostgreSQL 14 portabile
+      run: |
+        $PG_VERSION = "14.13-1"
+        $PG_URL = "https://get.enterprisedb.com/postgresql/postgresql-${PG_VERSION}-windows-x64-binaries.zip"
+        Write-Host "Download PostgreSQL portabile: $PG_URL"
+        Invoke-WebRequest -Uri $PG_URL -OutFile pg_portable.zip -UseBasicParsing
+        Expand-Archive -Path pg_portable.zip -DestinationPath . -Force
+        if (Test-Path "pgsql\bin\pg_ctl.exe") {
+          Write-Host "PostgreSQL portabile pronto."
+        } else {
+          Write-Error "pgsql\bin\pg_ctl.exe non trovato"
+          exit 1
+        }
+        # Pulizia componenti non necessari per il runtime
+        Remove-Item -Recurse -Force -ErrorAction SilentlyContinue pgsql\pgAdmin4
+        Remove-Item -Recurse -Force -ErrorAction SilentlyContinue pgsql\include
+        Remove-Item -Recurse -Force -ErrorAction SilentlyContinue pgsql\doc
+        Remove-Item -Recurse -Force -ErrorAction SilentlyContinue pgsql\symbols
+        Remove-Item pg_portable.zip
+        $sizeMB = [math]::Round((Get-ChildItem pgsql -Recurse -File | Measure-Object -Property Length -Sum).Sum / 1MB, 1)
+        Write-Host "PostgreSQL portabile: $sizeMB MB"
+
+    # ----------------------------------------------------------
+    # Verifica presenza file necessari per l'installer
+    # ----------------------------------------------------------
+    - name: Verifica componenti build
+      run: |
+        $checks = @(
+          "dist\Foliarium\Foliarium.exe",
+          "pgsql\bin\pg_ctl.exe",
+          "pgsql\bin\postgres.exe",
+          "pgsql\bin\initdb.exe",
+          "pgsql\bin\psql.exe",
+          "pgsql\bin\pg_isready.exe",
+          "sql_scripts\02_creazione-schema-tabelle.sql",
+          "sql_scripts\03_funzioni-procedure.sql",
+          "sql_scripts\07_user-management.sql",
+          "sql_scripts\07a_bootstrap_admin.sql",
+          "setup_database.bat",
+          "uninstall_database.bat",
+          "Foliarium_Unified_Installer.iss"
+        )
+        $ok = $true
+        foreach ($f in $checks) {
+          if (Test-Path $f) {
+            Write-Host "  [OK] $f"
+          } else {
+            Write-Warning "  [MANCANTE] $f"
+            $ok = $false
+          }
+        }
+        if (-not $ok) { exit 1 }
+        Write-Host "Tutti i componenti presenti."
+
+    # ----------------------------------------------------------
+    # Compilazione installer unificato con Inno Setup
+    # ----------------------------------------------------------
+    - name: Compilazione Installer Unificato con Inno Setup
+      run: iscc Foliarium_Unified_Installer.iss
+
+    - name: Caricamento Installer Unificato
+      uses: actions/upload-artifact@v4
+      with:
+        name: Foliarium-Unified-Setup-Windows
+        path: Installer\Foliarium_*_Unified_Setup.exe
