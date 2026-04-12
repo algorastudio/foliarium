@@ -110,7 +110,8 @@ NUOVE_ETICHETTE_POSSESSORI = ["id", "nome_completo", "codice_fiscale", "data_nas
 
 
 # --- MODALITÀ DI SVILUPPO ---
-DEVELOPMENT_MODE = True
+# Attivo automaticamente in ambiente di sviluppo (non frozen = non compilato con PyInstaller)
+DEVELOPMENT_MODE = not getattr(sys, 'frozen', False)
 
 
 def setup_global_logging(log_level=logging.INFO):
