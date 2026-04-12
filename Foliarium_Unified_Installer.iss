@@ -79,7 +79,8 @@ Source: "sql_scripts\03_funzioni-procedure.sql"; DestDir: "{app}\sql_scripts"; F
 Source: "sql_scripts\07_user-management.sql"; DestDir: "{app}\sql_scripts"; Flags: ignoreversion
 Source: "sql_scripts\07a_bootstrap_admin.sql"; DestDir: "{app}\sql_scripts"; Flags: ignoreversion
 
-; --- Script di setup e uninstall database ---
+; --- Script di setup/uninstall database (cross-platform Python + fallback bat) ---
+Source: "setup_database.py"; DestDir: "{app}"; Flags: ignoreversion
 Source: "setup_database.bat"; DestDir: "{app}"; Flags: ignoreversion
 Source: "uninstall_database.bat"; DestDir: "{app}"; Flags: ignoreversion
 
@@ -89,8 +90,8 @@ Name: "{group}\Disinstalla {#MyAppName}"; Filename: "{uninstallexe}"
 Name: "{autodesktop}\{#MyAppName}"; Filename: "{app}\{#MyAppExeName}"; Tasks: desktopicon
 
 [Run]
-; Esegue il setup del database dopo la copia dei file
-; La password viene generata dal codice Pascal (vedi sotto)
+; Esegue setup_database.py (embedded Python da PyInstaller _internal/)
+; Fallback: setup_database.bat se Python non disponibile
 Filename: "{app}\setup_database.bat"; \
     Parameters: """{app}"" ""{code:GetDBPassword}"" ""{code:GetAdminPassword}"""; \
     StatusMsg: "{cm:InstallingDB}"; \
