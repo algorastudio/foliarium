@@ -12,7 +12,8 @@ setlocal enabledelayedexpansion
 
 set "INSTALL_DIR=%~1"
 set "PG_BIN=%INSTALL_DIR%\pgsql\bin"
-set "PG_DATA=%INSTALL_DIR%\pg_data"
+set "DATA_ROOT=%ProgramData%\Foliarium"
+set "PG_DATA=%DATA_ROOT%\pg_data"
 set "SERVICE_NAME=FoliariumDB"
 
 echo Arresto servizio %SERVICE_NAME%...
@@ -29,6 +30,11 @@ timeout /t 2 /nobreak > nul
 echo Rimozione dati database...
 if exist "%PG_DATA%" (
     rmdir /s /q "%PG_DATA%" > nul 2>&1
+)
+
+REM Rimuovi anche la cartella padre se vuota
+if exist "%DATA_ROOT%" (
+    rmdir "%DATA_ROOT%" > nul 2>&1
 )
 
 echo Pulizia completata.

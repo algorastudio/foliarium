@@ -17,11 +17,19 @@ set "DB_PASSWORD=%~2"
 set "ADMIN_PASSWORD=%~3"
 
 REM --- Percorsi ---
+REM PG_DATA va in %ProgramData% perche' 'initdb' non puo' scrivere in
+REM Program Files (initdb droppa i privilegi e l'utente non-admin non ha
+REM write access). %ProgramData%\Foliarium\ e' la location standard Windows
+REM per dati di sistema condivisi tra utenti.
 set "PG_BIN=%INSTALL_DIR%\pgsql\bin"
-set "PG_DATA=%INSTALL_DIR%\pg_data"
+set "DATA_ROOT=%ProgramData%\Foliarium"
+set "PG_DATA=%DATA_ROOT%\pg_data"
 set "SQL_DIR=%INSTALL_DIR%\sql_scripts"
 set "CONFIG_FILE=%INSTALL_DIR%\config.ini"
 set "LOGFILE=%INSTALL_DIR%\setup_database.log"
+
+REM Crea la cartella dati condivisa se non esiste
+if not exist "%DATA_ROOT%" mkdir "%DATA_ROOT%"
 
 set "DB_NAME=catasto_storico"
 set "DB_USER=foliarium"

@@ -350,7 +350,15 @@ def setup(
     Ritorna True se tutto è andato a buon fine.
     """
     pg_bin = install_dir / "pgsql" / "bin"
-    pg_data = install_dir / "pg_data"
+    # Su Windows, pg_data deve stare FUORI da Program Files perche' initdb
+    # droppa i privilegi e l'utente non-admin non puo' scrivere li'.
+    # Location standard Windows per dati condivisi: %ProgramData%\Foliarium\pg_data
+    if IS_WIN:
+        data_root = Path(os.environ.get("ProgramData", r"C:\ProgramData")) / "Foliarium"
+        data_root.mkdir(parents=True, exist_ok=True)
+        pg_data = data_root / "pg_data"
+    else:
+        pg_data = install_dir / "pg_data"
     sql_dir = install_dir / "sql_scripts"
     config_file = install_dir / "config.ini"
 
@@ -605,7 +613,13 @@ def setup(
 def uninstall(install_dir: Path) -> None:
     """Rimuove il servizio PostgreSQL e i dati."""
     pg_bin = install_dir / "pgsql" / "bin"
-    pg_data = install_dir / "pg_data"
+    # Stessa logica di setup(): su Windows pg_data e' in %ProgramData%
+    if IS_WIN:
+        data_root = Path(os.environ.get("ProgramData", r"C:\ProgramData")) / "Foliarium"
+        pg_data = data_root / "pg_data"
+    else:
+        data_root = None
+        pg_data = install_dir / "pg_data"
 
     print(f"\n{'='*60}")
     print(f" Foliarium — Rimozione Database ({SYSTEM})")
@@ -617,6 +631,13 @@ def uninstall(install_dir: Path) -> None:
     if pg_data.exists():
         log(f"Rimozione dati database: {pg_data}")
         shutil.rmtree(pg_data, ignore_errors=True)
+
+    # Rimuovi anche la cartella padre %ProgramData%\Foliarium se vuota
+    if IS_WIN and data_root and data_root.exists():
+        try:
+            data_root.rmdir()  # fallisce se non vuota — e' ok
+        except OSError:
+            pass
 
     config_file = install_dir / "config.ini"
     if config_file.exists():
