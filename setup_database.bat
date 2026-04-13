@@ -74,19 +74,12 @@ if %ERRORLEVEL% NEQ 0 (
 )
 
 REM ============================================================================
-REM 3. Configurazione pg_hba.conf e postgresql.conf
+REM 3. Configurazione PostgreSQL (postgresql.conf + avvio temporaneo + password)
 REM ============================================================================
 echo [3/8] Configurazione PostgreSQL... >> "%LOGFILE%"
 
-REM pg_hba.conf — autenticazione password per connessioni locali
-(
-    echo # TYPE  DATABASE  USER       ADDRESS        METHOD
-    echo local   all       all                       scram-sha-256
-    echo host    all       all        127.0.0.1/32   scram-sha-256
-    echo host    all       all        ::1/128        scram-sha-256
-) > "%PG_DATA%\pg_hba.conf"
-
-REM postgresql.conf — impostazioni minimali
+REM postgresql.conf — impostazioni minimali (pg_hba.conf restera' 'trust'
+REM finche' non abbiamo impostato la password del superuser)
 (
     echo # Foliarium PostgreSQL Configuration
     echo port = %DB_PORT%
@@ -101,14 +94,34 @@ REM postgresql.conf — impostazioni minimali
     echo password_encryption = scram-sha-256
 ) >> "%PG_DATA%\postgresql.conf"
 
-REM Imposta password superuser postgres
+REM Avvio temporaneo del server (pg_hba di initdb = trust, nessuna password)
+echo   Avvio temporaneo (trust) per impostare la password... >> "%LOGFILE%"
 "%PG_BIN%\pg_ctl.exe" start -D "%PG_DATA%" -l "%PG_DATA%\pg_start.log" -w -t 30 >> "%LOGFILE%" 2>&1
+if %ERRORLEVEL% NEQ 0 (
+    echo ERRORE: avvio temporaneo del server fallito. >> "%LOGFILE%"
+    type "%PG_DATA%\pg_start.log" >> "%LOGFILE%" 2>&1
+    exit /b 1
+)
 
-REM Imposta password postgres (prima connessione e' trust perche' initdb)
+REM Imposta password postgres (connessione trust - initdb default)
 set "PGPASSWORD="
 "%PG_BIN%\psql.exe" -h 127.0.0.1 -p %DB_PORT% -U postgres -d postgres -c "ALTER USER postgres PASSWORD '%DB_PASSWORD%';" >> "%LOGFILE%" 2>&1
+if %ERRORLEVEL% NEQ 0 (
+    echo ERRORE: impostazione password postgres fallita. >> "%LOGFILE%"
+    "%PG_BIN%\pg_ctl.exe" stop -D "%PG_DATA%" -m fast >> "%LOGFILE%" 2>&1
+    exit /b 1
+)
+echo   Password superuser impostata. >> "%LOGFILE%"
 
-REM Ferma il server temporaneo (verra' riavviato come servizio)
+REM ADESSO che postgres ha una password, sovrascrivo pg_hba.conf con scram-sha-256
+(
+    echo # TYPE  DATABASE  USER       ADDRESS        METHOD
+    echo local   all       all                       scram-sha-256
+    echo host    all       all        127.0.0.1/32   scram-sha-256
+    echo host    all       all        ::1/128        scram-sha-256
+) > "%PG_DATA%\pg_hba.conf"
+
+REM Ferma il server temporaneo (verra' riavviato come servizio con hba aggiornato)
 "%PG_BIN%\pg_ctl.exe" stop -D "%PG_DATA%" -m fast >> "%LOGFILE%" 2>&1
 timeout /t 2 /nobreak > nul
 
