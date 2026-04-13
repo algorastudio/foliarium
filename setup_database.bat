@@ -67,6 +67,22 @@ if exist "%PG_DATA%\PG_VERSION" (
     goto :start_service
 )
 
+REM Se pg_data esiste ma non ha PG_VERSION e' un residuo di un'installazione
+REM precedente fallita: initdb rifiuta di scrivere in una dir non vuota, quindi
+REM la puliamo. Prima pero' proviamo a fermare un eventuale postgres orfano.
+if exist "%PG_DATA%" (
+    echo   ATTENZIONE: pg_data esiste ma e' incompleto - pulizia in corso... >> "%LOGFILE%"
+    REM Prova a fermare un eventuale processo postgres che tiene bloccati i file
+    taskkill /F /IM postgres.exe >> "%LOGFILE%" 2>&1
+    timeout /t 2 /nobreak > nul
+    rmdir /s /q "%PG_DATA%" >> "%LOGFILE%" 2>&1
+    if exist "%PG_DATA%" (
+        echo ERRORE: impossibile rimuovere %PG_DATA%. >> "%LOGFILE%"
+        echo Eliminarlo manualmente e riprovare. >> "%LOGFILE%"
+        exit /b 1
+    )
+)
+
 "%PG_BIN%\initdb.exe" -D "%PG_DATA%" -U postgres --locale=C --encoding=UTF8 --no-instructions >> "%LOGFILE%" 2>&1
 if %ERRORLEVEL% NEQ 0 (
     echo ERRORE: initdb fallito. >> "%LOGFILE%"
