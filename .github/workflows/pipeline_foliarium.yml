@@ -3,6 +3,9 @@ name: CI/CD Foliarium (Test & Build)
 on:
   push:
     branches: [ "main", "master", "foliarium/enterprise", "claude/summarize-dev-status-vDVnI", "claude/create-demo-version-qUbik", "claude/analyze-dev-progress-sPWUb" ]
+    tags:
+      - '*.*.*'        # es. 1.6.0
+      - 'v*.*.*'       # es. v1.6.0
   workflow_dispatch: # Permette di avviare l'azione manualmente da GitHub
 
 permissions:
@@ -520,3 +523,125 @@ jobs:
       with:
         name: Foliarium-macOS
         path: Foliarium_*_macOS.tar.gz
+
+  # ==========================================
+  # FASE 7: PUBBLICA RELEASE GITHUB
+  # Si attiva SOLO quando viene pushato un tag tipo 1.6.0 o v1.6.0.
+  # Scarica gli artefatti di tutti i job di build, calcola i checksum
+  # SHA-256 (l'auto-updater li verifica) e crea/aggiorna la release.
+  # ==========================================
+  create-release:
+    needs:
+      - build-windows
+      - build-demo
+      - build-unified
+      - build-linux
+      - build-macos
+    runs-on: ubuntu-latest
+    if: startsWith(github.ref, 'refs/tags/')
+
+    permissions:
+      contents: write   # necessario per creare la release
+
+    steps:
+    - name: Checkout del codice
+      uses: actions/checkout@v4
+
+    - name: Download di tutti gli artefatti
+      uses: actions/download-artifact@v4
+      with:
+        path: artifacts/
+
+    - name: Elenco artefatti scaricati
+      run: |
+        echo "=== Contenuto artifacts/ ==="
+        find artifacts/ -type f | sort
+        echo ""
+        echo "=== Dimensioni totali ==="
+        du -sh artifacts/* 2>/dev/null || true
+
+    - name: Generazione checksum SHA-256 per asset binari
+      run: |
+        cd artifacts/
+        find . -type f \( -name "*.exe" -o -name "*.zip" -o -name "*.tar.gz" \) -print0 \
+          | while IFS= read -r -d '' f; do
+              sha256sum "$f" > "$f.sha256"
+              echo "  [SHA-256] $f"
+            done
+
+    - name: Estrazione versione dal tag
+      id: version
+      run: |
+        VERSION="${GITHUB_REF#refs/tags/}"
+        echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+        echo "Versione rilevata: $VERSION"
+
+    - name: Estrazione note di release dal changelog
+      id: notes
+      run: |
+        VERSION="${{ steps.version.outputs.version }}"
+        # Rimuove eventuale prefisso 'v' (v1.6.0 -> 1.6.0)
+        CLEAN_VERSION="${VERSION#v}"
+        CHANGELOG="docs/riferimento/changelog.md"
+        NOTES_FILE="release_notes.md"
+
+        if [ -f "$CHANGELOG" ]; then
+          # Estrae la sezione tra "## v1.6.0" e il successivo "## v"
+          awk -v ver="$CLEAN_VERSION" '
+            $0 ~ "^## v" ver " " { found=1; print; next }
+            found && /^## v/ { exit }
+            found { print }
+          ' "$CHANGELOG" > "$NOTES_FILE"
+
+          if [ -s "$NOTES_FILE" ]; then
+            echo "Note di release estratte da $CHANGELOG (sezione v$CLEAN_VERSION)."
+          else
+            echo "Sezione v$CLEAN_VERSION non trovata nel changelog, uso messaggio di default."
+            echo "Release Foliarium $VERSION." > "$NOTES_FILE"
+            echo "" >> "$NOTES_FILE"
+            echo "Vedi il [changelog completo](https://github.com/${{ github.repository }}/blob/main/docs/riferimento/changelog.md) per i dettagli." >> "$NOTES_FILE"
+          fi
+        else
+          echo "Changelog non trovato, uso messaggio di default."
+          echo "Release Foliarium $VERSION." > "$NOTES_FILE"
+        fi
+
+        echo ""
+        echo "=== Anteprima note di release ==="
+        head -30 "$NOTES_FILE"
+
+    - name: Creazione/Aggiornamento GitHub Release
+      env:
+        GH_TOKEN: ${{ github.token }}
+      run: |
+        VERSION="${{ steps.version.outputs.version }}"
+
+        # Raccoglie tutti gli asset (binari + checksum)
+        ASSETS=()
+        while IFS= read -r -d '' f; do
+          ASSETS+=("$f")
+        done < <(find artifacts/ -type f \
+          \( -name "*.exe" -o -name "*.zip" -o -name "*.tar.gz" -o -name "*.sha256" \) \
+          -print0)
+
+        echo "Asset da pubblicare: ${#ASSETS[@]}"
+        for a in "${ASSETS[@]}"; do echo "  - $a"; done
+
+        if gh release view "$VERSION" --repo "${{ github.repository }}" >/dev/null 2>&1; then
+          echo ""
+          echo "Release $VERSION esiste già — upload asset (--clobber)..."
+          gh release upload "$VERSION" "${ASSETS[@]}" \
+            --repo "${{ github.repository }}" \
+            --clobber
+        else
+          echo ""
+          echo "Creazione nuova release $VERSION..."
+          gh release create "$VERSION" \
+            --repo "${{ github.repository }}" \
+            --title "Foliarium $VERSION" \
+            --notes-file release_notes.md \
+            "${ASSETS[@]}"
+        fi
+
+        echo ""
+        echo "Release pubblicata: https://github.com/${{ github.repository }}/releases/tag/$VERSION"
