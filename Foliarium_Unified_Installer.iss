@@ -119,6 +119,24 @@ var
   DBPassword: String;
   AdminPassword: String;
 
+// Ferma il servizio FoliariumDB e termina eventuali postgres.exe orfani.
+// Necessario PRIMA di estrarre i file, altrimenti le DLL di PostgreSQL
+// (icuin67.dll, libpq.dll, ecc.) sono bloccate e non si possono sovrascrivere.
+function PrepareToInstall(var NeedsRestart: Boolean): String;
+var
+  ResultCode: Integer;
+begin
+  Result := '';
+  // 1. Prova a fermare il servizio (ignora errore se non esiste)
+  Exec(ExpandConstant('{sys}\net.exe'), 'stop FoliariumDB',
+       '', SW_HIDE, ewWaitUntilTerminated, ResultCode);
+  // 2. Termina qualsiasi processo postgres.exe residuo
+  Exec(ExpandConstant('{sys}\taskkill.exe'), '/F /IM postgres.exe',
+       '', SW_HIDE, ewWaitUntilTerminated, ResultCode);
+  // 3. Attendi che Windows rilasci i file-lock sulle DLL
+  Sleep(2000);
+end;
+
 // Genera una password casuale alfanumerica di lunghezza N
 function GenerateRandomPassword(Len: Integer): String;
 var
