@@ -1,13 +1,14 @@
-# CLAUDE.md — Meridiana · Archivio Catastale Storico
+# CLAUDE.md — Foliarium · Archivio Catastale Storico
 
 ## Project overview
 
-**Meridiana** is a desktop application for managing historical Italian cadastral records (archivio catastale storico), developed for the State Archive of Savona. It allows archivists to search, insert, and export property records (partite catastali) and owners (possessori).
+**Foliarium** is a desktop application for managing historical Italian cadastral records (archivio catastale storico), developed for the State Archive of Savona. It allows archivists to search, insert, and export property records (partite catastali) and owners (possessori).
 
-- **Current version:** 1.6.0
+- **Current version:** 1.6.0 (versione definitiva)
 - **Author:** Marco Santoro
 - **Primary platform:** Windows 10+
 - **Code/UI language:** Italian
+- **Precedentemente noto come:** Meridiana (rinominato a Foliarium in v1.5.0)
 
 ---
 
@@ -799,3 +800,114 @@ Tutto il lavoro è sul branch `claude/create-demo-version-qUbik`.
 | `dialogs.py` | Modificato | `LicenseDialog` aggiunto |
 | `.gitignore` | Modificato | `pgsql/`, `demo_data/`, `*.license` |
 | `pipeline_foliarium.yml` | Modificato | Job `build-demo` completo |
+
+---
+
+## Changelog sessione corrente (v1.6.0 — installer unificato + fix PyInstaller)
+
+Tutto il lavoro è sul branch `claude/analyze-dev-progress-sPWUb`.
+
+### Feature: Installer unificato Foliarium + PostgreSQL embedded
+
+**`Foliarium_Unified_Installer.iss`** (nuovo) — installer Inno Setup che
+distribuisce in un unico eseguibile: app Foliarium (output PyInstaller) +
+binari PostgreSQL 14 portabili (`pgsql\bin`, `pgsql\lib`, `pgsql\share`) +
+script SQL + `setup_database.bat`. Sostituisce la procedura manuale di
+installazione di PostgreSQL sul PC di destinazione.
+
+**`setup_database.bat`** (nuovo) — eseguito automaticamente dall'installer
+nelle 8 fasi:
+1. Verifica porta 5432 (fallback 5433/5434)
+2. `initdb` in `%ProgramData%\Foliarium\pg_data` (NON in Program Files)
+3. Avvio temporaneo in `trust` + `ALTER USER postgres PASSWORD`
+4. Sovrascrittura `pg_hba.conf` con `scram-sha-256`
+5. Registrazione servizio Windows `FoliariumDB` (auto-start)
+6. Avvio servizio + `pg_isready` loop
+7. Esecuzione script SQL (schema, procedure, user management, bootstrap admin)
+8. Scrittura `config.ini` con credenziali generate casualmente
+
+**`uninstall_database.bat`** (nuovo) — ferma e deregistra il servizio,
+rimuove `%ProgramData%\Foliarium\pg_data`.
+
+**`setup_database.py`** (nuovo) — variante cross-platform per sviluppo
+Linux/macOS; reimplementa le stesse operazioni con Python puro.
+
+**Password generate casualmente dall'installer Pascal:** 16 caratteri
+alfanumerici per il DB, 12 per l'admin applicativo, passati come
+parametri a `setup_database.bat`.
+
+### Fix: errori emersi durante il debug dell'installer
+
+| # | Errore | Causa | Fix | Commit |
+|---|--------|-------|-----|--------|
+| 1 | `initdb: Permission denied` | `pg_data` in `C:\Program Files` non scrivibile perché `initdb` droppa i privilegi | Spostato in `%ProgramData%\Foliarium\pg_data` | `e691897` |
+| 2 | Hang su "il server è stato avviato" | `pg_hba.conf` scritto `scram-sha-256` prima del primo `ALTER USER` → psql non poteva autenticarsi | Riordinato: trust-start → `ALTER USER` → riscrittura hba → restart | `82c9dbd` |
+| 3 | `initdb: directory exists but is not empty` | Residuo di `pg_data` da installazione precedente fallita | Aggiunta pulizia automatica con `taskkill /F /IM postgres.exe` + `rmdir /s /q` | `385c11d` |
+| 4 | `DeleteFile fallito; codice 5. Accesso negato` su `icuin67.dll` | Servizio `FoliariumDB` ancora in esecuzione durante la reinstallazione | `PrepareToInstall()` Pascal ferma `FoliariumDB` e killa `postgres.exe` prima dell'estrazione | `77da8ca` |
+
+### Fix: percorsi PyInstaller 'onedir' (EXE_DIR vs BASE_DIR)
+
+Problema: in un bundle PyInstaller `onedir`, `sys._MEIPASS` =
+`app_paths.BASE_DIR` punta alla sottocartella `_internal/` dove vengono
+estratte le risorse interne, **NON** alla cartella dove vive
+`Foliarium.exe`. Ma `config.ini` (scritto dall'installer) e
+`foliarium.license` (fornito dal cliente) stanno accanto all'eseguibile.
+Risultato: l'app non trovava né le credenziali DB né il file di licenza.
+
+Fix (commit `4c56506`):
+- **`app_paths.py`**: nuova funzione `get_exe_dir()` e costante `EXE_DIR`:
+  ```python
+  def get_exe_dir():
+      if getattr(sys, 'frozen', False):
+          return Path(sys.executable).parent  # Foliarium.exe folder
+      else:
+          return Path(__file__).parent
+
+  EXE_DIR = get_exe_dir()
+  ```
+- **`config.py`**: `_config_ini_path` ora cerca prima in `EXE_DIR`, poi
+  come fallback in `BASE_DIR` (per retrocompatibilità dev mode).
+- **`license_manager.py`**: `LicenseManager.__init__` cerca il file
+  `.license` prima in `EXE_DIR`, poi in `BASE_DIR`, poi usa il percorso
+  atteso (`EXE_DIR`) per il messaggio di errore.
+
+### Regola generale per file esterni in PyInstaller onedir
+
+| Tipo di file | Dove si trova | Usare |
+|--------------|---------------|-------|
+| Risorse bundled (icone, .qss, .md, .svg) | `_internal/` | `BASE_DIR` |
+| File utente / installer (`config.ini`, `.license`) | Accanto all'exe | `EXE_DIR` |
+| Dati scrivibili (log, cache, esportazioni) | `%LOCALAPPDATA%\Foliarium` | `APP_DATA_DIR` |
+
+### File aggiunti/modificati (v1.6.0 — sessione installer)
+
+| File | Tipo | Note |
+|------|------|------|
+| `Foliarium_Unified_Installer.iss` | Nuovo | Installer Inno Setup unificato |
+| `setup_database.bat` | Nuovo | Script batch inizializzazione DB (Windows) |
+| `setup_database.py` | Nuovo | Script Python cross-platform (Linux/macOS) |
+| `uninstall_database.bat` | Nuovo | Script batch disinstallazione |
+| `app_paths.py` | Modificato | Aggiunti `get_exe_dir()` + `EXE_DIR` |
+| `config.py` | Modificato | `_config_ini_path` usa `EXE_DIR` |
+| `license_manager.py` | Modificato | Cerca `.license` prima in `EXE_DIR` |
+
+### Documentazione aggiornata
+
+- `docs/riferimento/changelog.md`: sezione v1.6.0 arricchita con installer
+  unificato, fix critici, fix PyInstaller
+- `CLAUDE.md`: titolo corretto a "Foliarium" (da "Meridiana"), versione
+  marcata come "definitiva", aggiunto questo changelog di sessione
+
+### Stato finale v1.6.0
+
+Foliarium 1.6.0 è la **versione definitiva**. Include tutto lo stack:
+- App PyQt6 completamente funzionante
+- PostgreSQL 14 embedded (produzione) o portabile (demo)
+- Installer unificato Windows self-contained
+- Sistema licenze HMAC-SHA256 + seat di rete
+- Auto-aggiornamento da GitHub Releases
+- 16 temi, dark/light automatico, UI sidebar + top bar
+- Coverage test 19.6% + 164 unit test complessivi
+- Documentazione MkDocs completa, manuale utente integrato (F1)
+
+Nessun debito tecnico noto.

@@ -104,14 +104,35 @@ pip install "matplotlib>=3.9.0"
 
 ### PyInstaller genera un eseguibile che non si avvia
 
-Verificare che il file `meridiana.spec` sia aggiornato con tutti i data files e i hidden imports. Controllare il log di avvio in:
+Verificare che il file `foliarium.spec` sia aggiornato con tutti i data files e i hidden imports. Controllare il log di avvio in:
 ```
 %LOCALAPPDATA%\Foliarium\logs\
 ```
 
 ### L'installer Inno Setup non trova l'eseguibile
 
-Eseguire prima `pyinstaller meridiana.spec` e verificare che `dist/Foliarium/Foliarium.exe` esista prima di compilare l'installer.
+Eseguire prima `pyinstaller foliarium.spec` e verificare che `dist/Foliarium/Foliarium.exe` esista prima di compilare l'installer.
+
+### L'installer si blocca con "DeleteFile fallito; codice 5" su una DLL di PostgreSQL
+
+Il servizio `FoliariumDB` è ancora in esecuzione da una installazione
+precedente e tiene bloccato il file. Il fix automatico è incluso dalla
+versione 1.6.0 — se stai reinstallando una versione più vecchia, apri
+PowerShell come amministratore ed esegui:
+
+```powershell
+net stop FoliariumDB
+taskkill /F /IM postgres.exe
+```
+
+Poi clicca **Riprova** nell'errore.
+
+### Dopo l'installazione l'app non trova `config.ini` o `foliarium.license`
+
+Dalla versione 1.6.0 l'app cerca questi file **accanto a `Foliarium.exe`**
+(es. `C:\Program Files (x86)\Foliarium\`). Se stai usando una versione
+precedente puoi copiarli manualmente nella sottocartella `_internal\`
+come workaround, oppure aggiornare all'ultima versione.
 
 ---
 

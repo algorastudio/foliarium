@@ -1,8 +1,69 @@
 # Installazione e Configurazione
 
-## Prerequisiti
+## Installer unificato (raccomandato) — Windows
 
-### Software richiesto
+Dalla versione **1.6.0** è disponibile un **installer unificato** che
+include tutto il necessario: applicazione Foliarium, PostgreSQL 14
+embedded, script di inizializzazione database e scorciatoie nel
+menu Start. **Non è più necessario installare PostgreSQL separatamente.**
+
+### Procedura
+
+1. Scaricare `Foliarium_1.6.0_Unified_Setup.exe` dalle Release GitHub
+2. Eseguire come **amministratore** (richiesto per registrare il servizio Windows)
+3. Seguire la procedura guidata (Next → Install)
+4. Attendere la fase "Configurazione database in corso…" (30–60 s)
+5. Al termine viene mostrata la password admin temporanea (`admin / admin123`)
+
+Durante l'installazione vengono eseguite automaticamente tutte le fasi:
+
+1. Estrazione dei binari PostgreSQL in `C:\Program Files (x86)\Foliarium\pgsql\`
+2. `initdb` del cluster in `C:\ProgramData\Foliarium\pg_data\`
+3. Generazione password casuale (16 caratteri) per l'utente `foliarium`
+4. Configurazione `pg_hba.conf` con `scram-sha-256`
+5. Registrazione del servizio Windows `FoliariumDB` (avvio automatico)
+6. Esecuzione degli script SQL di schema, procedure, user management
+7. Creazione utente admin applicativo (`admin / admin123`)
+8. Scrittura di `config.ini` accanto a `Foliarium.exe`
+
+!!! warning "Cambia la password admin al primo accesso"
+    La password di default `admin123` è generata per comodità dell'installazione.
+    **Deve essere cambiata immediatamente** al primo accesso tramite
+    *Impostazioni → Cambia Password*.
+
+!!! info "Porte di rete"
+    L'installer verifica se la porta 5432 è occupata. Se lo è, prova
+    automaticamente 5433 e poi 5434. La porta effettiva viene salvata
+    in `config.ini` nella cartella di installazione.
+
+### Posizione file critici
+
+| File / cartella | Percorso |
+|-----------------|----------|
+| Eseguibile | `C:\Program Files (x86)\Foliarium\Foliarium.exe` |
+| `config.ini` | `C:\Program Files (x86)\Foliarium\config.ini` |
+| `foliarium.license` (da fornire) | `C:\Program Files (x86)\Foliarium\foliarium.license` |
+| Dati DB | `C:\ProgramData\Foliarium\pg_data\` |
+| Log app | `%LOCALAPPDATA%\Foliarium\logs\` |
+| Log installer DB | `C:\Program Files (x86)\Foliarium\setup_database.log` |
+| Cache offline | `%LOCALAPPDATA%\Foliarium\cache\` |
+
+### Disinstallazione
+
+Usare *Pannello di controllo → Programmi e funzionalità* o lo
+shortcut *Disinstalla Foliarium* nel menu Start. L'uninstaller ferma
+il servizio `FoliariumDB`, lo deregistra e rimuove tutti i file,
+incluso il database (`pg_data/`).
+
+!!! warning "Backup prima di disinstallare"
+    La disinstallazione elimina **tutti i dati** del database.
+    Effettuare un backup da *Sistema → Backup* prima di procedere.
+
+---
+
+## Installazione manuale da sorgente (sviluppo)
+
+### Prerequisiti
 
 | Software | Versione | Scarica da |
 |---|---|---|
@@ -11,8 +72,6 @@
 | Git (opzionale) | qualsiasi | git-scm.com |
 
 ### Dipendenze Python
-
-Installare le dipendenze con:
 
 ```bash
 pip install -r requirements.txt
@@ -34,17 +93,7 @@ openpyxl==3.1.5
 
 ---
 
-## Installazione tramite installer (Windows)
-
-1. Eseguire **Foliarium_Setup_v1.5exe** come amministratore
-2. Seguire la procedura guidata
-3. Al termine, configurare la connessione al database (vedi sezione successiva)
-
-> 📸 **Screenshot:** Procedura guidata di installazione Foliarium con barra di avanzamento.
-
----
-
-## Installazione manuale (sorgente)
+### Clone e setup
 
 ```bash
 # 1. Clonare il repository
@@ -65,7 +114,12 @@ python gui_main.py
 
 ---
 
-## Configurazione del database
+## Configurazione manuale del database (solo sorgente)
+
+!!! note "Solo per installazioni da sorgente"
+    L'installer unificato (sezione precedente) **inizializza
+    automaticamente** il database. Questa sezione serve solo a chi
+    installa Foliarium da sorgente o utilizza un PostgreSQL preesistente.
 
 ### Creazione del database
 
@@ -115,7 +169,7 @@ Andare in *Impostazioni → Configura Connessione Database* e inserire i dati ne
 
 ```ini
 DB_HOST=192.168.1.100
-DB_USER=meridiana_user
+DB_USER=foliarium
 DB_PASS=password_sicura
 DB_NAME=catasto_storico
 DB_PORT=5432
@@ -162,7 +216,7 @@ Dopo la configurazione, avviare Foliarium e verificare:
 Per sviluppo o test in ambiente isolato:
 
 ```
-noVNC desktop → http://localhost:6080 (password: meridiana)
+noVNC desktop → http://localhost:6080 (password: foliarium)
 PostgreSQL    → localhost:5432
 QT_QPA_PLATFORM=xcb (impostato automaticamente)
 ```

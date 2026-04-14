@@ -2,6 +2,76 @@
 
 ## v1.6.0 — Aprile 2026
 
+**Versione definitiva di Foliarium.** Questa release consolida tutte le
+funzionalità sviluppate nelle 1.5.x e aggiunge un installer unificato
+self-contained che include PostgreSQL. Non è più necessario installare
+manualmente PostgreSQL sul computer di destinazione.
+
+### Installer unificato — PostgreSQL integrato
+
+**`Foliarium_Unified_Installer.iss`** — nuovo installer Inno Setup che
+distribuisce in un unico eseguibile:
+
+- L'applicazione Foliarium (output PyInstaller `dist\Foliarium\`)
+- I binari PostgreSQL 14 portabili (`pgsql\bin`, `pgsql\lib`, `pgsql\share`)
+- Gli script SQL di inizializzazione schema
+- Lo script di inizializzazione database `setup_database.bat`
+
+**`setup_database.bat`** — eseguito automaticamente durante l'installazione:
+
+1. Verifica che la porta 5432 non sia occupata (fallback su 5433, poi 5434)
+2. `initdb` crea il cluster in `%ProgramData%\Foliarium\pg_data` (non in
+   Program Files, dove `initdb` non può scrivere perché droppa i privilegi)
+3. Avvio temporaneo del server in modalità `trust` (pg_hba.conf di default)
+4. `ALTER USER postgres PASSWORD …` con password casuale generata dall'installer
+5. Sovrascrittura di `pg_hba.conf` con autenticazione `scram-sha-256`
+6. Registrazione come servizio Windows `FoliariumDB` (avvio automatico)
+7. Esecuzione degli script SQL: schema, procedure, user management, bootstrap admin
+8. Scrittura di `config.ini` accanto all'eseguibile con credenziali locali
+
+**`uninstall_database.bat`** — eseguito dall'uninstaller: ferma il servizio,
+lo deregistra e rimuove `pg_data/`.
+
+**Password sicure per default:** l'installer Pascal genera password casuali
+alfanumeriche (16 caratteri per il DB, 12 per l'admin applicativo) e le
+passa a `setup_database.bat` come parametri.
+
+**Flusso utente finale:** doppio clic sull'installer → `Next` → `Install` →
+fine. L'app è pronta all'uso con database già inizializzato, servizio
+Windows registrato, credenziali salvate in `config.ini`.
+
+### Fix critici installer (PostgreSQL embedded)
+
+| Problema | Causa | Fix |
+|----------|-------|-----|
+| `initdb: Permission denied` | `pg_data` in `C:\Program Files` (non scrivibile) | Spostato in `%ProgramData%\Foliarium\pg_data` |
+| `password authentication failed for postgres` | `pg_hba.conf` scritto `scram-sha-256` prima di impostare la password | Riordinato: trust → `ALTER USER` → `scram-sha-256` |
+| `initdb: directory exists but is not empty` | Residuo di installazione precedente fallita | Pulizia automatica di `pg_data` incompleto prima di `initdb` |
+| `DeleteFile fallito; codice 5. Accesso negato` su `icuin67.dll` | Servizio `FoliariumDB` ancora in esecuzione durante la reinstallazione | `PrepareToInstall()` Pascal ferma il servizio e killa `postgres.exe` prima di estrarre i file |
+
+### Fix percorsi PyInstaller 'onedir'
+
+**`config.ini` e `foliarium.license` non venivano trovati dopo l'installazione.**
+
+Causa: in un bundle PyInstaller `onedir`, `sys._MEIPASS` (e quindi
+`app_paths.BASE_DIR`) punta alla sottocartella `_internal/` dove vengono
+estratte le risorse, **non** alla cartella dove vive `Foliarium.exe`. Ma
+l'installer scrive `config.ini` e l'utente mette `foliarium.license`
+**accanto** all'eseguibile, non in `_internal/`.
+
+Fix:
+
+- `app_paths.py`: nuova funzione `get_exe_dir()` e costante `EXE_DIR` che
+  restituiscono `Path(sys.executable).parent` nei bundle frozen
+- `config.py`: `_config_ini_path` cerca prima in `EXE_DIR`, poi come
+  fallback in `BASE_DIR` (per retrocompatibilità dev mode)
+- `license_manager.py`: il file `.license` viene cercato prima accanto
+  all'eseguibile (`EXE_DIR`), poi in `BASE_DIR`
+
+---
+
+## v1.5.3 — Marzo 2026
+
 ### Versione Demo portabile (PostgreSQL embedded)
 
 Nuova modalità **Demo** completamente autonoma: nessuna installazione richiesta,
@@ -88,10 +158,6 @@ o se i seat di rete sono esauriti, l'avvio è bloccato con messaggio esplicativo
   `/SILENT /CLOSEAPPLICATIONS /RESTARTAPPLICATIONS`
 - Altrimenti pulsante **"Apri pagina download"** → browser
 - Il controllo aggiornamenti è disabilitato in modalità demo e in CI
-
----
-
-## v1.5.3 — Marzo 2026
 
 ### Refactoring architetturale — DB layer e test coverage
 

@@ -19,7 +19,7 @@ La sezione **Backup** di Foliarium consente di eseguire backup del database cata
 Foliarium esegue un `pg_dump` del database e salva il file `.backup` con la data nel nome:
 
 ```
-meridiana_backup_2026-03-02_14-30-00.backup
+foliarium_backup_2026-03-02_14-30-00.backup
 ```
 
 > 📸 **Screenshot:** Finestra di progresso backup con barra di avanzamento e messaggio di completamento.
@@ -51,7 +51,7 @@ Modificabile da *Impostazioni → Cartella Backup*.
 > 📸 **Screenshot:** Finestra pianificazione backup con selezione frequenza e orario.
 
 !!! info "Backup su rete"
-    Per backup su unità di rete (NAS, server), inserire il percorso UNC (es. `\\server\backup\meridiana\`). Assicurarsi che l'utente di Windows abbia i permessi di scrittura sulla cartella.
+    Per backup su unità di rete (NAS, server), inserire il percorso UNC (es. `\\server\backup\foliarium\`). Assicurarsi che l'utente di Windows abbia i permessi di scrittura sulla cartella.
 
 ---
 
