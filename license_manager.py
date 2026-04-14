@@ -290,17 +290,27 @@ class LicenseManager:
     def __init__(self):
         from config import SETTINGS_LICENSE_FILE_PATH, SETTINGS_LICENSE_NETWORK_SHARE, \
             LICENSE_DEFAULT_FILENAME, IS_DEMO_MODE
-        from app_paths import BASE_DIR
+        from app_paths import BASE_DIR, EXE_DIR
         from PyQt6.QtCore import QSettings
 
         settings = QSettings()
-        # Percorso file licenza: da QSettings → accanto all'eseguibile → directory corrente
+        # Percorso file licenza: da QSettings → accanto all'eseguibile → _internal/ → directory corrente
+        # IMPORTANTE: in PyInstaller 'onedir' il file .license sta ACCANTO a Foliarium.exe
+        # (EXE_DIR), NON dentro _internal/ (BASE_DIR).
         saved_path = settings.value(SETTINGS_LICENSE_FILE_PATH, "", type=str)
         if saved_path and os.path.exists(saved_path):
             self.license_path = saved_path
         else:
-            default = Path(BASE_DIR) / LICENSE_DEFAULT_FILENAME
-            self.license_path = str(default) if default.exists() else saved_path or str(default)
+            # Cerca prima accanto all'eseguibile, poi come fallback in BASE_DIR (dev mode / legacy)
+            exe_path = Path(EXE_DIR) / LICENSE_DEFAULT_FILENAME
+            base_path = Path(BASE_DIR) / LICENSE_DEFAULT_FILENAME
+            if exe_path.exists():
+                self.license_path = str(exe_path)
+            elif base_path.exists():
+                self.license_path = str(base_path)
+            else:
+                # Nessun file trovato: usa il percorso atteso (accanto all'exe) per il messaggio d'errore
+                self.license_path = saved_path or str(exe_path)
 
         self.share_path: str = settings.value(SETTINGS_LICENSE_NETWORK_SHARE, "", type=str)
         self._instance_id: str = str(uuid.uuid4())[:8]

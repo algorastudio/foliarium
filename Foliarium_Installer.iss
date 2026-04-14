@@ -4,7 +4,7 @@
 ; --- DEFINIZIONE COSTANTI ---
 ; Usare le costanti rende lo script più pulito e facile da manutenere per versioni future.
 #define MyAppName "Foliarium"
-#define MyAppVersion "1.3.1"
+#define MyAppVersion "1.6.0"
 #define MyAppPublisher "Marco Santoro"
 #define MyAppURL "https://github.com/saintgold74/catasto"
 #define MyAppExeName "Foliarium.exe"

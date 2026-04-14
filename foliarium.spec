@@ -11,7 +11,8 @@ a = Analysis(
     binaries=[],
     datas=[
         ('resources', 'resources'), # Inclusione della cartella 'resources'
-        ('styles', 'styles')       # Inclusione della cartella 'styles'
+        ('styles', 'styles'),       # Inclusione della cartella 'styles'
+        ('sql_scripts', 'sql_scripts'),  # Script SQL per inizializzazione DB
     ],
     hiddenimports=[],
     hookspath=[],

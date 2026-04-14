@@ -4,13 +4,14 @@ APP_VERSION = "1.6.0"
 APP_NAME    = "Foliarium"
 APP_SUBTITLE = "Archivio Catastale Storico"
 
+import configparser
 import logging
 import os
 import sys
 from logging.handlers import RotatingFileHandler
 
 # Ora questo import è sicuro, perché app_paths è autonomo
-from app_paths import LOG_DIR, get_log_file_path
+from app_paths import LOG_DIR, get_log_file_path, BASE_DIR, EXE_DIR
 
 from PyQt6.QtCore import QStandardPaths, QCoreApplication
 
@@ -35,13 +36,40 @@ DEMO_DB_PORT = os.environ.get('DEMO_DB_PORT', '15432')   # porta dedicata demo
 DEMO_LOGIN_USER = 'demo'
 DEMO_LOGIN_PASS = 'demo2025'
 
-# Leggiamo le credenziali dalle variabili d'ambiente (fornite dal file .yml di GitHub Actions).
-# Se non ci sono (es. uso normale), usiamo dei valori di default sicuri.
-ENV_DB_HOST = os.environ.get('DB_HOST', 'localhost')
-ENV_DB_NAME = os.environ.get('DB_NAME', 'catasto_storico')
-ENV_DB_USER = os.environ.get('DB_USER', 'postgres')
-ENV_DB_PASS = os.environ.get('DB_PASS', '')
-ENV_DB_PORT = os.environ.get('DB_PORT', '5432')
+# --- LETTURA config.ini (generato dall'installer unificato) ---
+# Se config.ini esiste accanto all'eseguibile, le credenziali DB vengono
+# lette da li' (priorita' su variabili d'ambiente e default).
+# Ordine di priorita': config.ini > variabili d'ambiente > default hardcoded
+#
+# IMPORTANTE: usa EXE_DIR (cartella di Foliarium.exe), NON BASE_DIR.
+# In un bundle PyInstaller 'onedir', BASE_DIR punta a _internal/ dove stanno
+# le risorse, ma config.ini e' scritto dall'installer ACCANTO all'eseguibile.
+_config_ini = configparser.ConfigParser()
+_config_ini_path = os.path.join(EXE_DIR, 'config.ini')
+# Fallback: se non trovato accanto all'exe, prova anche BASE_DIR (dev mode / legacy)
+if not os.path.exists(_config_ini_path):
+    _fallback_path = os.path.join(BASE_DIR, 'config.ini')
+    if os.path.exists(_fallback_path):
+        _config_ini_path = _fallback_path
+_config_ini_found = bool(_config_ini.read(_config_ini_path, encoding='utf-8'))
+
+def _ini_get(section: str, key: str, fallback: str = '') -> str:
+    """Legge un valore da config.ini se presente, altrimenti ritorna fallback."""
+    if _config_ini_found and _config_ini.has_option(section, key):
+        return _config_ini.get(section, key)
+    return fallback
+
+# Leggiamo le credenziali: config.ini > env vars > default hardcoded
+ENV_DB_HOST = _ini_get('database', 'host', os.environ.get('DB_HOST', 'localhost'))
+ENV_DB_NAME = _ini_get('database', 'dbname', os.environ.get('DB_NAME', 'catasto_storico'))
+ENV_DB_USER = _ini_get('database', 'user', os.environ.get('DB_USER', 'postgres'))
+ENV_DB_PASS = _ini_get('database', 'password', os.environ.get('DB_PASS', ''))
+ENV_DB_PORT = _ini_get('database', 'port', os.environ.get('DB_PORT', '5432'))
+
+# --- Info servizio PostgreSQL integrato (se installato con l'installer unificato) ---
+BUNDLED_PG_SERVICE = _ini_get('service', 'name', '')
+BUNDLED_PG_BIN = _ini_get('service', 'pg_bin', '')
+BUNDLED_PG_DATA = _ini_get('service', 'pg_data', '')
 
 
 # --- Nomi per le chiavi di QSettings ---
@@ -110,7 +138,8 @@ NUOVE_ETICHETTE_POSSESSORI = ["id", "nome_completo", "codice_fiscale", "data_nas
 
 
 # --- MODALITÀ DI SVILUPPO ---
-DEVELOPMENT_MODE = True
+# Attivo automaticamente in ambiente di sviluppo (non frozen = non compilato con PyInstaller)
+DEVELOPMENT_MODE = not getattr(sys, 'frozen', False)
 
 
 def setup_global_logging(log_level=logging.INFO):
