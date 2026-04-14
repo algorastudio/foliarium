@@ -19,8 +19,25 @@ def get_base_dir():
         # Altrimenti, in sviluppo, è la cartella dove si trova questo script
         return Path(__file__).parent
 
+
+def get_exe_dir():
+    """
+    Restituisce la directory dell'eseguibile finale (Foliarium.exe).
+    Importante: in un bundle PyInstaller 'onedir', BASE_DIR punta a _internal/
+    dove stanno le risorse interne, ma file esterni come config.ini e
+    foliarium.license stanno ACCANTO a Foliarium.exe. Usare questa funzione
+    per cercare tali file.
+    """
+    if getattr(sys, 'frozen', False):
+        # PyInstaller bundle: sys.executable = path di Foliarium.exe
+        return Path(sys.executable).parent
+    else:
+        # In sviluppo: stessa cartella del progetto
+        return Path(__file__).parent
+
 # Definiamo le directory statiche che non cambiano mai
 BASE_DIR = get_base_dir()
+EXE_DIR = get_exe_dir()
 RESOURCES_DIR = BASE_DIR / "resources"
 STYLES_DIR = BASE_DIR / "styles"
 DOCS_DIR = BASE_DIR / "docs"

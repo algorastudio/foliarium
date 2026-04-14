@@ -11,7 +11,7 @@ import sys
 from logging.handlers import RotatingFileHandler
 
 # Ora questo import è sicuro, perché app_paths è autonomo
-from app_paths import LOG_DIR, get_log_file_path, BASE_DIR
+from app_paths import LOG_DIR, get_log_file_path, BASE_DIR, EXE_DIR
 
 from PyQt6.QtCore import QStandardPaths, QCoreApplication
 
@@ -40,8 +40,17 @@ DEMO_LOGIN_PASS = 'demo2025'
 # Se config.ini esiste accanto all'eseguibile, le credenziali DB vengono
 # lette da li' (priorita' su variabili d'ambiente e default).
 # Ordine di priorita': config.ini > variabili d'ambiente > default hardcoded
+#
+# IMPORTANTE: usa EXE_DIR (cartella di Foliarium.exe), NON BASE_DIR.
+# In un bundle PyInstaller 'onedir', BASE_DIR punta a _internal/ dove stanno
+# le risorse, ma config.ini e' scritto dall'installer ACCANTO all'eseguibile.
 _config_ini = configparser.ConfigParser()
-_config_ini_path = os.path.join(BASE_DIR, 'config.ini')
+_config_ini_path = os.path.join(EXE_DIR, 'config.ini')
+# Fallback: se non trovato accanto all'exe, prova anche BASE_DIR (dev mode / legacy)
+if not os.path.exists(_config_ini_path):
+    _fallback_path = os.path.join(BASE_DIR, 'config.ini')
+    if os.path.exists(_fallback_path):
+        _config_ini_path = _fallback_path
 _config_ini_found = bool(_config_ini.read(_config_ini_path, encoding='utf-8'))
 
 def _ini_get(section: str, key: str, fallback: str = '') -> str:
