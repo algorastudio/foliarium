@@ -193,15 +193,14 @@ class DBIOMixin:
     def get_localita_export_csv(self, comune_id: int) -> List[Dict[str, Any]]:
         """
         Restituisce le località di un comune con i campi compatibili con il template di import.
-        Colonne: nome;tipo;civico
+        Colonne: nome;tipologia_stradale
+        Nota: civico è incorporato nel nome da v1.6.1
         """
         query = f"""
             SELECT
                 l.nome,
-                COALESCE(tl.nome, '') AS tipo,
-                COALESCE(CAST(l.civico AS TEXT), '') AS civico
+                COALESCE(l.tipologia_stradale, '') AS tipologia_stradale
             FROM {self.schema}.localita l
-            LEFT JOIN {self.schema}.tipo_localita tl ON l.tipo_id = tl.id
             WHERE l.comune_id = %s
             ORDER BY l.nome;
         """
