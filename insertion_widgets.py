@@ -508,13 +508,6 @@ class InserimentoLocalitaWidget(QWidget):
         self.tipo_combo.currentIndexChanged.connect(lambda: _set_field_error(self.tipo_combo, False))
         form_layout.addWidget(tipo_label, 2, 0)
         form_layout.addWidget(self.tipo_combo, 2, 1)
-        civico_label = QLabel("Civico (opzionale):")
-        self.civico_edit = QSpinBox()
-        self.civico_edit.setMinimum(0)
-        self.civico_edit.setMaximum(9999)
-        self.civico_edit.setSpecialValueText("Nessuno")
-        form_layout.addWidget(civico_label, 3, 0)
-        form_layout.addWidget(self.civico_edit, 3, 1)
         form_group.setLayout(form_layout)
         layout.addWidget(form_group)
         button_layout = QHBoxLayout()
@@ -546,8 +539,8 @@ class InserimentoLocalitaWidget(QWidget):
         self.refresh_button = QPushButton("Aggiorna Lista")
         self.refresh_button.clicked.connect(self.refresh_localita)
         self.localita_table = QTableWidget()
-        self.localita_table.setColumnCount(4)
-        self.localita_table.setHorizontalHeaderLabels(["ID", "Nome", "Tipo", "Civico"])
+        self.localita_table.setColumnCount(3)
+        self.localita_table.setHorizontalHeaderLabels(["ID", "Nome", "Tipologia"])
         self.localita_table.setAlternatingRowColors(True)
         self.localita_table.horizontalHeader().setStretchLastSection(True)
         summary_layout.addWidget(self.refresh_button)
@@ -557,7 +550,6 @@ class InserimentoLocalitaWidget(QWidget):
 
     def _pulisci_campi(self):
         self.nome_edit.clear()
-        self.civico_edit.setValue(0)
         for w in (self.nome_edit, self.tipo_combo):
             _set_field_error(w, False)
         self.nome_edit.setFocus()
@@ -570,9 +562,9 @@ class InserimentoLocalitaWidget(QWidget):
             return
         try:
             with open(path, "w", encoding="utf-8-sig") as f:
-                f.write("nome;tipo;civico\n")
-                f.write("Via Roma;Via;10\n")
-                f.write("Borgata Pianello;Borgata;\n")
+                f.write("nome;tipologia_stradale\n")
+                f.write("Via Roma 10;Via\n")
+                f.write("Borgata Pianello;Borgata\n")
             QMessageBox.information(self, "Template salvato", f"Template salvato in:\n{path}")
         except Exception as e:
             QMessageBox.critical(self, "Errore", str(e))
@@ -606,37 +598,36 @@ class InserimentoLocalitaWidget(QWidget):
 
     def insert_localita(self):
         nome = self.nome_edit.text().strip()
-        tipo_id = self.tipo_combo.currentData()
-        civico = self.civico_edit.value() if self.civico_edit.value() > 0 else None
+        tipologia_stradale = self.tipo_combo.currentText() if self.tipo_combo.currentData() else None
 
         _set_field_error(self.nome_edit, not nome)
-        _set_field_error(self.tipo_combo, tipo_id is None)
-        if not self.comune_id or not nome or tipo_id is None:
+        if not self.comune_id or not nome:
             return
 
         try:
-            localita_id = self.db_manager.insert_localita(self.comune_id, nome, tipo_id, civico)
+            localita_id = self.db_manager.insert_localita(self.comune_id, nome, tipologia_stradale)
             _show_status_message(f"Località '{nome}' inserita con successo (ID: {localita_id}).", 5000)
             self.nome_edit.clear()
-            self.civico_edit.setValue(0)
             self.refresh_localita()
         except (DBMError, DBDataError, DBUniqueConstraintError) as e:
             QMessageBox.critical(self, "Errore Inserimento", str(e))
 
     def refresh_localita(self):
-        # ... (questo metodo rimane quasi identico, ma deve recuperare il nome del tipo)
+        """Popola la tabella con le località del comune selezionato."""
         self.localita_table.setRowCount(0)
-        if not self.comune_id: return
+        if not self.comune_id:
+            return
 
         try:
-            # get_localita_by_comune ora deve fare un JOIN per prendere il nome del tipo
             localita_list = self.db_manager.get_localita_by_comune(self.comune_id)
-            # ... (popola la tabella, assicurati che la query restituisca il nome del tipo, non l'id)
-            # Se la query db non è stata modificata, la colonna "tipo" conterrà l'ID.
-            # Per ora, la lasciamo così, ma l'ideale sarebbe aggiornare la query.
+            for i, loc in enumerate(localita_list):
+                self.localita_table.insertRow(i)
+                self.localita_table.setItem(i, 0, QTableWidgetItem(str(loc['id'])))
+                self.localita_table.setItem(i, 1, QTableWidgetItem(loc['nome']))
+                tipologia = loc.get('tipologia_stradale') or 'N/D'
+                self.localita_table.setItem(i, 2, QTableWidgetItem(tipologia))
         except Exception as e:
-            # ...
-            pass
+            QMessageBox.warning(self, "Errore", f"Errore nel caricamento delle località: {e}")
 
 class InserimentoPartitaWidget(QWidget):
     import_csv_requested = pyqtSignal()

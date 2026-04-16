@@ -97,22 +97,18 @@ class DBLocalitaMixin:
             raise DBMError(f"Impossibile recuperare l'elenco delle località: {e}") from e
 
     def get_localita_by_comune(self, comune_id: int, filter_text: Optional[str] = None) -> List[Dict[str, Any]]:
-        """Recupera località per comune_id, unendo il nome del tipo dalla nuova tabella."""
+        """Recupera località per comune_id (civico incorporato nel nome da v1.6.1)."""
         if not isinstance(comune_id, int) or comune_id <= 0:
             raise DBDataError("ID comune non valido.")
 
-        # --- INIZIO CORREZIONE: Query aggiornata con JOIN ---
         query_base = f"""
-            SELECT 
-                loc.id, 
-                loc.nome, 
-                tl.nome AS tipo,  -- Selezioniamo il nome dalla tabella tipo_localita
-                loc.civico 
+            SELECT
+                loc.id,
+                loc.nome,
+                loc.tipologia_stradale
             FROM {self.schema}.localita loc
-            LEFT JOIN {self.schema}.tipo_localita tl ON loc.tipo_id = tl.id
             WHERE loc.comune_id = %s
         """
-        # --- FINE CORREZIONE ---
 
         params: List[Union[int, str]] = [comune_id]
 
@@ -120,7 +116,7 @@ class DBLocalitaMixin:
             query_base += " AND loc.nome ILIKE %s"
             params.append(f"%{filter_text}%")
 
-        query = query_base + " ORDER BY tl.nome, loc.nome, loc.civico;"
+        query = query_base + " ORDER BY loc.nome;"
 
         try:
             with self._get_connection() as conn:
@@ -133,31 +129,27 @@ class DBLocalitaMixin:
             self.logger.error(f"Errore DB in get_localita_by_comune: {e}", exc_info=True)
             return [] # Restituisce lista vuota in caso di errore
 
-    def insert_localita(self, comune_id: int, nome: str, tipo_id: int, civico: Optional[int] = None) -> int:
+    def insert_localita(self, comune_id: int, nome: str, tipologia_stradale: Optional[str] = None) -> int:
         """
-        Inserisce una nuova località usando tipo_id (FK) e gestisce i conflitti.
+        Inserisce una nuova località. Civico è incorporato nel nome (es. 'Via Roma 10').
         """
-        if not all([isinstance(comune_id, int), comune_id > 0, isinstance(nome, str), nome.strip(), isinstance(tipo_id, int), tipo_id > 0]):
+        if not all([isinstance(comune_id, int), comune_id > 0, isinstance(nome, str), nome.strip()]):
             raise DBDataError("Parametri per l'inserimento della località non validi.")
 
-        actual_civico = civico if civico is not None and civico > 0 else None
-
-        # La colonna ora è 'tipo_id'
-        query_insert = f"INSERT INTO {self.schema}.localita (comune_id, nome, tipo_id, civico) VALUES (%s, %s, %s, %s) ON CONFLICT (comune_id, nome, civico) DO NOTHING RETURNING id;"
-        # Anche la query di select deve usare tipo_id, ma per ora non è strettamente necessaria se il recupero avviene dopo
-        query_select = f"SELECT id FROM {self.schema}.localita WHERE comune_id = %s AND nome = %s AND tipo_id = %s AND ((civico IS NULL AND %s IS NULL) OR (civico = %s));"
+        query_insert = f"INSERT INTO {self.schema}.localita (comune_id, nome, tipologia_stradale) VALUES (%s, %s, %s) ON CONFLICT (comune_id, nome) DO NOTHING RETURNING id;"
+        query_select = f"SELECT id FROM {self.schema}.localita WHERE comune_id = %s AND nome = %s;"
 
         try:
             with self._get_connection() as conn:
                 with conn.cursor(cursor_factory=psycopg2.extras.DictCursor) as cur:
-                    cur.execute(query_insert, (comune_id, nome.strip(), tipo_id, actual_civico))
+                    cur.execute(query_insert, (comune_id, nome.strip(), tipologia_stradale))
                     insert_result = cur.fetchone()
 
                     if insert_result and insert_result['id']:
                         localita_id = insert_result['id']
                         self.logger.info(f"Località '{nome}' inserita con successo. ID: {localita_id}.")
                     else: # Conflitto, recupera l'ID esistente
-                        cur.execute(query_select, (comune_id, nome.strip(), tipo_id, actual_civico, actual_civico))
+                        cur.execute(query_select, (comune_id, nome.strip()))
                         select_result = cur.fetchone()
                         if select_result and select_result['id']:
                             localita_id = select_result['id']
