@@ -866,8 +866,7 @@ class ModificaLocalitaDialog(QDialog):
         self.setMinimumWidth(450)
 
         self._init_ui()
-        self._load_tipi_localita() # Carica subito i tipi disponibili
-        self._load_localita_data() # Poi carica i dati della località e seleziona il tipo corretto
+        self._load_localita_data()
 
     def _init_ui(self):
         # ... (la UI è identica a prima, con la QComboBox per il tipo)
@@ -878,13 +877,9 @@ class ModificaLocalitaDialog(QDialog):
         self.comune_display_label = QLabel("Caricamento...")
         form_layout.addRow("Comune di Appartenenza:", self.comune_display_label)
         self.nome_edit = QLineEdit()
-        form_layout.addRow("Nome Località (*):", self.nome_edit)
-        self.tipo_combo = QComboBox()
-        form_layout.addRow("Tipo (*):", self.tipo_combo)
-        self.civico_spinbox = QSpinBox()
-        self.civico_spinbox.setMinimum(0); self.civico_spinbox.setMaximum(99999)
-        self.civico_spinbox.setSpecialValueText("Nessuno")
-        form_layout.addRow("Numero Civico (0 se assente):", self.civico_spinbox)
+        form_layout.addRow("Nome Località (*; civico incorporato):", self.nome_edit)
+        self.tipologia_edit = QLineEdit()
+        form_layout.addRow("Tipologia Stradale (opzionale):", self.tipologia_edit)
         layout.addLayout(form_layout)
         buttons = QDialogButtonBox(QDialogButtonBox.StandardButton.Save | QDialogButtonBox.StandardButton.Cancel, self)
         buttons.accepted.connect(self._save_changes)
@@ -892,18 +887,8 @@ class ModificaLocalitaDialog(QDialog):
         layout.addWidget(buttons)
         self.setLayout(layout)
 
-    def _load_tipi_localita(self):
-        """Carica dinamicamente le tipologie di località nel ComboBox."""
-        self.tipo_combo.clear()
-        try:
-            tipi = self.db_manager.get_tipi_localita()
-            for tipo in tipi:
-                self.tipo_combo.addItem(tipo['nome'], tipo['id'])
-        except DBMError as e:
-            QMessageBox.critical(self, "Errore", f"Impossibile caricare le tipologie di località:\n{e}")
-
     def _load_localita_data(self):
-        # get_localita_details deve ora restituire anche tipo_id e comune_nome
+        """Carica i dati della località da modificare."""
         self.localita_data_originale = self.db_manager.get_localita_details(self.localita_id)
         if not self.localita_data_originale:
             QMessageBox.critical(self, "Errore", "Impossibile caricare i dati della località.")
@@ -912,35 +897,20 @@ class ModificaLocalitaDialog(QDialog):
 
         self.nome_edit.setText(self.localita_data_originale.get('nome', ''))
         self.comune_display_label.setText(f"{self.localita_data_originale.get('comune_nome', 'N/D')} (ID: {self.comune_id_parent})")
-
-        # --- MODIFICA CHIAVE QUI: Seleziona l'item nel ComboBox basandosi sull'ID ---
-        tipo_id_attuale = self.localita_data_originale.get('tipo_id')
-        if tipo_id_attuale is not None:
-            index = self.tipo_combo.findData(tipo_id_attuale)
-            if index >= 0:
-                self.tipo_combo.setCurrentIndex(index)
-        # --- FINE MODIFICA ---
-
-        civico_val = self.localita_data_originale.get('civico')
-        self.civico_spinbox.setValue(civico_val if civico_val is not None else 0)
+        self.tipologia_edit.setText(self.localita_data_originale.get('tipologia_stradale', '') or '')
 
     def _save_changes(self):
-        # Recupera l'ID dal ComboBox invece del testo
-        tipo_id_selezionato = self.tipo_combo.currentData()
-
-        if tipo_id_selezionato is None:
-            QMessageBox.warning(self, "Dati Mancanti", "Selezionare una tipologia valida.")
+        """Salva le modifiche alla località."""
+        nome = self.nome_edit.text().strip()
+        if not nome:
+            QMessageBox.warning(self, "Dati Mancanti", "Il nome della località è obbligatorio.")
             return
 
         dati_modificati = {
-            "nome": self.nome_edit.text().strip(),
-            "tipo_id": tipo_id_selezionato, # <-- MODIFICA QUI
-            "civico": self.civico_spinbox.value() if self.civico_spinbox.value() > 0 else None
+            "nome": nome,
+            "tipologia_stradale": self.tipologia_edit.text().strip() or None
         }
-        # ... (la logica di validazione e chiamata a update_localita rimane la stessa)
-        if not dati_modificati["nome"]:
-             QMessageBox.warning(self, "Dati Mancanti", "Il nome della località è obbligatorio.")
-             return
+
         try:
             self.db_manager.update_localita(self.localita_id, dati_modificati)
             self.accept()
@@ -1425,8 +1395,8 @@ class LocalitaSelectionDialog(QDialog):
         select_layout.addLayout(filter_layout)
 
         self.localita_table = QTableWidget()
-        self.localita_table.setColumnCount(4)
-        self.localita_table.setHorizontalHeaderLabels(["ID", "Nome", "Tipo", "Civico"])
+        self.localita_table.setColumnCount(3)
+        self.localita_table.setHorizontalHeaderLabels(["ID", "Nome", "Tipologia"])
         self.localita_table.setEditTriggers(QAbstractItemView.EditTrigger.NoEditTriggers)
         self.localita_table.setSelectionBehavior(QAbstractItemView.SelectionBehavior.SelectRows)
         self.localita_table.setSelectionMode(QAbstractItemView.SelectionMode.SingleSelection)
@@ -1449,17 +1419,13 @@ class LocalitaSelectionDialog(QDialog):
         if not self.selection_mode:
             create_tab = QWidget()
             create_form_layout = QFormLayout(create_tab)
-            self.nome_edit_nuova = QLineEdit() 
-            self.tipo_combo_nuova = QComboBox() 
-            self.tipo_combo_nuova.addItems(["Regione", "Via", "Borgata", "Altro"])
-            self.civico_spinbox_nuova = QSpinBox() 
-            self.civico_spinbox_nuova.setMinimum(0)
-            self.civico_spinbox_nuova.setMaximum(99999)
-            self.civico_spinbox_nuova.setSpecialValueText("Nessuno") 
-            create_form_layout.addRow(QLabel("Nome località (*):"), self.nome_edit_nuova)
-            create_form_layout.addRow(QLabel("Tipo (*):"), self.tipo_combo_nuova)
-            create_form_layout.addRow(QLabel("Numero Civico (0 se assente):"), self.civico_spinbox_nuova)
-            self.btn_salva_nuova_localita = QPushButton(QApplication.style().standardIcon(QStyle.StandardPixmap.SP_DialogSaveButton) ,"Salva Nuova Località")
+            self.nome_edit_nuova = QLineEdit()
+            self.nome_edit_nuova.setPlaceholderText("Es. Via Roma 10")
+            self.tipologia_edit_nuova = QLineEdit()
+            self.tipologia_edit_nuova.setPlaceholderText("Es. Via, Piazza, Borgata (opzionale)")
+            create_form_layout.addRow(QLabel("Nome località (*; civico incorporato):"), self.nome_edit_nuova)
+            create_form_layout.addRow(QLabel("Tipologia Stradale (opzionale):"), self.tipologia_edit_nuova)
+            self.btn_salva_nuova_localita = QPushButton(QApplication.style().standardIcon(QStyle.StandardPixmap.SP_DialogSaveButton), "Salva Nuova Località")
             self.btn_salva_nuova_localita.clicked.connect(self._salva_nuova_localita_da_tab)
             create_form_layout.addRow(self.btn_salva_nuova_localita)
             self.tabs.addTab(create_tab, "Crea Nuova Località")
@@ -1512,12 +1478,9 @@ class LocalitaSelectionDialog(QDialog):
                             i, 0, QTableWidgetItem(str(loc.get('id', ''))))
                         self.localita_table.setItem(
                             i, 1, QTableWidgetItem(loc.get('nome', '')))
+                        tipologia = loc.get('tipologia_stradale') or 'N/D'
                         self.localita_table.setItem(
-                            i, 2, QTableWidgetItem(loc.get('tipo', '')))
-                        civico_text = str(loc.get('civico', '')) if loc.get(
-                            'civico') is not None else "-"
-                        self.localita_table.setItem(
-                            i, 3, QTableWidgetItem(civico_text))
+                            i, 2, QTableWidgetItem(tipologia))
                     self.localita_table.resizeColumnsToContents()
                 else:
                     self.logger.info(f"Nessuna località trovata per comune ID {self.comune_id} con filtro '{actual_filter_text}'.")
@@ -1653,15 +1616,12 @@ class LocalitaSelectionDialog(QDialog):
             try:
                 self.selected_localita_id = int(self.localita_table.item(current_row, 0).text())
                 nome = self.localita_table.item(current_row, 1).text()
-                tipo = self.localita_table.item(current_row, 2).text()
-                civico_item_text = self.localita_table.item(current_row, 3).text()
+                tipologia = self.localita_table.item(current_row, 2).text()
 
                 self.selected_localita_name = nome
-                if civico_item_text and civico_item_text.strip() not in ("", "-", "0"):
-                    self.selected_localita_name += f", civ. {civico_item_text}"
-                if tipo:
-                    self.selected_localita_name += f" ({tipo})"
-                
+                if tipologia and tipologia != 'N/D':
+                    self.selected_localita_name += f" ({tipologia})"
+
                 self.logger.info(f"LocalitaSelectionDialog: Località esistente selezionata - ID: {self.selected_localita_id}, Nome: '{self.selected_localita_name}'")
                 self.accept() # Accetta il dialogo con la selezione fatta
 
@@ -1671,50 +1631,37 @@ class LocalitaSelectionDialog(QDialog):
                 self.logger.error(f"Errore in _handle_selection_or_creation (selezione esistente): {e}", exc_info=True)
                 QMessageBox.critical(self, "Errore Imprevisto", f"Errore durante la conferma della selezione: {e}")
 
-        elif current_tab_index == 1 and not self.selection_mode: # Tab "Crea Nuova Località" (solo se in modalità gestione)
+        elif current_tab_index == 1 and not self.selection_mode: # Tab "Crea Nuova Località"
             nome = self.nome_edit_nuova.text().strip()
-            tipo = self.tipo_combo_nuova.currentText()
-            civico_val = self.civico_spinbox_nuova.value()
-            
-            # Determina il valore finale del civico (NULL se 0 o testo speciale)
-            civico = None
-            if self.civico_spinbox_nuova.text().strip() != self.civico_spinbox_nuova.specialValueText() and civico_val != 0:
-                civico = civico_val
+            tipologia_stradale = self.tipologia_edit_nuova.text().strip() or None
 
             if not nome:
-                QMessageBox.warning(self, "Dati Mancanti", "Il nome della località è obbligatorio.")
+                QMessageBox.warning(self, "Dati Mancanti", "Il nome della località è obbligatorio (civico incorporato).")
                 self.nome_edit_nuova.setFocus()
                 return
-            if not tipo or tipo.strip() == "Seleziona Tipo...": # Se avevi aggiunto un placeholder
-                QMessageBox.warning(self, "Dati Mancanti", "Il tipo di località è obbligatorio.")
-                self.tipo_combo_nuova.setFocus()
-                return
+
             if self.comune_id is None:
                 QMessageBox.critical(self, "Errore Interno", "ID Comune non specificato. Impossibile creare località.")
                 return
 
             try:
                 localita_id_creata = self.db_manager.insert_localita(
-                    self.comune_id, nome, tipo, civico
+                    self.comune_id, nome, tipologia_stradale
                 )
 
                 if localita_id_creata is not None:
-                    # Imposta gli attributi selected_localita_id e selected_localita_name
-                    # che verranno letti dal chiamante (ImmobileDialog).
                     self.selected_localita_id = localita_id_creata
                     self.selected_localita_name = nome
-                    if civico is not None:
-                        self.selected_localita_name += f", civ. {civico}"
-                    self.selected_localita_name += f" ({tipo})"
+                    if tipologia_stradale:
+                        self.selected_localita_name += f" ({tipologia_stradale})"
 
                     QMessageBox.information(self, "Località Creata", f"Località '{self.selected_localita_name}' registrata con ID: {self.selected_localita_id}.")
-                    self._pulisci_campi_creazione_localita() # Pulisce i campi del tab "Crea Nuova"
-                    self.load_localita() # Ricarica l'elenco delle località nel tab "Visualizza"
-                    self.tabs.setCurrentIndex(0) # Torna al tab di visualizzazione/selezione
+                    self._pulisci_campi_creazione_localita()
+                    self.load_localita()
+                    self.tabs.setCurrentIndex(0)
+                    self.accept()
 
-                    self.accept() # Accetta il dialogo con la nuova località creata e selezionata
-
-                else: # Fallimento nella creazione senza eccezione esplicita dal DBManager
+                else:
                     self.logger.error("Creazione località fallita: ID non restituito da DBManager.")
                     QMessageBox.critical(self, "Errore Creazione", "Impossibile creare la località (ID non restituito).")
 
@@ -1726,53 +1673,37 @@ class LocalitaSelectionDialog(QDialog):
                 QMessageBox.critical(self, "Errore Imprevisto", f"Si è verificato un errore:\n{e}")
         
         else: # Se si tenta di creare in selection_mode=True, blocca
-             if current_tab_index == 1 and self.selection_mode:
+            if current_tab_index == 1 and self.selection_mode:
                 QMessageBox.warning(self, "Azione Non Disponibile", "La creazione di nuove località non è consentita in questa modalità di selezione.")
-             else:
+            else:
                 QMessageBox.warning(self, "Azione Non Valida", "Azione non riconosciuta per il tab corrente.")
 
-    # Aggiungi questo metodo per pulire i campi del tab "Crea Nuova Località"
-    def _pulisci_campi_creazione_localita(self):
-        self.nome_edit_nuova.clear()
-        self.tipo_combo_nuova.setCurrentIndex(0)
-        self.civico_spinbox_nuova.setValue(self.civico_spinbox_nuova.minimum()) # Resetta al "Nessuno"
-    # --- INIZIO METODO MANCANTE/DA RIPRISTINARE ---
     def _salva_nuova_localita_da_tab(self):
-        """
-        Salva una nuova località dal tab "Crea Nuova Località".
-        """
+        """Salva una nuova località dal tab "Crea Nuova Località"."""
         nome = self.nome_edit_nuova.text().strip()
-        tipo = self.tipo_combo_nuova.currentText()
-        civico_val = self.civico_spinbox_nuova.value()
-
-        civico = None
-        if self.civico_spinbox_nuova.text().strip() != self.civico_spinbox_nuova.specialValueText() and civico_val != 0:
-            civico = civico_val
+        tipologia_stradale = self.tipologia_edit_nuova.text().strip() or None
 
         if not nome:
-            QMessageBox.warning(self, "Dati Mancanti", "Il nome della località è obbligatorio.")
+            QMessageBox.warning(self, "Dati Mancanti", "Il nome della località è obbligatorio (civico già incorporato).")
             self.nome_edit_nuova.setFocus()
             return
-        if not tipo or tipo.strip() == "Seleziona Tipo...": # Se avevi aggiunto un placeholder
-            QMessageBox.warning(self, "Dati Mancanti", "Il tipo di località è obbligatorio.")
-            self.tipo_combo_nuova.setFocus()
-            return
+
         if self.comune_id is None:
             QMessageBox.critical(self, "Errore Interno", "ID Comune non specificato. Impossibile creare località.")
             return
 
         try:
             localita_id_creata = self.db_manager.insert_localita(
-                self.comune_id, nome, tipo, civico
+                self.comune_id, nome, tipologia_stradale
             )
 
             if localita_id_creata is not None:
                 QMessageBox.information(self, "Località Creata", f"Località '{nome}' registrata con ID: {localita_id_creata}")
                 self.logger.info(f"Nuova località creata tramite tab 'Crea Nuova': ID {localita_id_creata}, Nome: '{nome}'")
-                
-                self._pulisci_campi_creazione_localita() # Pulisce i campi del tab "Crea Nuova"
-                self.load_localita() # Ricarica l'elenco delle località nel tab "Visualizza"
-                self.tabs.setCurrentIndex(0) # Torna al tab di visualizzazione/selezione
+
+                self._pulisci_campi_creazione_localita()
+                self.load_localita()
+                self.tabs.setCurrentIndex(0)
             else:
                 self.logger.error("Creazione località fallita: ID non restituito da DBManager.")
                 QMessageBox.critical(self, "Errore Creazione", "Impossibile creare la località (ID non restituito).")
@@ -1785,9 +1716,9 @@ class LocalitaSelectionDialog(QDialog):
             QMessageBox.critical(self, "Errore Imprevisto", f"Si è verificato un errore:\n{e}")
 
     def _pulisci_campi_creazione_localita(self):
+        """Ripulisce i campi di creazione nuova località."""
         self.nome_edit_nuova.clear()
-        self.tipo_combo_nuova.setCurrentIndex(0)
-        self.civico_spinbox_nuova.setValue(self.civico_spinbox_nuova.minimum()) # Resetta al "Nessuno"
+        self.tipologia_edit_nuova.clear()
     # --- FINE METODO MANCANTE/DA RIPRISTINARE ---
         
 

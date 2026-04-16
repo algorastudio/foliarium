@@ -182,9 +182,11 @@ class DBLocalitaMixin:
             return None
 
     def update_localita(self, localita_id: int, dati_modificati: Dict[str, Any]):
-        """Aggiorna i dati di una località esistente, usando tipo_id."""
-        if not (isinstance(localita_id, int) and localita_id > 0): raise DBDataError("ID località non valido.")
-        if not isinstance(dati_modificati, dict) or not dati_modificati: raise DBDataError("Dati per aggiornamento non validi.")
+        """Aggiorna i dati di una località esistente (civico incorporato nel nome da v1.6.1)."""
+        if not (isinstance(localita_id, int) and localita_id > 0):
+            raise DBDataError("ID località non valido.")
+        if not isinstance(dati_modificati, dict) or not dati_modificati:
+            raise DBDataError("Dati per aggiornamento non validi.")
 
         set_clauses = []
         params = []
@@ -193,15 +195,9 @@ class DBLocalitaMixin:
             set_clauses.append("nome = %s")
             params.append(dati_modificati["nome"].strip())
 
-        # --- MODIFICA CHIAVE QUI ---
-        if "tipo_id" in dati_modificati and dati_modificati["tipo_id"] is not None:
-            set_clauses.append("tipo_id = %s")
-            params.append(dati_modificati["tipo_id"])
-        # --- FINE MODIFICA ---
-
-        if "civico" in dati_modificati:
-            set_clauses.append("civico = %s")
-            params.append(dati_modificati["civico"] if dati_modificati["civico"] else None)
+        if "tipologia_stradale" in dati_modificati:
+            set_clauses.append("tipologia_stradale = %s")
+            params.append(dati_modificati["tipologia_stradale"] if dati_modificati["tipologia_stradale"] else None)
 
         if not set_clauses:
             self.logger.info(f"Nessun campo valido fornito per aggiornare località ID {localita_id}.")
