@@ -1,0 +1,151 @@
+/* Stile "Grigio Ardesia" (Dark) */
+QWidget {
+    font-family: 'Segoe UI', Arial, sans-serif;
+    font-size: 10pt;
+    color: #ECF0F1; /* Testo grigio chiaro */
+}
+
+QMainWindow, QDialog, QGroupBox {
+    background-color: #2C3E50; /* Sfondo principale grigio/blu scuro */
+}
+
+QGroupBox {
+    font-weight: bold;
+    border: 1px solid #4A6572; /* Bordo grigio-blu */
+    border-radius: 8px;
+    margin-top: 10px;
+}
+
+QGroupBox::title {
+    subcontrol-origin: margin;
+    subcontrol-position: top left;
+    padding: 0 5px;
+    left: 10px;
+}
+
+QLineEdit, QTextEdit, QSpinBox, QDoubleSpinBox, QDateEdit, QComboBox {
+    background-color: #34495E; /* Sfondo widget più chiaro */
+    border: 1px solid #4A6572;
+    border-radius: 4px;
+    padding: 5px;
+    min-height: 28px;
+    color: #ECF0F1;
+}
+
+QLineEdit:focus, QTextEdit:focus, QSpinBox:focus, QDoubleSpinBox:focus, QDateEdit:focus, QComboBox:focus {
+    border-color: #5DADE2; /* Blu accento per il focus */
+}
+
+QPushButton {
+    background-color: #5DADE2; /* Blu accento */
+    color: #212529; /* Testo scuro per leggibilità sul blu chiaro */
+    font-weight: bold;
+    border: none;
+    border-radius: 4px;
+    padding: 8px 12px;
+    min-width: 100px;
+}
+
+QPushButton:hover {
+    background-color: #85C1E9;
+}
+
+QPushButton:pressed {
+    background-color: #3498DB;
+}
+
+QPushButton:disabled {
+    background-color: #566573;
+    color: #DCE0E2; /* era #99A3A4: grigio su grigio-ardesia scuro (2.1:1 → 5.8:1) */
+}
+
+QTabWidget::pane {
+    border-top: 2px solid #4A6572;
+    padding: 10px;
+}
+
+QTabBar::tab {
+    background: #34495E;
+    border: 1px solid #4A6572;
+    border-bottom: none;
+    padding: 8px 15px;
+    border-top-left-radius: 4px;
+    border-top-right-radius: 4px;
+}
+
+QTabBar::tab:selected {
+    background: #2C3E50;
+    border-color: #5DADE2;
+    font-weight: bold;
+}
+
+QTableWidget {
+    border: 1px solid #4A6572;
+    gridline-color: #34495E;
+    background-color: #34495E;
+}
+
+QHeaderView::section {
+    background-color: #4A6572; /* Header tabelle leggermente più chiaro */
+    padding: 5px;
+    border: 1px solid #2C3E50;
+    font-weight: bold;
+}
+
+QTableWidget::item:selected {
+    background-color: #5DADE2;
+    color: #212529;
+}
+/* ── v1.5 Navigation (TopBar + Sidebar) ── */
+#topBar {
+    background: #2C3E50;
+    border-bottom: 1px solid #4A5568;
+    min-height: 48px;
+    max-height: 48px;
+}
+#appTitle { font-size: 15px; font-weight: bold; color: #ECF0F1; }
+#dbIndicator { font-size: 11px; color: #A0AEC0; }
+#userLabel { font-size: 12px; color: #ECF0F1; }
+#roleChip { border-radius: 4px; padding: 2px 8px; font-size: 11px; font-weight: bold; }
+#roleChip[role="admin"]        { background: #5A1A1A; color: #FC8181; }
+#roleChip[role="archivista"]   { background: #1A3555; color: #90CDF4; }
+#roleChip[role="consultatore"] { background: #4A5568; color: #E2E8F0; } /* era #A0AEC0: testo grigio chiaro su grigio scuro (3.9:1 → 7.5:1) */
+#logoutButton {
+    background: transparent;
+    border: 1px solid #718096;
+    color: #ECF0F1;
+    border-radius: 4px;
+    padding: 4px 12px;
+}
+#logoutButton:hover { background: #4A5568; }
+#sidebar {
+    background: #34495E;
+    border-right: 1px solid #4A5568;
+    min-width: 220px;
+    max-width: 220px;
+}
+#sectionLabel {
+    color: #A0AEC0;
+    font-size: 10px;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    padding: 12px 16px 4px;
+}
+QPushButton#navButton {
+    text-align: left;
+    padding: 8px 16px;
+    margin: 1px 8px;
+    background: transparent;
+    border: none;
+    border-radius: 6px;
+    color: #CBD5E0;
+    font-size: 13px;
+}
+QPushButton#navButton:hover { background: #4A5568; }
+QPushButton#navButton[active="true"] {
+    background: #2B4C6F;
+    color: #90CDF4;
+    font-weight: bold;
+    border-left: 3px solid #5DADE2;
+}
+QStackedWidget { background: #2C3E50; }

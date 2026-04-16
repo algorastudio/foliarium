@@ -1,0 +1,3 @@
+numero_partita;suffisso_partita;data_impianto;stato;tipo
+666;bis;10/10/2025;attiva;principale
+999;bis;10/10/2012;inattiva;secondaria

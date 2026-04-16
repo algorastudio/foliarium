@@ -1,7 +1,35 @@
-PyQt5>=5.15
-PyQtWebEngine>=5.15
-psycopg2-binary>=2.9
-bcrypt>=4.0
-pandas>=1.5
-fpdf2>=2.7
-keyring>=23.0
+backports.tarfile==1.2.0
+bcrypt==4.3.0
+defusedxml==0.7.1
+et_xmlfile==2.0.0
+fonttools==4.58.1
+fpdf2==2.8.3
+importlib_metadata==8.7.0
+jaraco.classes==3.4.0
+jaraco.context==6.0.1
+jaraco.functools==4.2.1
+keyring==25.6.0
+more-itertools==10.7.0
+markdown>=3.4
+matplotlib>=3.9.0
+mkdocs-material>=9.5
+mkdocs-with-pdf>=0.9.3
+odfpy>=1.4.1
+pytest>=8.0
+pytest-cov>=6.0
+numpy==2.3.0
+openpyxl==3.1.5
+pandas==2.3.0
+pillow==11.2.1
+psycopg2-binary==2.9.10
+PyQt6==6.8.1
+PyQt6-Qt6==6.8.1
+PyQt6-sip==13.10.0
+# PyQt6-WebEngine: opzionale, da abilitare solo per funzionalità web future
+# PyQt6-WebEngine==6.8.0
+# PyQt6-WebEngine-Qt6==6.8.1
+python-dateutil==2.9.0.post0
+pytz==2025.2
+six==1.17.0
+tzdata==2025.2
+zipp==3.23.0

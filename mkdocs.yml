@@ -1,0 +1,38 @@
+site_name: Manuale Foliarium 1.5
+site_description: Manuale utente Foliarium — Archivio Catastale Storico di Savona
+site_author: Marco Santoro
+
+theme:
+  name: material
+  palette:
+    primary: indigo
+  features:
+    - navigation.tabs
+    - navigation.sections
+    - toc.integrate
+    - search.highlight
+  logo: assets/logo_foliarium.png
+
+plugins:
+  - search
+
+nav:
+  - Home: index.md
+  - Introduzione: introduzione.md
+  - Primo Avvio: primo-avvio.md
+  - Guida Utente:
+      - Consultazione: consultazione.md
+      - Inserimento Dati: inserimento.md
+      - Ricerca Avanzata: ricerca-avanzata.md
+      - Reportistica: reportistica.md
+      - Statistiche: statistiche.md
+      - Esportazioni: esportazioni.md
+  - Guida Amministratore:
+      - Panoramica: admin/index.md
+      - Installazione e Configurazione: admin/installazione.md
+      - Gestione Utenti: admin/gestione-utenti.md
+      - Backup e Ripristino: admin/backup.md
+      - Import Massivo: admin/import-massivo.md
+  - Riferimento:
+      - FAQ: riferimento/faq.md
+      - Changelog: riferimento/changelog.md

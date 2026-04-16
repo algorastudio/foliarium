@@ -1,0 +1,79 @@
+Contratto di Licenza con l'Utente Finale (EULA) — Foliarium
+============================================================
+
+LEGGERE ATTENTAMENTE I TERMINI E LE CONDIZIONI SEGUENTI PRIMA DI UTILIZZARE QUESTO SOFTWARE.
+L'UTILIZZO DEL SOFTWARE IMPLICA L'ACCETTAZIONE DI QUESTI TERMINI.
+
+Questo Contratto di Licenza con l'Utente Finale ("EULA") è un accordo legale tra il licenziatario
+(l'"Utente" o "Cliente") e Algora Studio, società sviluppatrice del software (il "Licenziante").
+
+1. CONCESSIONE DELLA LICENZA
+Il Licenziante concede all'Utente una licenza d'uso non esclusiva, non trasferibile e revocabile
+per il software "Foliarium — Archivio Catastale Storico" (il "Software") secondo i termini del
+presente contratto. La licenza è concessa per il numero di installazioni e utenti concordato
+contrattualmente con Algora Studio. Qualsiasi utilizzo oltre i termini concordati richiede
+l'acquisizione di licenze aggiuntive.
+
+2. COPYRIGHT E PROPRIETÀ INTELLETTUALE
+Il Software è di proprietà esclusiva di Algora Studio ed è protetto dalle leggi italiane ed
+europee sul diritto d'autore e dai trattati internazionali sulla proprietà intellettuale.
+Tutti i diritti, titoli e interessi relativi al Software, inclusi tutti i diritti di proprietà
+intellettuale, sono e rimarranno di proprietà di Algora Studio. La presente licenza non
+costituisce una vendita del Software, ma unicamente il diritto di utilizzarlo nei termini
+qui specificati.
+
+3. LIMITAZIONI D'USO
+L'Utente si impegna a non:
+a) Distribuire, sublicenziare, noleggiare, vendere, affittare o trasferire in altro modo
+   il Software a soggetti terzi non autorizzati da Algora Studio.
+b) Modificare, tradurre, decodificare, decompilare, disassemblare o tentare in altro modo
+   di scoprire il codice sorgente del Software, salvo nei limiti consentiti dalla legge.
+c) Rimuovere o alterare qualsiasi avviso di copyright, marchio o altro avviso di proprietà
+   presente nel Software o nella sua documentazione.
+d) Utilizzare il Software per scopi illeciti o contrari alle leggi vigenti.
+e) Effettuare copie del Software oltre quelle strettamente necessarie per uso di backup,
+   come consentito dalla normativa applicabile.
+
+4. AGGIORNAMENTI E SUPPORTO
+Gli aggiornamenti del Software e il supporto tecnico sono forniti da Algora Studio secondo
+i termini del contratto di assistenza separatamente stipulato. Algora Studio si riserva il
+diritto di modificare, sospendere o interrompere il Software o qualsiasi sua funzionalità
+in qualsiasi momento, con o senza preavviso.
+
+5. PRIVACY E TRATTAMENTO DEI DATI
+Il Software è progettato per essere eseguito localmente o su infrastruttura gestita
+dall'Utente. Algora Studio non raccoglie, trasmette né archivia dati personali degli utenti
+finali o dei soggetti presenti nell'archivio catastale. L'Utente è responsabile del
+trattamento dei dati personali in conformità al Regolamento UE 2016/679 (GDPR) e alla
+normativa nazionale applicabile.
+
+6. ESCLUSIONE DI GARANZIA
+IL SOFTWARE È FORNITO "COSÌ COM'È" ("AS IS"), SENZA GARANZIE DI ALCUN TIPO, ESPLICITE O
+IMPLICITE, INCLUSE, MA NON LIMITATE A, LE GARANZIE DI COMMERCIABILITÀ, IDONEITÀ PER UNO
+SCOPO PARTICOLARE E NON VIOLAZIONE. ALGORA STUDIO NON GARANTISCE CHE IL FUNZIONAMENTO DEL
+SOFTWARE SARÀ ININTERROTTO O PRIVO DI ERRORI.
+
+7. LIMITAZIONE DI RESPONSABILITÀ
+IN NESSUN CASO ALGORA STUDIO SARÀ RESPONSABILE PER DANNI SPECIALI, DIRETTI, INDIRETTI,
+CONSEQUENZIALI, INCIDENTALI O PUNITIVI (INCLUSI, SENZA LIMITAZIONE, DANNI PER PERDITA DI
+PROFITTI, INTERRUZIONE DI ATTIVITÀ, PERDITA DI DATI O INFORMAZIONI) DERIVANTI DALL'USO O
+DALL'IMPOSSIBILITÀ DI UTILIZZARE IL SOFTWARE, ANCHE SE ALGORA STUDIO È STATA AVVISATA DELLA
+POSSIBILITÀ DI TALI DANNI. LA RESPONSABILITÀ MASSIMA COMPLESSIVA DI ALGORA STUDIO NON POTRÀ
+IN OGNI CASO ECCEDERE IL CORRISPETTIVO PAGATO DALL'UTENTE PER LA LICENZA DEL SOFTWARE.
+
+8. RISOLUZIONE
+Il presente contratto è efficace fino alla sua risoluzione. Algora Studio può risolvere
+immediatamente il contratto in caso di violazione da parte dell'Utente di qualsiasi termine
+qui contenuto. In caso di risoluzione, l'Utente dovrà cessare ogni utilizzo del Software e
+distruggere tutte le copie in suo possesso.
+
+9. LEGGE APPLICABILE E FORO COMPETENTE
+Il presente EULA è disciplinato e interpretato in conformità con le leggi della Repubblica
+Italiana. Per qualsiasi controversia derivante dal presente accordo, le parti eleggono come
+foro competente esclusivo il Tribunale di Genova.
+
+10. CONTATTI
+Per informazioni sulla licenza, supporto commerciale o segnalazioni:
+Algora Studio — info@algorastudio.it
+
+Copyright © 2025 Algora Studio. Tutti i diritti riservati.

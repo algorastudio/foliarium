@@ -1,0 +1,14 @@
+# Dipendenze minime per iniziare i test
+pytest>=7.0.0
+pytest-cov>=4.0.0
+pytest-timeout>=2.1.0
+
+# Mock per test senza dipendenze complete
+pytest-mock>=3.10.0
+
+# Database (se disponibile)
+psycopg2-binary>=2.9.0
+
+# GUI (opzionale per ora)
+# PyQt5>=5.15.0
+# pytest-qt>=4.2.0

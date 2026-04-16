@@ -1,0 +1,77 @@
+Meridiana 1.3
+└── 🗂️ Interfaccia Principale
+    ├── 🏠 Home / Dashboard
+    │   ├─ Visualizzazione Statistiche Rapide (Comuni, Partite, Possessori, Immobili)
+    │   ├─ Ricerca Globale Rapida
+    │   ├─ Visualizzazione Attività Utenti Recenti
+    │   └─ Azioni Rapide (collegamenti diretti alle sezioni principali)
+    │
+    ├── 🗂️ Consultazione e Modifica
+    │   ├─ Elenco Comuni
+    │   │   ├─ * Filtra elenco comuni
+    │   │   └─ * Azioni su Comune (click destro)
+    │   │       ├─ Visualizza Partite del Comune
+    │   │       ├─ Visualizza Possessori del Comune
+    │   │       ├─ Visualizza Località del Comune
+    │   │       └─ Modifica Dati Comune
+    │   ├─ Ricerca Partite (con filtri specifici)
+    │   └─ Ricerca Immobili Avanzata (con filtri specifici)
+    │
+    ├── 🔍 Ricerca Globale (Fuzzy Search)
+    │   ├─ Esegui Ricerca Testuale Approssimata
+    │   ├─ Filtra Ricerca per Tipo di Entità (Possessori, Immobili, etc.)
+    │   ├─ Regola Soglia di Similarità
+    │   ├─ Esporta Risultati in CSV / PDF
+    │   └─ Apri Dettaglio (doppio click su un risultato)
+    │
+    ├── 🗂️ Inserimento
+    │   ├─ Nuovo Comune (CREATE)
+    │   ├─ Nuovo Possessore (CREATE)
+    │   ├─ Nuova Partita (CREATE)
+    │   ├─ Nuova Località (CREATE)
+    │   ├─ Registra Consultazione (CREATE)
+    │   ├─ Registrazione Nuova Proprietà (WORKFLOW)
+    │   │   ├─ 1. Definizione dati nuova partita
+    │   │   ├─ 2. Aggiunta/Creazione di Possessori
+    │   │   ├─ 3. Aggiunta/Creazione di Immobili
+    │   │   └─ 4. Salvataggio transazionale
+    │   └─ Operazioni Partita (WORKFLOW)
+    │       ├─ 1. Selezione Partita Sorgente
+    │       ├─ 2. Duplicazione Partita
+    │       ├─ 3. Trasferimento Singolo Immobile
+    │       └─ 4. Passaggio di Proprietà (Voltura)
+    │
+    ├── 🗄️ Esportazioni Massive
+    │   ├─ Seleziona Tipo di Dati (Elenco Possessori, Elenco Partite)
+    │   ├─ Filtra per Comune
+    │   └─ Esporta in formato CSV, Excel (.xlsx) o PDF
+    │
+    ├── 🧾 Reportistica
+    │   ├─ Genera Report di Proprietà (per ID Partita)
+    │   ├─ Genera Report Genealogico (per ID Partita)
+    │   ├─ Genera Report Possessore (per ID Possessore)
+    │   └─ Esporta Report generato in formato TXT o PDF
+    │
+    ├── 📊 Statistiche e Viste
+    │   ├─ Visualizza Statistiche per Comune
+    │   ├─ Visualizza Immobili per Tipologia
+    │   └─ Manutenzione Database
+    │       ├─ Aggiorna Viste Materializzate
+    │       ├─ Genera Suggerimenti di Ottimizzazione (Admin)
+    │       └─ Pulisci Log di Backup (Admin)
+    │
+    ├── 👤 Gestione Utenti (Admin)
+    │   ├─ Visualizza Elenco Utenti
+    │   ├─ Crea Nuovo Utente (CREATE)
+    │   ├─ Modifica Utente Selezionato (UPDATE)
+    │   ├─ Resetta Password Utente (UPDATE)
+    │   ├─ Attiva / Disattiva Utente (UPDATE)
+    │   └─ Elimina Utente (DELETE)
+    │
+    └── ⚙️ Sistema (Admin)
+        ├─ Visualizzatore Log di Audit
+        │   ├─ * Filtra log per data, tabella, operazione, utente
+        │   └─ * Visualizza dettagli modifiche (JSON prima/dopo)
+        └─ Backup e Ripristino Database
+            ├─ Esegui Backup Completo del Database
+            └─ Esegui Ripristino da File

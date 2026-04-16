@@ -1,58 +1,138 @@
-# ============================================================
-#  Foliarium — .gitignore
-# ============================================================
-
-# --- Build artifacts (generati da build.bat / PyInstaller) ---
-dist/
-build/
-release/
-*.spec.bak
-
-# --- Binari PostgreSQL nella versione portatile (troppo grandi per git) ---
-# Solo gli script .bat e README_PORTABLE.md vengono tracciati
-portable/pgsql/
-portable/data/
-
-# --- Ambiente virtuale Python ---
-venv/
-.venv/
-env/
-.env
-
-# --- Bytecode Python ---
+# Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[cod]
-*.pyo
-*.pyd
+*$py.class
+*.so
+*.dll
+*.dylib
+*.pyc
 
-# --- Configurazione locale con credenziali ---
-config.ini
-*.ini.local
+# Distribution / packaging
+dist/
+build/
+*.egg-info/
+*.egg
+MANIFEST
 
-# --- Log ---
+# Unit test / coverage reports
+htmlcov/
+coverage_html/
+.tox/
+.nox/
+.coverage
+.coverage.*
+.cache
+nosetests.xml
+coverage.xml
+*.cover
+.hypothesis/
+.pytest_cache/
+
+# Translations
+*.mo
+*.pot
+
+# Django
 *.log
-logs/
+local_settings.py
+db.sqlite3
+db.sqlite3-journal
 
-# --- Database locale ---
-*.db
-*.sqlite3
+# Flask
+instance/
+.webassets-cache
 
-# --- File temporanei editor / OS ---
-.DS_Store
-Thumbs.db
+# Scrapy
+.scrapy
+
+# Sphinx documentation
+docs/_build/
+
+# MkDocs generated site
+site/
+
+# PyBuilder
+target/
+
+# Jupyter Notebook
+.ipynb_checkpoints
+
+# IPython
+profile_default/
+ipython_config.py
+
+# pyenv
+.python-version
+
+# pipenv
+Pipfile.lock
+
+# virtualenv / env
+venv/
+env/
+ENV/
+.env
+.venv
+
+# IDE specific files
+.idea/
+.vscode/
 *.swp
 *.swo
 *~
-desktop.ini
+.DS_Store
+.project
+.classpath
+.settings/
+*.sublime-workspace
+*.sublime-project
 
-# --- IDE ---
-.vscode/
-.idea/
-*.code-workspace
+# Database
+*.db
+*.sqlite
+*.sqlite3
 
-# --- Claude Code (memoria assistente) ---
-.claude/
+# Logs
+logs/
+*.log
 
-# --- Distribuzione Python ---
-*.egg-info/
-dist-info/
+# OS generated files
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# Temp files
+*.bak
+*.tmp
+*.temp
+
+# Local configuration
+config.local.json
+config.dev.json
+secrets.json
+
+# Claude Code internal files
+.claude/worktrees/
+
+# Binary and large files
+*.zip
+*.tar.gz
+*.rar
+*.7z
+*.exe
+*.xls
+*.xlsx
+*.ppt
+*.pptx
+
+# Demo portabile — cartelle generate dalla CI, non committare
+pgsql/
+demo_data/
+pg_portable.zip
+
+# File di licenza cliente (generati localmente, non versionare)
+*.license

@@ -1,0 +1,212 @@
+/* Stile "Blu Savoia" - Versione ottimizzata con tab abbreviati */
+QWidget {
+    font-family: 'Segoe UI', Arial, sans-serif;
+    font-size: 10pt;
+    color: #212529;
+}
+
+QMainWindow, QDialog {
+    background-color: #F8F9FA;
+}
+
+QGroupBox {
+    font-weight: bold;
+    border: 1px solid #D3D3D3;
+    border-radius: 8px;
+    margin-top: 10px;
+}
+
+QGroupBox::title {
+    subcontrol-origin: margin;
+    subcontrol-position: top left;
+    padding: 0 5px;
+    left: 10px;
+}
+
+QLineEdit, QTextEdit, QSpinBox, QDoubleSpinBox, QDateEdit, QComboBox {
+    background-color: #FFFFFF;
+    border: 1px solid #ced4da;
+    border-radius: 4px;
+    padding: 5px;
+    min-height: 28px;
+}
+
+QLineEdit:focus, QTextEdit:focus, QSpinBox:focus, QDoubleSpinBox:focus, QDateEdit:focus, QComboBox:focus {
+    border-color: #357EC7;
+}
+
+QPushButton {
+    background-color: #357EC7;
+    color: white;
+    font-weight: bold;
+    border: none;
+    border-radius: 4px;
+    padding: 8px 12px;
+    min-width: 100px;
+}
+
+QPushButton:hover {
+    background-color: #2a6ead;
+}
+
+QPushButton:pressed {
+    background-color: #215a8c;
+}
+
+QPushButton:disabled {
+    background-color: #A9A9A9;
+    color: #303030; /* era #E0E0E0: testo chiaro su grigio medio (1.8:1 → 6.8:1) */
+}
+
+QTabWidget::pane {
+    border-top: 2px solid #D3D3D3;
+    padding: 10px;
+    background-color: #FFFFFF;
+}
+
+/* TAB OTTIMIZZATI CON GRASSETTO */
+QTabBar::tab {
+    background: #E9ECEF;
+    border: 1px solid #D3D3D3;
+    border-bottom: none;
+    /* Padding bilanciato per i nomi abbreviati */
+    padding: 10px 18px;
+    /* Larghezza minima appropriata per tab corti */
+    min-width: 70px;
+    /* Altezza uniforme */
+    min-height: 20px;
+    border-top-left-radius: 4px;
+    border-top-right-radius: 4px;
+    /* Spazio tra i tab */
+    margin-right: 2px;
+    /* Allineamento centrale del testo */
+    text-align: center;
+}
+
+QTabBar::tab:selected {
+    background: #FFFFFF;
+    border-color: #D3D3D3;
+    /* Ripristina il grassetto per il tab selezionato */
+    font-weight: bold;
+    /* Colore blu per evidenziare */
+    color: #357EC7;
+    /* Bordo superiore colorato */
+    border-top: 3px solid #357EC7;
+    /* Compensa il bordo più spesso */
+    padding-top: 8px;
+}
+
+QTabBar::tab:hover:!selected {
+    background: #F0F0F0;
+    /* Colore più scuro al passaggio del mouse */
+    color: #357EC7;
+}
+
+/* Differenziazione per tab principali e sotto-tab */
+/* Tab principali - più spaziosi */
+QTabWidget > QTabBar::tab {
+    min-width: 90px;
+    padding: 10px 20px;
+}
+
+/* Sotto-tab - più compatti */
+QTabWidget QTabWidget QTabBar::tab {
+    min-width: 70px;
+    padding: 8px 15px;
+    font-size: 9pt;
+}
+
+/* Stile specifico per i tab con icone emoji */
+QTabBar::tab[text*="🏠"], 
+QTabBar::tab[text*="🔍"], 
+QTabBar::tab[text*="📤"] {
+    /* Padding extra per bilanciare le icone */
+    padding-left: 15px;
+    padding-right: 15px;
+}
+
+QTableWidget {
+    border: 1px solid #D3D3D3;
+    gridline-color: #E0E0E0;
+    background-color: #FFFFFF;
+}
+
+QHeaderView::section {
+    background-color: #E6F7FF;
+    padding: 5px;
+    border: 1px solid #D3D3D3;
+    font-weight: bold;
+}
+
+QTableWidget::item:selected {
+    background-color: #7FB3D5;
+    color: white;
+}
+
+/* Stile per i pulsanti nei tab (come "Aggiorna Statistiche Comuni") */
+QTabWidget QPushButton {
+    padding: 6px 12px;
+    min-height: 30px;
+}
+
+/* Migliora l'aspetto dei tooltip */
+QToolTip {
+    background-color: #FFFBDD;
+    border: 1px solid #D3D3D3;
+    padding: 5px;
+    border-radius: 3px;
+    color: #000000;
+}
+/* ── v1.5 Navigation (TopBar + Sidebar) ── */
+#topBar {
+    background: #EEF4FA;
+    border-bottom: 1px solid #A8C8E0;
+    min-height: 48px;
+    max-height: 48px;
+}
+#appTitle { font-size: 15px; font-weight: bold; color: #1E3A5F; }
+#dbIndicator { font-size: 11px; color: #1E5A96; }
+#userLabel { font-size: 12px; color: #1E3A5F; }
+#roleChip { border-radius: 4px; padding: 2px 8px; font-size: 11px; font-weight: bold; }
+#roleChip[role="admin"]        { background: #FFEBEE; color: #8B1A1A; }
+#roleChip[role="archivista"]   { background: #D5E8F5; color: #1E3A5F; }
+#roleChip[role="consultatore"] { background: #EEF4FA; color: #1E5A96; }
+#logoutButton {
+    background: transparent;
+    border: 1px solid #A8C8E0;
+    color: #1E3A5F;
+    border-radius: 4px;
+    padding: 4px 12px;
+}
+#logoutButton:hover { background: #D5E8F5; }
+#sidebar {
+    background: #D5E8F5;
+    border-right: 1px solid #A8C8E0;
+    min-width: 220px;
+    max-width: 220px;
+}
+#sectionLabel {
+    color: #1E5A96;
+    font-size: 10px;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    padding: 12px 16px 4px;
+}
+QPushButton#navButton {
+    text-align: left;
+    padding: 8px 16px;
+    margin: 1px 8px;
+    background: transparent;
+    border: none;
+    border-radius: 6px;
+    color: #1E3A5F;
+    font-size: 13px;
+}
+QPushButton#navButton:hover { background: #B8D4E8; }
+QPushButton#navButton[active="true"] {
+    background: #1E5A96;
+    color: #FFFFFF;
+    font-weight: bold;
+    border-left: 3px solid #1E3A5F;
+}
+QStackedWidget { background: #F5F9FD; }

@@ -1,0 +1,29 @@
+[run]
+source =
+    gui_main
+    gui_widgets
+    dialogs
+    catasto_db_manager
+    app_utils
+    app_paths
+    config
+    custom_widgets
+
+omit =
+    tests/*
+    sql_scripts/*
+    resources/*
+    */site-packages/*
+    */__pycache__/*
+
+[report]
+show_missing = True
+precision = 2
+skip_empty = True
+
+[html]
+directory = coverage_html
+title = Meridiana - Coverage Report
+
+[xml]
+output = coverage.xml
