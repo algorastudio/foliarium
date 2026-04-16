@@ -12,4 +12,4 @@ DROP DATABASE catasto_storico WITH (FORCE);
 -- SELECT pg_terminate_backend(pid) FROM pg_stat_activity WHERE datname = 'catasto_storico';
 -- DROP DATABASE catasto_storico;
 
-\q
+--\q
