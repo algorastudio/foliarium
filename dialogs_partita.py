@@ -1210,6 +1210,8 @@ class ModificaPartitaDialog(QDialog):
             QMessageBox.critical(self, "Errore Imprevisto", f"Si è verificato un errore: {e}")
 
     def _modifica_legame_possessore(self):
+        from dialogs_entity import DettagliLegamePossessoreDialog
+
         selected_items = self.possessori_table.selectedItems()
         if not selected_items:
             QMessageBox.warning(self, "Nessuna Selezione", "Seleziona un possessore dalla tabella per modificarne il legame.")
