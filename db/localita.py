@@ -162,11 +162,11 @@ class DBLocalitaMixin:
             raise DBMError(f"Errore database durante l'operazione sulla località: {e}") from e
 
     def get_localita_details(self, localita_id: int) -> Optional[Dict[str, Any]]:
-        """Recupera i dettagli di una singola località, incluso il nome del comune."""
+        """Recupera i dettagli di una singola località (civico incorporato nel nome da v1.6.1)."""
         if not isinstance(localita_id, int) or localita_id <= 0: return None
 
         query = f"""
-            SELECT loc.id, loc.nome, loc.tipo, loc.civico, loc.comune_id, com.nome AS comune_nome
+            SELECT loc.id, loc.nome, loc.tipologia_stradale, loc.comune_id, com.nome AS comune_nome
             FROM {self.schema}.localita loc
             JOIN {self.schema}.comune com ON loc.comune_id = com.id
             WHERE loc.id = %s;
