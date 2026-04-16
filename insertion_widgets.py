@@ -22,7 +22,7 @@ from PyQt6.QtWidgets import (
     QAbstractItemView, QApplication, QCheckBox, QComboBox, QDateEdit,
     QDialog, QFileDialog, QFormLayout, QGridLayout, QGroupBox,
     QHBoxLayout, QLabel, QLineEdit, QMessageBox, QPushButton,
-    QScrollArea, QSpinBox, QTableWidget, QTextEdit, QVBoxLayout,
+    QScrollArea, QSpinBox, QTableWidget, QTableWidgetItem, QTextEdit, QVBoxLayout,
     QWidget, QCompleter,
 )
 
