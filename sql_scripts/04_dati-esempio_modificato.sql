@@ -103,21 +103,21 @@ BEGIN
     SELECT id INTO v_rossi_m_id FROM possessore WHERE comune_id=v_carcare_id AND nome_completo='Rossi Marco fu Antonio';
     RAISE NOTICE '[DATI ESEMPIO]   -> Inseriti/Trovati 7 possessori.';
 
-    -- === 4. Inserimento Località (versione corretta) ===
+    -- === 4. Inserimento Località (versione corretta, civico incorporato nel nome da v1.6.1) ===
     RAISE NOTICE '[DATI ESEMPIO] Inserimento Località...';
-    INSERT INTO localita (comune_id, nome, tipologia_stradale, tipo_id, civico) VALUES (v_carcare_id, 'Vispa', 'Regione', v_tipo_regione_id, NULL) ON CONFLICT(comune_id, nome, civico) DO NOTHING;
-    INSERT INTO localita (comune_id, nome, tipologia_stradale, tipo_id, civico) VALUES (v_carcare_id, 'Giuseppe Verdi', 'Via', v_tipo_via_id, '12') ON CONFLICT(comune_id, nome, civico) DO NOTHING;
-    INSERT INTO localita (comune_id, nome, tipologia_stradale, tipo_id, civico) VALUES (v_carcare_id, 'Roma', 'Via', v_tipo_via_id, '5') ON CONFLICT(comune_id, nome, civico) DO NOTHING;
-    INSERT INTO localita (comune_id, nome, tipologia_stradale, tipo_id, civico) VALUES (v_cairo_id, 'Ferrere', 'Borgata', v_tipo_borgata_id, NULL) ON CONFLICT(comune_id, nome, civico) DO NOTHING;
-    INSERT INTO localita (comune_id, nome, tipologia_stradale, tipo_id, civico) VALUES (v_cairo_id, 'Strada Provinciale', 'Via', v_tipo_via_id, '76') ON CONFLICT(comune_id, nome, civico) DO NOTHING;
-    INSERT INTO localita (comune_id, nome, tipologia_stradale, tipo_id, civico) VALUES (v_altare_id, 'Palermo', 'Via', v_tipo_via_id, '22') ON CONFLICT(comune_id, nome, civico) DO NOTHING;
+    INSERT INTO localita (comune_id, nome, tipologia_stradale) VALUES (v_carcare_id, 'Vispa', 'Regione') ON CONFLICT(comune_id, nome) DO NOTHING;
+    INSERT INTO localita (comune_id, nome, tipologia_stradale) VALUES (v_carcare_id, 'Giuseppe Verdi 12', 'Via') ON CONFLICT(comune_id, nome) DO NOTHING;
+    INSERT INTO localita (comune_id, nome, tipologia_stradale) VALUES (v_carcare_id, 'Roma 5', 'Via') ON CONFLICT(comune_id, nome) DO NOTHING;
+    INSERT INTO localita (comune_id, nome, tipologia_stradale) VALUES (v_cairo_id, 'Ferrere', 'Borgata') ON CONFLICT(comune_id, nome) DO NOTHING;
+    INSERT INTO localita (comune_id, nome, tipologia_stradale) VALUES (v_cairo_id, 'Strada Provinciale 76', 'Via') ON CONFLICT(comune_id, nome) DO NOTHING;
+    INSERT INTO localita (comune_id, nome, tipologia_stradale) VALUES (v_altare_id, 'Palermo 22', 'Via') ON CONFLICT(comune_id, nome) DO NOTHING;
 
     SELECT id INTO v_loc_car_vista_id FROM localita WHERE comune_id=v_carcare_id AND nome='Vispa';
-    SELECT id INTO v_loc_car_verdi_id FROM localita WHERE comune_id=v_carcare_id AND nome='Giuseppe Verdi';
-    SELECT id INTO v_loc_car_roma_id FROM localita WHERE comune_id=v_carcare_id AND nome='Roma';
+    SELECT id INTO v_loc_car_verdi_id FROM localita WHERE comune_id=v_carcare_id AND nome='Giuseppe Verdi 12';
+    SELECT id INTO v_loc_car_roma_id FROM localita WHERE comune_id=v_carcare_id AND nome='Roma 5';
     SELECT id INTO v_loc_cai_ferrere_id FROM localita WHERE comune_id=v_cairo_id AND nome='Ferrere';
-    SELECT id INTO v_loc_cai_prov_id FROM localita WHERE comune_id=v_cairo_id AND nome='Strada Provinciale';
-    SELECT id INTO v_loc_alt_palermo_id FROM localita WHERE comune_id=v_altare_id AND nome='Palermo';
+    SELECT id INTO v_loc_cai_prov_id FROM localita WHERE comune_id=v_cairo_id AND nome='Strada Provinciale 76';
+    SELECT id INTO v_loc_alt_palermo_id FROM localita WHERE comune_id=v_altare_id AND nome='Palermo 22';
     RAISE NOTICE '[DATI ESEMPIO]   -> Inserite/Trovate 6 località.';
 
     -- === 5. Inserimento Partite ===

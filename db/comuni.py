@@ -177,23 +177,19 @@ class DBComuniMixin:
         if not isinstance(comune_id, int) or comune_id <= 0:
             return []
 
-        # --- INIZIO CORREZIONE: Aggiunto l.id AS localita_id alla query ---
         query = f"""
-            SELECT 
-                i.id, 
-                i.natura, 
-                l.nome AS localita_nome, 
-                l.civico, 
-                tl.nome as tipo_localita,
-                l.id as localita_id -- Aggiungi questa colonna fondamentale
+            SELECT
+                i.id,
+                i.natura,
+                l.nome AS localita_nome,
+                l.tipologia_stradale,
+                l.id as localita_id
             FROM {self.schema}.immobile i
             JOIN {self.schema}.partita p ON i.partita_id = p.id
             JOIN {self.schema}.localita l ON i.localita_id = l.id
-            LEFT JOIN {self.schema}.tipo_localita tl ON l.tipo_id = tl.id
             WHERE p.comune_id = %s
             ORDER BY l.nome, i.natura;
         """
-        # --- FINE CORREZIONE ---
         try:
             with self._get_connection() as conn:
                 with conn.cursor(cursor_factory=psycopg2.extras.DictCursor) as cur:

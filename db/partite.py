@@ -238,12 +238,11 @@ class DBPartiteMixin:
                     # --- INIZIO CORREZIONE QUI ---
                     # 3. Immobili (query aggiornata con JOIN a tipo_localita)
                     query_imm = f"""
-                        SELECT i.id, i.natura, i.numero_piani, i.numero_vani, i.consistenza, 
-                            i.classificazione, l.nome as localita_nome, tl.nome as localita_tipo, l.civico 
-                        FROM {self.schema}.immobile i 
+                        SELECT i.id, i.natura, i.numero_piani, i.numero_vani, i.consistenza,
+                            i.classificazione, l.nome as localita_nome, l.tipologia_stradale
+                        FROM {self.schema}.immobile i
                         JOIN {self.schema}.localita l ON i.localita_id = l.id
-                        LEFT JOIN {self.schema}.tipo_localita tl ON l.tipo_id = tl.id
-                        WHERE i.partita_id = %s 
+                        WHERE i.partita_id = %s
                         ORDER BY l.nome, i.natura;
                     """
                     # --- FINE CORREZIONE QUI ---

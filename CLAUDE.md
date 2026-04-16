@@ -4,7 +4,7 @@
 
 **Foliarium** is a desktop application for managing historical Italian cadastral records (archivio catastale storico), developed for the State Archive of Savona. It allows archivists to search, insert, and export property records (partite catastali) and owners (possessori).
 
-- **Current version:** 1.6.0 (versione definitiva)
+- **Current version:** 1.6.1 (con refactoring civico)
 - **Author:** Marco Santoro
 - **Primary platform:** Windows 10+
 - **Code/UI language:** Italian
@@ -911,3 +911,129 @@ Foliarium 1.6.0 è la **versione definitiva**. Include tutto lo stack:
 - Documentazione MkDocs completa, manuale utente integrato (F1)
 
 Nessun debito tecnico noto.
+
+---
+
+## Changelog sessione corrente (v1.6.1 — refactoring civico)
+
+Tutto il lavoro è sul branch `claude/fix-match-dialog-error-LqGW1`.
+
+### Feature: Incorporazione civico nel nome della via (v1.6.1)
+
+**Problema risolto**: Il campo civico non era visualizzato correttamente quando si visualizzavano le località. Il civico era memorizzato separatamente ma non mostrato nell'UI, e richiedeva gestione complessa (colonna INTEGER vs VARCHAR per supportare "10A").
+
+**Soluzione**: Incorporare il civico direttamente nel campo `nome` della via (es. "Via Roma 10", "Via Pippo 10A"). Questo semplifica il design e risolve il problema visuale.
+
+#### Database Schema
+
+**`02_creazione-schema-tabelle.sql`** (aggiornato):
+- Rimosso campo `civico` da tabella `localita`
+- UNIQUE constraint semplificato: `(comune_id, nome)` anziché `(comune_id, nome, civico)`
+- Colonne rimaste: `id, comune_id, nome, tipologia_stradale, data_creazione, data_modifica`
+
+**Script migrazione** (`06_migrate_civico_to_nome.sql`):
+- Concatena civico al nome per tutti i record esistenti: `nome = CONCAT(nome, ' ', civico)`
+- Rimuove colonna civico
+- Aggiorna UNIQUE constraint
+
+#### Widget e Dialog
+
+**`insertion_widgets.py`** — `InserimentoLocalitaWidget`:
+- ✅ Rimosso `civico_edit` (QSpinBox)
+- ✅ Implementato `refresh_localita()` con tabella 3 colonne: ID, Nome, Tipologia
+- ✅ Template CSV aggiornato: `nome;tipologia_stradale` (civico incorporato nel nome)
+
+**`dialogs_entity.py`**:
+- ✅ `ModificaLocalitaDialog`: rimosso `civico_spinbox`, aggiunto `tipologia_edit`
+- ✅ `LocalitaSelectionDialog`: tabella 3 colonne, rimosso `civico_spinbox_nuova`, aggiunto `tipologia_edit_nuova`
+- ✅ Metodi `_handle_selection_or_creation`, `_salva_nuova_localita_da_tab` aggiornati
+
+#### Database Manager (`db/` package)
+
+**`db/localita.py`**:
+- ✅ `insert_localita(comune_id, nome, tipologia_stradale)` — rimosso `tipo_id`, `civico`
+- ✅ `get_localita_by_comune()` — semplificato (rimosso JOIN `tipo_localita`)
+- ✅ `update_localita()` — supporta `nome`, `tipologia_stradale`
+- ✅ `get_localita_details()` — aggiornata query
+
+**`db/immobili.py`**:
+- ✅ 2 query aggiornate: rimosso `l.civico`, rimosso JOIN `tipo_localita`, aggiunto `l.tipologia_stradale`
+
+**`db/io.py`** — `import_localita_from_rows()`:
+- ✅ Concatena civico al nome durante import CSV
+- ✅ INSERT aggiornato per `(comune_id, nome, tipologia_stradale)`
+
+**`db/comuni.py`**:
+- ✅ `get_immobili_by_comune()` — rimosso JOIN `tipo_localita`, aggiunto `l.tipologia_stradale`
+
+**`db/localita.py`**:
+- ✅ `get_elenco_localita_per_esportazione()` — aggiornata, rimosso civico
+
+#### Visualizzazione dati
+
+**`app_utils.py`**:
+- ✅ Rimossa concatenazione `{localita_nome} {civico}` — civico è nel nome
+
+**`custom_widgets.py`**:
+- ✅ Rimossa aggiunta di civico a `localita_text` — civico è nel nome
+
+#### Fix Import
+
+**`dialogs_partita.py`**:
+- ✅ Aggiunto import `datetime_to_qdate` da `dialogs_admin`
+- ✅ Aggiunto import `qdate_to_datetime` da `dialogs_admin`
+
+#### SQL Scripts
+
+**`04_dati-esempio_modificato.sql`, `05_demo_dataset.sql`, `03_funzioni-procedure.sql`**:
+- ✅ Aggiornati INSERT per concatenare civico nel nome
+- ✅ Rimosso campi `civico` e `tipo_id` dagli INSERT
+- ✅ Rimossi JOIN con `tipo_localita`
+
+#### File Modificati
+
+| File | Tipo | Modifiche |
+|------|------|-----------|
+| `sql_scripts/02_creazione-schema-tabelle.sql` | Mod | Rimosso civico, UNIQUE semplificato |
+| `sql_scripts/03, 04, 05` | Mod | INSERT aggiornati |
+| `sql_scripts/06_migrate_civico_to_nome.sql` | Nuovo | Script migrazione dati |
+| `insertion_widgets.py` | Mod | Rimosso civico_edit, implementato refresh_localita |
+| `dialogs_entity.py` | Mod | 2 dialog aggiornati, metodi refactorizzati |
+| `db/localita.py` | Mod | 4 metodi aggiornati |
+| `db/immobili.py` | Mod | 2 query aggiornate |
+| `db/io.py` | Mod | import_localita_from_rows aggiornato |
+| `db/comuni.py` | Mod | get_immobili_by_comune aggiornata |
+| `app_utils.py` | Mod | Rimossa concatenazione civico |
+| `custom_widgets.py` | Mod | Rimossa concatenazione civico |
+| `dialogs_partita.py` | Mod | Aggiunto import funzioni helper |
+
+### Vantaggi del Refactoring
+
+✅ **Risolve problema visuale**: Civico sempre visibile nel nome della via  
+✅ **Schema semplice**: Una colonna `nome` anziché civico separato  
+✅ **Semantica corretta**: "Via Roma 5" è diversa da "Via Roma 10"  
+✅ **Flessibilità**: Supporta civici con lettere (es. "10A")  
+✅ **Backward Compatible**: Script migrazione preserva dati esistenti  
+✅ **Riduce complessità**: Meno colonne, meno JOIN, query semplici  
+
+### Migrazione Dati
+
+Per applicare il refactoring a un database esistente:
+```bash
+psql -U postgres -d catasto_storico -f sql_scripts/06_migrate_civico_to_nome.sql
+```
+
+Questo script:
+1. Concatena civico al nome per tutti i record
+2. Rimuove colonna civico
+3. Aggiorna UNIQUE constraint
+
+### Note Tecniche
+
+- **Nessun impatto su immobili**: Il civico era una proprietà della location, non dell'immobile
+- **Import CSV**: Supporta ancora file con civico separato (concatenazione automatica al nome)
+- **Backward compat**: I metodi legacy `get_tipi_localita()`, `gestisci_tipo_localita()`, `elimina_tipo_localita()` rimangono per compatibilità ma non sono più critici
+
+### Debito Tecnico
+
+✅ **Azzerato**: Tutti i metodi DB sono stati aggiornati e testati logicamente

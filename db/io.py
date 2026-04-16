@@ -120,33 +120,29 @@ class DBIOMixin:
                             if not nome:
                                 raise ValueError("Il campo 'nome' è obbligatorio.")
 
-                            tipo_str = str(record.get('tipo', '')).strip().lower()
-                            tipo_id = tipo_map.get(tipo_str, fallback_tipo_id)
-                            if tipo_id is None:
-                                raise ValueError(f"Tipo località '{record.get('tipo', '')}' non trovato e nessun fallback 'Altro' disponibile.")
-
+                            # Civico è ormai incorporato nel nome (v1.6.1)
+                            # Supporto per CSV con civico separato: concatenare al nome
                             civico_raw = str(record.get('civico', '')).strip()
-                            try:
-                                civico = int(civico_raw) if civico_raw else None
-                            except ValueError:
-                                civico = None
-                            actual_civico = civico if civico is not None and civico > 0 else None
+                            if civico_raw:
+                                nome = f"{nome} {civico_raw}".strip()
+
+                            tipologia_stradale = str(record.get('tipo', '')).strip() or None
 
                             query_insert = f"""
-                                INSERT INTO {self.schema}.localita (comune_id, nome, tipo_id, civico)
-                                VALUES (%s, %s, %s, %s)
-                                ON CONFLICT (comune_id, nome, civico) DO NOTHING
+                                INSERT INTO {self.schema}.localita (comune_id, nome, tipologia_stradale)
+                                VALUES (%s, %s, %s)
+                                ON CONFLICT (comune_id, nome) DO NOTHING
                                 RETURNING id;
                             """
-                            cur.execute(query_insert, (comune_id, nome, tipo_id, actual_civico))
+                            cur.execute(query_insert, (comune_id, nome, tipologia_stradale))
                             insert_result = cur.fetchone()
 
                             if insert_result:
                                 new_id = insert_result[0]
                             else:
                                 cur.execute(
-                                    f"SELECT id FROM {self.schema}.localita WHERE comune_id=%s AND nome=%s AND ((civico IS NULL AND %s IS NULL) OR civico=%s);",
-                                    (comune_id, nome, actual_civico, actual_civico)
+                                    f"SELECT id FROM {self.schema}.localita WHERE comune_id=%s AND nome=%s;",
+                                    (comune_id, nome)
                                 )
                                 existing = cur.fetchone()
                                 if existing:
@@ -155,7 +151,7 @@ class DBIOMixin:
                                     raise DBMError(f"Impossibile inserire o trovare la località '{nome}'.")
 
                             cur.execute("RELEASE SAVEPOINT record_savepoint")
-                            success_rows.append({'id': new_id, 'nome': nome, 'tipo': record.get('tipo', ''), 'civico': civico_raw})
+                            success_rows.append({'id': new_id, 'nome': nome})
 
                         except (ValueError, psycopg2.Error, DBMError) as error:
                             cur.execute("ROLLBACK TO SAVEPOINT record_savepoint")
@@ -197,15 +193,14 @@ class DBIOMixin:
     def get_localita_export_csv(self, comune_id: int) -> List[Dict[str, Any]]:
         """
         Restituisce le località di un comune con i campi compatibili con il template di import.
-        Colonne: nome;tipo;civico
+        Colonne: nome;tipologia_stradale
+        Nota: civico è incorporato nel nome da v1.6.1
         """
         query = f"""
             SELECT
                 l.nome,
-                COALESCE(tl.nome, '') AS tipo,
-                COALESCE(CAST(l.civico AS TEXT), '') AS civico
+                COALESCE(l.tipologia_stradale, '') AS tipologia_stradale
             FROM {self.schema}.localita l
-            LEFT JOIN {self.schema}.tipo_localita tl ON l.tipo_id = tl.id
             WHERE l.comune_id = %s
             ORDER BY l.nome;
         """

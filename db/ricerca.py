@@ -67,24 +67,20 @@ class DBSearchMixin:
             return {}
 
     def _search_localita_fuzzy_internal(self, conn, query: str, threshold: float, limit: int) -> List[Dict]:
-        """Ricerca fuzzy interna per le località, usando la nuova tabella tipo_localita."""
-        # --- INIZIO CORREZIONE ---
-        # La query ora fa un JOIN con tipo_localita per ottenere il nome del tipo
+        """Ricerca fuzzy interna per le località. Civico è incorporato nel nome da v1.6.1."""
         sql = f"""
             SELECT
                 l.id AS entity_id,
                 l.nome AS display_text,
-                'Tipo: ' || COALESCE(tl.nome, 'N/D') || ', Civico: ' || COALESCE(CAST(l.civico AS TEXT), 'N/A') || ' | Comune: ' || c.nome AS detail_text,
+                'Tipologia: ' || COALESCE(l.tipologia_stradale, 'N/D') || ' | Comune: ' || c.nome AS detail_text,
                 similarity(l.nome, %s) AS similarity_score,
                 'nome' AS search_field,
                 l.nome,
-                tl.nome AS tipo, -- Selezioniamo il nome dalla tabella joinata
-                l.civico,
+                l.tipologia_stradale,
                 c.nome as comune_nome,
                 COALESCE(im.num_immobili, 0) as num_immobili
             FROM {self.schema}.localita l
             JOIN {self.schema}.comune c ON l.comune_id = c.id
-            LEFT JOIN {self.schema}.tipo_localita tl ON l.tipo_id = tl.id -- <-- JOIN con la nuova tabella
             LEFT JOIN (
                 SELECT localita_id, COUNT(*) as num_immobili
                 FROM {self.schema}.immobile
@@ -94,7 +90,6 @@ class DBSearchMixin:
             ORDER BY similarity_score DESC
             LIMIT %s;
         """
-        # --- FINE CORREZIONE ---
         try:
             with conn.cursor(cursor_factory=DictCursor) as cur:
                 cur.execute(sql, (query, query, threshold, limit))
@@ -320,7 +315,6 @@ class DBSearchMixin:
                 JOIN {self.schema}.partita p ON i.partita_id = p.id
                 JOIN {self.schema}.comune c ON p.comune_id = c.id
                 JOIN {self.schema}.localita l ON i.localita_id = l.id
-                LEFT JOIN {self.schema}.tipo_localita tl ON l.tipo_id = tl.id
             """
 
             if comune_id is not None:
@@ -357,8 +351,7 @@ class DBSearchMixin:
                     p.numero_partita,
                     c.nome AS comune_nome,
                     l.nome AS localita_nome,
-                    l.civico AS civico,
-                    tl.nome AS localita_tipo,
+                    l.tipologia_stradale AS localita_tipo,
                     i.natura,
                     i.classificazione,
                     i.consistenza,

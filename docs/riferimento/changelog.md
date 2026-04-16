@@ -1,5 +1,48 @@
 # Changelog
 
+## v1.6.1 — Aprile 2026
+
+### Refactoring civico — Incorporazione nel nome della via
+
+**Problema:** Il campo civico non era visualizzato correttamente quando si
+visualizzavano le località. Era memorizzato separatamente e richiedeva gestione
+complessa (INTEGER vs VARCHAR per "10A").
+
+**Soluzione:** Incorporare il civico direttamente nel campo `nome` della via
+(es. "Via Roma 10", "Via Pippo 10A").
+
+#### Modifiche Database
+
+- **Schema `localita`**: rimosso campo `civico`
+- **UNIQUE constraint**: semplificato da `(comune_id, nome, civico)` a
+  `(comune_id, nome)`
+- **Script migrazione**: `06_migrate_civico_to_nome.sql` concatena civico al
+  nome per i dati esistenti
+
+#### UI/Widget
+
+- **`InserimentoLocalitaWidget`**: rimosso campo civico, tabella con 3 colonne
+- **`ModificaLocalitaDialog`**: rimosso civico_spinbox
+- **`LocalitaSelectionDialog`**: rimosso civico_spinbox, 3 colonne nella tabella
+- **Template CSV**: aggiornato a `nome;tipologia_stradale`
+
+#### Database Manager
+
+- **`insert_localita()`**: rimossi `tipo_id`, `civico`; supporta
+  `tipologia_stradale`
+- **`get_localita_by_comune()`**: semplificato (rimosso JOIN tipo_localita)
+- **Altre query**: aggiornate in `immobili.py`, `io.py`, `comuni.py`,
+  `localita.py`
+
+#### Vantaggi
+
+✅ Civico sempre visibile nel nome  
+✅ Schema semplice (una colonna anziché due)  
+✅ Supporta civici con lettere (es. "10A")  
+✅ Backward compatible (script migrazione per dati esistenti)  
+
+---
+
 ## v1.6.0 — Aprile 2026
 
 **Versione definitiva di Foliarium.** Questa release consolida tutte le

@@ -22,16 +22,15 @@ class DBImmobiliMixin:
     def get_elenco_immobili_per_esportazione(self, comune_id: Optional[int] = None) -> List[Dict[str, Any]]:
         """Recupera un elenco completo di immobili per l'esportazione."""
         query = f"""
-            SELECT 
+            SELECT
                 i.id AS id_immobile, i.natura, i.classificazione, i.consistenza,
-                i.numero_piani, i.numero_vani, l.nome AS localita_nome, 
-                tl.nome AS localita_tipo, l.civico, p.numero_partita, 
+                i.numero_piani, i.numero_vani, l.nome AS localita_nome,
+                l.tipologia_stradale, p.numero_partita,
                 p.suffisso_partita, c.nome AS comune_nome
             FROM {self.schema}.immobile i
             JOIN {self.schema}.partita p ON i.partita_id = p.id
             JOIN {self.schema}.comune c ON p.comune_id = c.id
             JOIN {self.schema}.localita l ON i.localita_id = l.id
-            LEFT JOIN {self.schema}.tipo_localita tl ON l.tipo_id = tl.id
         """
         params = []
         if comune_id:
@@ -131,12 +130,11 @@ class DBImmobiliMixin:
                 i.numero_piani, i.numero_vani,
                 p.numero_partita, p.suffisso_partita,
                 c.nome AS comune_nome,
-                l.nome AS localita_nome, tl.nome AS localita_tipo, l.civico
+                l.nome AS localita_nome, l.tipologia_stradale
             FROM {self.schema}.immobile i
             JOIN {self.schema}.partita p ON i.partita_id = p.id
             JOIN {self.schema}.comune c ON p.comune_id = c.id
             JOIN {self.schema}.localita l ON i.localita_id = l.id
-            LEFT JOIN {self.schema}.tipo_localita tl ON l.tipo_id = tl.id
             WHERE i.id = %s;
         """
         try:

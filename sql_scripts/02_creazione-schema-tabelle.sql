@@ -166,19 +166,17 @@ CREATE TABLE partita_possessore (
 );
 COMMENT ON TABLE partita_possessore IS 'Relazione tra partite e possessori.';
 
--- Tabella LOCALITA (Modificata per usare comune_id)
+-- Tabella LOCALITA (Modificata per usare comune_id; civico incorporato nel nome da v1.6.1)
 CREATE TABLE localita (
     id SERIAL PRIMARY KEY,
     comune_id INTEGER NOT NULL REFERENCES comune(id) ON UPDATE CASCADE ON DELETE RESTRICT,
     nome VARCHAR(255) NOT NULL,
-    tipologia_stradale VARCHAR(50), -- NOME CORRETTO E RESO NULLable PER FLESSIBILITÀ
-    civico VARCHAR(50), -- Modificato in VARCHAR per supportare civici come '10A'
+    tipologia_stradale VARCHAR(50),
     data_creazione TIMESTAMP(0) DEFAULT CURRENT_TIMESTAMP,
     data_modifica TIMESTAMP(0) DEFAULT CURRENT_TIMESTAMP,
-    UNIQUE(comune_id, nome, civico) -- UNIQUE su ID + nome + civico
-    -- La colonna periodo_id da script 11 verrà aggiunta lì o qui se preferito
+    UNIQUE(comune_id, nome)
 );
-COMMENT ON TABLE localita IS 'Località o indirizzi degli immobili (referenzia comune.id).';
+COMMENT ON TABLE localita IS 'Località o indirizzi degli immobili (comune_id + nome univoco). Civico incorporato nel nome.';
 
 -- Tabella IMMOBILE (Nessuna modifica diretta per comune_id, relazione indiretta tramite partita_id)
 CREATE TABLE immobile (

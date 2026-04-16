@@ -46,6 +46,8 @@ from app_utils import (gui_esporta_partita_pdf, gui_esporta_partita_json, gui_es
                        gui_esporta_possessore_pdf, gui_esporta_possessore_json, gui_esporta_possessore_csv,
                        GenericTextReportPDF, FPDF_AVAILABLE, prompt_to_open_file, PDFApreviewDialog)
 
+from dialogs_admin import datetime_to_qdate, qdate_to_datetime
+
 try:
     from catasto_db_manager import DBMError, DBUniqueConstraintError, DBNotFoundError, DBDataError
 except ImportError:
@@ -1208,6 +1210,8 @@ class ModificaPartitaDialog(QDialog):
             QMessageBox.critical(self, "Errore Imprevisto", f"Si è verificato un errore: {e}")
 
     def _modifica_legame_possessore(self):
+        from dialogs_entity import DettagliLegamePossessoreDialog
+
         selected_items = self.possessori_table.selectedItems()
         if not selected_items:
             QMessageBox.warning(self, "Nessuna Selezione", "Seleziona un possessore dalla tabella per modificarne il legame.")
