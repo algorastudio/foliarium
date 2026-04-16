@@ -538,8 +538,8 @@ def gui_esporta_partita_pdf(parent_widget, db_manager: CatastoDBManager, partita
         if partita_data.get('immobili'):
             pdf.chapter_title('Immobili')
             headers = ['ID', 'Natura', 'Località', 'Class.', 'Consist.']
-            data_rows = [[imm.get('id'), imm.get('natura'), f"{imm.get('localita_nome', '')} {imm.get('civico', '')}".strip(
-            ), imm.get('classificazione'), imm.get('consistenza')] for imm in partita_data['immobili']]
+            data_rows = [[imm.get('id'), imm.get('natura'), imm.get('localita_nome', ''),
+                         imm.get('classificazione'), imm.get('consistenza')] for imm in partita_data['immobili']]
             pdf.simple_table(headers, data_rows)
 
         if partita_data.get('variazioni'):
