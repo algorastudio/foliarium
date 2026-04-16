@@ -46,6 +46,8 @@ from app_utils import (gui_esporta_partita_pdf, gui_esporta_partita_json, gui_es
                        gui_esporta_possessore_pdf, gui_esporta_possessore_json, gui_esporta_possessore_csv,
                        GenericTextReportPDF, FPDF_AVAILABLE, prompt_to_open_file, PDFApreviewDialog)
 
+from dialogs_admin import datetime_to_qdate
+
 try:
     from catasto_db_manager import DBMError, DBUniqueConstraintError, DBNotFoundError, DBDataError
 except ImportError:
