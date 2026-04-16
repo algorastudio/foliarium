@@ -76,12 +76,11 @@ class DBLocalitaMixin:
             raise DBMError("Eliminazione della tipologia fallita.") from e
 
     def get_elenco_localita_per_esportazione(self, comune_id: Optional[int] = None) -> List[Dict[str, Any]]:
-        """Recupera un elenco completo di località per l'esportazione."""
+        """Recupera un elenco completo di località per l'esportazione (civico incorporato nel nome da v1.6.1)."""
         query = f"""
-            SELECT l.id, l.nome, tl.nome AS tipo, l.civico, c.nome AS comune_nome
+            SELECT l.id, l.nome, l.tipologia_stradale, c.nome AS comune_nome
             FROM {self.schema}.localita l
             JOIN {self.schema}.comune c ON l.comune_id = c.id
-            LEFT JOIN {self.schema}.tipo_localita tl ON l.tipo_id = tl.id
         """
         params = []
         if comune_id:
