@@ -2247,6 +2247,87 @@ def setup_global_logging():
     
     logging.info(f"Logging configurato. I log verranno salvati in: {log_file_path}")
 
+class WebViewWindow(QMainWindow):
+    """Finestra principale modalità React: sidebar nativa minima + QWebEngineView."""
+
+    def __init__(self, port: int, db_manager, parent=None):
+        super().__init__(parent)
+        self.setWindowTitle("Foliarium — Archivio Catastale Storico")
+        self.resize(1280, 800)
+        self.setMinimumSize(900, 600)
+        self._api_port = port
+        self._db_manager = db_manager
+
+        try:
+            from PyQt6.QtWebEngineWidgets import QWebEngineView
+            from PyQt6.QtCore import QUrl
+            view = QWebEngineView()
+            view.load(QUrl(f"http://127.0.0.1:{port}"))
+            self.setCentralWidget(view)
+        except ImportError:
+            # WebEngine non installato: apre il browser di sistema
+            import webbrowser
+            webbrowser.open(f"http://127.0.0.1:{port}")
+            label = QLabel(
+                f"<h2>Foliarium Web</h2>"
+                f"<p>Apri il browser su: <a href='http://127.0.0.1:{port}'>"
+                f"http://127.0.0.1:{port}</a></p>"
+            )
+            label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+            label.setOpenExternalLinks(True)
+            self.setCentralWidget(label)
+
+
+def run_web_app():
+    """Avvia la modalità React (FastAPI + WebView/browser)."""
+    import time
+    from api.server_thread import APIServerThread
+
+    app = QApplication(sys.argv)
+    app.setApplicationName("Foliarium")
+    app.setOrganizationName("Algora Studio")
+
+    from config import setup_global_logging
+    setup_global_logging()
+
+    # Connessione DB tramite config standard
+    from config import DB_HOST, DB_USER, DB_PASS, DB_NAME, DB_PORT, DB_SCHEMA
+    from catasto_db_manager import CatastoDBManager
+    db = CatastoDBManager(
+        dbname=DB_NAME, user=DB_USER, password=DB_PASS,
+        host=DB_HOST, port=DB_PORT, schema=DB_SCHEMA,
+    )
+
+    # Dialog di attesa
+    splash = QMessageBox()
+    splash.setWindowTitle("Foliarium")
+    splash.setText("Avvio server API React…")
+    splash.setStandardButtons(QMessageBox.StandardButton.NoButton)
+
+    _win = [None]
+
+    def on_started(port: int):
+        splash.accept()
+        win = WebViewWindow(port, db)
+        _win[0] = win
+        win.show()
+
+    def on_error(msg: str):
+        splash.accept()
+        QMessageBox.critical(None, "Errore API", f"Impossibile avviare il server:\n{msg}")
+        sys.exit(1)
+
+    thread = APIServerThread(db)
+    thread.started_ok.connect(on_started)
+    thread.start_error.connect(on_error)
+    thread.start()
+
+    # Mostra splash solo se il server non parte entro 200ms
+    QTimer.singleShot(200, lambda: splash.exec() if _win[0] is None else None)
+
+    sys.exit(app.exec())
+
+
 def run_gui_app():
     try:
         app = QApplication(sys.argv)
@@ -2631,14 +2712,13 @@ def run_gui_app():
 
 
 if __name__ == "__main__":
-    
-    
-    
-    # Importa qui per evitare importazioni circolari (se necessario)
     import traceback
-    
+
     try:
-        run_gui_app()
+        if "--web" in sys.argv:
+            run_web_app()
+        else:
+            run_gui_app()
     except Exception as e:
         # Log dell'errore critico
         logging.getLogger("CatastoGUI").critical(f"Errore critico all'avvio dell'applicazione: {e}", exc_info=True)

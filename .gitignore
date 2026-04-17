@@ -136,3 +136,5 @@ pg_portable.zip
 
 # File di licenza cliente (generati localmente, non versionare)
 *.license
+frontend/dist/
+frontend/node_modules/
