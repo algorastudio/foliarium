@@ -354,36 +354,37 @@ class TopBarWidget(QFrame):
     def __init__(self, parent=None):
         super().__init__(parent)
         self.setObjectName("topBar")
-        self.setFixedHeight(48)
+        self.setFixedHeight(52)
         self.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
 
         layout = QHBoxLayout(self)
-        layout.setContentsMargins(12, 0, 12, 0)
-        layout.setSpacing(8)
+        layout.setContentsMargins(16, 0, 16, 0)
+        layout.setSpacing(6)
 
-        # Logo + titolo
+        # Logo SVG
         try:
             from PyQt6.QtSvgWidgets import QSvgWidget
             logo_path = get_logo_svg_path(dark=False)
             if logo_path:
-                logo = QSvgWidget(logo_path)
+                logo = QSvgWidget(str(logo_path))
                 logo.setFixedSize(28, 28)
                 layout.addWidget(logo)
         except Exception:
             pass
 
-        title_label = QLabel("Foliarium")
+        # Titolo + sottotitolo istituzionale
+        title_label = QLabel(APP_NAME)
         title_label.setObjectName("appTitle")
         layout.addWidget(title_label)
+
+        subtitle_label = QLabel(f"/ {APP_SUBTITLE}")
+        subtitle_label.setObjectName("appSubtitle")
+        layout.addWidget(subtitle_label)
 
         # Badge visibile solo in modalità demo
         if IS_DEMO_MODE:
             demo_badge = QLabel("  DEMO  ")
             demo_badge.setObjectName("demoBadge")
-            demo_badge.setStyleSheet(
-                "background: #FF6D00; color: white; font-weight: bold; "
-                "font-size: 10px; border-radius: 4px; padding: 2px 6px;"
-            )
             layout.addWidget(demo_badge)
 
         layout.addStretch()
@@ -393,7 +394,16 @@ class TopBarWidget(QFrame):
         self._db_indicator.setObjectName("dbIndicator")
         layout.addWidget(self._db_indicator)
 
-        layout.addSpacing(16)
+        layout.addSpacing(12)
+
+        # Avatar con iniziali utente
+        self._avatar_label = QLabel("—")
+        self._avatar_label.setObjectName("avatarWidget")
+        self._avatar_label.setFixedSize(28, 28)
+        self._avatar_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        layout.addWidget(self._avatar_label)
+
+        layout.addSpacing(4)
 
         # Nome utente
         self._user_label = QLabel("—")
@@ -414,8 +424,16 @@ class TopBarWidget(QFrame):
         self._logout_btn.clicked.connect(self.logout_requested)
         layout.addWidget(self._logout_btn)
 
+    @staticmethod
+    def _initials(nome: str) -> str:
+        """Estrae le iniziali (max 2 lettere) dal nome utente."""
+        parts = nome.strip().split()
+        if len(parts) >= 2:
+            return (parts[0][0] + parts[-1][0]).upper()
+        return nome[:2].upper() if nome else "—"
+
     def update_user_info(self, nome: str, ruolo: str, db_connected: bool, db_name: str = ""):
-        """Aggiorna label utente, ruolo e stato DB."""
+        """Aggiorna label utente, ruolo, avatar e stato DB."""
         if db_connected:
             db_text = f"● DB: {db_name}" if db_name else "● DB: connesso"
             self._db_indicator.setStyleSheet("color: #2E7D32; font-size: 11px;")
@@ -425,14 +443,15 @@ class TopBarWidget(QFrame):
         self._db_indicator.setText(db_text)
 
         if nome:
+            self._avatar_label.setText(self._initials(nome))
             self._user_label.setText(nome)
             self._role_chip.setText(ruolo or "")
             self._role_chip.setProperty("role", (ruolo or "").lower())
-            # Forza il restyle del chip
             self._role_chip.style().unpolish(self._role_chip)
             self._role_chip.style().polish(self._role_chip)
             self._logout_btn.setEnabled(True)
         else:
+            self._avatar_label.setText("—")
             self._user_label.setText("—")
             self._role_chip.setText("")
             self._logout_btn.setEnabled(False)
