@@ -50,7 +50,7 @@ from gui_widgets import (
     OperazioniPartitaWidget, EsportazioniWidget, ReportisticaWidget, StatisticheWidget,
     GestioneUtentiWidget, AuditLogViewerWidget, BackupWidget,
     RegistraConsultazioneWidget, WelcomeScreen, GestionePeriodiStoriciWidget,
-    GestioneTipiLocalitaWidget,
+    GestioneTipiLocalitaWidget, NuovaPartitaWizardWidget,
     DBConfigDialog, InserimentoPartitaWidget, RicercaDocumentiWidget)
 
 from custom_widgets import QPasswordLineEdit
@@ -601,9 +601,9 @@ _PAGE_SECTION: dict[str, str] = {
     "documenti": "archivio", "fuzzy": "archivio",
     "ins_comune": "inserimento", "ins_possessore": "inserimento",
     "ins_partita": "inserimento", "ins_localita": "inserimento",
-    "reg_proprieta": "inserimento", "operazioni": "inserimento",
-    "reg_consult": "inserimento", "tipi_localita": "inserimento",
-    "periodi": "inserimento",
+    "ins_wizard": "inserimento", "reg_proprieta": "inserimento",
+    "operazioni": "inserimento", "reg_consult": "inserimento",
+    "tipi_localita": "inserimento", "periodi": "inserimento",
     "esportazioni": "analisi", "report": "analisi", "statistiche": "analisi",
     "utenti": "gestione", "audit": "gestione", "backup": "gestione",
 }
@@ -689,6 +689,7 @@ class SubNavWidget(QFrame):
             ("ins_possessore","Possessore"),
             ("ins_partita",   "Partita"),
             ("ins_localita",  "Località"),
+            ("ins_wizard",    "Nuova Partita"),
             ("reg_proprieta", "Reg. Proprietà"),
             ("operazioni",    "Operazioni"),
             ("reg_consult",   "Consultazione"),
@@ -820,6 +821,7 @@ class CatastoMainWindow(QMainWindow):
         self.inserimento_comune_widget_ref: Optional[InserimentoComuneWidget] = None
         self.inserimento_possessore_widget_ref: Optional[InserimentoPossessoreWidget] = None
         self.inserimento_localita_widget_ref: Optional[InserimentoLocalitaWidget] = None
+        self.nuova_partita_wizard_ref: Optional[NuovaPartitaWizardWidget] = None
         self.registrazione_proprieta_widget_ref: Optional[RegistrazioneProprietaWidget] = None
         self.operazioni_partita_widget_ref: Optional[OperazioniPartitaWidget] = None
         self.registra_consultazione_widget_ref: Optional[RegistraConsultazioneWidget] = None
@@ -1311,6 +1313,10 @@ class CatastoMainWindow(QMainWindow):
         self.inserimento_localita_widget_ref.import_csv_requested.connect(self._import_localita)
         self.inserimento_localita_widget_ref.scarica_csv_requested.connect(self._scarica_csv_localita)
         _add_page("ins_localita", self.inserimento_localita_widget_ref)
+
+        self.nuova_partita_wizard_ref = NuovaPartitaWizardWidget(
+            self.db_manager, self.logged_in_user_info, self.stack)
+        _add_page("ins_wizard", self.nuova_partita_wizard_ref)
 
         self.registrazione_proprieta_widget_ref = RegistrazioneProprietaWidget(self.db_manager)
         _add_page("reg_proprieta", self.registrazione_proprieta_widget_ref)

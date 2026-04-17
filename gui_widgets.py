@@ -464,285 +464,436 @@ class ElencoComuniWidget(LazyLoadedWidget):
 
 
 
-class RicercaPartiteWidget(QWidget):
-    def __init__(self, db_manager, parent=None):
-        super(RicercaPartiteWidget, self).__init__(parent)
-        self.db_manager = db_manager
+class PartitaResultCard(QFrame):
+    """Card cliccabile per un risultato di ricerca partite."""
+    card_clicked = pyqtSignal(int)
+    context_menu_requested = pyqtSignal(int, QPoint)
 
-        layout = QVBoxLayout()
+    _STATO_STYLE: dict[str, tuple[str, str]] = {
+        "attiva":   ("#E8F5E9", "#1B5E20"),
+        "inattiva": ("#F5F5F5", "#616161"),
+        "aperta":   ("#E3F2FD", "#0D47A1"),
+        "chiusa":   ("#FFF3E0", "#BF360C"),
+    }
 
-        # Criteri di ricerca
-        criteria_group = QGroupBox("Criteri di Ricerca")
-        criteria_layout = QGridLayout()
+    def __init__(self, partita_data: dict, parent=None):
+        super().__init__(parent)
+        self._partita_id: int = partita_data.get('id', -1)
+        self._partita_data = partita_data
+        self.setObjectName("resultCard")
+        self.setCursor(Qt.CursorShape.PointingHandCursor)
+        self.setFrameShape(QFrame.Shape.StyledPanel)
+        self.setFrameShadow(QFrame.Shadow.Raised)
+        self.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
+        self.customContextMenuRequested.connect(
+            lambda pos: self.context_menu_requested.emit(
+                self._partita_id, self.mapToGlobal(pos)))
+
+        layout = QVBoxLayout(self)
+        layout.setContentsMargins(12, 8, 12, 8)
+        layout.setSpacing(3)
+
+        # Top row: numero partita + chip stato
+        row1 = QHBoxLayout()
+        row1.setSpacing(8)
+
+        numero = partita_data.get('numero_partita', '—')
+        suffisso = (partita_data.get('suffisso_partita') or '').strip()
+        suf_display = f"/{suffisso}" if suffisso else ""
+        numero_lbl = QLabel(f"<b>N. {numero}{suf_display}</b>")
+        numero_lbl.setObjectName("cardTitle")
+        row1.addWidget(numero_lbl)
+        row1.addStretch()
+
+        stato = (partita_data.get('stato') or '').strip()
+        bg, fg = self._STATO_STYLE.get(stato.lower(), ("#F5F5F5", "#424242"))
+        stato_lbl = QLabel(stato or "—")
+        stato_lbl.setStyleSheet(
+            f"background:{bg}; color:{fg}; border-radius:9px; "
+            f"padding:1px 9px; font-size:9pt; font-weight:600;"
+        )
+        row1.addWidget(stato_lbl)
+        layout.addLayout(row1)
 
         # Comune
-        comune_label = QLabel("Comune:")
-        self.comune_button = QPushButton("Seleziona Comune...")
-        self.comune_button.clicked.connect(self.select_comune)
-        self.comune_id = None
-        self.comune_display = QLabel("Nessun comune selezionato")
-        self.clear_comune_button = QPushButton("Cancella")
-        self.clear_comune_button.clicked.connect(self.clear_comune)
+        comune = partita_data.get('comune_nome', '')
+        if comune:
+            comune_lbl = QLabel(comune)
+            comune_lbl.setObjectName("cardSubtitle")
+            layout.addWidget(comune_lbl)
 
-        criteria_layout.addWidget(comune_label, 0, 0)
-        criteria_layout.addWidget(self.comune_button, 0, 1)
-        criteria_layout.addWidget(self.comune_display, 0, 2)
-        criteria_layout.addWidget(self.clear_comune_button, 0, 3)
+        # Tipo
+        tipo = partita_data.get('tipo', '')
+        if tipo:
+            tipo_lbl = QLabel(tipo)
+            tipo_lbl.setObjectName("cardMeta")
+            layout.addWidget(tipo_lbl)
 
-        # Numero partita
-        numero_label = QLabel("Numero Partita:")
-        self.numero_edit = QSpinBox()
-        self.numero_edit.setMinimum(0)
-        self.numero_edit.setMaximum(9999)
-        self.numero_edit.setSpecialValueText("Qualsiasi")
+    def mousePressEvent(self, event):
+        if event.button() == Qt.MouseButton.LeftButton:
+            self.card_clicked.emit(self._partita_id)
+        super().mousePressEvent(event)
 
-        criteria_layout.addWidget(numero_label, 1, 0)
-        criteria_layout.addWidget(self.numero_edit, 1, 1)
+    def set_selected(self, selected: bool):
+        self.setProperty("selected", "true" if selected else "false")
+        self.style().unpolish(self)
+        self.style().polish(self)
 
-        # Possessore
-        possessore_label = QLabel("Nome Possessore:")
-        self.possessore_edit = QLineEdit()
-        self.possessore_edit.setPlaceholderText("Qualsiasi possessore")
 
-        criteria_layout.addWidget(possessore_label, 2, 0)
-        criteria_layout.addWidget(self.possessore_edit, 2, 1, 1, 3)
+class RicercaPartiteWidget(QWidget):
+    def __init__(self, db_manager, parent=None):
+        super().__init__(parent)
+        self.db_manager = db_manager
+        self._selected_partita_id: Optional[int] = None
+        self._cards: list[PartitaResultCard] = []
+        self._all_partite: list[dict] = []
+        self._active_stato_filter: str = ""
+        self._comune_id: Optional[int] = None
 
-        # Natura immobile
-        natura_label = QLabel("Natura Immobile:")
-        self.natura_edit = QLineEdit()
-        self.natura_edit.setPlaceholderText("Qualsiasi natura immobile")
+        main_layout = QVBoxLayout(self)
+        main_layout.setContentsMargins(16, 12, 16, 12)
+        main_layout.setSpacing(8)
 
-        criteria_layout.addWidget(natura_label, 3, 0)
-        criteria_layout.addWidget(self.natura_edit, 3, 1, 1, 3)
+        # Search bar
+        bar = QFrame()
+        bar.setObjectName("searchBar")
+        bar_layout = QHBoxLayout(bar)
+        bar_layout.setContentsMargins(0, 0, 0, 0)
+        bar_layout.setSpacing(8)
 
-        criteria_group.setLayout(criteria_layout)
-        layout.addWidget(criteria_group)
+        self._comune_btn = QPushButton("Comune...")
+        self._comune_btn.setObjectName("secondaryButton")
+        self._comune_btn.setFixedWidth(110)
+        self._comune_btn.clicked.connect(self._select_comune)
+        bar_layout.addWidget(self._comune_btn)
 
-        # Pulsante Ricerca
-        search_button = QPushButton("Cerca Partite")
-        search_button.clicked.connect(self.do_search)
-        layout.addWidget(search_button)
+        self._numero_edit = QSpinBox()
+        self._numero_edit.setMinimum(0)
+        self._numero_edit.setMaximum(99999)
+        self._numero_edit.setSpecialValueText("N°...")
+        self._numero_edit.setFixedWidth(80)
+        bar_layout.addWidget(self._numero_edit)
 
-        # Risultati
-        results_group = QGroupBox("Risultati")
-        results_layout = QVBoxLayout()
+        self._possessore_edit = QLineEdit()
+        self._possessore_edit.setPlaceholderText("Possessore...")
+        self._possessore_edit.returnPressed.connect(self.do_search)
+        bar_layout.addWidget(self._possessore_edit, 1)
 
-        self.results_table = QTableWidget()
-        self.results_table.setColumnCount(5)
-        self.results_table.setHorizontalHeaderLabels(
-            ["ID", "Comune", "Numero", "Tipo", "Stato"])
-        self.results_table.setAlternatingRowColors(True)
-        self.results_table.horizontalHeader().setStretchLastSection(True)
-        self.results_table.setSelectionBehavior(QAbstractItemView.SelectionBehavior.SelectRows)
-        self.results_table.setEditTriggers(QAbstractItemView.EditTrigger.NoEditTriggers)
-        self.results_table.setSortingEnabled(True)
-        self.results_table.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
-        self.results_table.customContextMenuRequested.connect(self._apri_menu_contestuale_partita)
+        self._natura_edit = QLineEdit()
+        self._natura_edit.setPlaceholderText("Natura immobile...")
+        self._natura_edit.returnPressed.connect(self.do_search)
+        bar_layout.addWidget(self._natura_edit, 1)
 
-        self.result_count_label = QLabel("Nessuna ricerca eseguita.")
-        self.result_count_label.setStyleSheet("color: #555; font-style: italic; padding: 2px 0;")
-        results_layout.addWidget(self.result_count_label)
-        results_layout.addWidget(self.results_table)
+        search_btn = QPushButton("Cerca")
+        search_btn.clicked.connect(self.do_search)
+        bar_layout.addWidget(search_btn)
 
-        # Dettagli partita selezionata
-        self.detail_button = QPushButton("Mostra Dettagli Partita")
-        self.detail_button.clicked.connect(self.show_details)
-        results_layout.addWidget(self.detail_button)
+        clear_btn = QPushButton("Pulisci")
+        clear_btn.setObjectName("secondaryButton")
+        clear_btn.clicked.connect(self._clear_search)
+        bar_layout.addWidget(clear_btn)
 
-        results_group.setLayout(results_layout)
-        layout.addWidget(results_group)
+        main_layout.addWidget(bar)
 
-        self.setLayout(layout)
+        # Filter chips
+        chips_row = QHBoxLayout()
+        chips_row.setContentsMargins(0, 0, 0, 0)
+        chips_row.setSpacing(6)
 
-    def select_comune(self):
-        """Apre il selettore di comuni."""
+        self._filter_btns: dict[str, QPushButton] = {}
+        for label, val in [("Tutte", ""), ("Attive", "Attiva"),
+                           ("Inattive", "Inattiva"), ("Aperte", "Aperta"), ("Chiuse", "Chiusa")]:
+            btn = QPushButton(label)
+            btn.setObjectName("filterChip")
+            btn.setCheckable(True)
+            btn.setAutoExclusive(True)
+            btn.setChecked(val == "")
+            btn.clicked.connect(lambda _, v=val: self._apply_stato_filter(v))
+            chips_row.addWidget(btn)
+            self._filter_btns[val] = btn
+
+        chips_row.addStretch()
+
+        self._count_label = QLabel("Nessuna ricerca eseguita.")
+        self._count_label.setStyleSheet("color:#757575; font-style:italic;")
+        chips_row.addWidget(self._count_label)
+
+        main_layout.addLayout(chips_row)
+
+        # Main splitter: card list | detail panel
+        splitter = QSplitter(Qt.Orientation.Horizontal)
+        splitter.setHandleWidth(1)
+
+        # Left: scrollable card list
+        cards_scroll = QScrollArea()
+        cards_scroll.setWidgetResizable(True)
+        cards_scroll.setFrameShape(QFrame.Shape.NoFrame)
+        cards_scroll.setMinimumWidth(280)
+
+        self._cards_container = QWidget()
+        self._cards_layout = QVBoxLayout(self._cards_container)
+        self._cards_layout.setContentsMargins(2, 2, 8, 8)
+        self._cards_layout.setSpacing(6)
+        self._cards_layout.addStretch()
+
+        cards_scroll.setWidget(self._cards_container)
+        splitter.addWidget(cards_scroll)
+
+        # Right: detail panel
+        right_widget = QWidget()
+        right_layout = QVBoxLayout(right_widget)
+        right_layout.setContentsMargins(0, 0, 0, 0)
+        right_layout.setSpacing(0)
+
+        self._detail_browser = QTextBrowser()
+        self._detail_browser.setFrameShape(QFrame.Shape.NoFrame)
+        self._detail_browser.setOpenLinks(False)
+        self._detail_browser.setHtml(
+            '<div style="color:#9E9E9E;font-size:14px;margin-top:40px;text-align:center;">'
+            '← Seleziona una partita dalla lista</div>'
+        )
+        right_layout.addWidget(self._detail_browser, 1)
+
+        # Action buttons bar
+        actions_bar = QFrame()
+        actions_bar.setObjectName("detailActionsBar")
+        actions_bar.setVisible(False)
+        self._actions_bar = actions_bar
+        ab_layout = QHBoxLayout(actions_bar)
+        ab_layout.setContentsMargins(12, 8, 12, 8)
+        ab_layout.setSpacing(8)
+
+        self._btn_open_full = QPushButton("Apri Dettagli Completi")
+        self._btn_open_full.clicked.connect(self.show_details)
+        ab_layout.addWidget(self._btn_open_full)
+
+        self._btn_albero = QPushButton("Albero Genealogico")
+        self._btn_albero.setObjectName("secondaryButton")
+        self._btn_albero.clicked.connect(self._apri_albero)
+        ab_layout.addWidget(self._btn_albero)
+
+        ab_layout.addStretch()
+
+        self._btn_copy_id = QPushButton("Copia ID")
+        self._btn_copy_id.setObjectName("secondaryButton")
+        self._btn_copy_id.clicked.connect(lambda: QApplication.clipboard().setText(
+            str(self._selected_partita_id or "")))
+        ab_layout.addWidget(self._btn_copy_id)
+
+        right_layout.addWidget(actions_bar)
+
+        splitter.addWidget(right_widget)
+        splitter.setStretchFactor(0, 2)
+        splitter.setStretchFactor(1, 3)
+        splitter.setSizes([380, 560])
+
+        main_layout.addWidget(splitter, 1)
+
+    def _select_comune(self):
         dialog = ComuneSelectionDialog(self.db_manager, self)
-        result = dialog.exec()
+        if dialog.exec() == QDialog.DialogCode.Accepted and dialog.selected_comune_id:
+            self._comune_id = dialog.selected_comune_id
+            self._comune_btn.setText(dialog.selected_comune_name or "Comune...")
 
-        if result == QDialog.DialogCode.Accepted and dialog.selected_comune_id:
-            self.comune_id = dialog.selected_comune_id
-            self.comune_display.setText(dialog.selected_comune_name)
+    def _clear_search(self):
+        self._comune_id = None
+        self._comune_btn.setText("Comune...")
+        self._numero_edit.setValue(0)
+        self._possessore_edit.clear()
+        self._natura_edit.clear()
+        self._apply_stato_filter("")
+        self._clear_cards()
+        self._count_label.setText("Nessuna ricerca eseguita.")
+        self._detail_browser.setHtml(
+            '<div style="color:#9E9E9E;font-size:14px;margin-top:40px;text-align:center;">'
+            '← Seleziona una partita dalla lista</div>'
+        )
+        self._actions_bar.setVisible(False)
 
-    def clear_comune(self):
-        """Cancella il comune selezionato."""
-        self.comune_id = None
-        self.comune_display.setText("Nessun comune selezionato")
+    def _clear_cards(self):
+        for card in self._cards:
+            self._cards_layout.removeWidget(card)
+            card.deleteLater()
+        self._cards.clear()
+        self._all_partite.clear()
+        self._selected_partita_id = None
+
+    def _apply_stato_filter(self, stato: str):
+        self._active_stato_filter = stato
+        for key, btn in self._filter_btns.items():
+            btn.setChecked(key == stato)
+        self._update_card_visibility()
+
+    def _update_card_visibility(self):
+        visible = 0
+        for card in self._cards:
+            partita_stato = (card._partita_data.get('stato') or '').strip()
+            show = (not self._active_stato_filter or
+                    partita_stato.lower() == self._active_stato_filter.lower())
+            card.setVisible(show)
+            if show:
+                visible += 1
+        total = len(self._all_partite)
+        if self._active_stato_filter:
+            self._count_label.setText(f"{visible} di {total} partite mostrate.")
+        else:
+            self._count_label.setText(f"{total} partite trovate.")
 
     def do_search(self):
-        """Esegue la ricerca partite in base ai criteri."""
-        comune_id = self.comune_id
-        numero_partita_val = self.numero_edit.value()
-        numero_partita = numero_partita_val if numero_partita_val > 0 and self.numero_edit.text(
-        ) != self.numero_edit.specialValueText() else None
-
-        possessore = self.possessore_edit.text().strip() or None
-        natura = self.natura_edit.text().strip() or None
-
-        # --- Stampa di DEBUG dei parametri inviati ---
-        logging.getLogger("CatastoGUI").debug(
-            f"RicercaPartiteWidget.do_search - Parametri inviati al DBManager:")
-        logging.getLogger("CatastoGUI").debug(
-            f"  comune_id: {comune_id} (tipo: {type(comune_id)})")
-        logging.getLogger("CatastoGUI").debug(
-            f"  numero_partita: {numero_partita} (tipo: {type(numero_partita)})")
-        logging.getLogger("CatastoGUI").debug(
-            f"  possessore: '{possessore}' (tipo: {type(possessore)})")
-        logging.getLogger("CatastoGUI").debug(
-            f"  immobile_natura: '{natura}' (tipo: {type(natura)})")
-        # --- Fine Stampa di DEBUG ---
+        numero_val = self._numero_edit.value()
+        numero = numero_val if numero_val > 0 else None
+        possessore = self._possessore_edit.text().strip() or None
+        natura = self._natura_edit.text().strip() or None
 
         try:
             partite = self.db_manager.search_partite(
-                comune_id=comune_id,
-                numero_partita=numero_partita,
+                comune_id=self._comune_id,
+                numero_partita=numero,
                 possessore=possessore,
                 immobile_natura=natura
             )
+            self._clear_cards()
+            self._all_partite = partite or []
 
-            # --- Stampa di DEBUG dei risultati ricevuti ---
-            logging.getLogger("CatastoGUI").debug(
-                f"RicercaPartiteWidget.do_search - Risultati ricevuti dal DBManager (tipo: {type(partite)}):")
-            if partite is not None:  # Controlla se partite è None prima di len()
-                logging.getLogger("CatastoGUI").debug(
-                    f"  Numero di partite ricevute: {len(partite)}")
-                # Se vuoi vedere i primi risultati per debug (attenzione con dati sensibili):
-                # for i, p_item in enumerate(partite[:3]): # Logga al massimo i primi 3
-                #    logging.getLogger("CatastoGUI").debug(f"    Partita {i}: {p_item}")
-            else:
-                logging.getLogger("CatastoGUI").debug(
-                    "  Nessun risultato (variabile 'partite' è None).")
-            # --- Fine Stampa di DEBUG ---
+            for p in self._all_partite:
+                card = PartitaResultCard(p, self._cards_container)
+                card.card_clicked.connect(self._show_card_detail)
+                card.context_menu_requested.connect(self._apri_menu_contestuale_partita)
+                self._cards_layout.insertWidget(self._cards_layout.count() - 1, card)
+                self._cards.append(card)
 
-            # Pulisce la tabella prima di popolarla
-            self.results_table.setSortingEnabled(False)
-            self.results_table.setRowCount(0)
-
-            if partite:  # Verifica se la lista 'partite' non è vuota
-                self.results_table.setRowCount(len(partite))
-                # Usa nomi variabili chiari
-                for row_idx, partita_data in enumerate(partite):
-                    # Popolamento tabella come da suo codice esistente
-                    self.results_table.setItem(
-                        row_idx, 0, QTableWidgetItem(str(partita_data.get('id', ''))))
-                    self.results_table.setItem(row_idx, 1, QTableWidgetItem(
-                        partita_data.get('comune_nome', '')))
-                    self.results_table.setItem(row_idx, 2, QTableWidgetItem(
-                        str(partita_data.get('numero_partita', ''))))
-                    self.results_table.setItem(
-                        row_idx, 3, QTableWidgetItem(partita_data.get('tipo', '')))
-                    self.results_table.setItem(
-                        row_idx, 4, QTableWidgetItem(partita_data.get('stato', '')))
-                self.results_table.resizeColumnsToContents()  # Adatta le colonne al contenuto
-                self.results_table.setSortingEnabled(True)
-                self.result_count_label.setText(f"{len(partite)} partite trovate.")
-                _show_status_message(f"Ricerca completata: {len(partite)} partite trovate.", 4000)
-            else:
-                self.results_table.setSortingEnabled(True)
-                logging.getLogger("CatastoGUI").info(
-                    "RicercaPartiteWidget.do_search - Nessuna partita trovata o la lista risultati è vuota.")
-                self.result_count_label.setText("Nessuna partita trovata con i criteri specificati.")
+            self._update_card_visibility()
 
         except Exception as e:
             logging.getLogger("CatastoGUI").error(
-                f"Errore imprevisto durante RicercaPartiteWidget.do_search: {e}", exc_info=True)
-            QMessageBox.critical(
-                self, "Errore di Ricerca", f"Si è verificato un errore imprevisto durante la ricerca: {e}")
+                f"Errore durante la ricerca partite: {e}", exc_info=True)
+            QMessageBox.critical(self, "Errore di Ricerca",
+                                 f"Si è verificato un errore durante la ricerca: {e}")
+
+    def _show_card_detail(self, partita_id: int):
+        for card in self._cards:
+            card.set_selected(card._partita_id == partita_id)
+
+        self._selected_partita_id = partita_id
+
+        try:
+            partita = self.db_manager.get_partita_details(partita_id)
+            if partita:
+                self._render_detail(partita)
+                self._actions_bar.setVisible(True)
+            else:
+                self._detail_browser.setHtml(
+                    '<p style="color:red;">Impossibile caricare i dettagli.</p>')
+        except Exception as e:
+            self._detail_browser.setHtml(
+                f'<p style="color:red;">Errore: {e}</p>')
+
+    def _render_detail(self, p: dict):
+        suffisso = (p.get('suffisso_partita') or '').strip()
+        suf_disp = f" / {suffisso}" if suffisso else ""
+        stato = p.get('stato', '')
+        tipo = p.get('tipo', '')
+        comune = p.get('comune_nome', '')
+        data_imp = p.get('data_impianto', '—')
+        data_chiu = p.get('data_chiusura')
+        n_possessori = len(p.get('possessori') or [])
+        n_immobili = len(p.get('immobili') or [])
+
+        stato_color = {"attiva": "#2E7D32", "inattiva": "#616161",
+                       "aperta": "#1565C0", "chiusa": "#BF360C"}.get(stato.lower(), "#333")
+
+        html = f"""
+<style>
+  body {{ font-family: "Segoe UI", Arial, sans-serif; font-size: 10pt; color: #212121; margin:0; padding:0; }}
+  h2 {{ font-size: 15pt; margin:0 0 4px 0; color:#212121; }}
+  .meta {{ color:#757575; font-size:9pt; margin-bottom:12px; }}
+  .stato {{ color:{stato_color}; font-weight:600; }}
+  table {{ width:100%; border-collapse:collapse; margin-bottom:12px; font-size:9pt; }}
+  th {{ background:#E8EAF6; color:#3F51B5; padding:5px 8px; text-align:left; font-weight:600; }}
+  td {{ padding:4px 8px; border-bottom:1px solid #EEEEEE; }}
+  tr:last-child td {{ border-bottom:none; }}
+  .section-title {{ font-weight:600; color:#3F51B5; font-size:10pt; margin:12px 0 4px 0; }}
+  .badge {{ display:inline-block; background:#E8EAF6; color:#3F51B5;
+            border-radius:10px; padding:1px 10px; font-size:9pt; }}
+</style>
+<body>
+<h2>Partita N.&nbsp;{p.get('numero_partita')}{suf_disp}</h2>
+<div class="meta">{comune} &bull; <span class="stato">{stato}</span> &bull; {tipo}</div>
+
+<table>
+  <tr><th>Campo</th><th>Valore</th></tr>
+  <tr><td>ID</td><td>{p.get('id')}</td></tr>
+  <tr><td>Data Impianto</td><td>{data_imp}</td></tr>
+  {'<tr><td>Data Chiusura</td><td>' + str(data_chiu) + '</td></tr>' if data_chiu else ''}
+  <tr><td>Possessori</td><td><span class="badge">{n_possessori}</span></td></tr>
+  <tr><td>Immobili</td><td><span class="badge">{n_immobili}</span></td></tr>
+</table>
+"""
+
+        possessori = p.get('possessori') or []
+        if possessori:
+            html += '<div class="section-title">Possessori</div>'
+            html += '<table><tr><th>Nome</th><th>Titolo</th><th>Quota</th></tr>'
+            for pos in possessori:
+                html += (f"<tr><td>{pos.get('nome_completo','')}</td>"
+                         f"<td>{pos.get('titolo','')}</td>"
+                         f"<td>{pos.get('quota','')}</td></tr>")
+            html += '</table>'
+
+        immobili = p.get('immobili') or []
+        if immobili:
+            html += '<div class="section-title">Immobili</div>'
+            html += '<table><tr><th>Natura</th><th>Località</th><th>Classificazione</th></tr>'
+            for imm in immobili[:10]:
+                html += (f"<tr><td>{imm.get('natura','')}</td>"
+                         f"<td>{imm.get('localita_nome','')}</td>"
+                         f"<td>{imm.get('classificazione','')}</td></tr>")
+            if len(immobili) > 10:
+                html += f'<tr><td colspan="3" style="color:#757575;">... e altri {len(immobili)-10}</td></tr>'
+            html += '</table>'
+
+        html += '</body>'
+        self._detail_browser.setHtml(html)
 
     def show_details(self):
-        """Mostra i dettagli della partita selezionata."""
-        # Ottiene l'ID della partita selezionata
-        selected_items = self.results_table.selectedItems()
-        if not selected_items:
-            QMessageBox.warning(self, "Attenzione",
-                                "Seleziona una partita dalla lista.")
+        if not self._selected_partita_id:
+            QMessageBox.warning(self, "Attenzione", "Seleziona una partita dalla lista.")
             return
-
-        # Ottiene l'ID dalla prima colonna della riga selezionata
-        row = selected_items[0].row()
-        partita_id_item = self.results_table.item(row, 0)
-
-        if partita_id_item and partita_id_item.text().isdigit():
-            partita_id = int(partita_id_item.text())
-
-            # Ottiene i dettagli della partita
-            partita = self.db_manager.get_partita_details(partita_id)
-
+        try:
+            partita = self.db_manager.get_partita_details(self._selected_partita_id)
             if partita:
-                # Crea e mostra una finestra di dialogo per i dettagli
-                details_dialog = PartitaDetailsDialog(partita, self)
-                details_dialog.exec()
-            else:
-                QMessageBox.warning(
-                    self, "Errore", f"Non è stato possibile recuperare i dettagli della partita ID {partita_id}.")
-        else:
-            QMessageBox.warning(self, "Errore", "ID partita non valido.")
+                from dialogs_partita import PartitaDetailsDialog
+                dlg = PartitaDetailsDialog(partita, self)
+                dlg.exec()
+        except Exception as e:
+            QMessageBox.critical(self, "Errore", f"Impossibile caricare i dettagli: {e}")
 
-    def _apri_menu_contestuale_partita(self, position: QPoint):
-        """Context menu sul risultato di ricerca partite."""
-        index = self.results_table.indexAt(position)
-        if not index.isValid():
+    def _apri_albero(self):
+        if not self._selected_partita_id:
             return
-        row = index.row()
-        id_item = self.results_table.item(row, 0)
-        numero_item = self.results_table.item(row, 2)
-        partita_id_text = id_item.text() if id_item else ""
-        numero_text = numero_item.text() if numero_item else ""
+        try:
+            from dialogs_partita import AlberoGeneralogicoDialog
+            dlg = AlberoGeneralogicoDialog(self.db_manager, self._selected_partita_id, self)
+            dlg.exec()
+        except Exception as e:
+            QMessageBox.critical(self, "Errore", str(e))
 
-        menu = QMenu(self.results_table)
+    def _apri_menu_contestuale_partita(self, partita_id: int, global_pos: QPoint):
+        partita_data = next(
+            (p for p in self._all_partite if p.get('id') == partita_id), {})
+        numero_text = str(partita_data.get('numero_partita', ''))
+
+        menu = QMenu(self)
         menu.addAction(
             QApplication.style().standardIcon(QStyle.StandardPixmap.SP_FileDialogContentsView),
             "Apri Dettagli"
-        ).triggered.connect(self.show_details)
+        ).triggered.connect(lambda: self._show_card_detail(partita_id) or self.show_details())
         menu.addSeparator()
         menu.addAction(f"Copia Numero Partita ({numero_text})").triggered.connect(
             lambda: QApplication.clipboard().setText(numero_text))
-        menu.addAction(f"Copia ID ({partita_id_text})").triggered.connect(
-            lambda: QApplication.clipboard().setText(partita_id_text))
-        menu.exec(self.results_table.viewport().mapToGlobal(position))
-
-    # ======================================================================
-    # ECCO LO SLOT CHE STAI CERCANDO DI POSIZIONARE
-    # È un metodo della stessa classe che contiene il pulsante e la tabella.
-    # ======================================================================
-    @pyqtSlot()
-    def apri_dialog_modifica_immobile(self):
-        """
-        Slot che viene eseguito quando si clicca il pulsante "Modifica".
-        Apre il dialogo di modifica per l'immobile selezionato.
-        """
-        selected_rows = self.tabella_immobili.selectionModel().selectedRows()
-        if not selected_rows:
-            QMessageBox.warning(self, "Nessuna Selezione", "Per favore, seleziona un immobile dalla tabella da modificare.")
-            return
-
-        # Prendi la riga selezionata (anche se sono multiple, consideriamo solo la prima)
-        riga_selezionata = selected_rows[0].row()
-        
-        # Recupera l'ID dell'immobile che abbiamo salvato in precedenza
-        primo_item_nella_riga = self.tabella_immobili.item(riga_selezionata, 0)
-        if not primo_item_nella_riga:
-            QMessageBox.critical(self, "Errore", "Impossibile recuperare i dati dalla riga selezionata.")
-            return
-            
-        immobile_id = primo_item_nella_riga.data(Qt.ItemDataRole.UserRole)
-
-        # Crea e lancia il dialogo, passando tutti i parametri necessari
-        dialog = ModificaImmobileDialog(
-            db_manager=self.db_manager,
-            immobile_id=immobile_id,
-            comune_id_partita=self.comune_id_attuale, # Usa l'ID del comune di questo widget
-            parent=self  # Il parent è questo widget stesso
-        )
-
-        # Esegui il dialogo. Il codice si ferma qui finché il dialogo non viene chiuso.
-        # Usiamo exec_() per compatibilità con tutti i nomi
-        if dialog.exec() == QDialog.DialogCode.Accepted:
-            # Se l'utente ha premuto "Salva" e le modifiche sono state salvate,
-            # aggiorna la tabella per mostrare i nuovi dati.
-            self.logger.debug("Modifiche salvate. Aggiornamento della vista in corso...")
-            self.carica_dati_immobili()
-        else:
-            self.logger.debug("Operazione di modifica annullata dall'utente.")
+        menu.addAction(f"Copia ID ({partita_id})").triggered.connect(
+            lambda: QApplication.clipboard().setText(str(partita_id)))
+        menu.exec(global_pos)
 
 
 class RicercaAvanzataImmobiliWidget(QWidget):
@@ -1530,7 +1681,405 @@ class RegistrazioneProprietaWidget(LazyLoadedWidget):
 
         logging.getLogger("CatastoGUI").info(
             "Campi form Registrazione Proprietà puliti.")
-   
+
+
+class NuovaPartitaWizardWidget(QWidget):
+    """Wizard a 4 step per la creazione guidata di una nuova partita."""
+
+    def __init__(self, db_manager, utente_info=None, parent=None):
+        super().__init__(parent)
+        self.db_manager = db_manager
+        self.utente_info = utente_info or {}
+        self._step = 0
+        self._comune_id: Optional[int] = None
+        self._comune_nome: str = ""
+        self._build_ui()
+
+    def _build_ui(self):
+        main_layout = QVBoxLayout(self)
+        main_layout.setContentsMargins(0, 0, 0, 0)
+        main_layout.setSpacing(0)
+
+        # Step indicator
+        step_bar = QFrame()
+        step_bar.setObjectName("wizardStepBar")
+        step_bar.setFixedHeight(56)
+        step_layout = QHBoxLayout(step_bar)
+        step_layout.setContentsMargins(32, 0, 32, 0)
+        step_layout.setSpacing(12)
+
+        self._step_widgets: list[QWidget] = []
+        for i, label in enumerate(["Dati Partita", "Possessori", "Immobili", "Riepilogo"]):
+            w = QLabel(f"{i+1}. {label}")
+            w.setAlignment(Qt.AlignmentFlag.AlignCenter)
+            step_layout.addWidget(w)
+
+        step_layout.addStretch()
+        main_layout.addWidget(step_bar)
+
+        # Content area
+        self._stack = QStackedWidget()
+        self._stack.addWidget(self._build_step1())
+        self._stack.addWidget(self._build_step2())
+        self._stack.addWidget(self._build_step3())
+        self._stack.addWidget(self._build_step4())
+        main_layout.addWidget(self._stack, 1)
+
+        # Navigation
+        nav_bar = QFrame()
+        nav_layout = QHBoxLayout(nav_bar)
+        nav_layout.setContentsMargins(20, 12, 20, 12)
+        nav_layout.setSpacing(8)
+
+        self._btn_back = QPushButton("← Indietro")
+        self._btn_back.setObjectName("secondaryButton")
+        self._btn_back.setEnabled(False)
+        self._btn_back.clicked.connect(self._go_back)
+        nav_layout.addWidget(self._btn_back)
+
+        nav_layout.addStretch()
+
+        self._btn_reset = QPushButton("Ricomincia")
+        self._btn_reset.setObjectName("secondaryButton")
+        self._btn_reset.clicked.connect(self._reset_wizard)
+        nav_layout.addWidget(self._btn_reset)
+
+        self._btn_next = QPushButton("Avanti →")
+        self._btn_next.clicked.connect(self._go_next)
+        nav_layout.addWidget(self._btn_next)
+
+        main_layout.addWidget(nav_bar)
+
+    def _build_step1(self) -> QWidget:
+        w = QWidget()
+        layout = QVBoxLayout(w)
+        layout.setContentsMargins(32, 24, 32, 24)
+        layout.setSpacing(12)
+
+        title = QLabel("Dati della Partita")
+        title.setStyleSheet("font-size:14pt; font-weight:600; color:#3F51B5;")
+        layout.addWidget(title)
+
+        form_group = QGroupBox("Informazioni Generali")
+        form_layout = QFormLayout(form_group)
+        form_layout.setSpacing(10)
+
+        self._s1_comune_label = QLabel("Nessun comune selezionato")
+        self._s1_comune_label.setStyleSheet("color:#757575; font-style:italic;")
+        comune_btn = QPushButton("Seleziona...")
+        comune_btn.setObjectName("secondaryButton")
+        comune_btn.clicked.connect(self._s1_select_comune)
+        comune_row = QHBoxLayout()
+        comune_row.addWidget(self._s1_comune_label, 1)
+        comune_row.addWidget(comune_btn)
+        form_layout.addRow("Comune: *", comune_row)
+
+        self._s1_numero = QSpinBox()
+        self._s1_numero.setMinimum(1)
+        self._s1_numero.setMaximum(99999)
+        self._s1_numero.setValue(1)
+        form_layout.addRow("Numero Partita: *", self._s1_numero)
+
+        self._s1_suffisso = QLineEdit()
+        self._s1_suffisso.setPlaceholderText("Es. A, B, bis (opzionale)")
+        form_layout.addRow("Suffisso:", self._s1_suffisso)
+
+        self._s1_data_imp = QDateEdit()
+        self._s1_data_imp.setCalendarPopup(True)
+        self._s1_data_imp.setDate(QDate.currentDate())
+        self._s1_data_imp.setDisplayFormat("dd/MM/yyyy")
+        form_layout.addRow("Data Impianto: *", self._s1_data_imp)
+
+        self._s1_tipo = QComboBox()
+        self._s1_tipo.addItems(["Principale", "Secondaria", "Enfiteusi", "Usufrutto"])
+        form_layout.addRow("Tipo:", self._s1_tipo)
+
+        self._s1_stato = QComboBox()
+        self._s1_stato.addItems(["Attiva", "Inattiva"])
+        form_layout.addRow("Stato:", self._s1_stato)
+
+        layout.addWidget(form_group)
+        layout.addStretch()
+
+        return w
+
+    def _s1_select_comune(self):
+        dialog = ComuneSelectionDialog(self.db_manager, self)
+        if dialog.exec() == QDialog.DialogCode.Accepted and dialog.selected_comune_id:
+            self._comune_id = dialog.selected_comune_id
+            self._comune_nome = dialog.selected_comune_name
+            self._s1_comune_label.setText(self._comune_nome)
+            self._s1_comune_label.setStyleSheet("color:#212121;")
+
+    def _build_step2(self) -> QWidget:
+        w = QWidget()
+        layout = QVBoxLayout(w)
+        layout.setContentsMargins(32, 24, 32, 24)
+        layout.setSpacing(12)
+
+        title = QLabel("Aggiungi Possessori (Opzionale)")
+        title.setStyleSheet("font-size:14pt; font-weight:600; color:#3F51B5;")
+        layout.addWidget(title)
+
+        search_row = QHBoxLayout()
+        self._s2_search = QLineEdit()
+        self._s2_search.setPlaceholderText("Cerca possessore...")
+        search_row.addWidget(self._s2_search, 1)
+
+        search_btn = QPushButton("Cerca")
+        search_btn.clicked.connect(self._s2_search_possessore)
+        search_row.addWidget(search_btn)
+
+        layout.addLayout(search_row)
+
+        layout.addWidget(QLabel("Risultati:"))
+        self._s2_results = QListWidget()
+        self._s2_results.setMaximumHeight(140)
+        self._s2_results.itemDoubleClicked.connect(self._s2_add_from_list)
+        layout.addWidget(self._s2_results)
+
+        layout.addWidget(QLabel("Selezionati:"))
+        self._s2_table = QTableWidget()
+        self._s2_table.setColumnCount(3)
+        self._s2_table.setHorizontalHeaderLabels(["Nome", "Titolo", ""])
+        self._s2_table.horizontalHeader().setSectionResizeMode(0, QHeaderView.ResizeMode.Stretch)
+        layout.addWidget(self._s2_table, 1)
+
+        return w
+
+    def _s2_search_possessore(self):
+        testo = self._s2_search.text().strip()
+        if not testo:
+            return
+        try:
+            results = self.db_manager.search_possessori_by_term_globally(testo, limit=20)
+            self._s2_results.clear()
+            for p in (results or []):
+                item = QListWidgetItem(f"{p.get('nome_completo','')} — {p.get('paternita','')}")
+                item.setData(Qt.ItemDataRole.UserRole, p.get('id'))
+                self._s2_results.addItem(item)
+        except Exception as e:
+            logging.getLogger("CatastoGUI").error(f"Errore ricerca possessori: {e}")
+
+    def _s2_add_from_list(self, item: QListWidgetItem):
+        poss_id = item.data(Qt.ItemDataRole.UserRole)
+        if not poss_id:
+            return
+
+        row = self._s2_table.rowCount()
+        self._s2_table.insertRow(row)
+        self._s2_table.setItem(row, 0, QTableWidgetItem(item.text().split(" — ")[0]))
+        self._s2_table.setItem(row, 1, QTableWidgetItem("Proprietario"))
+        self._s2_table.item(row, 0).setData(Qt.ItemDataRole.UserRole, poss_id)
+
+        del_btn = QPushButton("✕")
+        del_btn.clicked.connect(lambda: self._s2_table.removeRow(row))
+        self._s2_table.setCellWidget(row, 2, del_btn)
+
+    def _build_step3(self) -> QWidget:
+        w = QWidget()
+        layout = QVBoxLayout(w)
+        layout.setContentsMargins(32, 24, 32, 24)
+        layout.setSpacing(12)
+
+        title = QLabel("Aggiungi Immobili (Opzionale)")
+        title.setStyleSheet("font-size:14pt; font-weight:600; color:#3F51B5;")
+        layout.addWidget(title)
+
+        add_group = QGroupBox("Nuovo Immobile")
+        add_layout = QFormLayout(add_group)
+
+        self._s3_natura = QLineEdit()
+        self._s3_natura.setPlaceholderText("Es. Casa, Terreno")
+        add_layout.addRow("Natura:", self._s3_natura)
+
+        self._s3_classif = QLineEdit()
+        self._s3_classif.setPlaceholderText("Es. A/1, A/2")
+        add_layout.addRow("Classificazione:", self._s3_classif)
+
+        add_btn = QPushButton("+ Aggiungi")
+        add_btn.clicked.connect(self._s3_add_immobile)
+        add_layout.addRow("", add_btn)
+
+        layout.addWidget(add_group)
+
+        layout.addWidget(QLabel("Immobili:"))
+        self._s3_table = QTableWidget()
+        self._s3_table.setColumnCount(3)
+        self._s3_table.setHorizontalHeaderLabels(["Natura", "Classificazione", ""])
+        self._s3_table.horizontalHeader().setSectionResizeMode(0, QHeaderView.ResizeMode.Stretch)
+        layout.addWidget(self._s3_table, 1)
+
+        return w
+
+    def _s3_add_immobile(self):
+        natura = self._s3_natura.text().strip()
+        if not natura:
+            QMessageBox.warning(self, "Attenzione", "Natura obbligatoria.")
+            return
+
+        row = self._s3_table.rowCount()
+        self._s3_table.insertRow(row)
+        self._s3_table.setItem(row, 0, QTableWidgetItem(natura))
+        self._s3_table.setItem(row, 1, QTableWidgetItem(self._s3_classif.text().strip()))
+
+        del_btn = QPushButton("✕")
+        del_btn.clicked.connect(lambda: self._s3_table.removeRow(row))
+        self._s3_table.setCellWidget(row, 2, del_btn)
+
+        self._s3_natura.clear()
+        self._s3_classif.clear()
+
+    def _build_step4(self) -> QWidget:
+        w = QWidget()
+        layout = QVBoxLayout(w)
+        layout.setContentsMargins(32, 24, 32, 24)
+        layout.setSpacing(12)
+
+        title = QLabel("Riepilogo e Conferma")
+        title.setStyleSheet("font-size:14pt; font-weight:600; color:#3F51B5;")
+        layout.addWidget(title)
+
+        self._s4_browser = QTextBrowser()
+        self._s4_browser.setMinimumHeight(300)
+        layout.addWidget(self._s4_browser, 1)
+
+        self._s4_register_btn = QPushButton("✓ Registra Partita")
+        self._s4_register_btn.setMinimumHeight(40)
+        self._s4_register_btn.clicked.connect(self._registra_tutto)
+        layout.addWidget(self._s4_register_btn)
+
+        return w
+
+    def _render_riepilogo(self):
+        numero = self._s1_numero.value()
+        suffisso = self._s1_suffisso.text().strip()
+        suf_disp = f"/{suffisso}" if suffisso else ""
+        data_imp = self._s1_data_imp.date().toString("dd/MM/yyyy")
+        tipo = self._s1_tipo.currentText()
+        stato = self._s1_stato.currentText()
+        comune = self._comune_nome or "Non selezionato"
+
+        n_poss = self._s2_table.rowCount()
+        n_imm = self._s3_table.rowCount()
+
+        html = f"""
+<style>
+body {{ font-family: Segoe UI, Arial; font-size:10pt; }}
+h3 {{ color:#3F51B5; margin:12px 0 4px 0; }}
+table {{ width:100%; border-collapse:collapse; }}
+th {{ background:#E8EAF6; color:#3F51B5; padding:5px 8px; text-align:left; }}
+td {{ padding:4px 8px; border-bottom:1px solid #EEE; }}
+.ok {{ color:#2E7D32; }}
+.warn {{ color:#E65100; }}
+</style>
+<h3>Partita</h3>
+<table>
+  <tr><td>Comune</td><td>{comune}</td></tr>
+  <tr><td>Numero</td><td>{numero}{suf_disp}</td></tr>
+  <tr><td>Data Impianto</td><td>{data_imp}</td></tr>
+  <tr><td>Tipo</td><td>{tipo}</td></tr>
+  <tr><td>Stato</td><td>{stato}</td></tr>
+</table>
+
+<h3>Possessori <span class="{'ok' if n_poss > 0 else 'warn'}">[{n_poss}]</span></h3>
+"""
+        if n_poss > 0:
+            html += '<table><tr><th>Nome</th><th>Titolo</th></tr>'
+            for row in range(n_poss):
+                nome = self._s2_table.item(row, 0).text() if self._s2_table.item(row, 0) else ""
+                titolo = self._s2_table.item(row, 1).text() if self._s2_table.item(row, 1) else ""
+                html += f'<tr><td>{nome}</td><td>{titolo}</td></tr>'
+            html += '</table>'
+
+        html += f'<h3>Immobili <span class="{'ok' if n_imm > 0 else 'warn'}">[{n_imm}]</span></h3>'
+        if n_imm > 0:
+            html += '<table><tr><th>Natura</th><th>Classificazione</th></tr>'
+            for row in range(n_imm):
+                natura = self._s3_table.item(row, 0).text() if self._s3_table.item(row, 0) else ""
+                classif = self._s3_table.item(row, 1).text() if self._s3_table.item(row, 1) else ""
+                html += f'<tr><td>{natura}</td><td>{classif}</td></tr>'
+            html += '</table>'
+
+        self._s4_browser.setHtml(html)
+
+    def _go_next(self):
+        if self._step == 0:
+            if not self._comune_id:
+                QMessageBox.warning(self, "Attenzione", "Seleziona un comune.")
+                return
+
+        self._step = min(self._step + 1, 3)
+        self._stack.setCurrentIndex(self._step)
+        if self._step == 3:
+            self._render_riepilogo()
+        self._btn_back.setEnabled(self._step > 0)
+
+    def _go_back(self):
+        self._step = max(self._step - 1, 0)
+        self._stack.setCurrentIndex(self._step)
+        self._btn_back.setEnabled(self._step > 0)
+
+    def _reset_wizard(self):
+        reply = QMessageBox.question(
+            self, "Ricomincia", "Ricominciare il wizard?",
+            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No)
+        if reply == QMessageBox.StandardButton.Yes:
+            self._step = 0
+            self._comune_id = None
+            self._s1_numero.setValue(1)
+            self._s1_suffisso.clear()
+            self._s1_data_imp.setDate(QDate.currentDate())
+            self._s2_table.setRowCount(0)
+            self._s3_table.setRowCount(0)
+            self._stack.setCurrentIndex(0)
+            self._btn_back.setEnabled(False)
+
+    def _registra_tutto(self):
+        if not self._comune_id:
+            QMessageBox.warning(self, "Errore", "Comune non selezionato.")
+            return
+
+        try:
+            numero = self._s1_numero.value()
+            suffisso = self._s1_suffisso.text().strip() or None
+            data_date = self._s1_data_imp.date()
+            data_imp = date(data_date.year(), data_date.month(), data_date.day())
+            tipo = self._s1_tipo.currentText()
+            stato = self._s1_stato.currentText()
+
+            partita_id = self.db_manager.create_partita(
+                comune_id=self._comune_id,
+                numero_partita=numero,
+                suffisso_partita=suffisso,
+                data_impianto=data_imp,
+                tipo=tipo,
+                stato=stato,
+                numero_provenienza=None
+            )
+
+            for row in range(self._s2_table.rowCount()):
+                poss_id = self._s2_table.item(row, 0).data(Qt.ItemDataRole.UserRole) if self._s2_table.item(row, 0) else None
+                titolo = self._s2_table.item(row, 1).text() if self._s2_table.item(row, 1) else ""
+                if poss_id:
+                    try:
+                        self.db_manager.aggiungi_possessore_a_partita(
+                            partita_id=partita_id,
+                            possessore_id=poss_id,
+                            tipo_partita_rel="proprietario",
+                            titolo=titolo,
+                            quota="1/1"
+                        )
+                    except Exception as e:
+                        logging.getLogger("CatastoGUI").warning(f"Errore aggiunta possessore: {e}")
+
+            QMessageBox.information(self, "Successo", f"Partita N.{numero} registrata (ID: {partita_id}).")
+            self._reset_wizard()
+
+        except Exception as e:
+            logging.getLogger("CatastoGUI").error(f"Errore registrazione partita: {e}", exc_info=True)
+            QMessageBox.critical(self, "Errore", str(e))
+
 
 class OperazioniPartitaWidget(QWidget):
     # Aggiungi questo __init__ se non c'è
