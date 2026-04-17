@@ -2046,7 +2046,7 @@ td {{ padding:4px 8px; border-bottom:1px solid #EEE; }}
             data_date = self._s1_data_imp.date()
             data_imp = date(data_date.year(), data_date.month(), data_date.day())
             tipo = self._s1_tipo.currentText()
-            stato = self._s1_stato.currentText()
+            stato = self._s1_stato.currentText().lower()
 
             partita_id = self.db_manager.create_partita(
                 comune_id=self._comune_id,
