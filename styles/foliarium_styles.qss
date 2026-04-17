@@ -296,7 +296,67 @@ QDoubleSpinBox::up-button, QDoubleSpinBox::down-button {
 }
 
 /* ============================================================
-   SIDEBAR
+   TOP NAV (sezioni orizzontali)
+   ============================================================ */
+#topNav {
+    background: #FFFFFF;
+    border-bottom: 1px solid #E8EAF6;
+    min-height: 44px;
+    max-height: 44px;
+}
+QPushButton#topNavButton {
+    background: transparent;
+    border: none;
+    border-bottom: 2px solid transparent;
+    border-radius: 0;
+    color: #546E7A;
+    font-size: 13px;
+    font-weight: 500;
+    padding: 0 16px;
+    min-width: 0;
+    min-height: 44px;
+    margin: 0;
+}
+QPushButton#topNavButton:hover { color: #212121; }
+QPushButton#topNavButton[active="true"] {
+    color: #212121;
+    font-weight: 600;
+    border-bottom: 2px solid #3F51B5;
+}
+
+/* ============================================================
+   SUB NAV (pagine per sezione)
+   ============================================================ */
+#subNav {
+    background: #F8F9FA;
+    border-bottom: 1px solid #E8EAF6;
+    min-height: 36px;
+    max-height: 36px;
+}
+QPushButton#subNavButton {
+    background: transparent;
+    border: none;
+    border-radius: 6px;
+    color: #757575;
+    font-size: 12px;
+    font-weight: 400;
+    padding: 4px 12px;
+    min-width: 0;
+    min-height: 28px;
+    margin: 4px 2px;
+}
+QPushButton#subNavButton:hover {
+    background: #E8EAF6;
+    color: #3F51B5;
+}
+QPushButton#subNavButton[active="true"] {
+    background: #E8EAF6;
+    color: #3F51B5;
+    font-weight: 600;
+}
+
+/* ============================================================
+   SIDEBAR (legacy — non più usata nel layout principale)
    ============================================================ */
 #sidebar {
     background: #FFFFFF;
