@@ -38,6 +38,9 @@ def _init_db_from_config():
         schema="catasto",
     )
     set_db_manager(mgr)
+    ok = mgr.initialize_main_pool()
+    if not ok:
+        raise RuntimeError(f"Connessione DB fallita: {mgr.last_connection_error}")
     logger.info("DB manager inizializzato da config: %s@%s/%s", cfg.ENV_DB_USER, cfg.ENV_DB_HOST, cfg.ENV_DB_NAME)
 
 
