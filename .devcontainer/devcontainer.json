@@ -13,7 +13,7 @@
 
   "postCreateCommand": "bash .devcontainer/setup.sh",
 
-  "forwardPorts": [5432, 6080],
+  "forwardPorts": [5432, 6080, 5173, 8765],
   "portsAttributes": {
     "6080": {
       "label": "Desktop GUI (noVNC)",
@@ -21,6 +21,14 @@
     },
     "5432": {
       "label": "PostgreSQL"
+    },
+    "5173": {
+      "label": "React Dev Server",
+      "onAutoForward": "openBrowser"
+    },
+    "8765": {
+      "label": "FastAPI",
+      "onAutoForward": "silent"
     }
   },
 

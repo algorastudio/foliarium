@@ -50,7 +50,7 @@ from gui_widgets import (
     OperazioniPartitaWidget, EsportazioniWidget, ReportisticaWidget, StatisticheWidget,
     GestioneUtentiWidget, AuditLogViewerWidget, BackupWidget,
     RegistraConsultazioneWidget, WelcomeScreen, GestionePeriodiStoriciWidget,
-    GestioneTipiLocalitaWidget,
+    GestioneTipiLocalitaWidget, NuovaPartitaWizardWidget,
     DBConfigDialog, InserimentoPartitaWidget, RicercaDocumentiWidget)
 
 from custom_widgets import QPasswordLineEdit
@@ -354,36 +354,37 @@ class TopBarWidget(QFrame):
     def __init__(self, parent=None):
         super().__init__(parent)
         self.setObjectName("topBar")
-        self.setFixedHeight(48)
+        self.setFixedHeight(52)
         self.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
 
         layout = QHBoxLayout(self)
-        layout.setContentsMargins(12, 0, 12, 0)
-        layout.setSpacing(8)
+        layout.setContentsMargins(16, 0, 16, 0)
+        layout.setSpacing(6)
 
-        # Logo + titolo
+        # Logo SVG
         try:
             from PyQt6.QtSvgWidgets import QSvgWidget
             logo_path = get_logo_svg_path(dark=False)
             if logo_path:
-                logo = QSvgWidget(logo_path)
+                logo = QSvgWidget(str(logo_path))
                 logo.setFixedSize(28, 28)
                 layout.addWidget(logo)
         except Exception:
             pass
 
-        title_label = QLabel("Foliarium")
+        # Titolo + sottotitolo istituzionale
+        title_label = QLabel(APP_NAME)
         title_label.setObjectName("appTitle")
         layout.addWidget(title_label)
+
+        subtitle_label = QLabel(f"/ {APP_SUBTITLE}")
+        subtitle_label.setObjectName("appSubtitle")
+        layout.addWidget(subtitle_label)
 
         # Badge visibile solo in modalità demo
         if IS_DEMO_MODE:
             demo_badge = QLabel("  DEMO  ")
             demo_badge.setObjectName("demoBadge")
-            demo_badge.setStyleSheet(
-                "background: #FF6D00; color: white; font-weight: bold; "
-                "font-size: 10px; border-radius: 4px; padding: 2px 6px;"
-            )
             layout.addWidget(demo_badge)
 
         layout.addStretch()
@@ -393,7 +394,16 @@ class TopBarWidget(QFrame):
         self._db_indicator.setObjectName("dbIndicator")
         layout.addWidget(self._db_indicator)
 
-        layout.addSpacing(16)
+        layout.addSpacing(12)
+
+        # Avatar con iniziali utente
+        self._avatar_label = QLabel("—")
+        self._avatar_label.setObjectName("avatarWidget")
+        self._avatar_label.setFixedSize(28, 28)
+        self._avatar_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        layout.addWidget(self._avatar_label)
+
+        layout.addSpacing(4)
 
         # Nome utente
         self._user_label = QLabel("—")
@@ -414,8 +424,16 @@ class TopBarWidget(QFrame):
         self._logout_btn.clicked.connect(self.logout_requested)
         layout.addWidget(self._logout_btn)
 
+    @staticmethod
+    def _initials(nome: str) -> str:
+        """Estrae le iniziali (max 2 lettere) dal nome utente."""
+        parts = nome.strip().split()
+        if len(parts) >= 2:
+            return (parts[0][0] + parts[-1][0]).upper()
+        return nome[:2].upper() if nome else "—"
+
     def update_user_info(self, nome: str, ruolo: str, db_connected: bool, db_name: str = ""):
-        """Aggiorna label utente, ruolo e stato DB."""
+        """Aggiorna label utente, ruolo, avatar e stato DB."""
         if db_connected:
             db_text = f"● DB: {db_name}" if db_name else "● DB: connesso"
             self._db_indicator.setStyleSheet("color: #2E7D32; font-size: 11px;")
@@ -425,14 +443,15 @@ class TopBarWidget(QFrame):
         self._db_indicator.setText(db_text)
 
         if nome:
+            self._avatar_label.setText(self._initials(nome))
             self._user_label.setText(nome)
             self._role_chip.setText(ruolo or "")
             self._role_chip.setProperty("role", (ruolo or "").lower())
-            # Forza il restyle del chip
             self._role_chip.style().unpolish(self._role_chip)
             self._role_chip.style().polish(self._role_chip)
             self._logout_btn.setEnabled(True)
         else:
+            self._avatar_label.setText("—")
             self._user_label.setText("—")
             self._role_chip.setText("")
             self._logout_btn.setEnabled(False)
@@ -573,8 +592,198 @@ class SidebarWidget(QWidget):
         return list(self._buttons.keys())
 
 
+# ---------------------------------------------------------------------------
+# Mappa pagina → sezione e pagina default per sezione
+# ---------------------------------------------------------------------------
+_PAGE_SECTION: dict[str, str] = {
+    "home": "home",
+    "comuni": "archivio", "partite": "archivio", "immobili": "archivio",
+    "documenti": "archivio", "fuzzy": "archivio",
+    "ins_comune": "inserimento", "ins_possessore": "inserimento",
+    "ins_partita": "inserimento", "ins_localita": "inserimento",
+    "ins_wizard": "inserimento", "reg_proprieta": "inserimento",
+    "operazioni": "inserimento", "reg_consult": "inserimento",
+    "tipi_localita": "inserimento", "periodi": "inserimento",
+    "esportazioni": "analisi", "report": "analisi", "statistiche": "analisi",
+    "utenti": "gestione", "audit": "gestione", "backup": "gestione",
+}
+
+_SECTION_DEFAULT_PAGE: dict[str, str] = {
+    "home": "home",
+    "archivio": "comuni",
+    "inserimento": "ins_comune",
+    "analisi": "esportazioni",
+    "gestione": "utenti",
+}
+
+
+# ---------------------------------------------------------------------------
+# TopNavWidget — navigazione orizzontale principale (livello sezione)
+# ---------------------------------------------------------------------------
+class TopNavWidget(QFrame):
+    section_requested = pyqtSignal(str)
+
+    _SECTIONS = [
+        ("home",        "Home"),
+        ("archivio",    "Archivio"),
+        ("inserimento", "Inserimento"),
+        ("analisi",     "Analisi"),
+        ("gestione",    "Gestione"),
+    ]
+
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self.setObjectName("topNav")
+        self.setFixedHeight(44)
+        self.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
+        self._buttons: dict[str, QPushButton] = {}
+
+        layout = QHBoxLayout(self)
+        layout.setContentsMargins(16, 0, 8, 0)
+        layout.setSpacing(0)
+
+        for key, label in self._SECTIONS:
+            btn = QPushButton(label)
+            btn.setObjectName("topNavButton")
+            btn.setProperty("active", "false")
+            btn.setFlat(True)
+            btn.setSizePolicy(QSizePolicy.Policy.Fixed, QSizePolicy.Policy.Expanding)
+            btn.clicked.connect(lambda _, k=key: self.section_requested.emit(k))
+            layout.addWidget(btn)
+            self._buttons[key] = btn
+
+        layout.addStretch()
+
+    def build_nav(self, is_admin: bool):
+        self._buttons["gestione"].setVisible(is_admin)
+
+    def set_active_section(self, section: str):
+        for key, btn in self._buttons.items():
+            active = (key == section)
+            btn.setProperty("active", "true" if active else "false")
+            btn.style().unpolish(btn)
+            btn.style().polish(btn)
+
+    def set_section_visible(self, section: str, visible: bool):
+        if section in self._buttons:
+            self._buttons[section].setVisible(visible)
+
+
+# ---------------------------------------------------------------------------
+# SubNavWidget — navigazione orizzontale secondaria (livello pagina)
+# ---------------------------------------------------------------------------
+class SubNavWidget(QFrame):
+    page_requested = pyqtSignal(str)
+
+    _SECTION_PAGES: dict[str, list] = {
+        "home": [],
+        "archivio": [
+            ("comuni",    "Comuni"),
+            ("partite",   "Partite"),
+            ("immobili",  "Immobili"),
+            ("documenti", "Documenti"),
+            ("fuzzy",     "Ricerca Globale"),
+        ],
+        "inserimento": [
+            ("ins_comune",    "Comune"),
+            ("ins_possessore","Possessore"),
+            ("ins_partita",   "Partita"),
+            ("ins_localita",  "Località"),
+            ("ins_wizard",    "Nuova Partita"),
+            ("reg_proprieta", "Reg. Proprietà"),
+            ("operazioni",    "Operazioni"),
+            ("reg_consult",   "Consultazione"),
+            ("tipi_localita", "Tipi Località"),
+            ("periodi",       "Periodi Storici"),
+        ],
+        "analisi": [
+            ("esportazioni", "Esportazioni"),
+            ("report",       "Report"),
+            ("statistiche",  "Statistiche"),
+        ],
+        "gestione": [
+            ("utenti", "Utenti"),
+            ("audit",  "Audit Log"),
+            ("backup", "Backup"),
+        ],
+    }
+
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self.setObjectName("subNav")
+        self.setFixedHeight(36)
+        self.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
+        self._buttons: dict[str, QPushButton] = {}
+        self._current_section = ""
+
+        outer = QHBoxLayout(self)
+        outer.setContentsMargins(0, 0, 0, 0)
+        outer.setSpacing(0)
+
+        scroll = QScrollArea()
+        scroll.setWidgetResizable(True)
+        scroll.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
+        scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAsNeeded)
+        scroll.setFrameShape(QFrame.Shape.NoFrame)
+
+        container = QWidget()
+        self._btn_layout = QHBoxLayout(container)
+        self._btn_layout.setContentsMargins(16, 0, 16, 0)
+        self._btn_layout.setSpacing(2)
+        self._btn_layout.addStretch()
+
+        scroll.setWidget(container)
+        outer.addWidget(scroll)
+
+    def build_nav(self, is_admin: bool, fuzzy_available: bool = False):
+        while self._btn_layout.count() > 1:
+            item = self._btn_layout.takeAt(0)
+            if item.widget():
+                item.widget().deleteLater()
+        self._buttons.clear()
+
+        _admin_pages = {"tipi_localita", "periodi", "utenti", "audit", "backup"}
+        for section, pages in self._SECTION_PAGES.items():
+            for page_key, label in pages:
+                if page_key == "fuzzy" and not fuzzy_available:
+                    continue
+                if page_key in _admin_pages and not is_admin:
+                    continue
+                btn = QPushButton(label)
+                btn.setObjectName("subNavButton")
+                btn.setProperty("active", "false")
+                btn.setFlat(True)
+                btn.setVisible(False)
+                btn.setSizePolicy(QSizePolicy.Policy.Fixed, QSizePolicy.Policy.Fixed)
+                btn.clicked.connect(lambda _, p=page_key: self.page_requested.emit(p))
+                self._btn_layout.insertWidget(self._btn_layout.count() - 1, btn)
+                self._buttons[page_key] = btn
+
+    def show_section(self, section: str):
+        self._current_section = section
+        section_keys = {p for p, _ in self._SECTION_PAGES.get(section, [])}
+        for key, btn in self._buttons.items():
+            btn.setVisible(key in section_keys)
+        self.setVisible(bool(section_keys))
+
+    def set_active(self, page_name: str):
+        for key, btn in self._buttons.items():
+            active = (key == page_name)
+            btn.setProperty("active", "true" if active else "false")
+            btn.style().unpolish(btn)
+            btn.style().polish(btn)
+
+    def set_page_visible(self, page_name: str, visible: bool):
+        if page_name in self._buttons:
+            section_keys = {p for p, _ in self._SECTION_PAGES.get(self._current_section, [])}
+            self._buttons[page_name].setVisible(visible and page_name in section_keys)
+
+    def get_visible_page_names(self) -> list:
+        return [k for k, btn in self._buttons.items() if btn.isVisible()]
+
+
 class CatastoMainWindow(QMainWindow):
-    
+
     def __init__(self, client_ip_address_gui: str):
         super(CatastoMainWindow, self).__init__()
         self.logger = logging.getLogger("CatastoGUI")
@@ -612,6 +821,7 @@ class CatastoMainWindow(QMainWindow):
         self.inserimento_comune_widget_ref: Optional[InserimentoComuneWidget] = None
         self.inserimento_possessore_widget_ref: Optional[InserimentoPossessoreWidget] = None
         self.inserimento_localita_widget_ref: Optional[InserimentoLocalitaWidget] = None
+        self.nuova_partita_wizard_ref: Optional[NuovaPartitaWizardWidget] = None
         self.registrazione_proprieta_widget_ref: Optional[RegistrazioneProprietaWidget] = None
         self.operazioni_partita_widget_ref: Optional[OperazioniPartitaWidget] = None
         self.registra_consultazione_widget_ref: Optional[RegistraConsultazioneWidget] = None
@@ -639,21 +849,22 @@ class CatastoMainWindow(QMainWindow):
         self.top_bar.logout_requested.connect(self.handle_logout)
         self.main_layout.addWidget(self.top_bar)
 
-        # --- Area centrale: sidebar + stack ---
-        content_widget = QWidget()
-        content_layout = QHBoxLayout(content_widget)
-        content_layout.setContentsMargins(0, 0, 0, 0)
-        content_layout.setSpacing(0)
+        # --- TopNav (sezioni orizzontali) ---
+        self.top_nav = TopNavWidget(self)
+        self.top_nav.section_requested.connect(self._on_section_requested)
+        self.main_layout.addWidget(self.top_nav)
+        self.top_nav.hide()
 
-        self.sidebar = SidebarWidget(self)
-        self.sidebar.page_requested.connect(self.navigate_to)
-        content_layout.addWidget(self.sidebar)
+        # --- SubNav (pagine per sezione) ---
+        self.sub_nav = SubNavWidget(self)
+        self.sub_nav.page_requested.connect(self.navigate_to)
+        self.main_layout.addWidget(self.sub_nav)
+        self.sub_nav.hide()
 
+        # --- Stack pagine ---
         self.stack = QStackedWidget(self)
         self.stack.currentChanged.connect(self._on_stack_changed)
-        content_layout.addWidget(self.stack)
-
-        self.main_layout.addWidget(content_widget, 1)
+        self.main_layout.addWidget(self.stack, 1)
 
         # --- Barra dati obsoleti ---
         self.stale_data_bar = QFrame()
@@ -1103,6 +1314,10 @@ class CatastoMainWindow(QMainWindow):
         self.inserimento_localita_widget_ref.scarica_csv_requested.connect(self._scarica_csv_localita)
         _add_page("ins_localita", self.inserimento_localita_widget_ref)
 
+        self.nuova_partita_wizard_ref = NuovaPartitaWizardWidget(
+            self.db_manager, self.logged_in_user_info, self.stack)
+        _add_page("ins_wizard", self.nuova_partita_wizard_ref)
+
         self.registrazione_proprieta_widget_ref = RegistrazioneProprietaWidget(self.db_manager)
         _add_page("reg_proprieta", self.registrazione_proprieta_widget_ref)
 
@@ -1142,15 +1357,11 @@ class CatastoMainWindow(QMainWindow):
             self.backup_restore_widget_ref = BackupWidget(self.db_manager)
             _add_page("backup", self.backup_restore_widget_ref)
 
-        # Costruisce la sidebar
-        self.sidebar.build_nav(is_admin=is_admin, fuzzy_available=FUZZY_SEARCH_AVAILABLE)
-
-        # Shortcut Ctrl+1..N (lista flat pagine sidebar)
-        for i, page_name in enumerate(self.sidebar.get_page_names()):
-            if i >= 9:
-                break
-            sc = QShortcut(QKeySequence(f"Ctrl+{i + 1}"), self)
-            sc.activated.connect(lambda p=page_name: self.navigate_to(p))
+        # Costruisce i navigatori orizzontali
+        self.top_nav.build_nav(is_admin=is_admin)
+        self.sub_nav.build_nav(is_admin=is_admin, fuzzy_available=FUZZY_SEARCH_AVAILABLE)
+        self.top_nav.show()
+        self.sub_nav.show()
 
         self._f5_shortcut = QShortcut(QKeySequence("F5"), self)
         self._f5_shortcut.activated.connect(self._handle_f5_refresh)
@@ -1266,7 +1477,10 @@ class CatastoMainWindow(QMainWindow):
         if self.stack.currentIndex() == new_idx:
             return
 
-        self.sidebar.set_active(page_name)
+        section = _PAGE_SECTION.get(page_name, "home")
+        self.top_nav.set_active_section(section)
+        self.sub_nav.show_section(section)
+        self.sub_nav.set_active(page_name)
 
         old_widget = self.stack.currentWidget()
         if old_widget is None:
@@ -1305,8 +1519,19 @@ class CatastoMainWindow(QMainWindow):
         anim_out.start()
         self._anim_out = anim_out
 
+    def _on_section_requested(self, section: str):
+        """Naviga alla prima pagina disponibile della sezione cliccata."""
+        self.sub_nav.show_section(section)
+        default = _SECTION_DEFAULT_PAGE.get(section, "home")
+        if default in self._page_index:
+            self.navigate_to(default)
+            return
+        visible = self.sub_nav.get_visible_page_names()
+        if visible:
+            self.navigate_to(visible[0])
+
     def update_ui_based_on_role(self):
-        """Controlla la visibilità dei bottoni sidebar in base al ruolo utente."""
+        """Controlla la visibilità dei bottoni nav in base al ruolo utente."""
         self.logger.info(">>> CatastoMainWindow: update_ui_based_on_role")
 
         ruolo = None
@@ -1331,13 +1556,19 @@ class CatastoMainWindow(QMainWindow):
 
         # I bottoni admin sono già assenti dalla sidebar se non admin (build_nav è role-aware).
         # Qui gestiamo solo la visibilità di bottoni presenti per tutti.
+        # Visibilità sezioni nel top-nav
+        self.top_nav.set_section_visible("archivio", db_ready)
+        self.top_nav.set_section_visible("inserimento", inserimento_ok)
+        self.top_nav.set_section_visible("analisi", analisi_ok)
+
+        # Visibilità pagine nel sub-nav
         for page in ("comuni", "partite", "immobili", "documenti", "fuzzy"):
-            self.sidebar.set_button_visible(page, db_ready)
+            self.sub_nav.set_page_visible(page, db_ready)
         for page in ("ins_comune", "ins_possessore", "ins_partita", "ins_localita",
                      "reg_proprieta", "operazioni", "reg_consult"):
-            self.sidebar.set_button_visible(page, inserimento_ok)
+            self.sub_nav.set_page_visible(page, inserimento_ok)
         for page in ("esportazioni", "report", "statistiche"):
-            self.sidebar.set_button_visible(page, analisi_ok)
+            self.sub_nav.set_page_visible(page, analisi_ok)
 
         # Pulsante logout nella topbar
         self.top_bar.set_logout_enabled(
@@ -1627,8 +1858,10 @@ class CatastoMainWindow(QMainWindow):
             self.current_session_id = None
             self.session.logout()  # Sincronizza il SessionManager centralizzato
 
-            # Aggiorna la top bar
+            # Aggiorna la top bar e nasconde le nav
             self.top_bar.update_user_info("", "", False)
+            self.top_nav.hide()
+            self.sub_nav.hide()
 
             # Svuota lo stack
             while self.stack.count():
@@ -2014,6 +2247,87 @@ def setup_global_logging():
     
     logging.info(f"Logging configurato. I log verranno salvati in: {log_file_path}")
 
+class WebViewWindow(QMainWindow):
+    """Finestra principale modalità React: sidebar nativa minima + QWebEngineView."""
+
+    def __init__(self, port: int, db_manager, parent=None):
+        super().__init__(parent)
+        self.setWindowTitle("Foliarium — Archivio Catastale Storico")
+        self.resize(1280, 800)
+        self.setMinimumSize(900, 600)
+        self._api_port = port
+        self._db_manager = db_manager
+
+        try:
+            from PyQt6.QtWebEngineWidgets import QWebEngineView
+            from PyQt6.QtCore import QUrl
+            view = QWebEngineView()
+            view.load(QUrl(f"http://127.0.0.1:{port}"))
+            self.setCentralWidget(view)
+        except ImportError:
+            # WebEngine non installato: apre il browser di sistema
+            import webbrowser
+            webbrowser.open(f"http://127.0.0.1:{port}")
+            label = QLabel(
+                f"<h2>Foliarium Web</h2>"
+                f"<p>Apri il browser su: <a href='http://127.0.0.1:{port}'>"
+                f"http://127.0.0.1:{port}</a></p>"
+            )
+            label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+            label.setOpenExternalLinks(True)
+            self.setCentralWidget(label)
+
+
+def run_web_app():
+    """Avvia la modalità React (FastAPI + WebView/browser)."""
+    import time
+    from api.server_thread import APIServerThread
+
+    app = QApplication(sys.argv)
+    app.setApplicationName("Foliarium")
+    app.setOrganizationName("Algora Studio")
+
+    from config import setup_global_logging
+    setup_global_logging()
+
+    # Connessione DB tramite config standard
+    from config import DB_HOST, DB_USER, DB_PASS, DB_NAME, DB_PORT, DB_SCHEMA
+    from catasto_db_manager import CatastoDBManager
+    db = CatastoDBManager(
+        dbname=DB_NAME, user=DB_USER, password=DB_PASS,
+        host=DB_HOST, port=DB_PORT, schema=DB_SCHEMA,
+    )
+
+    # Dialog di attesa
+    splash = QMessageBox()
+    splash.setWindowTitle("Foliarium")
+    splash.setText("Avvio server API React…")
+    splash.setStandardButtons(QMessageBox.StandardButton.NoButton)
+
+    _win = [None]
+
+    def on_started(port: int):
+        splash.accept()
+        win = WebViewWindow(port, db)
+        _win[0] = win
+        win.show()
+
+    def on_error(msg: str):
+        splash.accept()
+        QMessageBox.critical(None, "Errore API", f"Impossibile avviare il server:\n{msg}")
+        sys.exit(1)
+
+    thread = APIServerThread(db)
+    thread.started_ok.connect(on_started)
+    thread.start_error.connect(on_error)
+    thread.start()
+
+    # Mostra splash solo se il server non parte entro 200ms
+    QTimer.singleShot(200, lambda: splash.exec() if _win[0] is None else None)
+
+    sys.exit(app.exec())
+
+
 def run_gui_app():
     try:
         app = QApplication(sys.argv)
@@ -2398,14 +2712,13 @@ def run_gui_app():
 
 
 if __name__ == "__main__":
-    
-    
-    
-    # Importa qui per evitare importazioni circolari (se necessario)
     import traceback
-    
+
     try:
-        run_gui_app()
+        if "--web" in sys.argv:
+            run_web_app()
+        else:
+            run_gui_app()
     except Exception as e:
         # Log dell'errore critico
         logging.getLogger("CatastoGUI").critical(f"Errore critico all'avvio dell'applicazione: {e}", exc_info=True)
