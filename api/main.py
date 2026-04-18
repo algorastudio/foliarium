@@ -24,6 +24,23 @@ from api.deps import set_db_manager
 logger = logging.getLogger("FoliariumAPI")
 
 
+def _init_db_from_config():
+    """Inizializza il DB manager da variabili d'ambiente / config.py (usato in dev)."""
+    from api.deps import set_db_manager
+    from catasto_db_manager import CatastoDBManager
+    import config as cfg
+    mgr = CatastoDBManager(
+        dbname=cfg.DB_NAME,
+        user=cfg.DB_USER,
+        password=cfg.DB_PASS,
+        host=cfg.DB_HOST,
+        port=cfg.DB_PORT,
+        schema=getattr(cfg, "DB_SCHEMA", "public"),
+    )
+    set_db_manager(mgr)
+    logger.info("DB manager inizializzato da config: %s@%s/%s", cfg.DB_USER, cfg.DB_HOST, cfg.DB_NAME)
+
+
 def create_app(db_manager=None) -> FastAPI:
     app = FastAPI(title="Foliarium API", version="1.0.0", docs_url="/api/docs")
 
@@ -37,6 +54,8 @@ def create_app(db_manager=None) -> FastAPI:
 
     if db_manager is not None:
         set_db_manager(db_manager)
+    else:
+        _init_db_from_config()
 
     app.include_router(auth.router, prefix="/api")
     app.include_router(comuni.router, prefix="/api")
