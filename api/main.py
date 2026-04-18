@@ -35,7 +35,7 @@ def _init_db_from_config():
         password=cfg.ENV_DB_PASS,
         host=cfg.ENV_DB_HOST,
         port=cfg.ENV_DB_PORT,
-        schema="public",
+        schema="catasto",
     )
     set_db_manager(mgr)
     logger.info("DB manager inizializzato da config: %s@%s/%s", cfg.ENV_DB_USER, cfg.ENV_DB_HOST, cfg.ENV_DB_NAME)
