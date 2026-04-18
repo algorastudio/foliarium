@@ -30,15 +30,15 @@ def _init_db_from_config():
     from catasto_db_manager import CatastoDBManager
     import config as cfg
     mgr = CatastoDBManager(
-        dbname=cfg.DB_NAME,
-        user=cfg.DB_USER,
-        password=cfg.DB_PASS,
-        host=cfg.DB_HOST,
-        port=cfg.DB_PORT,
-        schema=getattr(cfg, "DB_SCHEMA", "public"),
+        dbname=cfg.ENV_DB_NAME,
+        user=cfg.ENV_DB_USER,
+        password=cfg.ENV_DB_PASS,
+        host=cfg.ENV_DB_HOST,
+        port=cfg.ENV_DB_PORT,
+        schema="public",
     )
     set_db_manager(mgr)
-    logger.info("DB manager inizializzato da config: %s@%s/%s", cfg.DB_USER, cfg.DB_HOST, cfg.DB_NAME)
+    logger.info("DB manager inizializzato da config: %s@%s/%s", cfg.ENV_DB_USER, cfg.ENV_DB_HOST, cfg.ENV_DB_NAME)
 
 
 def create_app(db_manager=None) -> FastAPI:
