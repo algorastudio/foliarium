@@ -11,12 +11,14 @@ from psycopg2 import sql, extras, pool
 import sys, csv
 import logging
 from datetime import date, datetime
-from typing import List, Dict, Any, Optional, Tuple, Union
+from typing import List, Dict, Any, Optional, Tuple, Union, Callable
 import json
 import uuid
 import os
 import shutil
 from contextlib import contextmanager
+import time
+from functools import wraps
 
 
 
@@ -36,6 +38,40 @@ from catasto_exceptions import (
     DBNotFoundError,
     DBDataError,
 )
+# -------------------------------------------------
+
+# ------------ ERROR HANDLER DECORATOR ------------
+def db_handle_errors(method: Callable) -> Callable:
+    """
+    Decorator: catch common DB errors, log, and translate to custom exceptions.
+
+    Usage:
+        @db_handle_errors
+        def get_partita(self, partita_id: int) -> Optional[Dict]:
+            with self._get_connection() as conn:
+                ...
+    """
+    @wraps(method)
+    def wrapper(self, *args, **kwargs):
+        try:
+            return method(self, *args, **kwargs)
+        except psycopg2.errors.UniqueViolation as e:
+            self.logger.error(f"{method.__name__}: unique constraint violation: {e}")
+            raise DBUniqueConstraintError(str(e)) from e
+        except psycopg2.errors.OperationalError as e:
+            self.logger.error(f"{method.__name__}: DB unreachable: {e}")
+            self.last_connection_error = str(e)
+            raise DBMError("Database unreachable") from e
+        except psycopg2.errors.DataError as e:
+            self.logger.error(f"{method.__name__}: data type mismatch: {e}")
+            raise DBDataError(str(e)) from e
+        except psycopg2.errors.ForeignKeyViolation as e:
+            self.logger.error(f"{method.__name__}: foreign key constraint violation: {e}")
+            raise DBMError(f"Foreign key constraint violated: {e}") from e
+        except Exception as e:
+            self.logger.error(f"{method.__name__}: unexpected error: {e}", exc_info=True)
+            raise
+    return wrapper
 # -------------------------------------------------
 
 class DBConnectionBase:
@@ -495,3 +531,106 @@ class DBConnectionBase:
         else:
             self.logger.warning("Tentativo di fetchone senza un cursore valido.")
             return None
+
+    # ------------------------------------------------------------------ #
+    #  Helper Methods (TIER 1 improvements)                              #
+    # ------------------------------------------------------------------ #
+
+    def _tag_query(self, query: str, method_name: str, action: str = "read") -> str:
+        """
+        Prepend SQL comment with method name and action for debugging.
+        Useful with pg_stat_statements to trace query source.
+
+        Example:
+            query = self._tag_query(
+                "SELECT * FROM partita WHERE id = %s",
+                method_name="get_partita",
+                action="read"
+            )
+            cur.execute(query, (partita_id,))
+        """
+        return f"/* {method_name}:{action} */ {query}"
+
+    def bulk_insert_with_savepoint(
+        self,
+        table: str,
+        records: List[Dict[str, Any]],
+        check_unique: Optional[Tuple[str, ...]] = None
+    ) -> Dict[str, Any]:
+        """
+        Insert lista di record con SAVEPOINT per riga (fault-tolerant).
+        Se un record fallisce, usa ROLLBACK TO SAVEPOINT per isolarlo.
+
+        Args:
+            table: Nome tabella (non-qualified, schema aggiunto automaticamente)
+            records: Lista di dict {colonna: valore}
+            check_unique: Tuple colonne uniche da loggare (info only, es. ('numero_partita',))
+
+        Returns:
+            {
+                "success": [record, ...],  # Records inseriti
+                "errors": [
+                    {"row": line_number, "error": "msg", "data": record},
+                    ...
+                ]
+            }
+
+        Example:
+            result = db.bulk_insert_with_savepoint("partita", [
+                {"numero_partita": 1, "stato": "Attiva"},
+                {"numero_partita": 2, "stato": "Inattiva"},
+            ])
+            print(f"Inserted: {len(result['success'])}, Errors: {len(result['errors'])}")
+        """
+        if not records:
+            return {"success": [], "errors": []}
+
+        success = []
+        errors = []
+
+        try:
+            with self._get_connection() as conn:
+                with conn.cursor(cursor_factory=DictCursor) as cur:
+                    first_record = records[0]
+                    columns = list(first_record.keys())
+                    placeholders = ", ".join(["%s"] * len(columns))
+
+                    for i, record in enumerate(records):
+                        line_num = i + 2  # Riga CSV (header è riga 1)
+                        cur.execute("SAVEPOINT record_sp")
+
+                        try:
+                            values = tuple(record.get(col) for col in columns)
+                            insert_sql = (
+                                f"INSERT INTO {self.schema}.{table} ({', '.join(columns)}) "
+                                f"VALUES ({placeholders})"
+                            )
+                            cur.execute(insert_sql, values)
+                            success.append(record)
+                            self.logger.debug(f"bulk_insert({table}): riga {line_num} inserita")
+
+                        except Exception as e:
+                            cur.execute("ROLLBACK TO SAVEPOINT record_sp")
+                            error_msg = str(e)
+                            errors.append({
+                                "row": line_num,
+                                "error": error_msg,
+                                "data": record
+                            })
+                            self.logger.warning(
+                                f"bulk_insert({table}): riga {line_num} skipped: {error_msg}"
+                            )
+
+                    conn.commit()
+
+        except Exception as e:
+            self.logger.error(
+                f"bulk_insert_with_savepoint({table}): errore fatale: {e}",
+                exc_info=True
+            )
+            raise
+
+        self.logger.info(
+            f"bulk_insert({table}): {len(success)} success, {len(errors)} errors"
+        )
+        return {"success": success, "errors": errors}
