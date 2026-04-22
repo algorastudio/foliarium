@@ -17,6 +17,8 @@ import psycopg2
 from psycopg2.extras import DictCursor
 
 from catasto_exceptions import DBMError, DBUniqueConstraintError, DBNotFoundError, DBDataError
+from db.models import Partita
+from db.base import db_handle_errors
 
 if TYPE_CHECKING:
     from catasto_db_manager import CatastoDBManager
@@ -25,34 +27,32 @@ if TYPE_CHECKING:
 class DBPartiteMixin:
     """Mixin CRUD per Partite catastali, genealogia e report."""
 
+    @db_handle_errors
     def get_partita_data_for_export(self, partita_id: int) -> Optional[Dict[str, Any]]:
         """
-        Recupera i dati di una partita per l'esportazione chiamando una funzione SQL,
-        in modo sicuro e transazionale.
+        Recupera i dati di una partita per l'esportazione chiamando una funzione SQL.
+
+        TIER 1 Improvement: @db_handle_errors decorator centralizes exception handling.
         """
         if not isinstance(partita_id, int) or partita_id <= 0:
-            self.logger.error(f"get_partita_data_for_export: ID partita non valido: {partita_id}")
-            return None
-            
-        query = f"SELECT {self.schema}.esporta_partita_json(%s) AS partita_data;"
-        
-        try:
-            with self._get_connection() as conn:
-                with conn.cursor(cursor_factory=DictCursor) as cur:
-                    self.logger.debug(f"Esecuzione get_partita_data_for_export per ID partita: {partita_id}")
-                    cur.execute(query, (partita_id,))
-                    result = cur.fetchone()
-                    
-                    if result and result['partita_data'] is not None:
-                        self.logger.info(f"Dati per esportazione recuperati per partita ID {partita_id}.")
-                        return result['partita_data']
-                    else:
-                        self.logger.warning(f"Nessun dato trovato per partita ID {partita_id} o il risultato era NULL.")
-                        return None
-                        
-        except Exception as e:
-            self.logger.error(f"Errore DB in get_partita_data_for_export (ID: {partita_id}): {e}", exc_info=True)
-            return None # Restituisce None in caso di qualsiasi errore
+            raise ValueError(f"ID partita non valido: {partita_id}")
+
+        query = self._tag_query(
+            f"SELECT {self.schema}.esporta_partita_json(%s) AS partita_data",
+            method_name="get_partita_data_for_export",
+            action="read"
+        )
+
+        with self._get_connection() as conn:
+            with conn.cursor(cursor_factory=DictCursor) as cur:
+                cur.execute(query, (partita_id,))
+                result = cur.fetchone()
+
+                if result and result['partita_data'] is not None:
+                    self.logger.info(f"Dati esportazione recuperati per partita ID {partita_id}")
+                    return result['partita_data']
+                else:
+                    raise DBNotFoundError(f"Partita ID {partita_id} non trovata o dato NULL")
 
     def _insert_partite_records(self, records: List[Dict], comune_id: int, comune_nome: str) -> Dict[str, list]:
         """Helper condiviso: inserisce una lista di record-partita con SAVEPOINT per riga."""
