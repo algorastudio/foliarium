@@ -11,6 +11,7 @@ import psycopg2
 from psycopg2.extras import DictCursor
 
 from catasto_exceptions import DBMError, DBUniqueConstraintError, DBNotFoundError, DBDataError
+from db.base import db_handle_errors
 
 if TYPE_CHECKING:
     from catasto_db_manager import CatastoDBManager
@@ -19,8 +20,12 @@ if TYPE_CHECKING:
 class DBImmobiliMixin:
     """Mixin CRUD per Immobili."""
 
+    @db_handle_errors
     def get_elenco_immobili_per_esportazione(self, comune_id: Optional[int] = None) -> List[Dict[str, Any]]:
-        """Recupera un elenco completo di immobili per l'esportazione."""
+        """Recupera un elenco completo di immobili per l'esportazione.
+
+        TIER 1: @db_handle_errors centralizes exception handling.
+        """
         query = f"""
             SELECT
                 i.id AS id_immobile, i.natura, i.classificazione, i.consistenza,
@@ -37,29 +42,25 @@ class DBImmobiliMixin:
             query += " WHERE p.comune_id = %s"
             params.append(comune_id)
         query += " ORDER BY c.nome, p.numero_partita, l.nome, i.natura;"
-        try:
-            with self._get_connection() as conn:
-                with conn.cursor(cursor_factory=psycopg2.extras.DictCursor) as cur:
-                    cur.execute(query, params)
-                    return [dict(row) for row in cur.fetchall()]
-        except Exception as e:
-            raise DBMError(f"Impossibile recuperare l'elenco degli immobili: {e}") from e
+        with self._get_connection() as conn:
+            with conn.cursor(cursor_factory=psycopg2.extras.DictCursor) as cur:
+                cur.execute(query, params)
+                return [dict(row) for row in cur.fetchall()]
 
+    @db_handle_errors
     def search_immobili(self, partita_id: Optional[int] = None, comune_id: Optional[int] = None,
                         localita_id: Optional[int] = None, natura: Optional[str] = None,
                         classificazione: Optional[str] = None) -> List[Dict]:
-        """Chiama la funzione SQL cerca_immobili con filtri opzionali su partita, comune, località, natura."""
-        try:
-            query = "SELECT * FROM cerca_immobili(%s, %s, %s, %s, %s)"
-            params = (partita_id, comune_id, localita_id, natura, classificazione)
-            # Usa il context manager per una connessione sicura dal pool
-            with self._get_connection() as conn:
-                with conn.cursor(cursor_factory=DictCursor) as cur:
-                    cur.execute(query, params)
-                    return [dict(row) for row in cur.fetchall()]
-        except psycopg2.Error as db_err: self.logger.error(f"Errore DB in search_immobili: {db_err}")
-        except Exception as e: self.logger.error(f"Errore Python in search_immobili: {e}")
-        return []
+        """Chiama la funzione SQL cerca_immobili con filtri opzionali su partita, comune, località, natura.
+
+        TIER 1: @db_handle_errors centralizes exception handling.
+        """
+        query = "SELECT * FROM cerca_immobili(%s, %s, %s, %s, %s)"
+        params = (partita_id, comune_id, localita_id, natura, classificazione)
+        with self._get_connection() as conn:
+            with conn.cursor(cursor_factory=DictCursor) as cur:
+                cur.execute(query, params)
+                return [dict(row) for row in cur.fetchall()]
 
     def update_immobile(self, immobile_id: int, **kwargs) -> bool:
         """Chiama la procedura SQL aggiorna_immobile. Il commit è automatico."""
@@ -118,11 +119,14 @@ class DBImmobiliMixin:
             self.logger.error(f"Errore imprevisto durante trasferimento immobile ID {immobile_id}: {e}", exc_info=True)
             raise DBMError(f"Errore di sistema imprevisto durante il trasferimento: {e}") from e
 
+    @db_handle_errors
     def get_immobile_details(self, immobile_id: int) -> Optional[Dict[str, Any]]:
-        """Recupera i dettagli completi di un singolo immobile in modo sicuro."""
+        """Recupera i dettagli completi di un singolo immobile in modo sicuro.
+
+        TIER 1: @db_handle_errors centralizes exception handling.
+        """
         if not isinstance(immobile_id, int) or immobile_id <= 0:
-            self.logger.error(f"get_immobile_details: immobile_id non valido: {immobile_id}")
-            return None
+            raise DBDataError(f"ID immobile non valido: {immobile_id}")
 
         query = f"""
             SELECT
@@ -137,25 +141,21 @@ class DBImmobiliMixin:
             JOIN {self.schema}.localita l ON i.localita_id = l.id
             WHERE i.id = %s;
         """
-        try:
-            with self._get_connection() as conn:
-                with conn.cursor(cursor_factory=DictCursor) as cur:
-                    cur.execute(query, (immobile_id,))
-                    immobile_data = cur.fetchone()
-                    if immobile_data:
-                        self.logger.info(f"Dettagli recuperati per immobile ID {immobile_id}.")
-                        return dict(immobile_data)
-                    else:
-                        self.logger.warning(f"Nessun immobile trovato con ID {immobile_id}.")
-                        return None
-        except Exception as e:
-            self.logger.error(f"Errore DB in get_immobile_details per ID {immobile_id}: {e}", exc_info=True)
-            return None
+        with self._get_connection() as conn:
+            with conn.cursor(cursor_factory=DictCursor) as cur:
+                cur.execute(query, (immobile_id,))
+                immobile_data = cur.fetchone()
+                if immobile_data:
+                    return dict(immobile_data)
+                else:
+                    raise DBNotFoundError(f"Immobile con ID {immobile_id} non trovato.")
 
+    @db_handle_errors
     def get_immobili_per_tipologia(self, comune_id: Optional[int] = None, limit: int = 100) -> List[Dict[str, Any]]:
-        """Recupera dati dalla vista materializzata mv_immobili_per_tipologia in modo sicuro."""
-        params = []
-        
+        """Recupera dati dalla vista materializzata mv_immobili_per_tipologia in modo sicuro.
+
+        TIER 1: @db_handle_errors centralizes exception handling.
+        """
         if comune_id is not None:
             query = f"""
                 SELECT m.* FROM {self.schema}.mv_immobili_per_tipologia m
@@ -167,15 +167,9 @@ class DBImmobiliMixin:
         else:
             query = f"SELECT * FROM {self.schema}.mv_immobili_per_tipologia ORDER BY comune_nome, classificazione LIMIT %s;"
             params = [limit]
-        
-        try:
-            with self._get_connection() as conn:
-                with conn.cursor(cursor_factory=DictCursor) as cur:
-                    cur.execute(query, tuple(params))
-                    results = [dict(row) for row in cur.fetchall()]
-                    self.logger.info(f"Recuperate {len(results)} righe da mv_immobili_per_tipologia.")
-                    return results
-        except Exception as e:
-            self.logger.error(f"Errore DB in get_immobili_per_tipologia: {e}", exc_info=True)
-            return []
+
+        with self._get_connection() as conn:
+            with conn.cursor(cursor_factory=DictCursor) as cur:
+                cur.execute(query, tuple(params))
+                return [dict(row) for row in cur.fetchall()]
 
