@@ -11,6 +11,7 @@ import psycopg2
 from psycopg2.extras import DictCursor
 
 from catasto_exceptions import DBMError, DBUniqueConstraintError, DBNotFoundError, DBDataError
+from db.base import db_handle_errors
 
 if TYPE_CHECKING:
     from catasto_db_manager import CatastoDBManager
@@ -19,52 +20,40 @@ if TYPE_CHECKING:
 class DBSearchMixin:
     """Mixin per ricerche fuzzy/GIN e ricerca avanzata immobili."""
 
+    @db_handle_errors
     def search_all_entities_fuzzy(self, query_text: str,
                                 search_possessori: bool = True,
                                 search_localita: bool = True,
                                 search_immobili: bool = True,
-                                search_variazioni: bool = True,  # AGGIUNTO
-                                search_contratti: bool = True,   # AGGIUNTO
-                                search_partite: bool = True,     # AGGIUNTO
+                                search_variazioni: bool = True,
+                                search_contratti: bool = True,
+                                search_partite: bool = True,
                                 max_results_per_type: int = 50,
                                 similarity_threshold: float = 0.3) -> Dict[str, List[Dict]]:
+        """Metodo orchestratore per la ricerca fuzzy che riusa una singola connessione.
+
+        TIER 1: @db_handle_errors centralizes exception handling.
         """
-        Metodo orchestratore per la ricerca fuzzy che riusa una singola connessione.
-        """
-        self.logger.info(f"Avvio ricerca fuzzy ottimizzata per: '{query_text}' con soglia {similarity_threshold}")
-        
         all_results = {
             "possessore": [], "localita": [], "immobile": [],
-            "variazione": [], "contratto": [], "partita": [] # AGGIUNTO
+            "variazione": [], "contratto": [], "partita": []
         }
 
-        try:
-            with self._get_connection() as conn:
-                if search_possessori:
-                    all_results["possessore"] = self._search_possessori_fuzzy_internal(conn, query_text, similarity_threshold, max_results_per_type)
-                if search_localita:
-                    all_results["localita"] = self._search_localita_fuzzy_internal(conn, query_text, similarity_threshold, max_results_per_type)
-                if search_immobili:
-                    all_results["immobile"] = self._search_immobili_fuzzy_internal(conn, query_text, similarity_threshold, max_results_per_type)
-                # --- AGGIUNGERE QUESTE CHIAMATE ---
-                if search_variazioni:
-                    all_results["variazione"] = self._search_variazioni_fuzzy_internal(conn, query_text, similarity_threshold, max_results_per_type)
-                if search_contratti:
-                    all_results["contratto"] = self._search_contratti_fuzzy_internal(conn, query_text, similarity_threshold, max_results_per_type)
-                if search_partite:
-                    all_results["partita"] = self._search_partite_fuzzy_internal(conn, query_text, similarity_threshold, max_results_per_type)
-                # --- FINE AGGIUNTE ---
-            
-            total_found = sum(len(v) for v in all_results.values())
-            self.logger.info(f"Ricerca fuzzy completata. Trovati {total_found} risultati totali.")
-            return all_results
+        with self._get_connection() as conn:
+            if search_possessori:
+                all_results["possessore"] = self._search_possessori_fuzzy_internal(conn, query_text, similarity_threshold, max_results_per_type)
+            if search_localita:
+                all_results["localita"] = self._search_localita_fuzzy_internal(conn, query_text, similarity_threshold, max_results_per_type)
+            if search_immobili:
+                all_results["immobile"] = self._search_immobili_fuzzy_internal(conn, query_text, similarity_threshold, max_results_per_type)
+            if search_variazioni:
+                all_results["variazione"] = self._search_variazioni_fuzzy_internal(conn, query_text, similarity_threshold, max_results_per_type)
+            if search_contratti:
+                all_results["contratto"] = self._search_contratti_fuzzy_internal(conn, query_text, similarity_threshold, max_results_per_type)
+            if search_partite:
+                all_results["partita"] = self._search_partite_fuzzy_internal(conn, query_text, similarity_threshold, max_results_per_type)
 
-        except psycopg2.pool.PoolError as pe:
-            self.logger.error(f"Pool di connessioni esaurito durante la ricerca fuzzy: {pe}")
-            return {}
-        except Exception as e:
-            self.logger.error(f"Errore critico durante search_all_entities_fuzzy: {e}", exc_info=True)
-            return {}
+        return all_results
 
     def _search_localita_fuzzy_internal(self, conn, query: str, threshold: float, limit: int) -> List[Dict]:
         """Ricerca fuzzy interna per le località. Civico è incorporato nel nome da v1.6.1."""
@@ -273,29 +262,25 @@ class DBSearchMixin:
             self.logger.error(f"Errore ricerca fuzzy partite: {e}", exc_info=True)
             return []
 
+    @db_handle_errors
     def verify_gin_indices(self) -> Dict[str, Any]:
+        """Verifica la presenza di indici GIN per la ricerca testuale nello schema specificato.
+
+        TIER 1: @db_handle_errors centralizes exception handling.
         """
-        Verifica la presenza di indici GIN per la ricerca testuale nello schema specificato.
-        Restituisce un dizionario con lo stato e il numero di indici trovati.
-        """
-        self.logger.info(f"Verifica degli indici GIN per lo schema '{self.schema}'...")
         query = """
             SELECT COUNT(*)
             FROM pg_indexes
             WHERE schemaname = %s AND indexdef LIKE '%% USING gin %%';
         """
-        try:
-            with self._get_connection() as conn:
-                with conn.cursor() as cur:
-                    cur.execute(query, (self.schema,))
-                    result = cur.fetchone()
-                    count = result[0] if result else 0
-                    self.logger.info(f"Trovati {count} indici GIN nello schema '{self.schema}'.")
-                    return {'status': 'OK', 'gin_indices': count}
-        except Exception as e:
-            self.logger.error(f"Errore durante la verifica degli indici GIN: {e}", exc_info=True)
-            return {'status': 'ERROR', 'message': str(e), 'gin_indices': 0}
+        with self._get_connection() as conn:
+            with conn.cursor() as cur:
+                cur.execute(query, (self.schema,))
+                result = cur.fetchone()
+                count = result[0] if result else 0
+                return {'status': 'OK', 'gin_indices': count}
 
+    @db_handle_errors
     def ricerca_avanzata_immobili_gui(self, comune_id: Optional[int] = None, localita_id: Optional[int] = None,
                                       natura_search: Optional[str] = None, classificazione_search: Optional[str] = None,
                                       consistenza_search: Optional[str] = None,
@@ -305,77 +290,64 @@ class DBSearchMixin:
                                       data_inizio_possesso_search: Optional[date] = None,
                                       data_fine_possesso_search: Optional[date] = None,
                                      ) -> List[Dict[str, Any]]:
-        """Ricerca avanzata immobili con query diretta (non usa stored procedure)."""
-        try:
-            conditions: List[str] = []
-            params: List[Any] = []
+        """Ricerca avanzata immobili con query diretta (non usa stored procedure).
 
-            joins = f"""
-                FROM {self.schema}.immobile i
-                JOIN {self.schema}.partita p ON i.partita_id = p.id
-                JOIN {self.schema}.comune c ON p.comune_id = c.id
-                JOIN {self.schema}.localita l ON i.localita_id = l.id
+        TIER 1: @db_handle_errors centralizes exception handling.
+        """
+        conditions: List[str] = []
+        params: List[Any] = []
+
+        joins = f"""
+            FROM {self.schema}.immobile i
+            JOIN {self.schema}.partita p ON i.partita_id = p.id
+            JOIN {self.schema}.comune c ON p.comune_id = c.id
+            JOIN {self.schema}.localita l ON i.localita_id = l.id
+        """
+
+        if comune_id is not None:
+            conditions.append("p.comune_id = %s"); params.append(comune_id)
+        if localita_id is not None:
+            conditions.append("i.localita_id = %s"); params.append(localita_id)
+        if natura_search:
+            conditions.append("i.natura ILIKE %s"); params.append(f"%{natura_search}%")
+        if classificazione_search:
+            conditions.append("i.classificazione ILIKE %s"); params.append(f"%{classificazione_search}%")
+        if consistenza_search:
+            conditions.append("i.consistenza ILIKE %s"); params.append(f"%{consistenza_search}%")
+        if piani_min is not None:
+            conditions.append("i.numero_piani >= %s"); params.append(piani_min)
+        if piani_max is not None:
+            conditions.append("i.numero_piani <= %s"); params.append(piani_max)
+        if vani_min is not None:
+            conditions.append("i.numero_vani >= %s"); params.append(vani_min)
+        if vani_max is not None:
+            conditions.append("i.numero_vani <= %s"); params.append(vani_max)
+        if nome_possessore_search:
+            joins += f"""
+                JOIN {self.schema}.partita_possessore pp_f ON p.id = pp_f.partita_id
+                JOIN {self.schema}.possessore pos_f ON pp_f.possessore_id = pos_f.id
             """
+            conditions.append("pos_f.nome_completo ILIKE %s")
+            params.append(f"%{nome_possessore_search}%")
 
-            if comune_id is not None:
-                conditions.append("p.comune_id = %s"); params.append(comune_id)
-            if localita_id is not None:
-                conditions.append("i.localita_id = %s"); params.append(localita_id)
-            if natura_search:
-                conditions.append("i.natura ILIKE %s"); params.append(f"%{natura_search}%")
-            if classificazione_search:
-                conditions.append("i.classificazione ILIKE %s"); params.append(f"%{classificazione_search}%")
-            if consistenza_search:
-                conditions.append("i.consistenza ILIKE %s"); params.append(f"%{consistenza_search}%")
-            if piani_min is not None:
-                conditions.append("i.numero_piani >= %s"); params.append(piani_min)
-            if piani_max is not None:
-                conditions.append("i.numero_piani <= %s"); params.append(piani_max)
-            if vani_min is not None:
-                conditions.append("i.numero_vani >= %s"); params.append(vani_min)
-            if vani_max is not None:
-                conditions.append("i.numero_vani <= %s"); params.append(vani_max)
-            if nome_possessore_search:
-                joins += f"""
-                    JOIN {self.schema}.partita_possessore pp_f ON p.id = pp_f.partita_id
-                    JOIN {self.schema}.possessore pos_f ON pp_f.possessore_id = pos_f.id
-                """
-                conditions.append("pos_f.nome_completo ILIKE %s")
-                params.append(f"%{nome_possessore_search}%")
+        where = ("WHERE " + " AND ".join(conditions)) if conditions else ""
 
-            where = ("WHERE " + " AND ".join(conditions)) if conditions else ""
+        query = f"""
+            SELECT DISTINCT
+                i.id AS id_immobile, p.numero_partita, c.nome AS comune_nome,
+                l.nome AS localita_nome, l.tipologia_stradale AS localita_tipo,
+                i.natura, i.classificazione, i.consistenza, i.numero_piani, i.numero_vani,
+                (SELECT string_agg(DISTINCT pos_agg.nome_completo, ', ')
+                 FROM {self.schema}.partita_possessore pp_agg
+                 JOIN {self.schema}.possessore pos_agg ON pp_agg.possessore_id = pos_agg.id
+                 WHERE pp_agg.partita_id = p.id AND pos_agg.attivo = TRUE) AS possessori_attuali
+            {joins}
+            {where}
+            ORDER BY c.nome, p.numero_partita, i.natura
+        """
 
-            query = f"""
-                SELECT DISTINCT
-                    i.id AS id_immobile,
-                    p.numero_partita,
-                    c.nome AS comune_nome,
-                    l.nome AS localita_nome,
-                    l.tipologia_stradale AS localita_tipo,
-                    i.natura,
-                    i.classificazione,
-                    i.consistenza,
-                    i.numero_piani,
-                    i.numero_vani,
-                    (SELECT string_agg(DISTINCT pos_agg.nome_completo, ', ')
-                     FROM {self.schema}.partita_possessore pp_agg
-                     JOIN {self.schema}.possessore pos_agg ON pp_agg.possessore_id = pos_agg.id
-                     WHERE pp_agg.partita_id = p.id AND pos_agg.attivo = TRUE) AS possessori_attuali
-                {joins}
-                {where}
-                ORDER BY c.nome, p.numero_partita, i.natura
-            """
-
-            with self._get_connection() as conn:
-                with conn.cursor(cursor_factory=psycopg2.extras.DictCursor) as cur:
-                    cur.execute(query, params)
-                    results = [dict(row) for row in cur.fetchall()]
-                    self.logger.info(f"Ricerca avanzata immobili: {len(results)} risultati.")
-                    return results
-        except psycopg2.Error as e:
-            self.logger.error(f"Errore DB ricerca_avanzata_immobili_gui: {e}", exc_info=True)
-            return []
-        except Exception as e:
-            self.logger.error(f"Errore ricerca_avanzata_immobili_gui: {e}", exc_info=True)
-            return []
+        with self._get_connection() as conn:
+            with conn.cursor(cursor_factory=psycopg2.extras.DictCursor) as cur:
+                cur.execute(query, params)
+                return [dict(row) for row in cur.fetchall()]
 
