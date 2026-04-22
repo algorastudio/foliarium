@@ -100,6 +100,15 @@ class DBConnectionBase:
         self.logger.info(f"Inizializzato gestore DB (parametri memorizzati) per {dbname}@{host}")
         self.pool = None # Il pool viene inizializzato esplicitamente dopo
 
+        # --- TIER 3 Phase 2: Pool health metrics ---
+        self._pool_metrics = {
+            "total_getconn": 0,
+            "total_putconn": 0,
+            "connection_errors": 0,
+            "peak_active": 0,
+            "last_error_time": None,
+        }
+
         # --- Modalità offline / cache locale ---
         self.offline_mode: bool = False
         self.offline_cache_timestamp: Optional[str] = None
@@ -192,6 +201,36 @@ class DBConnectionBase:
         else:
             self.logger.info("close_pool chiamato, ma il pool non era attivo o già None.")
 
+    def get_pool_metrics(self) -> Dict[str, Any]:
+        """
+        TIER 3 Phase 2: Restituisce metriche di salute del pool.
+        Utile per monitoraggio e diagnostica.
+        """
+        metrics = self._pool_metrics.copy()
+        if self.pool:
+            metrics.update({
+                "pool_size": self.pool.getconn.__self__.minconn if hasattr(self.pool, 'minconn') else 'N/A',
+                "pool_max": self._max_conn_pool,
+                "closed_connections": getattr(self.pool, '_closed', 0),
+            })
+        return metrics
+
+    def get_pool_health_status(self) -> str:
+        """
+        TIER 3 Phase 2: Ritorna stato salute pool (OK, DEGRADED, CRITICAL).
+        """
+        if not self.pool:
+            return "OFFLINE"
+        errors = self._pool_metrics.get("connection_errors", 0)
+        total = max(self._pool_metrics.get("total_getconn", 1), 1)
+        error_rate = errors / total if total > 0 else 0
+
+        if error_rate > 0.1:  # >10% error rate
+            return "CRITICAL"
+        elif error_rate > 0.05:  # >5% error rate
+            return "DEGRADED"
+        return "OK"
+
     def _get_maintenance_connection(self, db_user_admin: str, db_password_admin: str, maintenance_dbname: str = "postgres"):
         """Ottiene una connessione singola a un database di manutenzione (es. postgres)."""
         maint_conn_params = self._main_db_conn_params.copy()
@@ -269,39 +308,35 @@ class DBConnectionBase:
         """
         Context manager per ottenere e rilasciare in sicurezza una connessione dal pool.
         Garantisce che putconn() sia sempre chiamato.
+        TIER 3 Phase 2: Tracked metrics su salute pool.
         """
         conn = None
         try:
             if not self.pool:
                 raise psycopg2.pool.PoolError("Il pool di connessioni non è inizializzato.")
             conn = self.pool.getconn()
+            self._pool_metrics["total_getconn"] += 1
             yield conn
-            # Il commit qui è implicito all'uscita del blocco 'with' senza eccezioni
-            # Non chiamare conn.commit() se le transazioni sono gestite dall'esterno
-            # (es. se autocommit è True per qualche operazione, o se il client gestisce i commit)
-            # Per transazioni implicite, `commit()` qui è appropriato.
-            # Se la connessione è stata usata per CALL PROCEDURE, spesso il commit è automatico.
-            # Se si tratta di DML classiche, serve un commit esplicito.
-            conn.commit() # Manteniamo questo per operazioni DML standard
+            conn.commit()
         except psycopg2.pool.PoolError as pe:
+            self._pool_metrics["connection_errors"] += 1
+            self._pool_metrics["last_error_time"] = datetime.now()
             self.logger.error(f"Errore critico nell'ottenere una connessione dal pool: {pe}")
             raise psycopg2.OperationalError(f"Impossibile ottenere una connessione valida dal pool: {pe}")
         except Exception as e:
             if conn:
                 try:
-                    conn.rollback() # Annulla la transazione in caso di altri errori
+                    conn.rollback()
                 except psycopg2.Error as rollback_err:
-                    self.logger.error(f"Errore durante il rollback della connessione (potrebbe essere già chiusa): {rollback_err}", exc_info=True)
-                    # Se il rollback fallisce perché la connessione è già chiusa,
-                    # e l'errore originale era OperationalError (connessione persa),
-                    # è un segnale che il pool potrebbe essere corrotto.
+                    self.logger.error(f"Errore durante il rollback della connessione: {rollback_err}", exc_info=True)
                     if isinstance(e, psycopg2.OperationalError):
-                        self.logger.critical("Errore operativo critico: il server ha chiuso la connessione. Il pool potrebbe essere invalido.", exc_info=True)
-                        self.close_pool() # Forziamo la chiusura del pool in questo caso critico
+                        self.logger.critical("Errore operativo critico: il server ha chiuso la connessione.")
+                        self.close_pool()
             self.logger.error(f"Errore durante l'uso della connessione: {e}", exc_info=True)
-            raise # Rilancia l'eccezione originale
+            raise
         finally:
             if conn:
+                self._pool_metrics["total_putconn"] += 1
                 self.pool.putconn(conn)
     
     # ------------------------------------------------------------------ #
@@ -634,3 +669,65 @@ class DBConnectionBase:
             f"bulk_insert({table}): {len(success)} success, {len(errors)} errors"
         )
         return {"success": success, "errors": errors}
+
+    # ---- TIER 3 Phase 3: Safe Query Binding Helpers ----
+
+    def build_select_query(self, table: str, columns: List[str], where_clause: Optional[str] = None,
+                          order_by: Optional[str] = None) -> str:
+        """
+        TIER 3 Phase 3: Costruisce una SELECT query sicura con binding.
+        Usa psycopg2.sql per table/column identification.
+
+        Esempio:
+            query = db.build_select_query("possessore", ["id", "nome_completo"],
+                                         where_clause="id = %s", order_by="nome_completo")
+        """
+        safe_table = sql.Identifier(self.schema, table)
+        safe_columns = sql.SQL(", ").join([sql.Identifier(col) for col in columns])
+
+        query = sql.SQL("SELECT {} FROM {}").format(safe_columns, safe_table)
+
+        if where_clause:
+            query += sql.SQL(" WHERE {}").format(sql.SQL(where_clause))
+        if order_by:
+            query += sql.SQL(" ORDER BY {}").format(sql.SQL(order_by))
+
+        return query.as_string(self.pool.getconn() if self.pool else None)
+
+    def build_insert_query(self, table: str, columns: Dict[str, Any]) -> Tuple[str, List[Any]]:
+        """
+        TIER 3 Phase 3: Costruisce una INSERT query sicura.
+        columns: dict {column_name: value}
+        Restituisce (query, params) pronto per execute.
+
+        Esempio:
+            query, params = db.build_insert_query("possessore",
+                                                 {"nome_completo": "Mario Rossi", "cognome_nome": "Rossi Mario"})
+        """
+        safe_table = sql.Identifier(self.schema, table)
+        col_names = list(columns.keys())
+        safe_columns = sql.SQL(", ").join([sql.Identifier(col) for col in col_names])
+        placeholders = sql.SQL(", ").join([sql.Placeholder()] * len(col_names))
+
+        query = sql.SQL("INSERT INTO {} ({}) VALUES ({})").format(
+            safe_table, safe_columns, placeholders
+        )
+
+        return query.as_string(self.pool.getconn() if self.pool else None), list(columns.values())
+
+    def clear_immutable_caches(self, cache_keys: Optional[List[str]] = None) -> None:
+        """
+        TIER 3 Phase 4: Invalida i cache di dati immutabili dopo modifiche.
+        cache_keys: lista di chiavi di cache da invalidare (default: tutte le lookup tables)
+        """
+        if cache_keys is None:
+            cache_keys = ["tipi_localita", "periodi_storici", "comuni_semplice", "statistiche_comune"]
+
+        for key in cache_keys:
+            cf = self._cache_file(key)
+            if cf and cf.exists():
+                try:
+                    cf.unlink()
+                    self.logger.info(f"Cache invalidato: {key}")
+                except Exception as e:
+                    self.logger.warning(f"Impossibile invalidare cache {key}: {e}")
