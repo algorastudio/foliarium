@@ -128,26 +128,87 @@ class DBStatsMixin:
         except Exception as e:
             self.logger.error(f"Errore nell'aggiornare il timestamp di refresh: {e}", exc_info=True)
 
-    def refresh_materialized_views(self, show_success_message: bool = False) -> bool:
-        """Aggiorna tutte le viste materializzate del database in modo sicuro."""
-        # Import lazy: evita dipendenza diretta GUI→DB a livello di modulo.
-        # In ambiente headless (CI) QApplication potrebbe non esistere, quindi
-        # importiamo Qt solo quando il metodo viene effettivamente chiamato.
+    def _get_base_tables_max_timestamp(self) -> Optional[datetime]:
+        """
+        TIER 3 Phase 1: Recupera il timestamp più recente di modifica tra tutte le tabelle base.
+        Usato per determinare se un refresh delle MV è necessario.
+        """
+        query = f"""
+            SELECT MAX(data_modifica) FROM (
+                SELECT MAX(data_modifica) as data_modifica FROM {self.schema}.comune
+                UNION ALL
+                SELECT MAX(data_modifica) FROM {self.schema}.partita
+                UNION ALL
+                SELECT MAX(data_modifica) FROM {self.schema}.possessore
+                UNION ALL
+                SELECT MAX(data_modifica) FROM {self.schema}.immobile
+                UNION ALL
+                SELECT MAX(data_modifica) FROM {self.schema}.partita_possessore
+                UNION ALL
+                SELECT MAX(data_modifica) FROM {self.schema}.localita
+            ) t;
+        """
+        try:
+            with self._get_connection() as conn:
+                with conn.cursor() as cur:
+                    cur.execute(query)
+                    result = cur.fetchone()
+                    return result[0] if result and result[0] else None
+        except Exception as e:
+            self.logger.warning(f"Impossibile determinare timestamp base tables: {e}")
+            return None
+
+    def _should_refresh_materialized_views(self, min_interval_minutes: int = 10) -> bool:
+        """
+        TIER 3 Phase 1: Intelligent refresh check.
+        Restituisce True se: (1) non mai aggiornate OR (2) > min_interval_minutes passati OR (3) base table modificate dopo ultimo refresh.
+        """
+        last_refresh = self.get_last_mv_refresh_timestamp()
+        if last_refresh is None:
+            self.logger.info("MV mai aggiornate; forziamo refresh.")
+            return True
+
+        from datetime import timedelta, timezone
+        now_utc = datetime.now(timezone.utc).replace(tzinfo=None)
+        delta = now_utc - last_refresh
+
+        if delta >= timedelta(minutes=min_interval_minutes):
+            self.logger.info(f"MV refresh interval ({delta.total_seconds():.0f}s) >= {min_interval_minutes}min; refresh richiesto.")
+            return True
+
+        last_data_change = self._get_base_tables_max_timestamp()
+        if last_data_change and last_data_change > last_refresh:
+            self.logger.info(f"Dati modificati dopo ultimo refresh ({last_data_change} > {last_refresh}); refresh richiesto.")
+            return True
+
+        self.logger.info(f"MV non necessitano refresh (intervallo: {delta.total_seconds():.0f}s, nessuna modifica)")
+        return False
+
+    def refresh_materialized_views(self, show_success_message: bool = False, force: bool = False, concurrent: bool = True) -> bool:
+        """
+        TIER 3 Phase 1: Aggiorna viste materializzate in modo intelligente.
+        - force=True: ignora il check sulla necessità di refresh
+        - concurrent=True: usa CONCURRENTLY per refresh non-bloccante (se disponibile)
+        """
         from PyQt6.QtWidgets import QApplication, QProgressDialog, QMessageBox
         from PyQt6.QtCore import Qt
 
         if not self.pool:
-            self.logger.error("Pool di connessioni non inizializzato per refresh viste materializzate.")
-            QMessageBox.critical(None, "Errore", "Pool di connessioni non attivo. Impossibile aggiornare le viste.")
+            self.logger.error("Pool di connessioni non inizializzato.")
+            QMessageBox.critical(None, "Errore", "Pool di connessioni non attivo.")
             return False
 
-        progress_dialog = QProgressDialog("Aggiornamento viste materializzate in corso...", "Annulla", 0, 0, None)
+        if not force and not self._should_refresh_materialized_views():
+            self.logger.info("Refresh MV saltato (non necessario).")
+            return True
+
+        progress_dialog = QProgressDialog("Aggiornamento viste materializzate...", "Annulla", 0, 0, None)
         progress_dialog.setWindowModality(Qt.WindowModality.WindowModal)
         progress_dialog.setCancelButton(None)
         progress_dialog.show()
         QApplication.processEvents()
 
-        # --- CORREZIONE QUI: Rimosso CONCURRENTLY per compatibilità universale ---
+        concurrent_str = "CONCURRENTLY" if concurrent else ""
         query = f"""
             DO $$
             DECLARE
@@ -158,40 +219,39 @@ class DBStatsMixin:
                     FROM pg_matviews
                     WHERE schemaname = '{self.schema}'
                 LOOP
-                    EXECUTE 'REFRESH MATERIALIZED VIEW ' || quote_ident(r.schemaname) 
+                    EXECUTE 'REFRESH MATERIALIZED VIEW {concurrent_str} ' || quote_ident(r.schemaname)
                     || '.' || quote_ident(r.matviewname);
                 END LOOP;
             END $$;
         """
-        # --- FINE CORREZIONE ---
-        
+
         try:
             with self._get_connection() as conn:
                 with conn.cursor() as cur:
-                    self.logger.info("Esecuzione dello script di aggiornamento per le viste materializzate...")
+                    self.logger.info("Esecuzione refresh materialized views...")
                     cur.execute(query)
-                    # --- AGGIUNGERE QUESTA RIGA ALLA FINE DEL BLOCCO 'try' ---
-                    self.update_last_mv_refresh_timestamp() # Aggiorna il timestamp dopo il successo
-                    # --- FINE AGGIUNTA ---
-                
+                    self.update_last_mv_refresh_timestamp()
                     progress_dialog.close()
+
             if show_success_message:
-                QMessageBox.information(None, "Successo", "Tutte le viste materializzate sono state aggiornate con successo.")
-            
+                QMessageBox.information(None, "Successo", "Viste materializzate aggiornate con successo.")
             self.logger.info("Viste materializzate aggiornate con successo.")
             return True
-            
+
         except psycopg2.Error as db_err:
             progress_dialog.close()
-            error_message = f"Errore DB durante l'aggiornamento delle viste: {db_err}"
+            if "CONCURRENTLY" in str(db_err) and concurrent:
+                self.logger.warning("CONCURRENTLY non supportato; retry senza...")
+                return self.refresh_materialized_views(show_success_message, force=True, concurrent=False)
+            error_message = f"Errore DB durante aggiornamento MV: {db_err}"
             self.logger.error(error_message, exc_info=True)
-            QMessageBox.critical(None, "Errore Aggiornamento Viste", error_message)
+            QMessageBox.critical(None, "Errore", error_message)
             return False
         except Exception as e:
             progress_dialog.close()
-            error_message = f"Errore critico durante l'aggiornamento delle viste: {e}"
+            error_message = f"Errore critico: {e}"
             self.logger.error(error_message, exc_info=True)
-            QMessageBox.critical(None, "Errore Aggiornamento Viste", error_message)
+            QMessageBox.critical(None, "Errore", error_message)
             return False
 
     def genera_report_consultazioni(self, data_inizio: Optional[date] = None, 
