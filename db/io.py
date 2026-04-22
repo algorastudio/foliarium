@@ -13,6 +13,7 @@ import psycopg2
 from psycopg2.extras import DictCursor
 
 from catasto_exceptions import DBMError, DBUniqueConstraintError, DBNotFoundError, DBDataError
+from db.base import db_handle_errors
 
 if TYPE_CHECKING:
     from catasto_db_manager import CatastoDBManager
@@ -21,18 +22,20 @@ if TYPE_CHECKING:
 class DBIOMixin:
     """Mixin per import/export CSV, JSON e SQL."""
 
-    def import_comuni_from_rows(self, rows: List[Dict[str, Any]]) -> Dict[str, list]:
+    @db_handle_errors
+    def import_comuni_from_rows(self, rows: List[Dict[str, Any]]) -> Dict[str, Any]:
         """
         Importa una lista di comuni da una lista di dizionari, gestendo gli errori riga per riga.
         Ogni dict deve avere 'nome', 'provincia', 'regione' (obbligatori).
         Campi opzionali: 'codice_catastale', 'data_istituzione', 'data_soppressione', 'note'.
-        Restituisce {"success": [...], "errors": [(line_num, row, msg), ...]}.
+
+        TIER 1 Improvement:
+        - @db_handle_errors decorator handles all exceptions
+        - Uses bulk_insert_with_savepoint() for per-row fault tolerance
+        - Returns {"success": [...], "errors": [...]} from helper
         """
         if not rows:
             return {"success": [], "errors": []}
-
-        success_rows: list = []
-        error_rows: list = []
 
         def _parse_date(val: Any) -> Optional[date]:
             if not val or not str(val).strip():
@@ -45,53 +48,37 @@ class DBIOMixin:
                     continue
             return None
 
-        try:
-            with self._get_connection() as conn:
-                with conn.cursor() as cur:
-                    for i, record in enumerate(rows):
-                        line_num = i + 2
-                        cur.execute("SAVEPOINT record_savepoint")
-                        try:
-                            nome = str(record.get('nome', '')).strip()
-                            provincia = str(record.get('provincia', '')).strip()
-                            regione = str(record.get('regione', '')).strip()
-                            if not nome or not provincia or not regione:
-                                raise ValueError("I campi 'nome', 'provincia' e 'regione' sono obbligatori.")
+        records_prepared: List[Dict[str, Any]] = []
+        for record in rows:
+            nome = str(record.get('nome', '')).strip()
+            provincia = str(record.get('provincia', '')).strip()
+            regione = str(record.get('regione', '')).strip()
 
-                            codice_catastale = str(record.get('codice_catastale', '')).strip() or None
-                            data_istituzione = _parse_date(record.get('data_istituzione'))
-                            data_soppressione = _parse_date(record.get('data_soppressione'))
-                            note = str(record.get('note', '')).strip() or None
+            if not nome or not provincia or not regione:
+                raise ValueError("I campi 'nome', 'provincia' e 'regione' sono obbligatori.")
 
-                            query = f"""
-                                INSERT INTO {self.schema}.comune
-                                    (nome, provincia, regione, codice_catastale,
-                                     data_istituzione, data_soppressione, note)
-                                VALUES (%s, %s, %s, %s, %s, %s, %s)
-                                RETURNING id;
-                            """
-                            cur.execute(query, (nome, provincia, regione, codice_catastale,
-                                                data_istituzione, data_soppressione, note))
-                            result = cur.fetchone()
-                            if not result:
-                                raise DBMError("Inserimento fallito, nessun ID restituito.")
-                            new_id = result[0]
-                            cur.execute("RELEASE SAVEPOINT record_savepoint")
-                            success_rows.append({'id': new_id, 'nome': nome, 'provincia': provincia, 'regione': regione})
+            codice_catastale = str(record.get('codice_catastale', '')).strip() or None
+            data_istituzione = _parse_date(record.get('data_istituzione'))
+            data_soppressione = _parse_date(record.get('data_soppressione'))
+            note = str(record.get('note', '')).strip() or None
 
-                        except psycopg2.errors.UniqueViolation:
-                            cur.execute("ROLLBACK TO SAVEPOINT record_savepoint")
-                            error_rows.append((line_num, record, f"Il comune '{record.get('nome', '')}' esiste già."))
-                        except (ValueError, psycopg2.Error, DBMError) as error:
-                            cur.execute("ROLLBACK TO SAVEPOINT record_savepoint")
-                            error_rows.append((line_num, record, str(error)))
+            records_prepared.append({
+                'nome': nome,
+                'provincia': provincia,
+                'regione': regione,
+                'codice_catastale': codice_catastale,
+                'data_istituzione': data_istituzione,
+                'data_soppressione': data_soppressione,
+                'note': note,
+            })
 
-            self.logger.info(f"Import comuni completato. Successi: {len(success_rows)}, Errori: {len(error_rows)}")
-            return {"success": success_rows, "errors": error_rows}
+        result = self.bulk_insert_with_savepoint("comune", records_prepared)
 
-        except Exception as e:
-            self.logger.error(f"Errore critico durante import comuni: {e}", exc_info=True)
-            raise DBMError(f"Errore critico di sistema durante l'importazione: {e}") from e
+        self.logger.info(
+            f"Import comuni completato: {len(result['success'])} successi, "
+            f"{len(result['errors'])} errori"
+        )
+        return result
 
     def import_localita_from_rows(self, comune_id: int, rows: List[Dict[str, Any]]) -> Dict[str, list]:
         """
