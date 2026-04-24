@@ -144,6 +144,7 @@ class DBConnectionBase:
             self.pool.putconn(conn_test)
             
             self.logger.info(f"Pool di connessioni per DB '{target_dbname}' inizializzato e testato con successo.")
+            self._apply_pending_schema_migrations()
             return True
 
         except (psycopg2.pool.PoolError, psycopg2.Error) as e_init:
@@ -180,6 +181,64 @@ class DBConnectionBase:
                 self.pool.closeall()
             self.pool = None
             return False
+
+    def _apply_pending_schema_migrations(self):
+        """Applica migrazioni schema idempotenti all'avvio (silent best-effort)."""
+        try:
+            with self._get_connection() as conn:
+                with conn.cursor() as cur:
+                    cur.execute(
+                        "SELECT 1 FROM information_schema.columns "
+                        "WHERE table_schema = %s AND table_name = 'localita' AND column_name = 'tipo_id'",
+                        (self.schema,)
+                    )
+                    if not cur.fetchone():
+                        return  # schema già aggiornato
+
+                    self.logger.info("Schema pre-v1.6.1 rilevato (tipo_id presente). Applico migrazione automatica...")
+
+                    # Popola tipologia_stradale dove mancante
+                    cur.execute(
+                        f"UPDATE {self.schema}.localita l "
+                        f"SET tipologia_stradale = tl.nome "
+                        f"FROM {self.schema}.tipo_localita tl "
+                        f"WHERE l.tipo_id = tl.id "
+                        f"  AND (l.tipologia_stradale IS NULL OR l.tipologia_stradale = '')"
+                    )
+
+                    # Rimuovi FK constraint su tipo_id
+                    cur.execute(
+                        "SELECT con.conname FROM pg_constraint con "
+                        "JOIN pg_class rel ON rel.oid = con.conrelid "
+                        "JOIN pg_namespace ns ON ns.oid = rel.relnamespace "
+                        "WHERE rel.relname = 'localita' AND ns.nspname = %s "
+                        "  AND con.contype = 'f' AND con.conname ILIKE '%%tipo%%'",
+                        (self.schema,)
+                    )
+                    fk_row = cur.fetchone()
+                    if fk_row:
+                        cur.execute(f"ALTER TABLE {self.schema}.localita DROP CONSTRAINT IF EXISTS {fk_row[0]}")
+
+                    # Rimuovi colonna tipo_id
+                    cur.execute(f"ALTER TABLE {self.schema}.localita DROP COLUMN IF EXISTS tipo_id")
+
+                    # Rimuovi colonna civico se ancora presente
+                    cur.execute(
+                        "SELECT 1 FROM information_schema.columns "
+                        "WHERE table_schema = %s AND table_name = 'localita' AND column_name = 'civico'",
+                        (self.schema,)
+                    )
+                    if cur.fetchone():
+                        cur.execute(
+                            f"UPDATE {self.schema}.localita "
+                            f"SET nome = CONCAT(nome, ' ', civico) "
+                            f"WHERE civico IS NOT NULL AND civico != ''"
+                        )
+                        cur.execute(f"ALTER TABLE {self.schema}.localita DROP COLUMN IF EXISTS civico")
+
+                    self.logger.info("Migrazione automatica schema v1.6.1 completata con successo.")
+        except Exception as e:
+            self.logger.warning(f"Migrazione schema automatica saltata (non bloccante): {e}")
 
     def close_pool(self):
         """
