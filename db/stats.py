@@ -170,6 +170,8 @@ class DBStatsMixin:
 
         from datetime import timedelta, timezone
         now_utc = datetime.now(timezone.utc).replace(tzinfo=None)
+        if last_refresh.tzinfo is not None:
+            last_refresh = last_refresh.replace(tzinfo=None)
         delta = now_utc - last_refresh
 
         if delta >= timedelta(minutes=min_interval_minutes):
@@ -177,6 +179,9 @@ class DBStatsMixin:
             return True
 
         last_data_change = self._get_base_tables_max_timestamp()
+        if last_data_change:
+            if last_data_change.tzinfo is not None:
+                last_data_change = last_data_change.replace(tzinfo=None)
         if last_data_change and last_data_change > last_refresh:
             self.logger.info(f"Dati modificati dopo ultimo refresh ({last_data_change} > {last_refresh}); refresh richiesto.")
             return True
