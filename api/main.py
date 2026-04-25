@@ -79,6 +79,10 @@ def create_app(db_manager=None) -> FastAPI:
     return app
 
 
+# Istanza singleton usata da uvicorn in dev: `uvicorn api.main:app --port 8765`
+app = create_app()
+
+
 def find_free_port(start: int = 8765) -> int:
     for port in range(start, start + 100):
         with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
