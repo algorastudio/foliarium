@@ -203,12 +203,19 @@ class DBDocumentiMixin:
         """Recupera i periodi storici definiti dalla tabella 'periodo_storico' in modo sicuro.
 
         TIER 1: @db_handle_errors centralizes exception handling.
+        TIER 3 Phase 4: Cached (immutable reference data).
         """
-        query = f"SELECT id, nome, anno_inizio, anno_fine, descrizione FROM {self.schema}.periodo_storico ORDER BY anno_inizio;"
-        with self._get_connection() as conn:
-            with conn.cursor(cursor_factory=DictCursor) as cur:
-                cur.execute(query)
-                return [dict(row) for row in cur.fetchall()]
+        def _fetch():
+            query = f"SELECT id, nome, anno_inizio, anno_fine, descrizione FROM {self.schema}.periodo_storico ORDER BY anno_inizio;"
+            with self._get_connection() as conn:
+                with conn.cursor(cursor_factory=DictCursor) as cur:
+                    cur.execute(query)
+                    return [dict(row) for row in cur.fetchall()]
+        try:
+            return self._try_with_cache("periodi_storici", _fetch)
+        except Exception as e:
+            self.logger.error(f"Errore in get_historical_periods: {e}", exc_info=True)
+            return []
 
     def get_historical_name(self, entity_type: str, entity_id: int, year: Optional[int] = None) -> Optional[Dict]:
         """Chiama la funzione SQL get_nome_storico in modo sicuro."""

@@ -25,12 +25,19 @@ class DBLocalitaMixin:
         """Recupera tutte le tipologie di località disponibili.
 
         TIER 1: @db_handle_errors centralizes exception handling.
+        TIER 3 Phase 4: Cached (immutable reference data).
         """
-        query = "SELECT id, nome, descrizione FROM catasto.tipo_localita ORDER BY nome;"
-        with self._get_connection() as conn:
-            with conn.cursor(cursor_factory=psycopg2.extras.DictCursor) as cur:
-                cur.execute(query)
-                return [dict(row) for row in cur.fetchall()]
+        def _fetch():
+            query = "SELECT id, nome, descrizione FROM catasto.tipo_localita ORDER BY nome;"
+            with self._get_connection() as conn:
+                with conn.cursor(cursor_factory=psycopg2.extras.DictCursor) as cur:
+                    cur.execute(query)
+                    return [dict(row) for row in cur.fetchall()]
+        try:
+            return self._try_with_cache("tipi_localita", _fetch)
+        except Exception as e:
+            self.logger.error(f"Errore in get_tipi_localita: {e}", exc_info=True)
+            return []
 
     def gestisci_tipo_localita(self, tipo_id: Optional[int], nome: str, descrizione: Optional[str] = None) -> int:
         """Crea o aggiorna una tipologia di località."""
