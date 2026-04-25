@@ -18,7 +18,7 @@ _PROJECT_ROOT = str(Path(__file__).parent.parent)
 if _PROJECT_ROOT not in sys.path:
     sys.path.insert(0, _PROJECT_ROOT)
 
-from api.routes import auth, comuni, partite, possessori, dashboard
+from api.routes import auth, comuni, partite, possessori, dashboard, audit, genealogia, timeline
 from api.deps import set_db_manager
 
 logger = logging.getLogger("FoliariumAPI")
@@ -62,6 +62,9 @@ def create_app(db_manager=None) -> FastAPI:
     app.include_router(partite.router, prefix="/api")
     app.include_router(possessori.router, prefix="/api")
     app.include_router(dashboard.router, prefix="/api")
+    app.include_router(audit.router, prefix="/api")
+    app.include_router(genealogia.router, prefix="/api")
+    app.include_router(timeline.router, prefix="/api")
 
     # Serve il build React statico (frontend/dist/)
     dist_dir = Path(__file__).parent.parent / "frontend" / "dist"

@@ -1,55 +1,55 @@
 import { NavLink, Outlet, useNavigate } from 'react-router-dom'
-import {
-  LayoutDashboard, Search, FilePlus, Users, FileText,
-  BarChart2, Settings, LogOut, ChevronDown, ChevronRight,
-} from 'lucide-react'
-import { useState } from 'react'
 import { useAuth } from '../AuthContext'
 import { logout } from '../api/client'
 
-const NAV = [
-  { group: 'Consultazione', items: [
-    { to: '/', label: 'Dashboard', icon: LayoutDashboard, end: true },
-    { to: '/partite', label: 'Ricerca Partite', icon: Search },
-  ]},
-  { group: 'Inserimento', items: [
-    { to: '/nuova-partita', label: 'Nuova Partita', icon: FilePlus },
-    { to: '/possessori', label: 'Possessori', icon: Users },
-  ]},
-  { group: 'Report', items: [
-    { to: '/documenti', label: 'Documenti', icon: FileText },
-    { to: '/statistiche', label: 'Statistiche', icon: BarChart2 },
-  ]},
+const TABS = [
+  { to: '/archivio', label: 'Consultazione archivio' },
+  { to: '/genealogia', label: 'Proprietà & genealogia' },
+  { to: '/analytics', label: 'Dashboard analytics' },
+  { to: '/audit', label: 'Audit & log' },
 ]
 
-function SidebarGroup({ group, items }: typeof NAV[0]) {
-  const [open, setOpen] = useState(true)
+function BrandIcon() {
   return (
-    <div className="mb-1">
-      <button
-        onClick={() => setOpen(o => !o)}
-        className="w-full flex items-center justify-between px-4 py-1.5 text-xs font-semibold uppercase tracking-wider text-indigo-200/60 hover:text-indigo-100"
-      >
-        {group}
-        {open ? <ChevronDown size={12} /> : <ChevronRight size={12} />}
-      </button>
-      {open && items.map(({ to, label, icon: Icon, end }) => (
-        <NavLink
-          key={to}
-          to={to}
-          end={end}
-          className={({ isActive }) =>
-            `flex items-center gap-3 mx-2 px-3 py-2 rounded-lg text-sm transition-colors ${
-              isActive
-                ? 'bg-white/15 text-white font-medium'
-                : 'text-indigo-100 hover:bg-white/10 hover:text-white'
-            }`
-          }
-        >
-          <Icon size={16} />
-          {label}
-        </NavLink>
-      ))}
+    <div
+      style={{
+        width: 28,
+        height: 28,
+        borderRadius: 6,
+        background: 'var(--purple-dark)',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        flexShrink: 0,
+      }}
+    >
+      <svg viewBox="0 0 16 16" width={16} height={16} fill="none">
+        <rect x="2" y="2" width="5" height="5" rx="1" fill="white" opacity="0.9" />
+        <rect x="9" y="2" width="5" height="5" rx="1" fill="white" opacity="0.6" />
+        <rect x="2" y="9" width="5" height="5" rx="1" fill="white" opacity="0.6" />
+        <rect x="9" y="9" width="5" height="5" rx="1" fill="white" opacity="0.3" />
+      </svg>
+    </div>
+  )
+}
+
+function Avatar({ initials }: { initials: string }) {
+  return (
+    <div
+      style={{
+        width: 28,
+        height: 28,
+        borderRadius: '50%',
+        background: 'var(--info-light)',
+        color: 'var(--info-text)',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        fontSize: 11,
+        fontWeight: 500,
+      }}
+    >
+      {initials}
     </div>
   )
 }
@@ -64,53 +64,136 @@ export default function Layout() {
     navigate('/login')
   }
 
+  const initials = (user?.nome_completo || user?.username || '?')
+    .split(/\s+/)
+    .map((s) => s[0])
+    .filter(Boolean)
+    .slice(0, 2)
+    .join('')
+    .toUpperCase()
+
   return (
-    <div className="flex h-screen overflow-hidden">
-      {/* Sidebar */}
-      <aside className="w-[220px] flex-shrink-0 bg-[#3f51b5] flex flex-col">
-        {/* Logo */}
-        <div className="h-12 flex items-center px-5 border-b border-white/10">
-          <span className="text-white font-semibold text-sm tracking-wide">🌿 Foliarium</span>
-        </div>
-
-        {/* Nav */}
-        <nav className="flex-1 overflow-y-auto py-3 space-y-1">
-          {NAV.map(g => <SidebarGroup key={g.group} {...g} />)}
-        </nav>
-
-        {/* User + logout */}
-        <div className="border-t border-white/10 p-3">
-          <div className="flex items-center gap-2 mb-2 px-2">
-            <div className="w-7 h-7 rounded-full bg-white/20 flex items-center justify-center text-white text-xs font-bold">
-              {user?.nome_completo?.[0]?.toUpperCase() ?? '?'}
-            </div>
-            <div className="min-w-0">
-              <p className="text-white text-xs font-medium truncate">{user?.nome_completo}</p>
-              <p className="text-indigo-200/60 text-[10px] capitalize">{user?.ruolo}</p>
-            </div>
+    <div
+      style={{
+        background: 'var(--bg)',
+        minHeight: '100vh',
+        padding: 24,
+      }}
+    >
+      <div
+        className="shell"
+        style={{
+          maxWidth: 1200,
+          margin: '0 auto',
+          background: 'var(--surface)',
+          border: '0.5px solid var(--border)',
+          borderRadius: 'var(--radius-lg)',
+          overflow: 'hidden',
+        }}
+      >
+        {/* Topbar */}
+        <div
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            padding: '0 20px',
+            borderBottom: '0.5px solid var(--border)',
+            height: 52,
+            background: 'var(--surface)',
+          }}
+        >
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+            <BrandIcon />
+            <span
+              style={{
+                fontSize: 15,
+                fontWeight: 500,
+                letterSpacing: '-0.3px',
+                color: 'var(--text)',
+              }}
+            >
+              Foliarium
+            </span>
+            <span style={{ fontSize: 12, color: 'var(--text-secondary)' }}>
+              / Archivio di Stato di Savona
+            </span>
           </div>
-          <button
-            onClick={handleLogout}
-            className="w-full flex items-center gap-2 px-3 py-1.5 rounded-lg text-indigo-100 hover:bg-white/10 hover:text-white text-xs transition-colors"
-          >
-            <LogOut size={14} />
-            Esci
-          </button>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+            <span
+              style={{
+                fontSize: 11,
+                padding: '3px 8px',
+                borderRadius: 'var(--radius-md)',
+                background: 'var(--bg-secondary)',
+                color: 'var(--text-secondary)',
+                border: '0.5px solid var(--border)',
+              }}
+            >
+              v1.6.1 — web preview
+            </span>
+            {user && <Avatar initials={initials} />}
+            <button
+              onClick={handleLogout}
+              style={{
+                fontSize: 12,
+                padding: '4px 10px',
+                borderRadius: 'var(--radius-md)',
+                background: 'var(--bg)',
+                color: 'var(--text-secondary)',
+                border: '0.5px solid var(--border-md)',
+                cursor: 'pointer',
+              }}
+            >
+              Esci
+            </button>
+          </div>
         </div>
-      </aside>
 
-      {/* Main */}
-      <div className="flex-1 flex flex-col min-w-0">
-        {/* Top bar */}
-        <header className="h-12 bg-white border-b border-gray-200 flex items-center px-6 gap-3 flex-shrink-0">
-          <Settings size={15} className="text-gray-400" />
-          <span className="text-sm text-gray-500 flex-1">Archivio Catastale Storico — Provincia di Savona</span>
-        </header>
+        {/* Nav tabs */}
+        <div
+          style={{
+            display: 'flex',
+            gap: 2,
+            padding: '0 20px',
+            borderBottom: '0.5px solid var(--border)',
+            background: 'var(--surface)',
+            overflowX: 'auto',
+          }}
+        >
+          {TABS.map((t) => (
+            <NavLink
+              key={t.to}
+              to={t.to}
+              style={({ isActive }) => ({
+                padding: '10px 14px',
+                fontSize: 13,
+                color: isActive ? 'var(--text)' : 'var(--text-secondary)',
+                fontWeight: isActive ? 500 : 400,
+                cursor: 'pointer',
+                borderBottom: isActive
+                  ? '2px solid var(--purple)'
+                  : '2px solid transparent',
+                whiteSpace: 'nowrap',
+                textDecoration: 'none',
+                transition: 'color 0.15s',
+              })}
+            >
+              {t.label}
+            </NavLink>
+          ))}
+        </div>
 
         {/* Content */}
-        <main className="flex-1 overflow-auto p-6 bg-[#f5f5f5]">
+        <div
+          style={{
+            padding: 20,
+            minHeight: 480,
+            background: 'var(--bg-tertiary)',
+          }}
+        >
           <Outlet />
-        </main>
+        </div>
       </div>
     </div>
   )

@@ -3,9 +3,10 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { AuthProvider, useAuth } from './AuthContext'
 import Layout from './components/Layout'
 import Login from './pages/Login'
-import Dashboard from './pages/Dashboard'
-import RicercaPartite from './pages/RicercaPartite'
-import Placeholder from './pages/Placeholder'
+import Archivio from './pages/Archivio'
+import Genealogia from './pages/Genealogia'
+import Analytics from './pages/Analytics'
+import Audit from './pages/Audit'
 
 const qc = new QueryClient({
   defaultOptions: { queries: { retry: 1, staleTime: 30_000 } },
@@ -25,15 +26,19 @@ export default function App() {
             <Route path="/login" element={<Login />} />
             <Route
               path="/"
-              element={<PrivateRoute><Layout /></PrivateRoute>}
+              element={
+                <PrivateRoute>
+                  <Layout />
+                </PrivateRoute>
+              }
             >
-              <Route index element={<Dashboard />} />
-              <Route path="partite" element={<RicercaPartite />} />
-              <Route path="nuova-partita" element={<Placeholder title="Nuova Partita" />} />
-              <Route path="possessori" element={<Placeholder title="Possessori" />} />
-              <Route path="documenti" element={<Placeholder title="Documenti" />} />
-              <Route path="statistiche" element={<Placeholder title="Statistiche" />} />
+              <Route index element={<Navigate to="/archivio" replace />} />
+              <Route path="archivio" element={<Archivio />} />
+              <Route path="genealogia" element={<Genealogia />} />
+              <Route path="analytics" element={<Analytics />} />
+              <Route path="audit" element={<Audit />} />
             </Route>
+            <Route path="*" element={<Navigate to="/archivio" replace />} />
           </Routes>
         </BrowserRouter>
       </AuthProvider>

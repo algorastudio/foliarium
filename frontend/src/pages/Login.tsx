@@ -24,7 +24,7 @@ export default function Login() {
         nome_completo: res.nome_completo,
         ruolo: res.ruolo,
       })
-      navigate('/')
+      navigate('/archivio')
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : 'Errore di accesso')
     } finally {
@@ -33,41 +33,134 @@ export default function Login() {
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-[#f5f5f5]">
-      <div className="bg-white rounded-2xl shadow-lg p-10 w-full max-w-sm">
-        <div className="text-center mb-8">
-          <div className="text-4xl mb-2">🌿</div>
-          <h1 className="text-2xl font-semibold text-[#3f51b5]">Foliarium</h1>
-          <p className="text-sm text-gray-500 mt-1">Archivio Catastale Storico</p>
+    <div
+      style={{
+        minHeight: '100svh',
+        background: 'var(--bg)',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        padding: 24,
+      }}
+    >
+      <div
+        style={{
+          background: 'var(--surface)',
+          borderRadius: 'var(--radius-lg)',
+          border: '0.5px solid var(--border)',
+          padding: 32,
+          width: '100%',
+          maxWidth: 380,
+        }}
+      >
+        <div style={{ textAlign: 'center', marginBottom: 24 }}>
+          <div
+            style={{
+              width: 44,
+              height: 44,
+              borderRadius: 8,
+              background: 'var(--purple-dark)',
+              margin: '0 auto 12px',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+            }}
+          >
+            <svg viewBox="0 0 16 16" width={22} height={22} fill="none">
+              <rect x="2" y="2" width="5" height="5" rx="1" fill="white" opacity="0.9" />
+              <rect x="9" y="2" width="5" height="5" rx="1" fill="white" opacity="0.6" />
+              <rect x="2" y="9" width="5" height="5" rx="1" fill="white" opacity="0.6" />
+              <rect x="9" y="9" width="5" height="5" rx="1" fill="white" opacity="0.3" />
+            </svg>
+          </div>
+          <h1 style={{ fontSize: 18, fontWeight: 500, color: 'var(--text)', margin: 0 }}>
+            Foliarium
+          </h1>
+          <p
+            style={{
+              fontSize: 12,
+              color: 'var(--text-secondary)',
+              marginTop: 4,
+            }}
+          >
+            Archivio Catastale Storico — Savona
+          </p>
         </div>
 
-        <form onSubmit={handleSubmit} className="space-y-4">
+        <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Utente</label>
+            <label
+              style={{
+                display: 'block',
+                fontSize: 12,
+                fontWeight: 500,
+                color: 'var(--text-secondary)',
+                marginBottom: 4,
+              }}
+            >
+              Utente
+            </label>
             <input
               type="text"
               value={username}
-              onChange={e => setUsername(e.target.value)}
+              onChange={(e) => setUsername(e.target.value)}
               required
               autoFocus
-              className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-[#3f51b5] focus:ring-1 focus:ring-[#3f51b5]"
               placeholder="username"
+              style={{
+                width: '100%',
+                padding: '8px 12px',
+                fontSize: 13,
+                border: '0.5px solid var(--border)',
+                borderRadius: 'var(--radius-md)',
+                background: 'var(--surface)',
+                color: 'var(--text)',
+                outline: 'none',
+              }}
             />
           </div>
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Password</label>
+            <label
+              style={{
+                display: 'block',
+                fontSize: 12,
+                fontWeight: 500,
+                color: 'var(--text-secondary)',
+                marginBottom: 4,
+              }}
+            >
+              Password
+            </label>
             <input
               type="password"
               value={password}
-              onChange={e => setPassword(e.target.value)}
+              onChange={(e) => setPassword(e.target.value)}
               required
-              className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-[#3f51b5] focus:ring-1 focus:ring-[#3f51b5]"
               placeholder="••••••••"
+              style={{
+                width: '100%',
+                padding: '8px 12px',
+                fontSize: 13,
+                border: '0.5px solid var(--border)',
+                borderRadius: 'var(--radius-md)',
+                background: 'var(--surface)',
+                color: 'var(--text)',
+                outline: 'none',
+              }}
             />
           </div>
 
           {error && (
-            <div className="bg-red-50 border border-red-200 text-red-700 text-sm rounded-lg px-3 py-2">
+            <div
+              style={{
+                background: 'var(--coral-light)',
+                border: '0.5px solid rgba(163, 45, 45, 0.3)',
+                color: 'var(--coral-text)',
+                fontSize: 12,
+                padding: '8px 10px',
+                borderRadius: 'var(--radius-md)',
+              }}
+            >
               {error}
             </div>
           )}
@@ -75,7 +168,19 @@ export default function Login() {
           <button
             type="submit"
             disabled={loading}
-            className="w-full bg-[#3f51b5] hover:bg-[#303f9f] disabled:opacity-60 text-white font-medium py-2.5 rounded-lg transition-colors text-sm"
+            style={{
+              width: '100%',
+              padding: '10px',
+              fontSize: 13,
+              fontWeight: 500,
+              color: '#fff',
+              background: 'var(--purple)',
+              border: 'none',
+              borderRadius: 'var(--radius-md)',
+              cursor: loading ? 'not-allowed' : 'pointer',
+              opacity: loading ? 0.6 : 1,
+              marginTop: 4,
+            }}
           >
             {loading ? 'Accesso in corso…' : 'Accedi'}
           </button>

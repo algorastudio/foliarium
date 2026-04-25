@@ -39,7 +39,8 @@ export const login = (username: string, password: string) =>
 
 export const logout = () => request('/auth/logout', { method: 'POST' })
 
-export const getMe = () => request<{ user_id: number; username: string; ruolo: string }>('/auth/me')
+export const getMe = () =>
+  request<{ user_id: number; username: string; ruolo: string }>('/auth/me')
 
 // ── Comuni ─────────────────────────────────────────────────────────────────
 
@@ -60,6 +61,7 @@ export interface Partita {
   suffisso_partita: string | null
   tipo: string
   stato: string
+  data_impianto?: string | null
 }
 
 export interface SearchPartiteParams {
@@ -80,7 +82,8 @@ export const searchPartite = (params: SearchPartiteParams) => {
   return request<Partita[]>(`/partite?${qs}`)
 }
 
-export const getPartita = (id: number) => request<Record<string, unknown>>(`/partite/${id}`)
+export const getPartita = (id: number) =>
+  request<Record<string, unknown>>(`/partite/${id}`)
 
 // ── Possessori ─────────────────────────────────────────────────────────────
 
@@ -94,12 +97,112 @@ export interface Possessore {
 export const searchPossessori = (q: string) =>
   request<Possessore[]>(`/possessori?q=${encodeURIComponent(q)}`)
 
-// ── Dashboard ──────────────────────────────────────────────────────────────
+// ── Dashboard / Analytics ──────────────────────────────────────────────────
 
 export interface DashboardStats {
   totale_partite: number
   totale_comuni: number
-  per_comune: Array<{ comune_nome?: string; nome?: string; num_partite: number }>
+  totale_possessori: number
+  totale_immobili: number
+  per_comune: Array<{ comune?: string; comune_nome?: string; nome?: string; num_partite: number }>
 }
 
 export const getDashboardStats = () => request<DashboardStats>('/dashboard/stats')
+
+export interface AnalyticsData {
+  kpi: {
+    partite: number
+    particelle: number
+    variazioni: number
+    utenti_attivi: number
+  }
+  top_comuni: Array<{ comune: string; num_partite: number }>
+  distribuzione_documenti: Array<{ label: string; value: number; pct: number }>
+  qualita_dati: { completezza_pct: number; duplicati_pct: number }
+}
+
+export const getAnalytics = () => request<AnalyticsData>('/dashboard/analytics')
+
+// ── Genealogia ─────────────────────────────────────────────────────────────
+
+export interface GenealogiaNode {
+  id: number
+  numero_partita: number
+  suffisso_partita: string | null
+  tipo: string
+  stato: string
+  comune_nome: string
+  data_impianto: string | null
+  data_chiusura: string | null
+  possessori: string | null
+  tipo_variazione?: string | null
+  data_variazione?: string | null
+  nominativo_riferimento?: string | null
+}
+
+export interface Genealogia {
+  partita: GenealogiaNode | null
+  predecessori: GenealogiaNode[]
+  successori: GenealogiaNode[]
+}
+
+export const getGenealogia = (partitaId: number) =>
+  request<Genealogia>(`/genealogia/${partitaId}`)
+
+// ── Timeline partita ───────────────────────────────────────────────────────
+
+export interface TimelineEvent {
+  data: string
+  tipo: string
+  label: string
+  dettagli: string
+  partita_origine?: number
+  partita_destinazione?: number
+}
+
+export const getPartitaTimeline = (partitaId: number) =>
+  request<{ partita_id: number; eventi: TimelineEvent[] }>(`/timeline/partita/${partitaId}`)
+
+// ── Audit ──────────────────────────────────────────────────────────────────
+
+export interface AuditEntry {
+  id: number
+  timestamp: string
+  username: string | null
+  tabella: string | null
+  operazione: string | null
+  operazione_label: string | null
+  record_id: number | null
+  dettagli: string | null
+  client_ip?: string | null
+}
+
+export interface AuditPage {
+  items: AuditEntry[]
+  total: number
+  page: number
+  page_size: number
+}
+
+export interface AuditSummary {
+  azioni_oggi: number
+  utenti_attivi: number
+  export_effettuati: number
+  anomalie: number
+}
+
+export const getAuditLog = (params: {
+  operation?: string
+  username?: string
+  page?: number
+  page_size?: number
+} = {}) => {
+  const qs = new URLSearchParams()
+  if (params.operation) qs.set('operation', params.operation)
+  if (params.username) qs.set('username', params.username)
+  qs.set('page', String(params.page ?? 1))
+  qs.set('page_size', String(params.page_size ?? 50))
+  return request<AuditPage>(`/audit?${qs}`)
+}
+
+export const getAuditSummary = () => request<AuditSummary>('/audit/summary')
