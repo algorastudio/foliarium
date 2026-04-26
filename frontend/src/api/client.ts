@@ -82,8 +82,74 @@ export const searchPartite = (params: SearchPartiteParams) => {
   return request<Partita[]>(`/partite?${qs}`)
 }
 
+export interface Possessore_PP {
+  id: number
+  nome_completo: string
+  titolo: string | null
+  quota: string | null
+}
+
+export interface Immobile {
+  id: number
+  natura: string
+  numero_piani: number | null
+  numero_vani: number | null
+  consistenza: string | null
+  classificazione: string | null
+  localita_nome: string
+  tipologia_stradale: string | null
+}
+
+export interface Variazione {
+  id: number
+  tipo: string
+  data_variazione: string | null
+  numero_riferimento: string | null
+  partita_origine_id: number | null
+  partita_destinazione_id: number | null
+  origine_numero_partita: number | null
+  origine_comune_nome: string | null
+  destinazione_numero_partita: number | null
+  destinazione_comune_nome: string | null
+  tipo_contratto: string | null
+  data_contratto: string | null
+  notaio: string | null
+}
+
+export interface PartitaDetail {
+  id: number
+  numero_partita: number
+  suffisso_partita: string | null
+  tipo: string
+  stato: string
+  data_impianto: string | null
+  data_chiusura: string | null
+  numero_provenienza: number | null
+  comune_nome: string
+  comune_id: number
+  possessori: Possessore_PP[]
+  immobili: Immobile[]
+  variazioni: Variazione[]
+}
+
 export const getPartita = (id: number) =>
-  request<Record<string, unknown>>(`/partite/${id}`)
+  request<PartitaDetail>(`/partite/${id}`)
+
+export interface CreatePartitaPayload {
+  comune_id: number
+  numero_partita: number
+  suffisso_partita?: string
+  data_impianto?: string
+  tipo?: string
+  stato?: string
+  numero_provenienza?: number
+}
+
+export const createPartita = (payload: CreatePartitaPayload) =>
+  request<{ id: number }>('/partite', {
+    method: 'POST',
+    body: JSON.stringify(payload),
+  })
 
 // ── Possessori ─────────────────────────────────────────────────────────────
 
@@ -206,3 +272,25 @@ export const getAuditLog = (params: {
 }
 
 export const getAuditSummary = () => request<AuditSummary>('/audit/summary')
+
+// ── Possessori detail ──────────────────────────────────────────────────────
+
+export interface PossessoreDetail {
+  id: number
+  nome_completo: string
+  cognome_nome: string
+  paternita: string | null
+  partite: Array<{
+    id: number
+    numero_partita: number
+    suffisso_partita: string | null
+    comune_nome: string
+    tipo: string
+    stato: string
+    titolo: string | null
+    quota: string | null
+  }>
+}
+
+export const getPossessore = (id: number) =>
+  request<PossessoreDetail>(`/possessori/${id}`)
