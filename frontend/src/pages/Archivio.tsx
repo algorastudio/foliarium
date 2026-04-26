@@ -2,19 +2,14 @@ import { useState, useMemo, type FormEvent } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { useNavigate } from 'react-router-dom'
 import {
-  searchPartite,
-  getComuni,
-  createPartita,
-  type Partita,
-  type CreatePartitaPayload,
-} from '../api/client'
+  useReactTable, getCoreRowModel, getSortedRowModel, getFilteredRowModel,
+  flexRender, createColumnHelper, type SortingState,
+} from '@tanstack/react-table'
 import {
-  Card,
-  Button,
-  FilterChip,
-  SectionHeader,
-  MiniTag,
-} from '../components/ui'
+  searchPartite, getComuni, createPartita,
+  type Partita, type CreatePartitaPayload,
+} from '../api/client'
+import { Card, Button, FilterChip, SectionHeader, MiniTag, StatusChip } from '../components/ui'
 
 const PERIODI: Array<{ key: string; label: string; min?: number; max?: number }> = [
   { key: 'tutti', label: 'Tutti i periodi' },
@@ -23,94 +18,137 @@ const PERIODI: Array<{ key: string; label: string; min?: number; max?: number }>
   { key: '1901-1950', label: '1901–1950', min: 1901, max: 1950 },
 ]
 
-const TIPI: Array<{ key: string; label: string }> = [
-  { key: 'tutti', label: 'Tutti i tipi' },
-  { key: 'principale', label: 'Principale' },
-  { key: 'secondaria', label: 'Secondaria' },
-]
-
 function getYear(p: Partita): number | null {
   if (!p.data_impianto) return null
   const m = p.data_impianto.match(/^(\d{4})/)
   return m ? Number(m[1]) : null
 }
 
-function ResultRow({
-  p,
-  onSelect,
-  selected,
-}: {
-  p: Partita
-  onSelect: () => void
-  selected: boolean
-}) {
-  const year = getYear(p)
-  return (
-    <div
-      onClick={onSelect}
-      style={{
-        display: 'flex',
-        gap: 12,
-        alignItems: 'flex-start',
-        padding: 12,
-        background: 'var(--surface)',
-        borderRadius: 'var(--radius-md)',
-        border: selected ? '0.5px solid var(--purple)' : '0.5px solid var(--border)',
-        cursor: 'pointer',
-      }}
-    >
-      <span
-        style={{
-          fontSize: 11,
-          fontWeight: 500,
-          color: 'var(--purple)',
-          background: 'var(--purple-light)',
-          padding: '3px 7px',
-          borderRadius: 4,
-          whiteSpace: 'nowrap',
-          marginTop: 2,
-        }}
-      >
-        {year ?? '—'}
+// ── TanStack Table ─────────────────────────────────────────────────────────
+
+const colHelper = createColumnHelper<Partita>()
+
+const columns = [
+  colHelper.accessor((row) => getYear(row), {
+    id: 'anno',
+    header: 'Anno',
+    cell: (info) => {
+      const v = info.getValue()
+      return (
+        <span style={{
+          fontSize: 11, fontWeight: 500, color: 'var(--purple)',
+          background: 'var(--purple-light)', padding: '2px 6px', borderRadius: 4,
+        }}>
+          {v ?? '—'}
+        </span>
+      )
+    },
+    sortingFn: (a, b) => (getYear(a.original) ?? 0) - (getYear(b.original) ?? 0),
+  }),
+  colHelper.accessor('numero_partita', {
+    header: 'N. Partita',
+    cell: (info) => (
+      <span style={{ fontWeight: 500 }}>
+        {info.getValue()}{info.row.original.suffisso_partita ? `/${info.row.original.suffisso_partita}` : ''}
       </span>
-      <div style={{ flex: 1, minWidth: 0 }}>
-        <div style={{ fontSize: 13, fontWeight: 500, color: 'var(--text)', marginBottom: 3 }}>
-          Partita {p.numero_partita}
-          {p.suffisso_partita ? `/${p.suffisso_partita}` : ''} — {p.comune_nome}{' '}
-          <span
-            style={{
-              fontSize: 11,
-              padding: '2px 6px',
-              borderRadius: 4,
-              background: 'var(--bg-secondary)',
-              color: 'var(--text-secondary)',
-              marginLeft: 6,
-            }}
-          >
-            {p.tipo}
-          </span>
-        </div>
-        <div style={{ fontSize: 12, color: 'var(--text-secondary)' }}>
-          Stato: {p.stato} · ID {p.id}
-        </div>
-      </div>
-      <span style={{ fontSize: 11, color: 'var(--purple)', alignSelf: 'center', flexShrink: 0 }}>→</span>
+    ),
+  }),
+  colHelper.accessor('comune_nome', {
+    header: 'Comune',
+    cell: (info) => info.getValue(),
+  }),
+  colHelper.accessor('tipo', {
+    header: 'Tipo',
+    cell: (info) => <MiniTag>{info.getValue()}</MiniTag>,
+  }),
+  colHelper.accessor('stato', {
+    header: 'Stato',
+    cell: (info) => (
+      <StatusChip variant={info.getValue()?.toLowerCase() === 'attiva' ? 'ok' : 'neutral'}>
+        {info.getValue()}
+      </StatusChip>
+    ),
+  }),
+]
+
+function SortIcon({ dir }: { dir: 'asc' | 'desc' | false }) {
+  if (!dir) return <span style={{ color: 'var(--border-md)', fontSize: 10 }}>↕</span>
+  return <span style={{ color: 'var(--purple)', fontSize: 10 }}>{dir === 'asc' ? '↑' : '↓'}</span>
+}
+
+function ResultTable({ data, onRowClick }: { data: Partita[]; onRowClick: (p: Partita) => void }) {
+  const [sorting, setSorting] = useState<SortingState>([{ id: 'anno', desc: false }])
+
+  const table = useReactTable({
+    data,
+    columns,
+    state: { sorting },
+    onSortingChange: setSorting,
+    getCoreRowModel: getCoreRowModel(),
+    getSortedRowModel: getSortedRowModel(),
+    getFilteredRowModel: getFilteredRowModel(),
+  })
+
+  return (
+    <div style={{ overflowX: 'auto' }}>
+      <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
+        <thead>
+          {table.getHeaderGroups().map((hg) => (
+            <tr key={hg.id} style={{ borderBottom: '0.5px solid var(--border)' }}>
+              {hg.headers.map((header) => (
+                <th
+                  key={header.id}
+                  onClick={header.column.getToggleSortingHandler()}
+                  style={{
+                    textAlign: 'left', padding: '8px 10px', fontWeight: 500,
+                    color: 'var(--text-secondary)', fontSize: 12, whiteSpace: 'nowrap',
+                    cursor: header.column.getCanSort() ? 'pointer' : 'default',
+                    userSelect: 'none',
+                  }}
+                >
+                  <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                    {flexRender(header.column.columnDef.header, header.getContext())}
+                    <SortIcon dir={header.column.getIsSorted()} />
+                  </span>
+                </th>
+              ))}
+            </tr>
+          ))}
+        </thead>
+        <tbody>
+          {table.getRowModel().rows.map((row) => (
+            <tr
+              key={row.id}
+              onClick={() => onRowClick(row.original)}
+              style={{
+                borderBottom: '0.5px solid var(--border)',
+                cursor: 'pointer',
+                transition: 'background 0.1s',
+              }}
+              onMouseEnter={(e) => (e.currentTarget.style.background = 'var(--purple-light)')}
+              onMouseLeave={(e) => (e.currentTarget.style.background = '')}
+            >
+              {row.getVisibleCells().map((cell) => (
+                <td key={cell.id} style={{ padding: '9px 10px' }}>
+                  {flexRender(cell.column.columnDef.cell, cell.getContext())}
+                </td>
+              ))}
+            </tr>
+          ))}
+        </tbody>
+      </table>
     </div>
   )
 }
 
 // ── NuovaPartita modal ────────────────────────────────────────────────────
 
-interface NuovaPartitaModalProps {
-  onClose: () => void
-}
-
-function NuovaPartitaModal({ onClose }: NuovaPartitaModalProps) {
+function NuovaPartitaModal({ onClose }: { onClose: () => void }) {
   const { data: comuni } = useQuery({ queryKey: ['comuni'], queryFn: getComuni })
   const qc = useQueryClient()
   const navigate = useNavigate()
 
-  const [comuneId, setComuneId] = useState<string>('')
+  const [comuneId, setComuneId] = useState('')
   const [numero, setNumero] = useState('')
   const [suffisso, setSuffisso] = useState('')
   const [tipo, setTipo] = useState('Principale')
@@ -137,129 +175,68 @@ function NuovaPartitaModal({ onClose }: NuovaPartitaModalProps) {
       comune_id: Number(comuneId),
       numero_partita: Number(numero),
       suffisso_partita: suffisso || undefined,
-      tipo,
-      stato,
+      tipo, stato,
       data_impianto: dataImpianto || undefined,
     })
   }
 
-  const fieldStyle = {
-    width: '100%',
-    padding: '7px 10px',
-    border: '0.5px solid var(--border-md)',
-    borderRadius: 'var(--radius-md)',
-    fontSize: 13,
-    background: 'var(--surface)',
-    color: 'var(--text)',
+  const fs = {
+    width: '100%', padding: '7px 10px', border: '0.5px solid var(--border-md)',
+    borderRadius: 'var(--radius-md)', fontSize: 13, background: 'var(--surface)', color: 'var(--text)',
   }
-
-  const labelStyle = {
-    fontSize: 12,
-    color: 'var(--text-secondary)',
-    display: 'block' as const,
-    marginBottom: 4,
-  }
+  const ls = { fontSize: 12, color: 'var(--text-secondary)', display: 'block' as const, marginBottom: 4 }
 
   return (
     <div
-      style={{
-        position: 'fixed',
-        inset: 0,
-        background: 'rgba(0,0,0,0.3)',
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-        zIndex: 100,
-      }}
+      style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.3)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 100 }}
       onClick={(e) => e.target === e.currentTarget && onClose()}
     >
-      <div
-        style={{
-          background: 'var(--surface)',
-          borderRadius: 'var(--radius-lg)',
-          padding: 24,
-          width: 440,
-          maxWidth: '95vw',
-          boxShadow: '0 8px 32px rgba(0,0,0,0.16)',
-        }}
-      >
+      <div style={{ background: 'var(--surface)', borderRadius: 'var(--radius-lg)', padding: 24, width: 440, maxWidth: '95vw', boxShadow: '0 8px 32px rgba(0,0,0,0.16)' }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
           <span style={{ fontSize: 15, fontWeight: 500 }}>Nuova partita</span>
-          <button
-            onClick={onClose}
-            style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 18, color: 'var(--text-secondary)', lineHeight: 1 }}
-          >
-            ×
-          </button>
+          <button onClick={onClose} style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 18, color: 'var(--text-secondary)', lineHeight: 1 }}>×</button>
         </div>
-
         <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
           <div>
-            <label style={labelStyle}>Comune *</label>
-            <select value={comuneId} onChange={(e) => setComuneId(e.target.value)} style={fieldStyle}>
+            <label style={ls}>Comune *</label>
+            <select value={comuneId} onChange={(e) => setComuneId(e.target.value)} style={fs}>
               <option value="">— Seleziona —</option>
-              {(comuni ?? []).map((c) => (
-                <option key={c.id} value={c.id}>{c.nome} ({c.provincia})</option>
-              ))}
+              {(comuni ?? []).map((c) => <option key={c.id} value={c.id}>{c.nome} ({c.provincia})</option>)}
             </select>
           </div>
-
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
             <div>
-              <label style={labelStyle}>N. partita *</label>
-              <input
-                type="number"
-                value={numero}
-                onChange={(e) => setNumero(e.target.value)}
-                placeholder="es. 1234"
-                style={fieldStyle}
-              />
+              <label style={ls}>N. partita *</label>
+              <input type="number" value={numero} onChange={(e) => setNumero(e.target.value)} placeholder="es. 1234" style={fs} />
             </div>
             <div>
-              <label style={labelStyle}>Suffisso</label>
-              <input
-                type="text"
-                value={suffisso}
-                onChange={(e) => setSuffisso(e.target.value)}
-                placeholder="es. A"
-                style={fieldStyle}
-              />
+              <label style={ls}>Suffisso</label>
+              <input type="text" value={suffisso} onChange={(e) => setSuffisso(e.target.value)} placeholder="es. A" style={fs} />
             </div>
           </div>
-
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
             <div>
-              <label style={labelStyle}>Tipo</label>
-              <select value={tipo} onChange={(e) => setTipo(e.target.value)} style={fieldStyle}>
+              <label style={ls}>Tipo</label>
+              <select value={tipo} onChange={(e) => setTipo(e.target.value)} style={fs}>
                 <option>Principale</option>
                 <option>Secondaria</option>
               </select>
             </div>
             <div>
-              <label style={labelStyle}>Stato</label>
-              <select value={stato} onChange={(e) => setStato(e.target.value)} style={fieldStyle}>
+              <label style={ls}>Stato</label>
+              <select value={stato} onChange={(e) => setStato(e.target.value)} style={fs}>
                 <option value="attiva">Attiva</option>
                 <option value="chiusa">Chiusa</option>
               </select>
             </div>
           </div>
-
           <div>
-            <label style={labelStyle}>Data impianto</label>
-            <input
-              type="date"
-              value={dataImpianto}
-              onChange={(e) => setDataImpianto(e.target.value)}
-              style={fieldStyle}
-            />
+            <label style={ls}>Data impianto</label>
+            <input type="date" value={dataImpianto} onChange={(e) => setDataImpianto(e.target.value)} style={fs} />
           </div>
-
           {error && (
-            <div style={{ fontSize: 12, color: 'var(--coral-text)', padding: '6px 10px', background: 'var(--coral-light)', borderRadius: 6 }}>
-              {error}
-            </div>
+            <div style={{ fontSize: 12, color: 'var(--coral-text)', padding: '6px 10px', background: 'var(--coral-light)', borderRadius: 6 }}>{error}</div>
           )}
-
           <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end', marginTop: 4 }}>
             <Button onClick={onClose}>Annulla</Button>
             <Button variant="primary" type="submit" disabled={mutation.isPending}>
@@ -277,10 +254,10 @@ function NuovaPartitaModal({ onClose }: NuovaPartitaModalProps) {
 export default function Archivio() {
   const navigate = useNavigate()
   const [comuneId, setComuneId] = useState<number | undefined>(undefined)
-  const [numero, setNumero] = useState<string>('')
-  const [possessore, setPossessore] = useState<string>('')
-  const [periodo, setPeriodo] = useState<string>('tutti')
-  const [tipoFiltro, setTipoFiltro] = useState<string>('tutti')
+  const [numero, setNumero] = useState('')
+  const [possessore, setPossessore] = useState('')
+  const [periodo, setPeriodo] = useState('tutti')
+  const [tipoFiltro, setTipoFiltro] = useState('tutti')
   const [submitted, setSubmitted] = useState(false)
   const [showNuova, setShowNuova] = useState(false)
 
@@ -301,19 +278,15 @@ export default function Archivio() {
     enabled: submitted,
   })
 
-  const filtered = (results ?? []).filter((p) => {
-    const y = getYear(p)
-    const periodoMatch = (() => {
+  const filtered = useMemo(() => {
+    return (results ?? []).filter((p) => {
+      const y = getYear(p)
       const pp = PERIODI.find((x) => x.key === periodo)
-      if (!pp || !pp.min || !pp.max) return true
-      if (y === null) return false
-      return y >= pp.min && y <= pp.max
-    })()
-    const tipoMatch =
-      tipoFiltro === 'tutti' ||
-      (p.tipo || '').toLowerCase().includes(tipoFiltro)
-    return periodoMatch && tipoMatch
-  })
+      const periodoOk = !pp?.min || (y !== null && y >= pp.min && y <= (pp.max ?? Infinity))
+      const tipoOk = tipoFiltro === 'tutti' || (p.tipo || '').toLowerCase().includes(tipoFiltro)
+      return periodoOk && tipoOk
+    })
+  }, [results, periodo, tipoFiltro])
 
   const handleSearch = (e: FormEvent) => {
     e.preventDefault()
@@ -328,25 +301,11 @@ export default function Archivio() {
       <div style={{ display: 'flex', gap: 8, marginBottom: 12 }}>
         <select
           value={comuneId ?? ''}
-          onChange={(e) =>
-            setComuneId(e.target.value ? Number(e.target.value) : undefined)
-          }
-          style={{
-            flex: '0 0 200px',
-            padding: '8px 12px',
-            border: '0.5px solid var(--border)',
-            borderRadius: 'var(--radius-md)',
-            fontSize: 13,
-            background: 'var(--surface)',
-            color: 'var(--text)',
-          }}
+          onChange={(e) => setComuneId(e.target.value ? Number(e.target.value) : undefined)}
+          style={{ flex: '0 0 200px', padding: '8px 12px', border: '0.5px solid var(--border)', borderRadius: 'var(--radius-md)', fontSize: 13, background: 'var(--surface)', color: 'var(--text)' }}
         >
           <option value="">Tutti i comuni</option>
-          {(comuni ?? []).map((c) => (
-            <option key={c.id} value={c.id}>
-              {c.nome} ({c.provincia})
-            </option>
-          ))}
+          {(comuni ?? []).map((c) => <option key={c.id} value={c.id}>{c.nome} ({c.provincia})</option>)}
         </select>
         <input
           type="text"
@@ -354,15 +313,7 @@ export default function Archivio() {
           onChange={(e) => setPossessore(e.target.value)}
           onKeyDown={(e) => e.key === 'Enter' && setSubmitted(true)}
           placeholder="Cerca per possessore o cognome…"
-          style={{
-            flex: 1,
-            padding: '8px 12px',
-            border: '0.5px solid var(--border)',
-            borderRadius: 'var(--radius-md)',
-            fontSize: 13,
-            background: 'var(--surface)',
-            color: 'var(--text)',
-          }}
+          style={{ flex: 1, padding: '8px 12px', border: '0.5px solid var(--border)', borderRadius: 'var(--radius-md)', fontSize: 13, background: 'var(--surface)', color: 'var(--text)' }}
         />
         <input
           type="number"
@@ -370,46 +321,23 @@ export default function Archivio() {
           onChange={(e) => setNumero(e.target.value)}
           onKeyDown={(e) => e.key === 'Enter' && setSubmitted(true)}
           placeholder="N. partita"
-          style={{
-            flex: '0 0 110px',
-            padding: '8px 12px',
-            border: '0.5px solid var(--border)',
-            borderRadius: 'var(--radius-md)',
-            fontSize: 13,
-            background: 'var(--surface)',
-            color: 'var(--text)',
-          }}
+          style={{ flex: '0 0 110px', padding: '8px 12px', border: '0.5px solid var(--border)', borderRadius: 'var(--radius-md)', fontSize: 13, background: 'var(--surface)', color: 'var(--text)' }}
         />
         <Button variant="primary" onClick={() => handleSearch(new Event('submit') as unknown as FormEvent)}>
           Cerca
         </Button>
-        <Button
-          onClick={() => setShowNuova(true)}
-          style={{ flexShrink: 0 }}
-        >
-          + Nuova
-        </Button>
+        <Button onClick={() => setShowNuova(true)}>+ Nuova</Button>
       </div>
 
       {/* Filter chips */}
       <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 14 }}>
         {PERIODI.map((p) => (
-          <FilterChip
-            key={p.key}
-            active={periodo === p.key}
-            onClick={() => setPeriodo(p.key)}
-          >
+          <FilterChip key={p.key} active={periodo === p.key} onClick={() => setPeriodo(p.key)}>
             {p.label}
           </FilterChip>
         ))}
-        {TIPI.slice(1).map((t) => (
-          <FilterChip
-            key={t.key}
-            active={tipoFiltro === t.key}
-            onClick={() =>
-              setTipoFiltro(tipoFiltro === t.key ? 'tutti' : t.key)
-            }
-          >
+        {[{ key: 'principale', label: 'Principale' }, { key: 'secondaria', label: 'Secondaria' }].map((t) => (
+          <FilterChip key={t.key} active={tipoFiltro === t.key} onClick={() => setTipoFiltro(tipoFiltro === t.key ? 'tutti' : t.key)}>
             {t.label}
           </FilterChip>
         ))}
@@ -418,19 +346,17 @@ export default function Archivio() {
       <SectionHeader
         title={
           submitted
-            ? `Risultati — ${filtered.length} ${
-                filtered.length === 1 ? 'partita trovata' : 'partite trovate'
-              }`
+            ? `${filtered.length} ${filtered.length === 1 ? 'partita trovata' : 'partite trovate'}`
             : 'Risultati'
         }
-        right={submitted && filtered.length > 0 ? <MiniTag>Clicca per aprire</MiniTag> : undefined}
+        right={submitted && filtered.length > 0
+          ? <MiniTag>Clicca intestazione per ordinare</MiniTag>
+          : undefined}
       />
 
       {!submitted && (
         <Card>
-          <p style={{ fontSize: 12, color: 'var(--text-secondary)' }}>
-            Avvia una ricerca per visualizzare le partite.
-          </p>
+          <p style={{ fontSize: 12, color: 'var(--text-secondary)' }}>Avvia una ricerca per visualizzare le partite.</p>
         </Card>
       )}
       {submitted && isLoading && (
@@ -438,25 +364,13 @@ export default function Archivio() {
       )}
       {submitted && !isLoading && filtered.length === 0 && (
         <Card>
-          <p style={{ fontSize: 12, color: 'var(--text-secondary)' }}>
-            Nessun risultato per i criteri selezionati.
-          </p>
+          <p style={{ fontSize: 12, color: 'var(--text-secondary)' }}>Nessun risultato per i criteri selezionati.</p>
         </Card>
       )}
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-        {filtered.slice(0, 100).map((p) => (
-          <ResultRow
-            key={p.id}
-            p={p}
-            selected={false}
-            onSelect={() => navigate(`/partite/${p.id}`)}
-          />
-        ))}
-      </div>
-      {filtered.length > 100 && (
-        <p style={{ fontSize: 12, color: 'var(--text-secondary)', textAlign: 'center', marginTop: 12 }}>
-          Mostrati i primi 100 risultati. Affina la ricerca per risultati più specifici.
-        </p>
+      {submitted && !isLoading && filtered.length > 0 && (
+        <Card style={{ padding: 0, overflow: 'hidden' }}>
+          <ResultTable data={filtered} onRowClick={(p) => navigate(`/partite/${p.id}`)} />
+        </Card>
       )}
     </div>
   )

@@ -42,7 +42,7 @@ export const logout = () => request('/auth/logout', { method: 'POST' })
 export const getMe = () =>
   request<{ user_id: number; username: string; ruolo: string }>('/auth/me')
 
-// ── Comuni ─────────────────────────────────────────────────────────────────
+// ── Comuni & Località ─────────────────────────────────────────────────────
 
 export interface Comune {
   id: number
@@ -50,7 +50,15 @@ export interface Comune {
   provincia: string
 }
 
+export interface Localita {
+  id: number
+  nome: string
+  tipologia_stradale: string | null
+}
+
 export const getComuni = () => request<Comune[]>('/comuni')
+export const getLocalita = (comuneId: number) =>
+  request<Localita[]>(`/comuni/${comuneId}/localita`)
 
 // ── Partite ────────────────────────────────────────────────────────────────
 
@@ -147,6 +155,55 @@ export interface CreatePartitaPayload {
 
 export const createPartita = (payload: CreatePartitaPayload) =>
   request<{ id: number }>('/partite', {
+    method: 'POST',
+    body: JSON.stringify(payload),
+  })
+
+export interface AddImmobilePayload {
+  localita_nome: string
+  tipologia_stradale?: string
+  natura: string
+  numero_piani?: number
+  numero_vani?: number
+  consistenza?: string
+  classificazione?: string
+}
+
+export const addImmobile = (partitaId: number, payload: AddImmobilePayload) =>
+  request<{ id: number }>(`/partite/${partitaId}/immobili`, {
+    method: 'POST',
+    body: JSON.stringify(payload),
+  })
+
+export const deleteImmobile = (partitaId: number, immobileId: number) =>
+  request<void>(`/partite/${partitaId}/immobili/${immobileId}`, { method: 'DELETE' })
+
+export interface AddVariazionePayload {
+  tipo: string
+  data_variazione: string
+  partita_destinazione_id?: number
+  numero_riferimento?: string
+  nominativo_riferimento?: string
+}
+
+export const addVariazione = (partitaId: number, payload: AddVariazionePayload) =>
+  request<{ id: number }>(`/partite/${partitaId}/variazioni`, {
+    method: 'POST',
+    body: JSON.stringify(payload),
+  })
+
+export const deleteVariazione = (partitaId: number, variazioneId: number) =>
+  request<void>(`/partite/${partitaId}/variazioni/${variazioneId}`, { method: 'DELETE' })
+
+export interface CreatePossessorePayload {
+  nome_completo: string
+  cognome_nome?: string
+  paternita?: string
+  comune_id: number
+}
+
+export const createPossessore = (payload: CreatePossessorePayload) =>
+  request<{ id: number }>('/possessori', {
     method: 'POST',
     body: JSON.stringify(payload),
   })

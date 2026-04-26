@@ -1,7 +1,10 @@
-import { useState } from 'react'
+import { useState, type FormEvent } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { useQuery } from '@tanstack/react-query'
-import { searchPossessori, getPossessore, type Possessore } from '../api/client'
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
+import {
+  searchPossessori, getPossessore, getComuni, createPossessore,
+  type Possessore, type CreatePossessorePayload,
+} from '../api/client'
 import { Card, Button, SectionHeader, MiniTag, StatusChip } from '../components/ui'
 
 function PossessoreRow({
@@ -133,10 +136,90 @@ function PossessorePanel({ possessoreId }: { possessoreId: number }) {
   )
 }
 
+// ── NuovoPossessore modal ─────────────────────────────────────────────────
+
+function NuovoPossessoreModal({ onClose, onCreated }: { onClose: () => void; onCreated: (id: number) => void }) {
+  const { data: comuni } = useQuery({ queryKey: ['comuni'], queryFn: getComuni })
+  const [nome, setNome] = useState('')
+  const [cognomeNome, setCognomeNome] = useState('')
+  const [paternita, setPaternita] = useState('')
+  const [comuneId, setComuneId] = useState('')
+  const [error, setError] = useState<string | null>(null)
+
+  const mutation = useMutation({
+    mutationFn: (p: CreatePossessorePayload) => createPossessore(p),
+    onSuccess: (r) => onCreated(r.id),
+    onError: (e: Error) => setError(e.message),
+  })
+
+  const fs = {
+    width: '100%', padding: '7px 10px', border: '0.5px solid var(--border-md)',
+    borderRadius: 'var(--radius-md)', fontSize: 13, background: 'var(--surface)', color: 'var(--text)',
+  }
+  const ls = { fontSize: 12, color: 'var(--text-secondary)', display: 'block' as const, marginBottom: 4 }
+
+  const handleSubmit = (e: FormEvent) => {
+    e.preventDefault()
+    setError(null)
+    if (!nome.trim()) return setError('Nome completo obbligatorio.')
+    if (!comuneId) return setError('Seleziona un comune di riferimento.')
+    mutation.mutate({
+      nome_completo: nome.trim(),
+      cognome_nome: cognomeNome.trim() || undefined,
+      paternita: paternita.trim() || undefined,
+      comune_id: Number(comuneId),
+    })
+  }
+
+  return (
+    <div
+      style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.3)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 100 }}
+      onClick={(e) => e.target === e.currentTarget && onClose()}
+    >
+      <div style={{ background: 'var(--surface)', borderRadius: 'var(--radius-lg)', padding: 24, width: 420, maxWidth: '95vw', boxShadow: '0 8px 32px rgba(0,0,0,0.16)' }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
+          <span style={{ fontSize: 15, fontWeight: 500 }}>Nuovo possessore</span>
+          <button onClick={onClose} style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 18, color: 'var(--text-secondary)', lineHeight: 1 }}>×</button>
+        </div>
+        <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+          <div>
+            <label style={ls}>Nome completo *</label>
+            <input style={fs} value={nome} onChange={(e) => setNome(e.target.value)} placeholder="es. Rossi Mario" />
+          </div>
+          <div>
+            <label style={ls}>Cognome e nome (formato archivio)</label>
+            <input style={fs} value={cognomeNome} onChange={(e) => setCognomeNome(e.target.value)} placeholder="es. Rossi Mario fu Giovanni" />
+          </div>
+          <div>
+            <label style={ls}>Paternità</label>
+            <input style={fs} value={paternita} onChange={(e) => setPaternita(e.target.value)} placeholder="es. Giovanni" />
+          </div>
+          <div>
+            <label style={ls}>Comune di riferimento *</label>
+            <select style={fs} value={comuneId} onChange={(e) => setComuneId(e.target.value)}>
+              <option value="">— Seleziona —</option>
+              {(comuni ?? []).map((c) => <option key={c.id} value={c.id}>{c.nome} ({c.provincia})</option>)}
+            </select>
+          </div>
+          {error && <div style={{ fontSize: 12, color: 'var(--coral-text)', padding: '6px 10px', background: 'var(--coral-light)', borderRadius: 6 }}>{error}</div>}
+          <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end', marginTop: 4 }}>
+            <Button onClick={onClose}>Annulla</Button>
+            <Button variant="primary" type="submit" disabled={mutation.isPending}>
+              {mutation.isPending ? 'Creazione…' : 'Crea possessore'}
+            </Button>
+          </div>
+        </form>
+      </div>
+    </div>
+  )
+}
+
 export default function Possessori() {
+  const qc = useQueryClient()
   const [query, setQuery] = useState('')
   const [submitted, setSubmitted] = useState(false)
   const [selectedId, setSelectedId] = useState<number | null>(null)
+  const [showNuovo, setShowNuovo] = useState(false)
 
   const { data: results, isLoading } = useQuery({
     queryKey: ['possessori-search', query],
@@ -148,8 +231,15 @@ export default function Possessori() {
     if (query.length >= 2) setSubmitted(true)
   }
 
+  const handleCreated = (id: number) => {
+    setShowNuovo(false)
+    qc.invalidateQueries({ queryKey: ['possessori-search'] })
+    setSelectedId(id)
+  }
+
   return (
     <div>
+      {showNuovo && <NuovoPossessoreModal onClose={() => setShowNuovo(false)} onCreated={handleCreated} />}
       <div style={{ display: 'flex', gap: 8, marginBottom: 16 }}>
         <input
           type="text"
@@ -173,6 +263,7 @@ export default function Possessori() {
         <Button variant="primary" onClick={handleSearch} disabled={query.length < 2}>
           Cerca
         </Button>
+        <Button onClick={() => setShowNuovo(true)}>+ Nuovo</Button>
       </div>
 
       <div
