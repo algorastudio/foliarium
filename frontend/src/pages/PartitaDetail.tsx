@@ -3,9 +3,10 @@ import { useParams, useNavigate } from 'react-router-dom'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import {
   getPartita, addImmobile, deleteImmobile, addVariazione, deleteVariazione,
-  searchPossessori, addPossessoreToPartita, removePossessoreFromPartita,
-  type Immobile, type Variazione, type Possessore_PP, type Possessore,
+  searchPossessori, addPossessoreToPartita, removePossessoreFromPartita, patchPartita,
+  type Immobile, type Variazione, type Possessore_PP, type Possessore, type PartitaDetail,
   type AddImmobilePayload, type AddVariazionePayload, type AddPossessoreToPartitaPayload,
+  type PatchPartitaPayload,
 } from '../api/client'
 import { Card, StatusChip, MiniTag, SectionHeader, Button } from '../components/ui'
 
@@ -635,6 +636,106 @@ function VariazioniTab({
   )
 }
 
+// ── Modifica partita modal ─────────────────────────────────────────────────
+
+function ModificaPartitaModal({
+  partita,
+  onClose,
+  onSaved,
+}: {
+  partita: PartitaDetail
+  onClose: () => void
+  onSaved: () => void
+}) {
+  const [stato, setStato] = useState(partita.stato ?? 'attiva')
+  const [dataChiusura, setDataChiusura] = useState(partita.data_chiusura?.slice(0, 10) ?? '')
+  const [suffisso, setSuffisso] = useState(partita.suffisso_partita ?? '')
+  const [provenienza, setProvenienza] = useState(String(partita.numero_provenienza ?? ''))
+  const [error, setError] = useState<string | null>(null)
+
+  const mutation = useMutation({
+    mutationFn: (p: PatchPartitaPayload) => patchPartita(partita.id, p),
+    onSuccess: () => { onSaved(); onClose() },
+    onError: (e: Error) => setError(e.message),
+  })
+
+  const handleSubmit = (e: FormEvent) => {
+    e.preventDefault()
+    setError(null)
+    const chiusa = stato.toLowerCase() === 'chiusa'
+    mutation.mutate({
+      stato,
+      data_chiusura: chiusa ? (dataChiusura || null) : null,
+      suffisso_partita: suffisso.trim() || null,
+      numero_provenienza: provenienza ? Number(provenienza) : null,
+    })
+  }
+
+  const fs = {
+    width: '100%', padding: '7px 10px', border: '0.5px solid var(--border-md)',
+    borderRadius: 'var(--radius-md)', fontSize: 13, background: 'var(--surface)', color: 'var(--text)',
+  }
+  const ls = { fontSize: 12, color: 'var(--text-secondary)', display: 'block' as const, marginBottom: 4 }
+
+  return (
+    <div
+      style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.3)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 100 }}
+      onClick={(e) => e.target === e.currentTarget && onClose()}
+    >
+      <div style={{ background: 'var(--surface)', borderRadius: 'var(--radius-lg)', padding: 24, width: 400, maxWidth: '95vw', boxShadow: '0 8px 32px rgba(0,0,0,0.16)' }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
+          <span style={{ fontSize: 15, fontWeight: 500 }}>
+            Modifica partita {partita.numero_partita}
+          </span>
+          <button onClick={onClose} style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 18, color: 'var(--text-secondary)', lineHeight: 1 }}>×</button>
+        </div>
+        <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+            <div>
+              <label style={ls}>Stato</label>
+              <select style={fs} value={stato} onChange={(e) => setStato(e.target.value)}>
+                <option value="attiva">Attiva</option>
+                <option value="chiusa">Chiusa</option>
+              </select>
+            </div>
+            <div>
+              <label style={ls}>Data chiusura</label>
+              <input
+                type="date"
+                style={{ ...fs, opacity: stato.toLowerCase() !== 'chiusa' ? 0.4 : 1 }}
+                value={dataChiusura}
+                onChange={(e) => setDataChiusura(e.target.value)}
+                disabled={stato.toLowerCase() !== 'chiusa'}
+              />
+            </div>
+          </div>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+            <div>
+              <label style={ls}>Suffisso partita</label>
+              <input style={fs} value={suffisso} onChange={(e) => setSuffisso(e.target.value)} placeholder="es. A" />
+            </div>
+            <div>
+              <label style={ls}>N. provenienza</label>
+              <input type="number" style={fs} value={provenienza} onChange={(e) => setProvenienza(e.target.value)} placeholder="es. 1234" />
+            </div>
+          </div>
+          {error && (
+            <div style={{ fontSize: 12, color: 'var(--coral-text)', padding: '6px 10px', background: 'var(--coral-light)', borderRadius: 6 }}>
+              {error}
+            </div>
+          )}
+          <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end', marginTop: 4 }}>
+            <Button onClick={onClose}>Annulla</Button>
+            <Button variant="primary" type="submit" disabled={mutation.isPending}>
+              {mutation.isPending ? 'Salvataggio…' : 'Salva modifiche'}
+            </Button>
+          </div>
+        </form>
+      </div>
+    </div>
+  )
+}
+
 // ── Main page ─────────────────────────────────────────────────────────────
 
 export default function PartitaDetail() {
@@ -643,6 +744,7 @@ export default function PartitaDetail() {
   const qc = useQueryClient()
   const [tab, setTab] = useState<Tab>('possessori')
 
+  const [showModifica, setShowModifica] = useState(false)
   const partitaId = Number(id)
   const { data, isLoading, isError } = useQuery({
     queryKey: ['partita', partitaId],
@@ -678,6 +780,13 @@ export default function PartitaDetail() {
 
   return (
     <div>
+      {showModifica && (
+        <ModificaPartitaModal
+          partita={d}
+          onClose={() => setShowModifica(false)}
+          onSaved={refresh}
+        />
+      )}
       {/* Breadcrumb */}
       <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 16 }}>
         <button
@@ -710,16 +819,28 @@ export default function PartitaDetail() {
               {d.numero_provenienza && ` · Provenienza: ${d.numero_provenienza}`}
             </div>
           </div>
-          <button
-            onClick={() => navigate(`/genealogia?partita_id=${d.id}`)}
-            style={{
-              fontSize: 12, padding: '5px 12px', borderRadius: 'var(--radius-md)',
-              background: 'var(--purple-light)', color: 'var(--purple-dark)',
-              border: '0.5px solid var(--purple-border)', cursor: 'pointer',
-            }}
-          >
-            Genealogia
-          </button>
+          <div style={{ display: 'flex', gap: 8 }}>
+            <button
+              onClick={() => setShowModifica(true)}
+              style={{
+                fontSize: 12, padding: '5px 12px', borderRadius: 'var(--radius-md)',
+                background: 'var(--surface)', color: 'var(--text)',
+                border: '0.5px solid var(--border-md)', cursor: 'pointer',
+              }}
+            >
+              Modifica
+            </button>
+            <button
+              onClick={() => navigate(`/genealogia?partita_id=${d.id}`)}
+              style={{
+                fontSize: 12, padding: '5px 12px', borderRadius: 'var(--radius-md)',
+                background: 'var(--purple-light)', color: 'var(--purple-dark)',
+                border: '0.5px solid var(--purple-border)', cursor: 'pointer',
+              }}
+            >
+              Genealogia
+            </button>
+          </div>
         </div>
 
         <div style={{ display: 'flex', gap: 16, marginTop: 14, paddingTop: 12, borderTop: '0.5px solid var(--border)' }}>

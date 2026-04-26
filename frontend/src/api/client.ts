@@ -159,6 +159,20 @@ export const createPartita = (payload: CreatePartitaPayload) =>
     body: JSON.stringify(payload),
   })
 
+export interface PatchPartitaPayload {
+  stato?: string
+  data_chiusura?: string | null
+  suffisso_partita?: string | null
+  numero_provenienza?: number | null
+  tipo?: string
+}
+
+export const patchPartita = (id: number, payload: PatchPartitaPayload) =>
+  request<{ ok: boolean }>(`/partite/${id}`, {
+    method: 'PATCH',
+    body: JSON.stringify(payload),
+  })
+
 export interface AddImmobilePayload {
   localita_nome: string
   tipologia_stradale?: string

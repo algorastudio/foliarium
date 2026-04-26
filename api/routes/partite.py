@@ -49,6 +49,14 @@ class AggiungiPossessoreRequest(BaseModel):
     tipo_partita: Optional[str] = None  # 'principale' o 'secondaria'; default = tipo della partita
 
 
+class PatchPartitaRequest(BaseModel):
+    stato: Optional[str] = None
+    data_chiusura: Optional[date] = None
+    suffisso_partita: Optional[str] = None
+    numero_provenienza: Optional[int] = None
+    tipo: Optional[str] = None
+
+
 @router.get("")
 def search_partite(
     comune_id: Optional[int] = Query(None),
@@ -77,6 +85,23 @@ def get_partita(partita_id: int, session=Depends(get_current_session), db=Depend
     if detail is None:
         raise HTTPException(status_code=404, detail="Partita non trovata")
     return detail
+
+
+@router.patch("/{partita_id}")
+def patch_partita(
+    partita_id: int,
+    req: PatchPartitaRequest,
+    session=Depends(get_current_session),
+    db=Depends(get_db),
+):
+    dati = req.model_dump(exclude_unset=True)
+    if not dati:
+        raise HTTPException(status_code=422, detail="Nessun campo fornito.")
+    try:
+        db.update_partita(partita_id, dati)
+    except DBMError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    return {"ok": True}
 
 
 @router.post("", status_code=201)

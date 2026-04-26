@@ -1,4 +1,4 @@
-import { useState, useMemo, type FormEvent } from 'react'
+import { useState, useMemo, useEffect, type FormEvent } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { useNavigate } from 'react-router-dom'
 import {
@@ -251,6 +251,28 @@ function NuovaPartitaModal({ onClose }: { onClose: () => void }) {
 
 // ── Main page ─────────────────────────────────────────────────────────────
 
+const PAGE_SIZE = 25
+
+function exportCsv(rows: Partita[]) {
+  const header = ['ID', 'Comune', 'N. Partita', 'Suffisso', 'Tipo', 'Stato', 'Data impianto']
+  const lines = rows.map((r) => [
+    r.id,
+    r.comune_nome,
+    r.numero_partita,
+    r.suffisso_partita ?? '',
+    r.tipo,
+    r.stato,
+    r.data_impianto ? r.data_impianto.slice(0, 10) : '',
+  ].map(String).join(';'))
+  const csv = [header.join(';'), ...lines].join('\n')
+  const url = URL.createObjectURL(new Blob([csv], { type: 'text/csv;charset=utf-8;' }))
+  const a = document.createElement('a')
+  a.href = url
+  a.download = `partite_${new Date().toISOString().slice(0, 10)}.csv`
+  a.click()
+  URL.revokeObjectURL(url)
+}
+
 export default function Archivio() {
   const navigate = useNavigate()
   const [comuneId, setComuneId] = useState<number | undefined>(undefined)
@@ -260,6 +282,7 @@ export default function Archivio() {
   const [tipoFiltro, setTipoFiltro] = useState('tutti')
   const [submitted, setSubmitted] = useState(false)
   const [showNuova, setShowNuova] = useState(false)
+  const [page, setPage] = useState(1)
 
   const { data: comuni } = useQuery({ queryKey: ['comuni'], queryFn: getComuni })
 
@@ -288,8 +311,14 @@ export default function Archivio() {
     })
   }, [results, periodo, tipoFiltro])
 
+  useEffect(() => { setPage(1) }, [periodo, tipoFiltro, results])
+
+  const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE))
+  const pageSlice = filtered.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE)
+
   const handleSearch = (e: FormEvent) => {
     e.preventDefault()
+    setPage(1)
     setSubmitted(true)
   }
 
@@ -327,6 +356,9 @@ export default function Archivio() {
           Cerca
         </Button>
         <Button onClick={() => setShowNuova(true)}>+ Nuova</Button>
+        {submitted && filtered.length > 0 && (
+          <Button onClick={() => exportCsv(filtered)}>↓ CSV</Button>
+        )}
       </div>
 
       {/* Filter chips */}
@@ -368,9 +400,42 @@ export default function Archivio() {
         </Card>
       )}
       {submitted && !isLoading && filtered.length > 0 && (
-        <Card style={{ padding: 0, overflow: 'hidden' }}>
-          <ResultTable data={filtered} onRowClick={(p) => navigate(`/partite/${p.id}`)} />
-        </Card>
+        <>
+          <Card style={{ padding: 0, overflow: 'hidden' }}>
+            <ResultTable data={pageSlice} onRowClick={(p) => navigate(`/partite/${p.id}`)} />
+          </Card>
+          {totalPages > 1 && (
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 12, marginTop: 12 }}>
+              <button
+                onClick={() => setPage((p) => Math.max(1, p - 1))}
+                disabled={page === 1}
+                style={{
+                  fontSize: 12, padding: '4px 12px', borderRadius: 'var(--radius-md)',
+                  border: '0.5px solid var(--border-md)', background: 'var(--surface)',
+                  cursor: page === 1 ? 'default' : 'pointer',
+                  opacity: page === 1 ? 0.4 : 1, color: 'var(--text)',
+                }}
+              >
+                ← Prec
+              </button>
+              <span style={{ fontSize: 12, color: 'var(--text-secondary)' }}>
+                Pagina {page} di {totalPages}
+              </span>
+              <button
+                onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+                disabled={page === totalPages}
+                style={{
+                  fontSize: 12, padding: '4px 12px', borderRadius: 'var(--radius-md)',
+                  border: '0.5px solid var(--border-md)', background: 'var(--surface)',
+                  cursor: page === totalPages ? 'default' : 'pointer',
+                  opacity: page === totalPages ? 0.4 : 1, color: 'var(--text)',
+                }}
+              >
+                Succ →
+              </button>
+            </div>
+          )}
+        </>
       )}
     </div>
   )
