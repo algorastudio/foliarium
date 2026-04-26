@@ -30,7 +30,7 @@ def _init_db_from_config():
     from catasto_db_manager import CatastoDBManager
     import config as cfg
 
-    # Schema: usa env var FOLIARIUM_DB_SCHEMA, oppure il valore in config.ini, oppure 'catasto' di default
+    # Schema: env var FOLIARIUM_DB_SCHEMA → config.ini [database].schema → 'catasto' di default
     schema = os.environ.get("FOLIARIUM_DB_SCHEMA")
     if not schema:
         try:
@@ -38,12 +38,25 @@ def _init_db_from_config():
         except Exception:
             schema = ""
     if not schema:
-        schema = "catasto"  # default coerente con i bootstrap script (07a_bootstrap_admin.sql)
+        schema = "catasto"  # coerente con il bootstrap script (07a_bootstrap_admin.sql)
+
+    # Password: config.ini / env var → keyring di sistema (stessa fonte usata da gui_main.py)
+    password = cfg.ENV_DB_PASS
+    if not password:
+        try:
+            from app_utils import get_password_from_keyring
+            password = get_password_from_keyring(
+                f"foliarium_db_{cfg.ENV_DB_HOST}", cfg.ENV_DB_USER
+            ) or ""
+            if password:
+                logger.info("Password DB letta dal keyring di sistema.")
+        except Exception as e:
+            logger.warning("Lettura password dal keyring fallita: %s", e)
 
     mgr = CatastoDBManager(
         dbname=cfg.ENV_DB_NAME,
         user=cfg.ENV_DB_USER,
-        password=cfg.ENV_DB_PASS,
+        password=password,
         host=cfg.ENV_DB_HOST,
         port=cfg.ENV_DB_PORT,
         schema=schema,
