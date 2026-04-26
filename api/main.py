@@ -29,16 +29,28 @@ def _init_db_from_config():
     from api.deps import set_db_manager
     from catasto_db_manager import CatastoDBManager
     import config as cfg
+
+    # Schema: usa env var FOLIARIUM_DB_SCHEMA, oppure il valore in config.ini, oppure 'catasto' di default
+    schema = os.environ.get("FOLIARIUM_DB_SCHEMA")
+    if not schema:
+        try:
+            schema = cfg._ini_get("database", "schema", "")
+        except Exception:
+            schema = ""
+    if not schema:
+        schema = "catasto"  # default coerente con i bootstrap script (07a_bootstrap_admin.sql)
+
     mgr = CatastoDBManager(
         dbname=cfg.ENV_DB_NAME,
         user=cfg.ENV_DB_USER,
         password=cfg.ENV_DB_PASS,
         host=cfg.ENV_DB_HOST,
         port=cfg.ENV_DB_PORT,
-        schema="public",
+        schema=schema,
     )
     set_db_manager(mgr)
-    logger.info("DB manager inizializzato da config: %s@%s/%s", cfg.ENV_DB_USER, cfg.ENV_DB_HOST, cfg.ENV_DB_NAME)
+    logger.info("DB manager inizializzato: %s@%s/%s schema=%s",
+                cfg.ENV_DB_USER, cfg.ENV_DB_HOST, cfg.ENV_DB_NAME, schema)
 
 
 def create_app(db_manager=None) -> FastAPI:
