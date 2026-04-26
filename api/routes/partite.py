@@ -42,6 +42,13 @@ class NuovaVariazioneRequest(BaseModel):
     nominativo_riferimento: Optional[str] = None
 
 
+class AggiungiPossessoreRequest(BaseModel):
+    possessore_id: int
+    titolo: str = "proprietà esclusiva"
+    quota: Optional[str] = None
+    tipo_partita: Optional[str] = None  # 'principale' o 'secondaria'; default = tipo della partita
+
+
 @router.get("")
 def search_partite(
     comune_id: Optional[int] = Query(None),
@@ -187,3 +194,63 @@ def remove_variazione(
     ok = db.delete_variazione(variazione_id)
     if not ok:
         raise HTTPException(status_code=404, detail="Variazione non trovata")
+
+
+@router.post("/{partita_id}/possessori", status_code=201)
+def add_possessore_to_partita(
+    partita_id: int,
+    req: AggiungiPossessoreRequest,
+    session=Depends(get_current_session),
+    db=Depends(get_db),
+):
+    schema = db.schema
+    # Determina tipo_partita di default dalla partita stessa
+    tipo_rel = (req.tipo_partita or "").strip().lower() or None
+    if tipo_rel is None:
+        with db._get_connection() as conn:
+            with conn.cursor(cursor_factory=psycopg2.extras.DictCursor) as cur:
+                cur.execute(f"SELECT tipo FROM {schema}.partita WHERE id = %s", (partita_id,))
+                row = cur.fetchone()
+                if row is None:
+                    raise HTTPException(status_code=404, detail="Partita non trovata")
+                tipo_rel = (row["tipo"] or "principale").lower()
+
+    if tipo_rel not in ("principale", "secondaria"):
+        raise HTTPException(status_code=422, detail="tipo_partita deve essere 'principale' o 'secondaria'")
+
+    try:
+        db.aggiungi_possessore_a_partita(
+            partita_id=partita_id,
+            possessore_id=req.possessore_id,
+            tipo_partita_rel=tipo_rel,
+            titolo=req.titolo,
+            quota=req.quota,
+        )
+    except DBMError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    return {"ok": True}
+
+
+@router.delete("/{partita_id}/possessori/{possessore_id}", status_code=204)
+def remove_possessore_from_partita(
+    partita_id: int,
+    possessore_id: int,
+    session=Depends(get_current_session),
+    db=Depends(get_db),
+):
+    schema = db.schema
+    with db._get_connection() as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                f"SELECT id FROM {schema}.partita_possessore WHERE partita_id = %s AND possessore_id = %s",
+                (partita_id, possessore_id),
+            )
+            row = cur.fetchone()
+            if row is None:
+                raise HTTPException(status_code=404, detail="Legame partita-possessore non trovato")
+            relazione_id = row[0]
+
+    try:
+        db.rimuovi_possessore_da_partita(relazione_id)
+    except DBMError as e:
+        raise HTTPException(status_code=400, detail=str(e))

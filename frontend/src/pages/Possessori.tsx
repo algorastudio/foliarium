@@ -1,5 +1,5 @@
-import { useState, type FormEvent } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useState, useEffect, type FormEvent } from 'react'
+import { useNavigate, useSearchParams } from 'react-router-dom'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import {
   searchPossessori, getPossessore, getComuni, createPossessore,
@@ -216,10 +216,19 @@ function NuovoPossessoreModal({ onClose, onCreated }: { onClose: () => void; onC
 
 export default function Possessori() {
   const qc = useQueryClient()
+  const [searchParams] = useSearchParams()
   const [query, setQuery] = useState('')
   const [submitted, setSubmitted] = useState(false)
   const [selectedId, setSelectedId] = useState<number | null>(null)
   const [showNuovo, setShowNuovo] = useState(false)
+
+  // Deep-link: /possessori?id=N apre direttamente la scheda
+  useEffect(() => {
+    const idParam = searchParams.get('id')
+    if (idParam && !isNaN(Number(idParam))) {
+      setSelectedId(Number(idParam))
+    }
+  }, [searchParams])
 
   const { data: results, isLoading } = useQuery({
     queryKey: ['possessori-search', query],

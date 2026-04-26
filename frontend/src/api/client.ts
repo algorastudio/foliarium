@@ -195,6 +195,22 @@ export const addVariazione = (partitaId: number, payload: AddVariazionePayload) 
 export const deleteVariazione = (partitaId: number, variazioneId: number) =>
   request<void>(`/partite/${partitaId}/variazioni/${variazioneId}`, { method: 'DELETE' })
 
+export interface AddPossessoreToPartitaPayload {
+  possessore_id: number
+  titolo?: string
+  quota?: string
+  tipo_partita?: 'principale' | 'secondaria'
+}
+
+export const addPossessoreToPartita = (partitaId: number, payload: AddPossessoreToPartitaPayload) =>
+  request<{ ok: boolean }>(`/partite/${partitaId}/possessori`, {
+    method: 'POST',
+    body: JSON.stringify(payload),
+  })
+
+export const removePossessoreFromPartita = (partitaId: number, possessoreId: number) =>
+  request<void>(`/partite/${partitaId}/possessori/${possessoreId}`, { method: 'DELETE' })
+
 export interface CreatePossessorePayload {
   nome_completo: string
   cognome_nome?: string

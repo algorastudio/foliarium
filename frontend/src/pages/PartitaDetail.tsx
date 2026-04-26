@@ -3,8 +3,9 @@ import { useParams, useNavigate } from 'react-router-dom'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import {
   getPartita, addImmobile, deleteImmobile, addVariazione, deleteVariazione,
-  type Immobile, type Variazione, type Possessore_PP,
-  type AddImmobilePayload, type AddVariazionePayload,
+  searchPossessori, addPossessoreToPartita, removePossessoreFromPartita,
+  type Immobile, type Variazione, type Possessore_PP, type Possessore,
+  type AddImmobilePayload, type AddVariazionePayload, type AddPossessoreToPartitaPayload,
 } from '../api/client'
 import { Card, StatusChip, MiniTag, SectionHeader, Button } from '../components/ui'
 
@@ -26,28 +27,282 @@ function StatoBadge({ stato }: { stato: string }) {
 
 // ── Possessori tab ─────────────────────────────────────────────────────────
 
-function PossessoriTab({ rows }: { rows: Possessore_PP[] }) {
-  if (rows.length === 0)
-    return <p style={{ fontSize: 12, color: 'var(--text-secondary)' }}>Nessun possessore associato.</p>
+const TITOLI_COMUNI = [
+  'proprietà esclusiva',
+  'comproprietà',
+  'usufrutto',
+  'nuda proprietà',
+  'enfiteusi',
+  'altro',
+]
+
+function PossessoreSearch({
+  excludeIds,
+  onPick,
+}: {
+  excludeIds: number[]
+  onPick: (p: Possessore) => void
+}) {
+  const [query, setQuery] = useState('')
+  const enabled = query.trim().length >= 2
+  const { data, isFetching } = useQuery({
+    queryKey: ['possessori-search', query],
+    queryFn: () => searchPossessori(query),
+    enabled,
+    staleTime: 10_000,
+  })
+
+  const filtered = (data ?? []).filter((p) => !excludeIds.includes(p.id))
+
   return (
-    <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
-      <thead>
-        <tr style={{ borderBottom: '0.5px solid var(--border)' }}>
-          {['Nome completo', 'Titolo', 'Quota'].map((h) => (
-            <th key={h} style={{ textAlign: 'left', padding: '6px 8px', fontWeight: 500, color: 'var(--text-secondary)', fontSize: 12 }}>{h}</th>
+    <div style={{ position: 'relative' }}>
+      <input
+        value={query}
+        onChange={(e) => setQuery(e.target.value)}
+        placeholder="Cerca per cognome, nome o paternità (min 2 caratteri)…"
+        style={{
+          width: '100%', padding: '6px 9px', border: '0.5px solid var(--border-md)',
+          borderRadius: 'var(--radius-md)', fontSize: 13, background: 'var(--surface)', color: 'var(--text)',
+        }}
+      />
+      {enabled && (
+        <div style={{
+          position: 'absolute', top: '100%', left: 0, right: 0, marginTop: 4, zIndex: 10,
+          background: 'var(--surface)', border: '0.5px solid var(--border)',
+          borderRadius: 'var(--radius-md)', boxShadow: '0 4px 16px rgba(0,0,0,0.08)',
+          maxHeight: 240, overflowY: 'auto',
+        }}>
+          {isFetching && (
+            <div style={{ padding: '8px 10px', fontSize: 12, color: 'var(--text-secondary)' }}>
+              Ricerca…
+            </div>
+          )}
+          {!isFetching && filtered.length === 0 && (
+            <div style={{ padding: '8px 10px', fontSize: 12, color: 'var(--text-secondary)' }}>
+              Nessun possessore trovato.
+            </div>
+          )}
+          {!isFetching && filtered.map((p) => (
+            <div
+              key={p.id}
+              onClick={() => { onPick(p); setQuery('') }}
+              style={{
+                padding: '8px 10px', fontSize: 13, cursor: 'pointer',
+                borderBottom: '0.5px solid var(--border)',
+              }}
+              onMouseEnter={(e) => (e.currentTarget.style.background = 'var(--purple-light)')}
+              onMouseLeave={(e) => (e.currentTarget.style.background = '')}
+            >
+              <div style={{ fontWeight: 500 }}>{p.nome_completo}</div>
+              {p.paternita && (
+                <div style={{ fontSize: 11, color: 'var(--text-secondary)', marginTop: 1 }}>
+                  fu {p.paternita}
+                </div>
+              )}
+            </div>
           ))}
-        </tr>
-      </thead>
-      <tbody>
-        {rows.map((p) => (
-          <tr key={p.id} style={{ borderBottom: '0.5px solid var(--border)' }}>
-            <td style={{ padding: '8px 8px', fontWeight: 500 }}>{p.nome_completo}</td>
-            <td style={{ padding: '8px 8px', color: 'var(--text-secondary)' }}>{p.titolo ?? '—'}</td>
-            <td style={{ padding: '8px 8px', color: 'var(--text-secondary)' }}>{p.quota ?? '—'}</td>
-          </tr>
-        ))}
-      </tbody>
-    </table>
+        </div>
+      )}
+    </div>
+  )
+}
+
+function AddPossessoreForm({
+  partitaId,
+  excludeIds,
+  partitaTipo,
+  onSuccess,
+}: {
+  partitaId: number
+  excludeIds: number[]
+  partitaTipo: string
+  onSuccess: () => void
+}) {
+  const [open, setOpen] = useState(false)
+  const [picked, setPicked] = useState<Possessore | null>(null)
+  const [titolo, setTitolo] = useState('proprietà esclusiva')
+  const [quota, setQuota] = useState('')
+  const [error, setError] = useState<string | null>(null)
+
+  const tipoRel = (partitaTipo || 'principale').toLowerCase() as 'principale' | 'secondaria'
+
+  const mutation = useMutation({
+    mutationFn: (p: AddPossessoreToPartitaPayload) => addPossessoreToPartita(partitaId, p),
+    onSuccess: () => {
+      setOpen(false); setPicked(null); setTitolo('proprietà esclusiva'); setQuota(''); setError(null)
+      onSuccess()
+    },
+    onError: (e: Error) => setError(e.message),
+  })
+
+  const handleSubmit = (e: FormEvent) => {
+    e.preventDefault()
+    setError(null)
+    if (!picked) return setError('Seleziona prima un possessore.')
+    mutation.mutate({
+      possessore_id: picked.id,
+      titolo: titolo.trim() || 'proprietà esclusiva',
+      quota: quota.trim() || undefined,
+      tipo_partita: tipoRel,
+    })
+  }
+
+  if (!open) {
+    return <Button onClick={() => setOpen(true)} style={{ marginTop: 10 }}>+ Aggiungi possessore</Button>
+  }
+
+  return (
+    <form
+      onSubmit={handleSubmit}
+      style={{ marginTop: 14, padding: 14, background: 'var(--bg-tertiary)', borderRadius: 'var(--radius-md)', border: '0.5px solid var(--border)' }}
+    >
+      <div style={{ fontSize: 13, fontWeight: 500, marginBottom: 10 }}>Associa possessore esistente</div>
+
+      {!picked && (
+        <div style={{ marginBottom: 10 }}>
+          <label style={{ fontSize: 11, color: 'var(--text-secondary)', display: 'block', marginBottom: 3 }}>
+            Possessore *
+          </label>
+          <PossessoreSearch excludeIds={excludeIds} onPick={setPicked} />
+        </div>
+      )}
+
+      {picked && (
+        <div style={{
+          marginBottom: 10, padding: '8px 10px', background: 'var(--purple-light)',
+          border: '0.5px solid var(--purple-border)', borderRadius: 'var(--radius-md)',
+          display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+        }}>
+          <div>
+            <div style={{ fontSize: 13, fontWeight: 500, color: 'var(--purple-dark)' }}>
+              {picked.nome_completo}
+            </div>
+            {picked.paternita && (
+              <div style={{ fontSize: 11, color: 'var(--text-secondary)', marginTop: 1 }}>
+                fu {picked.paternita}
+              </div>
+            )}
+          </div>
+          <button
+            type="button"
+            onClick={() => setPicked(null)}
+            style={{
+              fontSize: 11, color: 'var(--purple-dark)', background: 'none',
+              border: 'none', cursor: 'pointer',
+            }}
+          >
+            Cambia
+          </button>
+        </div>
+      )}
+
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginBottom: 10 }}>
+        <div>
+          <label style={{ fontSize: 11, color: 'var(--text-secondary)', display: 'block', marginBottom: 3 }}>Titolo *</label>
+          <input
+            list="titoli-comuni"
+            value={titolo}
+            onChange={(e) => setTitolo(e.target.value)}
+            style={{
+              width: '100%', padding: '6px 9px', border: '0.5px solid var(--border-md)',
+              borderRadius: 'var(--radius-md)', fontSize: 13, background: 'var(--surface)', color: 'var(--text)',
+            }}
+          />
+          <datalist id="titoli-comuni">
+            {TITOLI_COMUNI.map((t) => <option key={t} value={t} />)}
+          </datalist>
+        </div>
+        <div>
+          <label style={{ fontSize: 11, color: 'var(--text-secondary)', display: 'block', marginBottom: 3 }}>Quota</label>
+          <input
+            value={quota}
+            onChange={(e) => setQuota(e.target.value)}
+            placeholder="es. 1/2"
+            style={{
+              width: '100%', padding: '6px 9px', border: '0.5px solid var(--border-md)',
+              borderRadius: 'var(--radius-md)', fontSize: 13, background: 'var(--surface)', color: 'var(--text)',
+            }}
+          />
+        </div>
+      </div>
+
+      {error && <div style={{ fontSize: 12, color: 'var(--coral-text)', marginBottom: 8 }}>{error}</div>}
+
+      <div style={{ display: 'flex', gap: 8 }}>
+        <Button variant="primary" type="submit" disabled={mutation.isPending || !picked}>
+          {mutation.isPending ? 'Associazione…' : 'Associa'}
+        </Button>
+        <Button onClick={() => { setOpen(false); setPicked(null); setError(null) }}>Annulla</Button>
+      </div>
+    </form>
+  )
+}
+
+function PossessoriTab({
+  rows,
+  partitaId,
+  partitaTipo,
+  onRefresh,
+}: {
+  rows: Possessore_PP[]
+  partitaId: number
+  partitaTipo: string
+  onRefresh: () => void
+}) {
+  const navigate = useNavigate()
+  const deleteMutation = useMutation({
+    mutationFn: (possessoreId: number) => removePossessoreFromPartita(partitaId, possessoreId),
+    onSuccess: onRefresh,
+  })
+
+  return (
+    <div>
+      {rows.length === 0 ? (
+        <p style={{ fontSize: 12, color: 'var(--text-secondary)' }}>Nessun possessore associato.</p>
+      ) : (
+        <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
+          <thead>
+            <tr style={{ borderBottom: '0.5px solid var(--border)' }}>
+              {['Nome completo', 'Titolo', 'Quota', ''].map((h) => (
+                <th key={h} style={{ textAlign: 'left', padding: '6px 8px', fontWeight: 500, color: 'var(--text-secondary)', fontSize: 12 }}>{h}</th>
+              ))}
+            </tr>
+          </thead>
+          <tbody>
+            {rows.map((p) => (
+              <tr key={p.id} style={{ borderBottom: '0.5px solid var(--border)' }}>
+                <td style={{ padding: '8px 8px', fontWeight: 500 }}>
+                  <span
+                    onClick={() => navigate(`/possessori?id=${p.id}`)}
+                    style={{ color: 'var(--purple)', cursor: 'pointer', textDecoration: 'underline' }}
+                    title="Apri scheda possessore"
+                  >
+                    {p.nome_completo}
+                  </span>
+                </td>
+                <td style={{ padding: '8px 8px', color: 'var(--text-secondary)' }}>{p.titolo ?? '—'}</td>
+                <td style={{ padding: '8px 8px', color: 'var(--text-secondary)' }}>{p.quota ?? '—'}</td>
+                <td style={{ padding: '8px 4px', textAlign: 'right' }}>
+                  <button
+                    onClick={() => deleteMutation.mutate(p.id)}
+                    disabled={deleteMutation.isPending}
+                    style={{ fontSize: 11, color: 'var(--coral-text)', background: 'none', border: 'none', cursor: 'pointer', padding: '2px 6px' }}
+                  >
+                    Rimuovi
+                  </button>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      )}
+      <AddPossessoreForm
+        partitaId={partitaId}
+        excludeIds={rows.map((r) => r.id)}
+        partitaTipo={partitaTipo}
+        onSuccess={onRefresh}
+      />
+    </div>
   )
 }
 
@@ -510,7 +765,9 @@ export default function PartitaDetail() {
       {/* Tab content */}
       <Card>
         <SectionHeader title={TAB_LABELS[tab]} right={<MiniTag>ID partita: {d.id}</MiniTag>} />
-        {tab === 'possessori' && <PossessoriTab rows={d.possessori} />}
+        {tab === 'possessori' && (
+          <PossessoriTab rows={d.possessori} partitaId={d.id} partitaTipo={d.tipo} onRefresh={refresh} />
+        )}
         {tab === 'immobili' && <ImmobiliTab rows={d.immobili} partitaId={d.id} onRefresh={refresh} />}
         {tab === 'variazioni' && <VariazioniTab rows={d.variazioni} partitaId={d.id} onRefresh={refresh} />}
       </Card>
