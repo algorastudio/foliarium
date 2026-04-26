@@ -48,6 +48,10 @@ def _init_db_from_config():
         port=cfg.ENV_DB_PORT,
         schema=schema,
     )
+    # Inizializza il pool di connessioni (altrimenti tutte le query falliscono
+    # con "Il pool di connessioni non è inizializzato.")
+    if not mgr.initialize_main_pool():
+        logger.error("Inizializzazione del pool di connessioni fallita.")
     set_db_manager(mgr)
     logger.info("DB manager inizializzato: %s@%s/%s schema=%s",
                 cfg.ENV_DB_USER, cfg.ENV_DB_HOST, cfg.ENV_DB_NAME, schema)
