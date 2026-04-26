@@ -61,10 +61,21 @@ def _init_db_from_config():
         port=cfg.ENV_DB_PORT,
         schema=schema,
     )
-    # Inizializza il pool di connessioni (altrimenti tutte le query falliscono
-    # con "Il pool di connessioni non è inizializzato.")
-    if not mgr.initialize_main_pool():
-        logger.error("Inizializzazione del pool di connessioni fallita.")
+    # Retry-loop sull'inizializzazione del pool: in scenari come docker-compose
+    # il container app può partire prima che il container db abbia completato
+    # gli script SQL di bootstrap, quindi tentiamo per ~60s.
+    import time
+    deadline = time.monotonic() + 60.0
+    attempt = 0
+    while True:
+        attempt += 1
+        if mgr.initialize_main_pool():
+            break
+        if time.monotonic() >= deadline:
+            logger.error("Pool DB non inizializzato dopo 60s — l'API risponderà 503 finché il DB non è raggiungibile.")
+            break
+        logger.warning("Pool DB non pronto (tentativo %d), retry tra 2s…", attempt)
+        time.sleep(2.0)
     set_db_manager(mgr)
     logger.info("DB manager inizializzato: %s@%s/%s schema=%s",
                 cfg.ENV_DB_USER, cfg.ENV_DB_HOST, cfg.ENV_DB_NAME, schema)
