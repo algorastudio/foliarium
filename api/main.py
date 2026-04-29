@@ -32,7 +32,7 @@ def _init_db_from_env():
     password = os.environ.get("DB_PASS", "postgres")
     dbname = os.environ.get("DB_NAME", "catasto_storico")
     port = int(os.environ.get("DB_PORT", "5432"))
-    schema = os.environ.get("DB_SCHEMA", "public")
+    schema = os.environ.get("DB_SCHEMA", "catasto")
     mgr = CatastoDBManager(dbname=dbname, user=user, password=password,
                            host=host, port=port, schema=schema)
     ok = mgr.initialize_main_pool()
