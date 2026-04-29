@@ -206,3 +206,84 @@ export const getAuditLog = (params: {
 }
 
 export const getAuditSummary = () => request<AuditSummary>('/audit/summary')
+
+// ── Partita detail ─────────────────────────────────────────────────────────
+
+export interface PossessoreRef {
+  id: number
+  nome_completo: string
+  titolo: string
+  quota: string | null
+}
+
+export interface ImmobileRef {
+  id: number
+  natura: string
+  numero_piani: number | null
+  numero_vani: number | null
+  consistenza: string | null
+  classificazione: string | null
+  localita_nome: string
+  tipologia_stradale: string | null
+}
+
+export interface VariazioneRef {
+  id: number
+  tipo_variazione: string
+  data_variazione: string | null
+  causa: string | null
+  note: string | null
+  origine_numero_partita: number | null
+  destinazione_numero_partita: number | null
+}
+
+export interface PartitaDetail {
+  id: number
+  numero_partita: number
+  suffisso_partita: string | null
+  tipo: string
+  stato: string
+  data_impianto: string | null
+  data_chiusura: string | null
+  comune_nome: string
+  comune_id: number
+  numero_provenienza: number | null
+  possessori: PossessoreRef[]
+  immobili: ImmobileRef[]
+  variazioni: VariazioneRef[]
+}
+
+export const getPartitaDetail = (id: number) =>
+  request<PartitaDetail>(`/partite/${id}`)
+
+// ── Create ─────────────────────────────────────────────────────────────────
+
+export const createPartita = (data: {
+  comune_id: number
+  numero_partita: number
+  suffisso_partita?: string
+  data_impianto?: string
+  tipo?: string
+  stato?: string
+}) => request<{ id: number }>('/partite', { method: 'POST', body: JSON.stringify(data) })
+
+export const createPossessore = (data: {
+  nome_completo: string
+  cognome_nome?: string
+  paternita?: string
+  comune_riferimento_id: number
+}) => request<{ id: number }>('/possessori', { method: 'POST', body: JSON.stringify(data) })
+
+export const assegnaPossessore = (data: {
+  possessore_id: number
+  partita_id: number
+  titolo?: string
+  quota?: string
+}) => request<{ ok: boolean }>('/possessori/assegna', { method: 'POST', body: JSON.stringify(data) })
+
+export const createComune = (data: {
+  nome: string
+  provincia: string
+  regione: string
+  codice_catastale?: string
+}) => request<{ id: number }>('/comuni', { method: 'POST', body: JSON.stringify(data) })

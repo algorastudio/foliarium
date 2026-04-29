@@ -1,14 +1,24 @@
-"""api/routes/comuni.py — Elenco e dettaglio comuni."""
-from fastapi import APIRouter, Depends
+"""api/routes/comuni.py — Elenco, dettaglio e creazione comuni."""
+from typing import Optional
+from fastapi import APIRouter, Depends, HTTPException
+from pydantic import BaseModel
+
 from api.deps import get_db, get_current_session
+from catasto_exceptions import DBMError
 
 router = APIRouter(prefix="/comuni", tags=["comuni"])
+
+
+class NuovoComuneRequest(BaseModel):
+    nome: str
+    provincia: str
+    regione: str
+    codice_catastale: Optional[str] = None
 
 
 @router.get("")
 def list_comuni(session=Depends(get_current_session), db=Depends(get_db)):
     rows = db.get_elenco_comuni_semplice()
-    # rows è lista di tuple (id, nome, provincia, ...)
     result = []
     for r in rows:
         if isinstance(r, dict):
@@ -16,3 +26,22 @@ def list_comuni(session=Depends(get_current_session), db=Depends(get_db)):
         else:
             result.append({"id": r[0], "nome": r[1], "provincia": r[2] if len(r) > 2 else ""})
     return result
+
+
+@router.post("", status_code=201)
+def create_comune(req: NuovoComuneRequest, session=Depends(get_current_session), db=Depends(get_db)):
+    try:
+        cid = db.registra_comune_nel_db(
+            nome=req.nome,
+            provincia=req.provincia,
+            regione=req.regione,
+        )
+        if cid is None:
+            raise HTTPException(status_code=400, detail="Comune già esistente o errore di inserimento")
+        return {"id": cid}
+    except HTTPException:
+        raise
+    except DBMError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))

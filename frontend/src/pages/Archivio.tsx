@@ -4,6 +4,7 @@ import {
   searchPartite,
   getComuni,
   getPartitaTimeline,
+  getPartitaDetail,
   type Partita,
 } from '../api/client'
 import {
@@ -97,64 +98,160 @@ function ResultRow({
   )
 }
 
-function Timeline({ partitaId }: { partitaId: number | null }) {
-  const { data, isLoading } = useQuery({
-    queryKey: ['timeline', partitaId],
-    queryFn: () => getPartitaTimeline(partitaId!),
-    enabled: partitaId !== null,
+function DetailPanel({ partita }: { partita: Partita | null }) {
+  const [subTab, setSubTab] = useState<'possessori' | 'immobili' | 'cronologia'>('possessori')
+
+  const { data: detail, isLoading } = useQuery({
+    queryKey: ['partita-detail', partita?.id],
+    queryFn: () => getPartitaDetail(partita!.id),
+    enabled: partita !== null,
   })
 
-  if (partitaId === null) {
+  const { data: timeline } = useQuery({
+    queryKey: ['timeline', partita?.id],
+    queryFn: () => getPartitaTimeline(partita!.id),
+    enabled: partita !== null && subTab === 'cronologia',
+  })
+
+  if (!partita) {
     return (
-      <Card title="Cronologia proprietà">
+      <Card title="Dettaglio partita">
         <p style={{ fontSize: 12, color: 'var(--text-secondary)' }}>
-          Seleziona una partita per visualizzare la cronologia.
+          Seleziona una partita dall'elenco per visualizzarne i dettagli.
         </p>
       </Card>
     )
   }
 
+  const year = getYear(partita)
+
   return (
-    <Card title={`Cronologia proprietà — Partita ${partitaId}`}>
-      {isLoading && (
-        <p style={{ fontSize: 12, color: 'var(--text-secondary)' }}>Caricamento…</p>
+    <div>
+      {/* Header partita */}
+      <Card>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+          <div>
+            <div style={{ fontSize: 15, fontWeight: 500, color: 'var(--text)' }}>
+              Partita {partita.numero_partita}
+              {partita.suffisso_partita ? `/${partita.suffisso_partita}` : ''}
+            </div>
+            <div style={{ fontSize: 12, color: 'var(--text-secondary)', marginTop: 3 }}>
+              {partita.comune_nome} · ID {partita.id}
+            </div>
+          </div>
+          <div style={{ display: 'flex', gap: 6 }}>
+            <span style={{
+              fontSize: 11, padding: '3px 8px', borderRadius: 4,
+              background: 'var(--purple-light)', color: 'var(--purple-dark)',
+            }}>
+              {year ?? '—'}
+            </span>
+            <span style={{
+              fontSize: 11, padding: '3px 8px', borderRadius: 4,
+              background: partita.stato === 'attiva' ? 'var(--green-light)' : 'var(--bg-secondary)',
+              color: partita.stato === 'attiva' ? 'var(--green-text)' : 'var(--text-secondary)',
+            }}>
+              {partita.stato}
+            </span>
+          </div>
+        </div>
+      </Card>
+
+      {/* Sub-tabs */}
+      <div style={{ display: 'flex', gap: 2, marginBottom: 10, borderBottom: '0.5px solid var(--border)' }}>
+        {(['possessori', 'immobili', 'cronologia'] as const).map((t) => (
+          <button key={t} onClick={() => setSubTab(t)} style={{
+            padding: '7px 12px', fontSize: 12, background: 'none', border: 'none',
+            borderBottom: subTab === t ? '2px solid var(--purple)' : '2px solid transparent',
+            color: subTab === t ? 'var(--text)' : 'var(--text-secondary)',
+            fontWeight: subTab === t ? 500 : 400, cursor: 'pointer', textTransform: 'capitalize',
+          }}>
+            {t}
+            {detail && t === 'possessori' && ` (${detail.possessori.length})`}
+            {detail && t === 'immobili' && ` (${detail.immobili.length})`}
+          </button>
+        ))}
+      </div>
+
+      {isLoading && <p style={{ fontSize: 12, color: 'var(--text-secondary)' }}>Caricamento…</p>}
+
+      {/* Possessori */}
+      {!isLoading && subTab === 'possessori' && detail && (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+          {detail.possessori.length === 0 && (
+            <p style={{ fontSize: 12, color: 'var(--text-secondary)' }}>Nessun possessore registrato.</p>
+          )}
+          {detail.possessori.map((p) => (
+            <div key={p.id} style={{
+              display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+              background: 'var(--surface)', borderRadius: 'var(--radius-md)',
+              border: '0.5px solid var(--border)', padding: '8px 12px',
+            }}>
+              <div>
+                <div style={{ fontSize: 13, fontWeight: 500, color: 'var(--text)' }}>{p.nome_completo}</div>
+                <div style={{ fontSize: 11, color: 'var(--text-secondary)' }}>{p.titolo}</div>
+              </div>
+              {p.quota && (
+                <span style={{
+                  fontSize: 12, padding: '2px 8px', borderRadius: 4,
+                  background: 'var(--amber-light)', color: 'var(--amber-text)',
+                }}>
+                  {p.quota}
+                </span>
+              )}
+            </div>
+          ))}
+        </div>
       )}
-      {!isLoading && (!data || data.eventi.length === 0) && (
-        <p style={{ fontSize: 12, color: 'var(--text-secondary)' }}>
-          Nessun evento storico registrato.
-        </p>
+
+      {/* Immobili */}
+      {!isLoading && subTab === 'immobili' && detail && (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+          {detail.immobili.length === 0 && (
+            <p style={{ fontSize: 12, color: 'var(--text-secondary)' }}>Nessun immobile registrato.</p>
+          )}
+          {detail.immobili.map((imm) => (
+            <div key={imm.id} style={{
+              background: 'var(--surface)', borderRadius: 'var(--radius-md)',
+              border: '0.5px solid var(--border)', padding: '8px 12px',
+            }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4 }}>
+                <span style={{ fontSize: 13, fontWeight: 500, color: 'var(--text)' }}>
+                  {imm.natura}
+                </span>
+                <span style={{ fontSize: 11, color: 'var(--text-secondary)' }}>
+                  ID {imm.id}
+                </span>
+              </div>
+              <div style={{ fontSize: 12, color: 'var(--text-secondary)' }}>
+                {imm.localita_nome}
+                {imm.numero_vani != null && ` · ${imm.numero_vani} vani`}
+                {imm.consistenza && ` · ${imm.consistenza}`}
+                {imm.classificazione && ` · cat. ${imm.classificazione}`}
+              </div>
+            </div>
+          ))}
+        </div>
       )}
-      {!isLoading && data && data.eventi.length > 0 && (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 0, marginTop: 8 }}>
-          {data.eventi.map((e, i) => (
-            <div
-              key={i}
-              style={{
-                display: 'flex',
-                gap: 12,
-                alignItems: 'flex-start',
-                padding: '10px 0',
-                borderLeft:
-                  i === data.eventi.length - 1
-                    ? '2px solid transparent'
-                    : '2px solid var(--border)',
-                paddingLeft: 16,
-                position: 'relative',
-              }}
-            >
-              <div
-                style={{
-                  width: 8,
-                  height: 8,
-                  borderRadius: '50%',
-                  background: 'var(--purple)',
-                  border: '2px solid var(--surface)',
-                  position: 'absolute',
-                  left: -5,
-                  top: 14,
-                }}
-              />
-              <div style={{ fontSize: 11, color: 'var(--text-secondary)', minWidth: 50, marginTop: 1 }}>
+
+      {/* Cronologia */}
+      {subTab === 'cronologia' && (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 0 }}>
+          {!timeline && <p style={{ fontSize: 12, color: 'var(--text-secondary)' }}>Caricamento…</p>}
+          {timeline?.eventi.length === 0 && (
+            <p style={{ fontSize: 12, color: 'var(--text-secondary)' }}>Nessun evento storico.</p>
+          )}
+          {timeline?.eventi.map((e, i) => (
+            <div key={i} style={{
+              display: 'flex', gap: 12, alignItems: 'flex-start',
+              padding: '10px 0', paddingLeft: 16, position: 'relative',
+              borderLeft: i === (timeline.eventi.length - 1) ? '2px solid transparent' : '2px solid var(--border)',
+            }}>
+              <div style={{
+                width: 8, height: 8, borderRadius: '50%', background: 'var(--purple)',
+                border: '2px solid var(--bg-tertiary)', position: 'absolute', left: -5, top: 14,
+              }} />
+              <div style={{ fontSize: 11, color: 'var(--text-secondary)', minWidth: 40, marginTop: 1 }}>
                 {(e.data || '').slice(0, 4)}
               </div>
               <div>
@@ -169,9 +266,10 @@ function Timeline({ partitaId }: { partitaId: number | null }) {
           ))}
         </div>
       )}
-    </Card>
+    </div>
   )
 }
+
 
 export default function Archivio() {
   const [comuneId, setComuneId] = useState<number | undefined>(undefined)
@@ -344,7 +442,7 @@ export default function Archivio() {
           </div>
         </div>
 
-        <Timeline partitaId={selected?.id ?? null} />
+        <DetailPanel partita={selected} />
       </TwoCol>
     </div>
   )

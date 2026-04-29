@@ -18,27 +18,25 @@ _PROJECT_ROOT = str(Path(__file__).parent.parent)
 if _PROJECT_ROOT not in sys.path:
     sys.path.insert(0, _PROJECT_ROOT)
 
-from api.routes import auth, comuni, partite, possessori, dashboard, audit, genealogia, timeline
+from api.routes import auth, comuni, partite, possessori, dashboard, audit, genealogia, timeline, immobili
 from api.deps import set_db_manager
 
 logger = logging.getLogger("FoliariumAPI")
 
 
-def _init_db_from_config():
-    """Inizializza il DB manager da variabili d'ambiente / config.py (usato in dev)."""
-    from api.deps import set_db_manager
+def _init_db_from_env():
+    """Inizializza il DB manager da variabili d'ambiente (nessuna dipendenza da PyQt6)."""
     from catasto_db_manager import CatastoDBManager
-    import config as cfg
-    mgr = CatastoDBManager(
-        dbname=cfg.ENV_DB_NAME,
-        user=cfg.ENV_DB_USER,
-        password=cfg.ENV_DB_PASS,
-        host=cfg.ENV_DB_HOST,
-        port=cfg.ENV_DB_PORT,
-        schema="public",
-    )
+    host = os.environ.get("DB_HOST", "localhost")
+    user = os.environ.get("DB_USER", "postgres")
+    password = os.environ.get("DB_PASS", "postgres")
+    dbname = os.environ.get("DB_NAME", "catasto_storico")
+    port = int(os.environ.get("DB_PORT", "5432"))
+    schema = os.environ.get("DB_SCHEMA", "public")
+    mgr = CatastoDBManager(dbname=dbname, user=user, password=password,
+                           host=host, port=port, schema=schema)
     set_db_manager(mgr)
-    logger.info("DB manager inizializzato da config: %s@%s/%s", cfg.ENV_DB_USER, cfg.ENV_DB_HOST, cfg.ENV_DB_NAME)
+    logger.info("DB manager inizializzato: %s@%s:%s/%s", user, host, port, dbname)
 
 
 def create_app(db_manager=None) -> FastAPI:
@@ -55,7 +53,7 @@ def create_app(db_manager=None) -> FastAPI:
     if db_manager is not None:
         set_db_manager(db_manager)
     else:
-        _init_db_from_config()
+        _init_db_from_env()
 
     app.include_router(auth.router, prefix="/api")
     app.include_router(comuni.router, prefix="/api")
@@ -65,6 +63,7 @@ def create_app(db_manager=None) -> FastAPI:
     app.include_router(audit.router, prefix="/api")
     app.include_router(genealogia.router, prefix="/api")
     app.include_router(timeline.router, prefix="/api")
+    app.include_router(immobili.router, prefix="/api")
 
     # Serve il build React statico (frontend/dist/)
     dist_dir = Path(__file__).parent.parent / "frontend" / "dist"
