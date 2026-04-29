@@ -849,22 +849,22 @@ class CatastoMainWindow(QMainWindow):
         self.top_bar.logout_requested.connect(self.handle_logout)
         self.main_layout.addWidget(self.top_bar)
 
-        # --- TopNav (sezioni orizzontali) ---
-        self.top_nav = TopNavWidget(self)
-        self.top_nav.section_requested.connect(self._on_section_requested)
-        self.main_layout.addWidget(self.top_nav)
-        self.top_nav.hide()
+        # --- Contenuto: sidebar sinistra + stack destra ---
+        content_widget = QWidget()
+        content_layout = QHBoxLayout(content_widget)
+        content_layout.setContentsMargins(0, 0, 0, 0)
+        content_layout.setSpacing(0)
 
-        # --- SubNav (pagine per sezione) ---
-        self.sub_nav = SubNavWidget(self)
-        self.sub_nav.page_requested.connect(self.navigate_to)
-        self.main_layout.addWidget(self.sub_nav)
-        self.sub_nav.hide()
+        self.sidebar = SidebarWidget(self)
+        self.sidebar.page_requested.connect(self.navigate_to)
+        content_layout.addWidget(self.sidebar)
+        self.sidebar.hide()
 
-        # --- Stack pagine ---
         self.stack = QStackedWidget(self)
         self.stack.currentChanged.connect(self._on_stack_changed)
-        self.main_layout.addWidget(self.stack, 1)
+        content_layout.addWidget(self.stack, 1)
+
+        self.main_layout.addWidget(content_widget, 1)
 
         # --- Barra dati obsoleti ---
         self.stale_data_bar = QFrame()
@@ -1357,11 +1357,9 @@ class CatastoMainWindow(QMainWindow):
             self.backup_restore_widget_ref = BackupWidget(self.db_manager)
             _add_page("backup", self.backup_restore_widget_ref)
 
-        # Costruisce i navigatori orizzontali
-        self.top_nav.build_nav(is_admin=is_admin)
-        self.sub_nav.build_nav(is_admin=is_admin, fuzzy_available=FUZZY_SEARCH_AVAILABLE)
-        self.top_nav.show()
-        self.sub_nav.show()
+        # Costruisce la sidebar verticale
+        self.sidebar.build_nav(is_admin=is_admin, fuzzy_available=FUZZY_SEARCH_AVAILABLE)
+        self.sidebar.show()
 
         self._f5_shortcut = QShortcut(QKeySequence("F5"), self)
         self._f5_shortcut.activated.connect(self._handle_f5_refresh)
@@ -1477,10 +1475,7 @@ class CatastoMainWindow(QMainWindow):
         if self.stack.currentIndex() == new_idx:
             return
 
-        section = _PAGE_SECTION.get(page_name, "home")
-        self.top_nav.set_active_section(section)
-        self.sub_nav.show_section(section)
-        self.sub_nav.set_active(page_name)
+        self.sidebar.set_active(page_name)
 
         old_widget = self.stack.currentWidget()
         if old_widget is None:
@@ -1520,15 +1515,10 @@ class CatastoMainWindow(QMainWindow):
         self._anim_out = anim_out
 
     def _on_section_requested(self, section: str):
-        """Naviga alla prima pagina disponibile della sezione cliccata."""
-        self.sub_nav.show_section(section)
+        """Compatibilità: naviga alla pagina default della sezione (sidebar non usa sezioni)."""
         default = _SECTION_DEFAULT_PAGE.get(section, "home")
         if default in self._page_index:
             self.navigate_to(default)
-            return
-        visible = self.sub_nav.get_visible_page_names()
-        if visible:
-            self.navigate_to(visible[0])
 
     def update_ui_based_on_role(self):
         """Controlla la visibilità dei bottoni nav in base al ruolo utente."""
@@ -1550,25 +1540,17 @@ class CatastoMainWindow(QMainWindow):
         is_consultatore = (ruolo == 'consultatore')
         db_ready = self.pool_initialized_successful and not is_admin_offline_mode
 
-        # Visibilità bottoni sidebar per sezioni/pagine non-admin
         inserimento_ok = db_ready and (is_admin or is_archivista)
         analisi_ok = db_ready and (is_admin or is_archivista or is_consultatore)
 
-        # I bottoni admin sono già assenti dalla sidebar se non admin (build_nav è role-aware).
-        # Qui gestiamo solo la visibilità di bottoni presenti per tutti.
-        # Visibilità sezioni nel top-nav
-        self.top_nav.set_section_visible("archivio", db_ready)
-        self.top_nav.set_section_visible("inserimento", inserimento_ok)
-        self.top_nav.set_section_visible("analisi", analisi_ok)
-
-        # Visibilità pagine nel sub-nav
+        # Visibilità bottoni sidebar — i bottoni admin non esistono se non admin (build_nav role-aware)
         for page in ("comuni", "partite", "immobili", "documenti", "fuzzy"):
-            self.sub_nav.set_page_visible(page, db_ready)
+            self.sidebar.set_button_visible(page, db_ready)
         for page in ("ins_comune", "ins_possessore", "ins_partita", "ins_localita",
-                     "reg_proprieta", "operazioni", "reg_consult"):
-            self.sub_nav.set_page_visible(page, inserimento_ok)
+                     "ins_wizard", "reg_proprieta", "operazioni", "reg_consult"):
+            self.sidebar.set_button_visible(page, inserimento_ok)
         for page in ("esportazioni", "report", "statistiche"):
-            self.sub_nav.set_page_visible(page, analisi_ok)
+            self.sidebar.set_button_visible(page, analisi_ok)
 
         # Pulsante logout nella topbar
         self.top_bar.set_logout_enabled(
@@ -1858,10 +1840,9 @@ class CatastoMainWindow(QMainWindow):
             self.current_session_id = None
             self.session.logout()  # Sincronizza il SessionManager centralizzato
 
-            # Aggiorna la top bar e nasconde le nav
+            # Aggiorna la top bar e nasconde la sidebar
             self.top_bar.update_user_info("", "", False)
-            self.top_nav.hide()
-            self.sub_nav.hide()
+            self.sidebar.hide()
 
             # Svuota lo stack
             while self.stack.count():
