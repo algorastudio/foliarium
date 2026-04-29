@@ -1,0 +1,38 @@
+@use '@angular/material' as mat;
+
+html {
+  height: 100%;
+  @include mat.theme(
+    (
+      color: (
+        primary: mat.$azure-palette,
+        tertiary: mat.$blue-palette,
+      ),
+      typography: Roboto,
+      density: 0,
+    )
+  );
+}
+
+body {
+  color-scheme: light;
+  background-color: var(--mat-sys-surface-dim);
+  color: var(--mat-sys-on-surface);
+  font: var(--mat-sys-body-medium);
+  margin: 0;
+  height: 100%;
+}
+
+/* Global link styles */
+a { text-decoration: none; }
+
+/* Global card content padding fix */
+.mat-mdc-card-content:first-child { padding-top: 16px; }
+
+/* Scrollbar */
+* { scrollbar-width: thin; scrollbar-color: var(--mat-sys-outline-variant) transparent; }
+
+/* Number pipe needs localeId — ensure font renders digits well */
+:root {
+  font-feature-settings: "tnum";
+}
