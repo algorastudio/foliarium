@@ -190,15 +190,13 @@ class DBPartiteMixin:
             raise DBDataError("ID comune non valido.")
 
         query_base = f"""
-            SELECT DISTINCT
+            SELECT
                 p.id, p.numero_partita, p.suffisso_partita, p.tipo, p.stato, p.data_impianto,
-                COUNT(DISTINCT pp.possessore_id) OVER (PARTITION BY p.id) as num_possessori,
-                COUNT(DISTINCT i.id) OVER (PARTITION BY p.id) as num_immobili,
-                COUNT(DISTINCT dp.id) OVER (PARTITION BY p.id) as num_documenti_allegati
+                (SELECT COUNT(DISTINCT pp.possessore_id)
+                 FROM {self.schema}.partita_possessore pp WHERE pp.partita_id = p.id) AS num_possessori,
+                (SELECT COUNT(*) FROM {self.schema}.immobile i WHERE i.partita_id = p.id) AS num_immobili,
+                (SELECT COUNT(*) FROM {self.schema}.documento_partita dp WHERE dp.partita_id = p.id) AS num_documenti_allegati
             FROM {self.schema}.partita p
-            LEFT JOIN {self.schema}.partita_possessore pp ON p.id = pp.partita_id
-            LEFT JOIN {self.schema}.immobile i ON p.id = i.partita_id
-            LEFT JOIN {self.schema}.documento_partita dp ON p.id = dp.partita_id
             WHERE p.comune_id = %s
         """
         params: List[Union[int, str]] = [comune_id]
