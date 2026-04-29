@@ -10,7 +10,7 @@
 
 | Campo | Valore |
 |---|---|
-| Versione | **1.6.0** |
+| Versione | **1.0.0** |
 | Data rilascio | Aprile 2026 |
 | Sviluppatore | Algora Studio |
 | Piattaforma | Windows 10 / Windows 11 |

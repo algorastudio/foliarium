@@ -21,7 +21,7 @@ from PyQt6.QtCore import QDate, Qt, pyqtSignal
 from PyQt6.QtWidgets import (
     QAbstractItemView, QApplication, QCheckBox, QComboBox, QDateEdit,
     QDialog, QFileDialog, QFormLayout, QGridLayout, QGroupBox,
-    QHBoxLayout, QLabel, QLineEdit, QMessageBox, QPushButton,
+    QHeaderView, QHBoxLayout, QLabel, QLineEdit, QMessageBox, QPushButton,
     QScrollArea, QSpinBox, QTableWidget, QTableWidgetItem, QTextEdit, QVBoxLayout,
     QWidget, QCompleter,
 )
@@ -181,7 +181,7 @@ class InserimentoComuneWidget(LazyLoadedWidget): # Eredita da LazyLoadedWidget
         try:
             with open(path, "w", encoding="utf-8-sig") as f:
                 f.write("nome;provincia;regione;codice_catastale;data_istituzione;data_soppressione;note\n")
-                f.write("Savona;SV;Liguria;I480;1861-01-01;;\n")
+                f.write("Roma;RM;Lazio;H501;1871-01-01;;\n")
             QMessageBox.information(self, "Template salvato", f"Template salvato in:\n{path}")
         except Exception as e:
             QMessageBox.critical(self, "Errore", str(e))
@@ -542,7 +542,10 @@ class InserimentoLocalitaWidget(QWidget):
         self.localita_table.setColumnCount(3)
         self.localita_table.setHorizontalHeaderLabels(["ID", "Nome", "Tipologia"])
         self.localita_table.setAlternatingRowColors(True)
+        self.localita_table.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeMode.Interactive)
         self.localita_table.horizontalHeader().setStretchLastSection(True)
+        self.localita_table.setColumnWidth(0, 45)   # ID
+        self.localita_table.setColumnWidth(1, 220)  # Nome
         summary_layout.addWidget(self.refresh_button)
         summary_layout.addWidget(self.localita_table)
         layout.addWidget(summary_group)
@@ -791,7 +794,7 @@ class InserimentoPartitaWidget(QWidget):
         try:
             with open(path, "w", encoding="utf-8-sig") as f:
                 f.write("comune_nome;numero_partita;suffisso_partita;data_impianto;tipo_partita;numero_provenienza;stato\n")
-                f.write("Savona;1;;1900-01-01;principale;;attiva\n")
+                f.write("Roma;1;;1900-01-01;principale;;attiva\n")
             QMessageBox.information(self, "Template salvato", f"Template salvato in:\n{path}")
         except Exception as e:
             QMessageBox.critical(self, "Errore", str(e))

@@ -14,6 +14,7 @@ Backward compatibility: gui_widgets.py re-esporta tutte le classi.
 
 from __future__ import annotations
 
+import json
 import os
 import logging
 from datetime import datetime
@@ -64,8 +65,8 @@ class GestioneTipiLocalitaWidget(LazyLoadedWidget):
         self.table = QTableWidget()
         self.table.setColumnCount(3)
         self.table.setHorizontalHeaderLabels(["ID", "Nome Tipologia", "Descrizione"])
-        self.table.horizontalHeader().setSectionResizeMode(1, QHeaderView.ResizeMode.Stretch)
-        self.table.horizontalHeader().setSectionResizeMode(2, QHeaderView.ResizeMode.Stretch)
+        self.table.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeMode.Interactive)
+        self.table.horizontalHeader().setStretchLastSection(True)
         self.table.setSelectionBehavior(QAbstractItemView.SelectionBehavior.SelectRows)
         self.table.setEditTriggers(QAbstractItemView.EditTrigger.NoEditTriggers)
         group_layout.addWidget(self.table, 2)
@@ -178,10 +179,8 @@ class GestionePeriodiStoriciWidget(LazyLoadedWidget):
         self.table = QTableWidget()
         self.table.setColumnCount(4)
         self.table.setHorizontalHeaderLabels(["ID", "Nome Periodo", "Anno Inizio-Fine", "Descrizione"])
-        self.table.horizontalHeader().setSectionResizeMode(0, QHeaderView.ResizeMode.ResizeToContents)
-        self.table.horizontalHeader().setSectionResizeMode(1, QHeaderView.ResizeMode.Stretch)
-        self.table.horizontalHeader().setSectionResizeMode(2, QHeaderView.ResizeMode.ResizeToContents)
-        self.table.horizontalHeader().setSectionResizeMode(3, QHeaderView.ResizeMode.Stretch)
+        self.table.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeMode.Interactive)
+        self.table.horizontalHeader().setStretchLastSection(True)
         self.table.setSelectionBehavior(QAbstractItemView.SelectionBehavior.SelectRows)
         self.table.setEditTriggers(QAbstractItemView.EditTrigger.NoEditTriggers)
         group_layout.addWidget(self.table)
@@ -303,7 +302,13 @@ class GestioneUtentiWidget(LazyLoadedWidget):
         self.user_table.setSelectionBehavior(QAbstractItemView.SelectionBehavior.SelectRows)
         self.user_table.setSelectionMode(QAbstractItemView.SelectionMode.SingleSelection)
         self.user_table.setEditTriggers(QAbstractItemView.EditTrigger.NoEditTriggers)
-        self.user_table.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeMode.Stretch)
+        self.user_table.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeMode.Interactive)
+        self.user_table.horizontalHeader().setStretchLastSection(True)
+        self.user_table.setColumnWidth(0, 40)   # ID
+        self.user_table.setColumnWidth(1, 130)  # Username
+        self.user_table.setColumnWidth(2, 180)  # Nome Completo
+        self.user_table.setColumnWidth(3, 180)  # Email
+        self.user_table.setColumnWidth(4, 100)  # Ruolo
         self.user_table.itemSelectionChanged.connect(self._update_action_buttons_state)
         self.user_table.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
         self.user_table.customContextMenuRequested.connect(self._apri_menu_contestuale_utente)
@@ -808,11 +813,12 @@ class AuditLogViewerWidget(LazyLoadedWidget):
         header.setSectionResizeMode(1, QHeaderView.ResizeMode.ResizeToContents)  # Data/Ora
         header.setSectionResizeMode(2, QHeaderView.ResizeMode.Interactive)       # Utente
         header.setSectionResizeMode(3, QHeaderView.ResizeMode.ResizeToContents)  # Sessione
-        header.setSectionResizeMode(4, QHeaderView.ResizeMode.Stretch)          # Tabella
+        header.setSectionResizeMode(4, QHeaderView.ResizeMode.Interactive)        # Tabella
         header.setSectionResizeMode(5, QHeaderView.ResizeMode.ResizeToContents)  # Azione
         header.setSectionResizeMode(6, QHeaderView.ResizeMode.ResizeToContents)  # Record
         header.setSectionResizeMode(7, QHeaderView.ResizeMode.ResizeToContents)  # IP
-        
+        header.setStretchLastSection(False)
+
         self.log_table.itemSelectionChanged.connect(self._display_log_details)
         self.log_table.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
         self.log_table.customContextMenuRequested.connect(self._apri_menu_contestuale_log)

@@ -225,7 +225,7 @@ class ImportComuniDialog(QDialog):
     """Dialog per importare comuni da file CSV o da ISTAT."""
 
     TEMPLATE_HEADERS = "nome;provincia;regione;codice_catastale;data_istituzione;data_soppressione;note"
-    TEMPLATE_EXAMPLE = "Savona;Savona;Liguria;I480;01/01/1861;;"
+    TEMPLATE_EXAMPLE = "Firenze;FI;Toscana;D612;01/01/1871;;"
     PREVIEW_COLUMNS = [
         ("Nome", "nome"), ("Provincia", "provincia"), ("Regione", "regione"),
         ("Cod. catastale", "codice_catastale"), ("Data ist.", "data_istituzione"),
@@ -372,7 +372,7 @@ class ImportComuniDialog(QDialog):
 
         info = QLabel(
             "Scarica l'elenco ufficiale dei comuni italiani dall'ISTAT e importali nel DB.<br>"
-            "Filtra per <b>sigla provincia</b> (es. <i>SV</i> per Savona) oppure lascia vuoto per tutti."
+            "Filtra per <b>sigla provincia</b> (es. <i>FI</i> per Firenze) oppure lascia vuoto per tutti."
         )
         info.setWordWrap(True)
         layout.addWidget(info)
@@ -656,7 +656,7 @@ class ImportLocalitaDialog(QDialog):
         nome_layout = QHBoxLayout()
         nome_layout.addWidget(QLabel("Nome comune (per OSM):"))
         self._osm_comune_edit = QLineEdit()
-        self._osm_comune_edit.setPlaceholderText("es. Savona")
+        self._osm_comune_edit.setPlaceholderText("es. Firenze")
         nome_layout.addWidget(self._osm_comune_edit)
         layout.addLayout(nome_layout)
 

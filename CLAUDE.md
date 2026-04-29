@@ -2,10 +2,10 @@
 
 ## Project overview
 
-**Foliarium** is a desktop application for managing historical Italian cadastral records (archivio catastale storico), developed for the State Archive of Savona. It allows archivists to search, insert, and export property records (partite catastali) and owners (possessori).
+**Foliarium** is a desktop application for managing historical Italian cadastral records (archivio catastale storico). It allows archivists to search, insert, and export property records (partite catastali) and owners (possessori).
 
-- **Current version:** 1.6.1 (con refactoring civico)
-- **Author:** Marco Santoro
+- **Current version:** 1.0.0
+- **Author:** Marco Santoro / Algora Studio
 - **Primary platform:** Windows 10+
 - **Code/UI language:** Italian
 - **Precedentemente noto come:** Meridiana (rinominato a Foliarium in v1.5.0)
