@@ -72,6 +72,7 @@ venv/
 env/
 ENV/
 .env
+web.ini
 .venv
 
 # IDE specific files
