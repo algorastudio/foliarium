@@ -21,7 +21,7 @@ from PyQt6.QtCore import QDate, Qt, pyqtSignal
 from PyQt6.QtWidgets import (
     QAbstractItemView, QApplication, QCheckBox, QComboBox, QDateEdit,
     QDialog, QFileDialog, QFormLayout, QGridLayout, QGroupBox,
-    QHBoxLayout, QLabel, QLineEdit, QMessageBox, QPushButton,
+    QHeaderView, QHBoxLayout, QLabel, QLineEdit, QMessageBox, QPushButton,
     QScrollArea, QSpinBox, QTableWidget, QTableWidgetItem, QTextEdit, QVBoxLayout,
     QWidget, QCompleter,
 )
@@ -542,7 +542,10 @@ class InserimentoLocalitaWidget(QWidget):
         self.localita_table.setColumnCount(3)
         self.localita_table.setHorizontalHeaderLabels(["ID", "Nome", "Tipologia"])
         self.localita_table.setAlternatingRowColors(True)
+        self.localita_table.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeMode.Interactive)
         self.localita_table.horizontalHeader().setStretchLastSection(True)
+        self.localita_table.setColumnWidth(0, 45)   # ID
+        self.localita_table.setColumnWidth(1, 220)  # Nome
         summary_layout.addWidget(self.refresh_button)
         summary_layout.addWidget(self.localita_table)
         layout.addWidget(summary_group)

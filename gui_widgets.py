@@ -148,7 +148,15 @@ class ElencoComuniWidget(LazyLoadedWidget):
         self.comuni_table.setSelectionBehavior(QAbstractItemView.SelectionBehavior.SelectRows)
         self.comuni_table.setSelectionMode(QAbstractItemView.SelectionMode.SingleSelection) # Importante per menu contestuale su una riga
         self.comuni_table.setAlternatingRowColors(True)
-        self.comuni_table.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeMode.Stretch)
+        _hdr = self.comuni_table.horizontalHeader()
+        _hdr.setSectionResizeMode(QHeaderView.ResizeMode.Interactive)
+        _hdr.setStretchLastSection(True)
+        self.comuni_table.setColumnWidth(0, 45)   # ID
+        self.comuni_table.setColumnWidth(1, 200)  # Nome Comune
+        self.comuni_table.setColumnWidth(2, 110)  # Cod. Catastale
+        self.comuni_table.setColumnWidth(3, 80)   # Provincia
+        self.comuni_table.setColumnWidth(4, 120)  # Data Istituzione
+        self.comuni_table.setColumnWidth(5, 120)  # Data Soppressione
         self.comuni_table.setSortingEnabled(True)
         # self.comuni_table.itemDoubleClicked.connect(self.mostra_partite_del_comune) # Il doppio click può rimanere
 
@@ -1014,9 +1022,8 @@ class RicercaAvanzataImmobiliWidget(QWidget):
             QAbstractItemView.SelectionBehavior.SelectRows)
         self.risultati_immobili_table.setAlternatingRowColors(True)
         self.risultati_immobili_table.horizontalHeader().setSectionResizeMode(
-            QHeaderView.ResizeMode.ResizeToContents)  # ResizeToContents
-        self.risultati_immobili_table.horizontalHeader(
-        ).setStretchLastSection(True)  # Ultima colonna stretch
+            QHeaderView.ResizeMode.Interactive)
+        self.risultati_immobili_table.horizontalHeader().setStretchLastSection(True)
         self.risultati_immobili_table.setSortingEnabled(True)
         self.risultati_immobili_table.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
         self.risultati_immobili_table.customContextMenuRequested.connect(self._apri_menu_immobile)
@@ -1261,7 +1268,7 @@ class RegistrazioneProprietaWidget(LazyLoadedWidget):
         possessori_group = QGroupBox("2. Possessori Associati")
         possessori_layout = QVBoxLayout(possessori_group)
         self.possessori_table = QTableWidget(); self.possessori_table.setColumnCount(4); self.possessori_table.setHorizontalHeaderLabels(["ID", "Nome Completo", "Titolo", "Quota"])
-        self.possessori_table.horizontalHeader().setSectionResizeMode(1, QHeaderView.ResizeMode.Stretch); self.possessori_table.setMinimumHeight(120)
+        self.possessori_table.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeMode.Interactive); self.possessori_table.horizontalHeader().setStretchLastSection(True); self.possessori_table.setMinimumHeight(120)
         self.btn_rem_poss = QPushButton("Rimuovi Selezionato"); self.btn_rem_poss.clicked.connect(self.remove_possessore)
         possessori_layout.addWidget(self.possessori_table); possessori_layout.addWidget(self.btn_rem_poss, 0, Qt.AlignmentFlag.AlignRight)
         
@@ -1277,7 +1284,7 @@ class RegistrazioneProprietaWidget(LazyLoadedWidget):
         # --- 3. IMMOBILI (FLUSSO MIGLIORATO) ---
         immobili_group = QGroupBox("3. Immobili Associati"); immobili_layout = QVBoxLayout(immobili_group)
         self.immobili_table = QTableWidget(); self.immobili_table.setColumnCount(5); self.immobili_table.setHorizontalHeaderLabels(["Natura", "Località", "Classificazione", "Consistenza", "Piani/Vani"])
-        self.immobili_table.horizontalHeader().setSectionResizeMode(0, QHeaderView.ResizeMode.Stretch); self.immobili_table.setMinimumHeight(120)
+        self.immobili_table.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeMode.Interactive); self.immobili_table.horizontalHeader().setStretchLastSection(True); self.immobili_table.setMinimumHeight(120)
         self.btn_rem_imm = QPushButton("Rimuovi Selezionato"); self.btn_rem_imm.clicked.connect(self.remove_immobile)
         immobili_layout.addWidget(self.immobili_table); immobili_layout.addWidget(self.btn_rem_imm, 0, Qt.AlignmentFlag.AlignRight)
         add_imm_tabs = QTabWidget(); add_imm_tabs.addTab(self._create_add_immobile_esistente_tab(), "Aggiungi Esistente"); add_imm_tabs.addTab(self._create_add_immobile_nuovo_tab(), "Crea Nuovo")
@@ -1842,7 +1849,8 @@ class NuovaPartitaWizardWidget(QWidget):
         self._s2_table = QTableWidget()
         self._s2_table.setColumnCount(3)
         self._s2_table.setHorizontalHeaderLabels(["Nome", "Titolo", ""])
-        self._s2_table.horizontalHeader().setSectionResizeMode(0, QHeaderView.ResizeMode.Stretch)
+        self._s2_table.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeMode.Interactive)
+        self._s2_table.horizontalHeader().setStretchLastSection(True)
         layout.addWidget(self._s2_table, 1)
 
         return w
@@ -1907,7 +1915,8 @@ class NuovaPartitaWizardWidget(QWidget):
         self._s3_table = QTableWidget()
         self._s3_table.setColumnCount(3)
         self._s3_table.setHorizontalHeaderLabels(["Natura", "Classificazione", ""])
-        self._s3_table.horizontalHeader().setSectionResizeMode(0, QHeaderView.ResizeMode.Stretch)
+        self._s3_table.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeMode.Interactive)
+        self._s3_table.horizontalHeader().setStretchLastSection(True)
         layout.addWidget(self._s3_table, 1)
 
         return w
@@ -2878,9 +2887,9 @@ class OperazioniPartitaWidget(QWidget):
             table.setColumnWidth(0, 35)
             table.horizontalHeader().setSectionResizeMode(
                 1, QHeaderView.ResizeMode.ResizeToContents)  # ID
-            table.horizontalHeader().setSectionResizeMode(2, QHeaderView.ResizeMode.Stretch)  # Natura
-            table.horizontalHeader().setSectionResizeMode(
-                3, QHeaderView.ResizeMode.Stretch)  # Località
+            table.horizontalHeader().setSectionResizeMode(2, QHeaderView.ResizeMode.Interactive)  # Natura
+            table.horizontalHeader().setSectionResizeMode(3, QHeaderView.ResizeMode.Interactive)  # Località
+            table.horizontalHeader().setStretchLastSection(True)
         else:
             table.setRowCount(1)
             msg_item = QTableWidgetItem(
@@ -3242,7 +3251,8 @@ class StatisticheWidget(LazyLoadedWidget):
         self.stats_comune_table.setColumnCount(7)
         self.stats_comune_table.setHorizontalHeaderLabels(["Comune", "Provincia", "Totale Partite", "Partite Attive", "Partite Inattive", "Totale Possessori", "Totale Immobili"])
         self.stats_comune_table.setAlternatingRowColors(True)
-        self.stats_comune_table.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeMode.Stretch)
+        self.stats_comune_table.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeMode.Interactive)
+        self.stats_comune_table.horizontalHeader().setStretchLastSection(True)
         self.stats_comune_table.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
         self.stats_comune_table.customContextMenuRequested.connect(self._apri_menu_stats_comune)
         layout.addWidget(refresh_button)
@@ -3270,7 +3280,8 @@ class StatisticheWidget(LazyLoadedWidget):
         self.immobili_table.setColumnCount(6)
         self.immobili_table.setHorizontalHeaderLabels(["Comune", "Classificazione", "Numero Immobili", "Totale Piani", "Totale Vani", "Media Vani/Immobile"])
         self.immobili_table.setAlternatingRowColors(True)
-        self.immobili_table.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeMode.Stretch)
+        self.immobili_table.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeMode.Interactive)
+        self.immobili_table.horizontalHeader().setStretchLastSection(True)
         self.immobili_table.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
         self.immobili_table.customContextMenuRequested.connect(self._apri_menu_immobili_stats)
         layout.addWidget(self.immobili_table)
@@ -3777,11 +3788,8 @@ class UnifiedFuzzySearchWidget(QWidget):
         table.setSelectionBehavior(QAbstractItemView.SelectionBehavior.SelectRows)
         table.setEditTriggers(QAbstractItemView.EditTrigger.NoEditTriggers)
         header = table.horizontalHeader()
-        for i in range(len(headers)):
-            if i in stretch_columns:
-                header.setSectionResizeMode(i, QHeaderView.ResizeMode.Stretch)
-            else:
-                header.setSectionResizeMode(i, QHeaderView.ResizeMode.ResizeToContents)
+        header.setSectionResizeMode(QHeaderView.ResizeMode.Interactive)
+        header.setStretchLastSection(True)
         
         # Salva l'indice della colonna di similarità per usi futuri (es. colorazione)
         table.setProperty("similarity_col", similarity_col_index)
@@ -4340,7 +4348,8 @@ class DashboardWidget(QWidget):
 
         self.tab_possessori_recenti = QTableWidget(0, 2)
         self.tab_possessori_recenti.setHorizontalHeaderLabels(["Cognome/Nome", "Nome Completo"])
-        self.tab_possessori_recenti.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeMode.Stretch)
+        self.tab_possessori_recenti.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeMode.Interactive)
+        self.tab_possessori_recenti.horizontalHeader().setStretchLastSection(True)
         self.tab_possessori_recenti.setEditTriggers(QAbstractItemView.EditTrigger.NoEditTriggers)
         self.tab_possessori_recenti.verticalHeader().setVisible(False)
         self.recenti_tabs.addTab(self.tab_possessori_recenti, "Possessori")
@@ -4362,7 +4371,8 @@ class DashboardWidget(QWidget):
         # --- FINE MODIFICA ---
 
         self.audit_table.setEditTriggers(QAbstractItemView.EditTrigger.NoEditTriggers)
-        self.audit_table.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeMode.Stretch)
+        self.audit_table.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeMode.Interactive)
+        self.audit_table.horizontalHeader().setStretchLastSection(True)
         self.audit_table.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
         self.audit_table.customContextMenuRequested.connect(self._apri_menu_audit_dashboard)
         recent_activity_layout.addWidget(self.audit_table)
