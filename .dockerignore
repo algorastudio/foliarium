@@ -1,0 +1,83 @@
+# Git e CI
+.git
+.github
+.gitignore
+.gitguardian.yaml
+
+# Ambienti Python
+.venv
+venv
+env
+__pycache__
+*.pyc
+*.pyo
+*.pyd
+.pytest_cache
+.tox
+.nox
+.mypy_cache
+.coverage
+.coverage.*
+htmlcov
+coverage_html
+coverage.xml
+
+# Frontend output e cache (verranno ricostruiti nello stage 1)
+frontend/node_modules
+frontend/dist
+frontend/.vite
+
+# Tooling Docker — non mandare ricorsivamente in build context
+docker/postgres/scripts
+
+# Build artifact PyInstaller
+build
+dist
+*.spec
+
+# Editor / OS
+.idea
+.vscode
+*.swp
+*.swo
+.DS_Store
+Thumbs.db
+
+# Documentazione MkDocs generata
+site
+docs/_build
+
+# Dati locali/sensibili
+config.ini
+*.license
+*.log
+logs
+esportazioni
+demo_data
+pgsql
+pg_portable.zip
+
+# File grandi non necessari nell'immagine
+*.zip
+*.7z
+*.rar
+*.exe
+*.xls
+*.xlsx
+*.ppt
+*.pptx
+*.pdf
+*.bak
+*.tmp
+
+# Documentazione che non serve a runtime
+*.md
+docs/
+
+# Test suite (non eseguita nel container di produzione)
+tests
+pytest.ini
+
+# Claude Code
+.claude
+CLAUDE.md

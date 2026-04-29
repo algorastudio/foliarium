@@ -42,7 +42,7 @@ export const logout = () => request('/auth/logout', { method: 'POST' })
 export const getMe = () =>
   request<{ user_id: number; username: string; ruolo: string }>('/auth/me')
 
-// ── Comuni ─────────────────────────────────────────────────────────────────
+// ── Comuni & Località ─────────────────────────────────────────────────────
 
 export interface Comune {
   id: number
@@ -50,7 +50,15 @@ export interface Comune {
   provincia: string
 }
 
+export interface Localita {
+  id: number
+  nome: string
+  tipologia_stradale: string | null
+}
+
 export const getComuni = () => request<Comune[]>('/comuni')
+export const getLocalita = (comuneId: number) =>
+  request<Localita[]>(`/comuni/${comuneId}/localita`)
 
 // ── Partite ────────────────────────────────────────────────────────────────
 
@@ -82,8 +90,153 @@ export const searchPartite = (params: SearchPartiteParams) => {
   return request<Partita[]>(`/partite?${qs}`)
 }
 
+export interface Possessore_PP {
+  id: number
+  nome_completo: string
+  titolo: string | null
+  quota: string | null
+}
+
+export interface Immobile {
+  id: number
+  natura: string
+  numero_piani: number | null
+  numero_vani: number | null
+  consistenza: string | null
+  classificazione: string | null
+  localita_nome: string
+  tipologia_stradale: string | null
+}
+
+export interface Variazione {
+  id: number
+  tipo: string
+  data_variazione: string | null
+  numero_riferimento: string | null
+  partita_origine_id: number | null
+  partita_destinazione_id: number | null
+  origine_numero_partita: number | null
+  origine_comune_nome: string | null
+  destinazione_numero_partita: number | null
+  destinazione_comune_nome: string | null
+  tipo_contratto: string | null
+  data_contratto: string | null
+  notaio: string | null
+}
+
+export interface PartitaDetail {
+  id: number
+  numero_partita: number
+  suffisso_partita: string | null
+  tipo: string
+  stato: string
+  data_impianto: string | null
+  data_chiusura: string | null
+  numero_provenienza: number | null
+  comune_nome: string
+  comune_id: number
+  possessori: Possessore_PP[]
+  immobili: Immobile[]
+  variazioni: Variazione[]
+}
+
 export const getPartita = (id: number) =>
-  request<Record<string, unknown>>(`/partite/${id}`)
+  request<PartitaDetail>(`/partite/${id}`)
+
+export interface CreatePartitaPayload {
+  comune_id: number
+  numero_partita: number
+  suffisso_partita?: string
+  data_impianto?: string
+  tipo?: string
+  stato?: string
+  numero_provenienza?: number
+}
+
+export const createPartita = (payload: CreatePartitaPayload) =>
+  request<{ id: number }>('/partite', {
+    method: 'POST',
+    body: JSON.stringify(payload),
+  })
+
+export interface PatchPartitaPayload {
+  stato?: string
+  data_chiusura?: string | null
+  suffisso_partita?: string | null
+  numero_provenienza?: number | null
+  tipo?: string
+}
+
+export const patchPartita = (id: number, payload: PatchPartitaPayload) =>
+  request<{ ok: boolean }>(`/partite/${id}`, {
+    method: 'PATCH',
+    body: JSON.stringify(payload),
+  })
+
+export interface AddImmobilePayload {
+  localita_nome: string
+  tipologia_stradale?: string
+  natura: string
+  numero_piani?: number
+  numero_vani?: number
+  consistenza?: string
+  classificazione?: string
+}
+
+export const addImmobile = (partitaId: number, payload: AddImmobilePayload) =>
+  request<{ id: number }>(`/partite/${partitaId}/immobili`, {
+    method: 'POST',
+    body: JSON.stringify(payload),
+  })
+
+export const deleteImmobile = (partitaId: number, immobileId: number) =>
+  request<void>(`/partite/${partitaId}/immobili/${immobileId}`, { method: 'DELETE' })
+
+export interface AddVariazionePayload {
+  tipo: string
+  data_variazione: string
+  partita_destinazione_id?: number
+  numero_riferimento?: string
+  nominativo_riferimento?: string
+}
+
+export const addVariazione = (partitaId: number, payload: AddVariazionePayload) =>
+  request<{ id: number }>(`/partite/${partitaId}/variazioni`, {
+    method: 'POST',
+    body: JSON.stringify(payload),
+  })
+
+export const deleteVariazione = (partitaId: number, variazioneId: number) =>
+  request<void>(`/partite/${partitaId}/variazioni/${variazioneId}`, { method: 'DELETE' })
+
+export interface AddPossessoreToPartitaPayload {
+  possessore_id: number
+  titolo?: string
+  quota?: string
+  tipo_partita?: 'principale' | 'secondaria'
+}
+
+export const addPossessoreToPartita = (partitaId: number, payload: AddPossessoreToPartitaPayload) =>
+  request<{ ok: boolean }>(`/partite/${partitaId}/possessori`, {
+    method: 'POST',
+    body: JSON.stringify(payload),
+  })
+
+export const removePossessoreFromPartita = (partitaId: number, possessoreId: number) =>
+  request<void>(`/partite/${partitaId}/possessori/${possessoreId}`, { method: 'DELETE' })
+
+export interface CreatePossessorePayload {
+  nome_completo: string
+  cognome_nome?: string
+  paternita?: string
+  comune_id: number
+}
+
+export const createPossessore = (payload: CreatePossessorePayload) =>
+  request<{ id: number }>('/possessori', {
+    method: 'POST',
+    body: JSON.stringify(payload),
+  })
 
 // ── Possessori ─────────────────────────────────────────────────────────────
 
@@ -206,3 +359,25 @@ export const getAuditLog = (params: {
 }
 
 export const getAuditSummary = () => request<AuditSummary>('/audit/summary')
+
+// ── Possessori detail ──────────────────────────────────────────────────────
+
+export interface PossessoreDetail {
+  id: number
+  nome_completo: string
+  cognome_nome: string
+  paternita: string | null
+  partite: Array<{
+    id: number
+    numero_partita: number
+    suffisso_partita: string | null
+    comune_nome: string
+    tipo: string
+    stato: string
+    titolo: string | null
+    quota: string | null
+  }>
+}
+
+export const getPossessore = (id: number) =>
+  request<PossessoreDetail>(`/possessori/${id}`)

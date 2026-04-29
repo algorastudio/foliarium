@@ -4,6 +4,7 @@ import { logout } from '../api/client'
 
 const TABS = [
   { to: '/archivio', label: 'Consultazione archivio' },
+  { to: '/possessori', label: 'Possessori' },
   { to: '/genealogia', label: 'Proprietà & genealogia' },
   { to: '/analytics', label: 'Dashboard analytics' },
   { to: '/audit', label: 'Audit & log' },

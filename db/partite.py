@@ -572,9 +572,10 @@ class DBPartiteMixin:
             )
             SELECT 'centrale'::text as relazione, * FROM partita_centrale
             UNION ALL
-            SELECT 'predecessore'::text, * FROM predecessori ORDER BY data_variazione DESC
+            SELECT 'predecessore'::text, * FROM predecessori
             UNION ALL
-            SELECT 'successore'::text, * FROM successori ORDER BY data_variazione ASC;
+            SELECT 'successore'::text, * FROM successori
+            ORDER BY relazione, data_variazione DESC NULLS LAST;
         """
 
         with self._get_connection() as conn:
