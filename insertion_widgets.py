@@ -181,7 +181,7 @@ class InserimentoComuneWidget(LazyLoadedWidget): # Eredita da LazyLoadedWidget
         try:
             with open(path, "w", encoding="utf-8-sig") as f:
                 f.write("nome;provincia;regione;codice_catastale;data_istituzione;data_soppressione;note\n")
-                f.write("Savona;SV;Liguria;I480;1861-01-01;;\n")
+                f.write("Roma;RM;Lazio;H501;1871-01-01;;\n")
             QMessageBox.information(self, "Template salvato", f"Template salvato in:\n{path}")
         except Exception as e:
             QMessageBox.critical(self, "Errore", str(e))
@@ -791,7 +791,7 @@ class InserimentoPartitaWidget(QWidget):
         try:
             with open(path, "w", encoding="utf-8-sig") as f:
                 f.write("comune_nome;numero_partita;suffisso_partita;data_impianto;tipo_partita;numero_provenienza;stato\n")
-                f.write("Savona;1;;1900-01-01;principale;;attiva\n")
+                f.write("Roma;1;;1900-01-01;principale;;attiva\n")
             QMessageBox.information(self, "Template salvato", f"Template salvato in:\n{path}")
         except Exception as e:
             QMessageBox.critical(self, "Errore", str(e))

@@ -3,7 +3,7 @@ license_manager.py — Gestione licenze Foliarium
 
 Formato del file .license (JSON firmato con HMAC-SHA256):
   {
-    "licensed_to":  "Archivio di Stato di Savona",
+    "licensed_to":  "Nome Cliente",
     "license_type": "standard",          // "demo" | "standard" | "enterprise"
     "max_seats":    2,                   // istanze simultanee consentite in rete
     "expiry_date":  "2027-12-31",        // null = licenza perpetua
@@ -39,7 +39,7 @@ logger = logging.getLogger("CatastoGUI")
 
 # Chiave HMAC interna — non esposta nell'eseguibile finale tramite offuscamento;
 # in una distribuzione enterprise si può sostituire con RSA/chiave pubblica.
-_HMAC_KEY = b"Foliarium-ArchivioSavona-LicKey-2025"
+_HMAC_KEY = b"Foliarium-AlgoraStudio-LicKey-2025"
 
 # Durata massima (secondi) prima che un file-seat venga considerato stale
 _SEAT_TTL_SECONDS = 120
