@@ -24,6 +24,7 @@ pillow==11.2.1
 psycopg2-binary==2.9.10
 fastapi>=0.115.0
 uvicorn[standard]>=0.30.0
+pywebview>=4.2.0
 PyQt6==6.8.1
 PyQt6-Qt6==6.8.1
 PyQt6-sip==13.10.0
