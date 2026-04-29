@@ -35,6 +35,9 @@ def _init_db_from_env():
     schema = os.environ.get("DB_SCHEMA", "public")
     mgr = CatastoDBManager(dbname=dbname, user=user, password=password,
                            host=host, port=port, schema=schema)
+    ok = mgr.initialize_main_pool()
+    if not ok:
+        raise RuntimeError(f"Impossibile connettersi al database {user}@{host}:{port}/{dbname}")
     set_db_manager(mgr)
     logger.info("DB manager inizializzato: %s@%s:%s/%s", user, host, port, dbname)
 

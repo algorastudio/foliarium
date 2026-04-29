@@ -1,38 +1,28 @@
 @echo off
 chcp 65001 > nul
 
-:: Legge web.ini e imposta le variabili d'ambiente
-for /f "tokens=1,2 delims== eol=;" %%a in ('findstr /v "^\[" web.ini') do (
-    set "_key=%%a"
-    set "_val=%%b"
-    :: Rimuove spazi attorno ai valori
-    for /f "tokens=* delims= " %%x in ("%%a") do set "_key=%%x"
-    for /f "tokens=* delims= " %%x in ("%%b") do set "_val=%%x"
-    if /i "!_key!"=="host"     if not defined _srv_host set "DB_HOST=!_val!"
-    if /i "!_key!"=="port"     if not defined _srv_port set "DB_PORT=!_val!"
-    if /i "!_key!"=="name"     set "DB_NAME=!_val!"
-    if /i "!_key!"=="user"     set "DB_USER=!_val!"
-    if /i "!_key!"=="password" set "DB_PASS=!_val!"
+:: Legge web.ini con Python (più affidabile del parsing batch)
+for /f "delims=" %%i in ('python -c "
+import configparser, sys
+c = configparser.ConfigParser()
+c.read('web.ini')
+db = c['database']
+srv = c['server']
+print('DB_HOST=' + db.get('host','localhost'))
+print('DB_PORT=' + db.get('port','5432'))
+print('DB_NAME=' + db.get('name','catasto_storico'))
+print('DB_USER=' + db.get('user','postgres'))
+print('DB_PASS=' + db.get('password','postgres'))
+print('SRV_HOST=' + srv.get('host','0.0.0.0'))
+print('SRV_PORT=' + srv.get('port','8000'))
+" 2^>nul') do set "%%i"
+
+if not defined DB_NAME (
+    echo  [ERRORE] web.ini non trovato o non leggibile.
+    echo  Copia web.ini.example in web.ini e configura le credenziali.
+    pause & exit /b 1
 )
 
-:: Rileva host e porta server (sezione [server])
-setlocal enabledelayedexpansion
-set "_in_server=0"
-for /f "tokens=1,2 delims== eol=;" %%a in (web.ini) do (
-    set "_k=%%a"
-    set "_v=%%b"
-    for /f "tokens=* delims= " %%x in ("%%a") do set "_k=%%x"
-    for /f "tokens=* delims= " %%x in ("%%b") do set "_v=%%x"
-    if "!_k!"=="[server]" set "_in_server=1"
-    if "!_in_server!"=="1" (
-        if /i "!_k!"=="host" set "SRV_HOST=!_v!"
-        if /i "!_k!"=="port" set "SRV_PORT=!_v!"
-    )
-)
-if not defined SRV_HOST set "SRV_HOST=0.0.0.0"
-if not defined SRV_PORT set "SRV_PORT=8000"
-
-:: Verifica build frontend
 if not exist "frontend\dist\index.html" (
     echo  [AVVISO] Frontend non compilato. Esegui installa_web.bat prima di continuare.
     pause & exit /b 1
