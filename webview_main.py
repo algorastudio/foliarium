@@ -64,8 +64,9 @@ def setup_database_and_config(demo_mode: bool = False):
     Returns:
         (db_manager, config_dict)
     """
-    from config import setup_global_logging, ENV_DB_HOST, ENV_DB_USER, ENV_DB_PASS, ENV_DB_NAME, ENV_DB_PORT, ENV_DB_SCHEMA
+    from config import setup_global_logging, ENV_DB_HOST, ENV_DB_USER, ENV_DB_PASS, ENV_DB_NAME, ENV_DB_PORT
     from catasto_db_manager import CatastoDBManager
+    import config as cfg
 
     setup_global_logging()
 
@@ -82,6 +83,11 @@ def setup_database_and_config(demo_mode: bool = False):
         except Exception as e:
             logging.warning(f"Demo launcher non disponibile: {e}")
 
+    # Determina schema: env var → config.ini → default 'catasto'
+    schema = os.environ.get("FOLIARIUM_DB_SCHEMA")
+    if not schema:
+        schema = cfg._ini_get("database", "schema", "catasto")
+
     # Crea DB manager con credenziali da config
     db = CatastoDBManager(
         dbname=ENV_DB_NAME,
@@ -89,7 +95,7 @@ def setup_database_and_config(demo_mode: bool = False):
         password=ENV_DB_PASS,
         host=ENV_DB_HOST,
         port=ENV_DB_PORT,
-        schema=ENV_DB_SCHEMA,
+        schema=schema,
     )
 
     # Retry-loop sull'inizializzazione del pool
