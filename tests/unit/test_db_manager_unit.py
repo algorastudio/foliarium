@@ -27,6 +27,12 @@ def mgr(tmp_path):
     m._cache_dir = tmp_path
     import logging
     m.logger = logging.getLogger("test_db_manager")
+    m._pool_metrics = {
+        "total_getconn": 0,
+        "total_putconn": 0,
+        "connection_errors": 0,
+        "last_error_time": None,
+    }
     return m
 
 
@@ -122,17 +128,20 @@ class TestImportPartiteCSV:
 @pytest.mark.unit
 class TestGetGenealogia:
 
-    def test_invalid_id_returns_none(self, mgr):
-        """get_genealogia_partita deve restituire None per ID non validi."""
-        assert mgr.get_genealogia_partita(0) is None
-        assert mgr.get_genealogia_partita(-1) is None
-        assert mgr.get_genealogia_partita("abc") is None  # type: ignore
+    def test_invalid_id_raises_value_error(self, mgr):
+        """get_genealogia_partita deve sollevare ValueError per ID non validi."""
+        with pytest.raises(ValueError):
+            mgr.get_genealogia_partita(0)
+        with pytest.raises(ValueError):
+            mgr.get_genealogia_partita(-1)
+        with pytest.raises(ValueError):
+            mgr.get_genealogia_partita("abc")  # type: ignore
 
-    def test_no_pool_returns_none(self, mgr):
-        """Con pool=None get_genealogia_partita deve restituire None (errore DB)."""
-        # pool è None → _get_connection solleva PoolError → except cattura → None
-        result = mgr.get_genealogia_partita(1)
-        assert result is None
+    def test_no_pool_raises_db_error(self, mgr):
+        """Con pool=None get_genealogia_partita solleva DBMError (pool non inizializzato)."""
+        from catasto_exceptions import DBMError
+        with pytest.raises(DBMError):
+            mgr.get_genealogia_partita(1)
 
 
 # ---------------------------------------------------------------------------

@@ -116,11 +116,11 @@ class TestComuniMixin:
         args, kwargs = cur.execute.call_args
         assert "%Savo%" in str(args)
 
-    def test_get_comuni_db_error_restituisce_lista_vuota(self, mgr):
-        """Se _get_connection solleva un'eccezione, get_comuni restituisce []."""
+    def test_get_comuni_db_error_propaga_eccezione(self, mgr):
+        """Se _get_connection solleva un'eccezione, get_comuni propaga l'eccezione."""
         with patch.object(mgr, "_get_connection", side_effect=Exception("DB giù")):
-            result = mgr.get_comuni()
-        assert result == []
+            with pytest.raises(Exception, match="DB giù"):
+                mgr.get_comuni()
 
     def test_registra_comune_insert_restituisce_id(self, mgr):
         """registra_comune_nel_db deve restituire l'ID quando INSERT riesce."""
@@ -185,11 +185,11 @@ class TestPartiteMixin:
         args = cur.execute.call_args[0]
         assert 5 in args[1]
 
-    def test_search_partite_db_error_restituisce_lista_vuota(self, mgr):
-        """search_partite deve restituire [] in caso di eccezione."""
+    def test_search_partite_db_error_propaga_eccezione(self, mgr):
+        """search_partite propaga l'eccezione in caso di errore non psycopg2."""
         with patch.object(mgr, "_get_connection", side_effect=Exception("timeout")):
-            result = mgr.search_partite(comune_id=1)
-        assert result == []
+            with pytest.raises(Exception, match="timeout"):
+                mgr.search_partite(comune_id=1)
 
     def test_get_report_comune_restituisce_dict(self, mgr):
         """get_report_comune deve restituire un dict con i dati del comune."""
@@ -200,12 +200,13 @@ class TestPartiteMixin:
         assert isinstance(result, dict)
         assert result["comune"] == "Savona"
 
-    def test_get_report_comune_nessun_risultato(self, mgr):
-        """get_report_comune deve restituire None se il DB non ritorna righe."""
+    def test_get_report_comune_nessun_risultato_solleva_dbnotfound(self, mgr):
+        """get_report_comune solleva DBNotFoundError se il DB non ritorna righe."""
+        from catasto_exceptions import DBNotFoundError
         conn_cm, cur = make_mock_conn(fetchone_val=None)
         with patch.object(mgr, "_get_connection", return_value=conn_cm):
-            result = mgr.get_report_comune(comune_id=999)
-        assert result is None
+            with pytest.raises(DBNotFoundError):
+                mgr.get_report_comune(comune_id=999)
 
     def test_get_report_annuale_partite_restituisce_lista(self, mgr):
         """get_report_annuale_partite deve chiamare la funzione SQL e restituire lista."""
@@ -226,12 +227,13 @@ class TestPartiteMixin:
         parsed = json.loads(result)
         assert parsed["id"] == 1
 
-    def test_export_partita_json_nessun_dato(self, mgr):
-        """export_partita_json deve restituire None se il DB non ritorna dati."""
+    def test_export_partita_json_nessun_dato_solleva_dbnotfound(self, mgr):
+        """export_partita_json solleva DBNotFoundError se il DB non ritorna dati."""
+        from catasto_exceptions import DBNotFoundError
         conn_cm, cur = make_mock_conn(fetchone_val=None)
         with patch.object(mgr, "_get_connection", return_value=conn_cm):
-            result = mgr.export_partita_json(partita_id=999)
-        assert result is None
+            with pytest.raises(DBNotFoundError):
+                mgr.export_partita_json(partita_id=999)
 
 
 # ===========================================================================

@@ -96,11 +96,11 @@ class TestPossessoriMixin:
         args, _ = cur.execute.call_args
         assert "comune_id" in args[0]
 
-    def test_check_possessore_exists_db_error_restituisce_none(self, mgr):
-        """In caso di errore DB, check_possessore_exists restituisce None."""
+    def test_check_possessore_exists_db_error_propaga_eccezione(self, mgr):
+        """In caso di errore DB, check_possessore_exists propaga l'eccezione."""
         with patch.object(mgr, "_get_connection", side_effect=Exception("DB giù")):
-            result = mgr.check_possessore_exists("Rossi Mario")
-        assert result is None
+            with pytest.raises(Exception, match="DB giù"):
+                mgr.check_possessore_exists("Rossi Mario")
 
     def test_create_possessore_restituisce_id(self, mgr):
         """create_possessore restituisce l'ID del nuovo possessore inserito."""
@@ -150,11 +150,10 @@ class TestPossessoriMixin:
         with pytest.raises(DBDataError):
             mgr.get_partite_per_possessore(possessore_id=0)
 
-    def test_get_partite_per_possessore_db_error_solleva(self, mgr):
-        """get_partite_per_possessore solleva DBMError in caso di errore DB."""
-        from catasto_exceptions import DBMError
+    def test_get_partite_per_possessore_db_error_propaga_eccezione(self, mgr):
+        """get_partite_per_possessore propaga l'eccezione (non psycopg2) in caso di errore DB."""
         with patch.object(mgr, "_get_connection", side_effect=Exception("errore")):
-            with pytest.raises(DBMError):
+            with pytest.raises(Exception, match="errore"):
                 mgr.get_partite_per_possessore(possessore_id=1)
 
     def test_import_possessori_from_csv_successo(self, mgr, tmp_path):
@@ -304,11 +303,10 @@ class TestPartiteMixin:
             result = mgr.get_partite_by_comune(comune_id=1)
         assert len(result) == 2
 
-    def test_get_partite_by_comune_db_error_solleva_dbmerror(self, mgr):
-        """get_partite_by_comune solleva DBMError in caso di errore DB."""
-        from catasto_exceptions import DBMError
+    def test_get_partite_by_comune_db_error_propaga_eccezione(self, mgr):
+        """get_partite_by_comune propaga l'eccezione (non psycopg2) in caso di errore DB."""
         with patch.object(mgr, "_get_connection", side_effect=Exception("errore")):
-            with pytest.raises(DBMError):
+            with pytest.raises(Exception, match="errore"):
                 mgr.get_partite_by_comune(comune_id=1)
 
     def test_get_partita_details_trovata(self, mgr):
@@ -321,12 +319,13 @@ class TestPartiteMixin:
         assert result is not None
         assert result["numero_partita"] == 100
 
-    def test_get_partita_details_non_trovata(self, mgr):
-        """get_partita_details restituisce None se la partita non esiste."""
+    def test_get_partita_details_non_trovata_solleva_dbnotfound(self, mgr):
+        """get_partita_details solleva DBNotFoundError se la partita non esiste."""
+        from catasto_exceptions import DBNotFoundError
         conn_cm, cur = make_mock_conn(fetchone_val=None)
         with patch.object(mgr, "_get_connection", return_value=conn_cm):
-            result = mgr.get_partita_details(partita_id=9999)
-        assert result is None
+            with pytest.raises(DBNotFoundError):
+                mgr.get_partita_details(partita_id=9999)
 
     def test_import_partite_from_csv_intestazioni_errate(self, mgr, tmp_path):
         """import_partite_from_csv con intestazioni errate solleva IOError."""
@@ -349,8 +348,19 @@ class TestPartiteMixin:
 
     def test_get_genealogia_partita_restituisce_struttura(self, mgr):
         """get_genealogia_partita restituisce dizionario con chiavi partita/predecessori/successori."""
-        partita_row = {"id": 1, "numero_partita": 100, "comune_nome": "Savona"}
-        conn_cm, cur = make_mock_conn(fetchone_val=partita_row, rows=[])
+        # Il metodo usa fetchall() con una CTE che include la colonna 'relazione'
+        rows = [
+            {
+                "id": 1, "numero_partita": 100, "suffisso_partita": None,
+                "tipo": "Principale", "stato": "Attiva",
+                "data_impianto": None, "data_chiusura": None,
+                "comune_nome": "Savona", "possessori": "Rossi Mario",
+                "tipo_variazione": None, "data_variazione": None,
+                "nominativo_riferimento": None,
+                "relazione": "centrale",
+            }
+        ]
+        conn_cm, cur = make_mock_conn(rows=rows)
         with patch.object(mgr, "_get_connection", return_value=conn_cm):
             result = mgr.get_genealogia_partita(partita_id=1)
         assert result is not None
@@ -358,12 +368,13 @@ class TestPartiteMixin:
         assert "predecessori" in result
         assert "successori" in result
 
-    def test_get_genealogia_partita_non_trovata(self, mgr):
-        """get_genealogia_partita restituisce None se la partita non esiste."""
-        conn_cm, cur = make_mock_conn(fetchone_val=None, rows=[])
+    def test_get_genealogia_partita_non_trovata_solleva_dbnotfound(self, mgr):
+        """get_genealogia_partita solleva DBNotFoundError se la partita non esiste."""
+        from catasto_exceptions import DBNotFoundError
+        conn_cm, cur = make_mock_conn(rows=[])
         with patch.object(mgr, "_get_connection", return_value=conn_cm):
-            result = mgr.get_genealogia_partita(partita_id=9999)
-        assert result is None
+            with pytest.raises(DBNotFoundError):
+                mgr.get_genealogia_partita(partita_id=9999)
 
     def test_search_partite_restituisce_lista(self, mgr):
         """search_partite restituisce lista di risultati."""
@@ -373,10 +384,10 @@ class TestPartiteMixin:
             result = mgr.search_partite(numero_partita=100)
         assert isinstance(result, list)
 
-    def test_get_partita_data_for_export_id_non_valido(self, mgr):
-        """get_partita_data_for_export con ID non valido restituisce None senza chiamare DB."""
-        result = mgr.get_partita_data_for_export(partita_id=-1)
-        assert result is None
+    def test_get_partita_data_for_export_id_non_valido_solleva_valueerror(self, mgr):
+        """get_partita_data_for_export con ID non valido solleva ValueError."""
+        with pytest.raises(ValueError):
+            mgr.get_partita_data_for_export(partita_id=-1)
 
     def test_get_partita_data_for_export_ok(self, mgr):
         """get_partita_data_for_export restituisce i dati dal DB."""
@@ -419,11 +430,13 @@ class TestSearchMixin:
         args, _ = cur.execute.call_args
         assert "ILIKE" in args[0] or "ilike" in args[0].lower()
 
-    def test_ricerca_avanzata_immobili_db_error_restituisce_lista_vuota(self, mgr):
-        """ricerca_avanzata_immobili_gui restituisce [] in caso di errore DB."""
+    def test_ricerca_avanzata_immobili_db_error_solleva_dbmerror(self, mgr):
+        """ricerca_avanzata_immobili_gui solleva DBMError in caso di errore OperationalError."""
+        from catasto_exceptions import DBMError
+        import psycopg2
         with patch.object(mgr, "_get_connection", side_effect=psycopg2.OperationalError("err")):
-            result = mgr.ricerca_avanzata_immobili_gui()
-        assert result == []
+            with pytest.raises(DBMError):
+                mgr.ricerca_avanzata_immobili_gui()
 
     def test_search_all_entities_fuzzy_restituisce_dict(self, mgr):
         """search_all_entities_fuzzy restituisce dict con chiavi per tipo entità."""
@@ -445,11 +458,11 @@ class TestSearchMixin:
         total = sum(len(v) for v in result.values())
         assert total > 0
 
-    def test_search_all_entities_fuzzy_pool_error_restituisce_vuoto(self, mgr):
-        """search_all_entities_fuzzy restituisce {} in caso di PoolError."""
+    def test_search_all_entities_fuzzy_pool_error_propaga_eccezione(self, mgr):
+        """search_all_entities_fuzzy propaga PoolError in caso di errore pool."""
         with patch.object(mgr, "_get_connection", side_effect=psycopg2.pool.PoolError("pool esaurito")):
-            result = mgr.search_all_entities_fuzzy("test")
-        assert result == {}
+            with pytest.raises(psycopg2.pool.PoolError):
+                mgr.search_all_entities_fuzzy("test")
 
     def test_search_all_entities_fuzzy_flag_disabilitati(self, mgr):
         """search_all_entities_fuzzy con tutti i flag a False non esegue query."""
@@ -478,8 +491,8 @@ class TestSearchMixin:
         assert isinstance(result, dict)
         assert "status" in result
 
-    def test_verify_gin_indices_db_error_restituisce_error_status(self, mgr):
-        """verify_gin_indices restituisce status ERROR in caso di eccezione."""
+    def test_verify_gin_indices_db_error_propaga_eccezione(self, mgr):
+        """verify_gin_indices propaga l'eccezione in caso di errore DB."""
         with patch.object(mgr, "_get_connection", side_effect=Exception("errore")):
-            result = mgr.verify_gin_indices()
-        assert result.get("status") == "ERROR"
+            with pytest.raises(Exception, match="errore"):
+                mgr.verify_gin_indices()
