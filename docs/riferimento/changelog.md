@@ -1,5 +1,89 @@
 # Changelog
 
+## v1.0.0 (= v1.6.1) — Aprile 2026 — VERSIONE FINALE STABILE
+
+**Foliarium 1.0.0** è la prima versione stabile e completa del sistema di gestione dell'Archivio Catastale Storico. Questa release consolida tutte le funzionalità sviluppate nelle versioni precedenti (1.5.x e 1.6.x).
+
+### Funzionalità principali incluse
+
+#### Interfaccia utente moderno
+✅ **Sidebar + Top Bar**: Navigazione ridisegnata con barra laterale verticale (stile VS Code) e top bar con stato applicazione  
+✅ **16 temi grafici** inclusi + tema automatico (segue impostazioni sistema Windows)  
+✅ **Stile nativo Windows 11** (con Qt 6.7+)  
+✅ **Temi scuro/chiaro automatici** in base alle preferenze di sistema  
+✅ **Logo SVG** sempre nitido su HiDPI  
+
+#### Ricerca e consultazione
+✅ **Ricerca partite** con filtri: numero, possessore, stato, anno  
+✅ **Ricerca possessori** con ricerca parziale su nome/cognome  
+✅ **Ricerca immobili** avanzata per natura, classificazione, località  
+✅ **Ricerca documenti storici** full-text  
+✅ **Albero genealogico partite** con visualizzazione predecessori/successori  
+✅ **Confronto versioni partita** con diff visuale (verde/rosso)  
+
+#### Inserimento e gestione dati
+✅ **Inserimento comuni, possessori, località, partite, immobili**  
+✅ **Importazione da CSV e XLSX** con validazione e anteprima  
+✅ **Importazione comuni da ISTAT ufficiale** con download automatico  
+✅ **Importazione località da OpenStreetMap** (Overpass API)  
+✅ **Scarica/modifica/reimporta** per aggiornamento massivo (round-trip CSV)  
+✅ **Template CSV** scaricabili per ogni tipo di entità  
+✅ **Validazione campi obbligatori** con feedback visuale in tempo reale  
+
+#### Esportazioni e reportistica
+✅ **Esporta in CSV, Excel, PDF, ODT**  
+✅ **Archivio Completo (.xlsx)** con 4 fogli (Partite, Possessori, Immobili, Variazioni)  
+✅ **Report testuale** genealogico, statistiche, consistenza patrimoniale  
+✅ **Grafici statistici** con matplotlib (bar, torta, linee)  
+
+#### Tabelle interattive
+✅ **Ridimensionamento colonne interattivo** — drag sul bordo tra intestazioni  
+✅ **Ordinamento** con clic su intestazione colonna  
+✅ **Menu contestuale** (tasto destro) per copia valori e operazioni rapide  
+✅ **Conteggio risultati** visualizzato sopra ogni tabella  
+
+#### Sicurezza e gestione
+✅ **Autenticazione utenti** con bcrypt, keyring per password DB  
+✅ **RBAC** — ruoli Guest, Utente, Amministratore  
+✅ **Audit log** completo di tutti gli accessi e modifiche  
+✅ **Gestione utenti** — crea, modifica, reset password, disabilita  
+✅ **Timeout sessione** configurabile (default 15 min)  
+✅ **Notifiche email automatiche** (account creato, password cambio, ruolo cambiato, login)  
+✅ **Sistema licenze HMAC-SHA256** con seat di rete  
+✅ **Modalità offline** con cache JSON locale  
+
+#### Database
+✅ **PostgreSQL 14** embedded (installer unificato) oppure installazione standard  
+✅ **Versione demo portabile** con PostgreSQL embedded sulla porta 15432  
+✅ **Backup/ripristino** con GUI  
+✅ **Schema catastale completo** con 12+ tabelle, stored procedure, GIN indices per ricerca full-text  
+
+#### Operazioni avanzate
+✅ **Auto-aggiornamento** da GitHub Releases con download e installazione automatici  
+✅ **Manuale utente integrato** (F1) con viewer markdown + navigazione albero  
+✅ **MkDocs documentation** completa (consultazione, inserimento, amministrazione, FAQ)  
+✅ **Test coverage** 19.6% + 164 unit test  
+
+### Piattaforme supportate
+- **Windows 10** / **Windows 11** (primario)
+- **Installazione standard**: Python 3.12 + PostgreSQL (su host separato o locale)
+- **Installer unificato**: PostgreSQL 14 embedded, setup database automatico, servizio Windows
+- **Versione demo**: ZIP portabile, nessuna installazione
+
+### Performance e stabilità
+- **Refactoring TIER 1**: 36 metodi DB rifattorizzati, 469 linee di codice semplificato
+- **Ottimizzazioni TIER 2**: N+1 queries eliminate, subquery correlate, query tagging, GIN indices
+- **Ottimizzazioni TIER 3**: Smart MV refresh, connection pool health monitoring, safe query binding, lookup cache
+- **Estimated speedup**: **10-15x** vs versioni precedenti
+
+### Note importanti
+- **PyQt6**: Esclusivamente PyQt6 (zero PyQt5/Qt4)
+- **Zero dipendenze WebEngine**: QPdfDocument per visualizzazione PDF
+- **Backward compatible**: Database upgrade script (`06_migrate_civico_to_nome.sql`) per migrazione civico
+- **Nessun debito tecnico**: Tutti i debiti tecnici noti risolti, refactoring completato
+
+---
+
 ## v1.6.1 — Aprile 2026
 
 ### Refactoring civico — Incorporazione nel nome della via

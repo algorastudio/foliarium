@@ -38,32 +38,35 @@ Se il database non è raggiungibile, Foliarium mostra una barra rossa nella part
 
 ## Finestra principale
 
-Dopo il login viene mostrata la finestra principale di Foliarium.
+Dopo il login viene mostrata la finestra principale di Foliarium con una **barra superiore (top bar)** e una **barra laterale (sidebar)** per la navigazione.
 
-> 📸 **Screenshot:** Finestra principale con toolbar superiore, barra laterale di navigazione e area contenuto centrale.
+> 📸 **Screenshot:** Finestra principale con top bar superiore, sidebar laterale e area contenuto centrale.
 
 ### Componenti dell'interfaccia
 
 | Area | Descrizione |
 |---|---|
-| **Barra superiore** | Menu (File, Impostazioni, Aiuto), pulsanti rapidi |
-| **Tab di navigazione** | Accesso alle sezioni: Consultazione, Inserimento, Esportazioni, Reportistica, Statistiche |
-| **Area contenuto** | Pannello principale che cambia in base alla sezione selezionata |
-| **Barra di stato** | Utente connesso, stato DB, messaggi di sistema |
+| **Barra superiore (Top Bar)** | Logo Foliarium, titolo pagina corrente, indicatore stato DB, nome utente, ruolo, pulsante logout |
+| **Barra laterale (Sidebar)** | Menu di navigazione verticale con bottoni per le sezioni disponibili in base al ruolo |
+| **Area contenuto** | Pannello principale che cambia al clic su un bottone della sidebar |
+| **Barra di stato** | Messaggi di sistema e notifiche temporanee |
 
 ---
 
 ## Navigazione tra le sezioni
 
-Fare clic sulle tab nella barra superiore o sulle voci del menu laterale per passare da una sezione all'altra.
+Fare clic sui bottoni nella **barra laterale sinistra** per passare da una sezione all'altra. I bottoni disponibili variano in base al **ruolo utente**:
 
-Le tab disponibili variano in base al **ruolo utente**:
-
-| Ruolo | Tab disponibili |
+| Ruolo | Sezioni disponibili |
 |---|---|
 | **Guest** | Consultazione, Reportistica |
 | **Utente** | Consultazione, Inserimento, Esportazioni, Reportistica, Statistiche |
 | **Amministratore** | Tutte le sezioni + Gestione Utenti + Backup + Audit Log |
+
+### Shortcut da tastiera
+
+- **Ctrl+1...9**: Navigazione rapida ai bottoni della sidebar (in ordine)
+- **F5**: Aggiorna i dati della pagina corrente
 
 ---
 
