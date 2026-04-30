@@ -177,12 +177,12 @@ class EmbeddedPostgres:
                 ],
                 capture_output=True,
                 text=True,
-                timeout=10,          # solo il lancio del processo, non l'avvio completo
+                timeout=20,          # aumentato da 10s per antivirus lenti
                 creationflags=_NO_WINDOW,
             )
         except subprocess.TimeoutExpired:
             return False, (
-                "pg_ctl non risponde (timeout 10s).\n"
+                "pg_ctl non risponde (timeout 20s).\n"
                 "Possibile causa: antivirus o Windows Defender sta bloccando\n"
                 "l'eseguibile estratto dal ZIP. Prova a sbloccare il file\n"
                 "nelle proprietà oppure esegui come amministratore."
@@ -208,6 +208,8 @@ class EmbeddedPostgres:
             log_content = _read_pg_log(log_file)
             return False, (
                 f"PostgreSQL non risponde dopo {_STARTUP_TIMEOUT}s.\n\n"
+                f"Sblocca gli eseguibili in pgsql/bin/ nelle proprietà\n"
+                "oppure esegui l'app come amministratore.\n\n"
                 f"Log:\n{log_content}"
             )
 
