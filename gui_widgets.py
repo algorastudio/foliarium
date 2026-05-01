@@ -454,7 +454,7 @@ class ElencoComuniWidget(LazyLoadedWidget):
         try:
             self.db_manager.archivia_comune(comune_id)
             self.load_data()
-            from app_utils import show_status_message
+            _show_status_message("Comune archiviato con successo", 3000)
         except Exception as e:
             QMessageBox.critical(self, "Errore", f"Impossibile archiviare il comune:\n{e}")
 
