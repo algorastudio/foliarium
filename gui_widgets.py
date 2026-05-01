@@ -649,7 +649,7 @@ class RicercaPartiteWidget(QWidget):
         self._table.setColumnWidth(1, 160)
         self._table.setColumnWidth(2, 80)
         self._table.setColumnWidth(3, 100)
-        self._table.currentRowChanged.connect(self._on_row_selected)
+        self._table.cellClicked.connect(lambda row, col: self._on_row_selected(row))
         self._table.doubleClicked.connect(lambda: self.show_details())
         self._table.customContextMenuRequested.connect(self._on_context_menu)
         splitter.addWidget(self._table)
