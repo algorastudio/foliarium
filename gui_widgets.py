@@ -608,93 +608,87 @@ class RicercaPartiteWidget(QWidget):
         self.db_manager = db_manager
         self._selected_partita_id: Optional[int] = None
         self._all_partite: list[dict] = []
-        self._active_stato_filter: str = ""
         self._comune_id: Optional[int] = None
         self._search_worker: Optional[_PartiteSearchWorker] = None
 
         main_layout = QVBoxLayout(self)
-        main_layout.setContentsMargins(16, 12, 16, 12)
-        main_layout.setSpacing(8)
 
-        # Search bar
-        bar = QFrame()
-        bar.setObjectName("searchBar")
-        bar_layout = QHBoxLayout(bar)
-        bar_layout.setContentsMargins(0, 0, 0, 0)
-        bar_layout.setSpacing(8)
+        group = QGroupBox("Ricerca Partite")
+        group_layout = QVBoxLayout(group)
+
+        # ─────────────────────────────────────────────────────────
+        # Barra ricerca: Comune, N°, Possessore, Natura, Cerca, Pulisci
+        # ─────────────────────────────────────────────────────────
+        search_layout = QHBoxLayout()
+        search_layout.setContentsMargins(0, 0, 0, 0)
+        search_layout.setSpacing(6)
 
         self._comune_btn = QPushButton("Comune...")
         self._comune_btn.setObjectName("secondaryButton")
-        self._comune_btn.setFixedWidth(110)
+        self._comune_btn.setMaximumWidth(110)
         self._comune_btn.clicked.connect(self._select_comune)
-        bar_layout.addWidget(self._comune_btn)
+        search_layout.addWidget(self._comune_btn)
 
         self._numero_edit = QSpinBox()
         self._numero_edit.setMinimum(0)
         self._numero_edit.setMaximum(99999)
         self._numero_edit.setSpecialValueText("N°...")
-        self._numero_edit.setFixedWidth(80)
-        bar_layout.addWidget(self._numero_edit)
+        self._numero_edit.setMaximumWidth(80)
+        search_layout.addWidget(self._numero_edit)
 
         self._possessore_edit = QLineEdit()
         self._possessore_edit.setPlaceholderText("Possessore...")
         self._possessore_edit.returnPressed.connect(self.do_search)
-        bar_layout.addWidget(self._possessore_edit, 1)
+        search_layout.addWidget(self._possessore_edit, 1)
 
         self._natura_edit = QLineEdit()
         self._natura_edit.setPlaceholderText("Natura immobile...")
         self._natura_edit.returnPressed.connect(self.do_search)
-        bar_layout.addWidget(self._natura_edit, 1)
+        search_layout.addWidget(self._natura_edit, 1)
 
         self._search_btn = QPushButton("Cerca")
         self._search_btn.clicked.connect(self.do_search)
-        bar_layout.addWidget(self._search_btn)
+        search_layout.addWidget(self._search_btn)
 
         clear_btn = QPushButton("Pulisci")
         clear_btn.setObjectName("secondaryButton")
         clear_btn.clicked.connect(self._clear_search)
-        bar_layout.addWidget(clear_btn)
+        search_layout.addWidget(clear_btn)
 
-        main_layout.addWidget(bar)
+        group_layout.addLayout(search_layout)
 
         # Loading progress bar (hidden by default)
         self._loading_bar = QProgressBar()
-        self._loading_bar.setRange(0, 0)  # indeterminate
-        self._loading_bar.setFixedHeight(4)
+        self._loading_bar.setRange(0, 0)
+        self._loading_bar.setFixedHeight(3)
         self._loading_bar.setVisible(False)
         self._loading_bar.setTextVisible(False)
-        main_layout.addWidget(self._loading_bar)
+        group_layout.addWidget(self._loading_bar)
 
-        # Filter chips
-        chips_row = QHBoxLayout()
-        chips_row.setContentsMargins(0, 0, 0, 0)
-        chips_row.setSpacing(6)
+        # ─────────────────────────────────────────────────────────
+        # Filtri stato + conteggio risultati
+        # ─────────────────────────────────────────────────────────
+        filter_layout = QHBoxLayout()
+        filter_layout.setContentsMargins(0, 0, 0, 0)
+        filter_layout.setSpacing(6)
 
-        self._filter_btns: dict[str, QPushButton] = {}
-        for label, val in [("Tutte", ""), ("Attive", "Attiva"),
-                           ("Inattive", "Inattiva"), ("Aperte", "Aperta"), ("Chiuse", "Chiusa")]:
-            btn = QPushButton(label)
-            btn.setObjectName("filterChip")
-            btn.setCheckable(True)
-            btn.setAutoExclusive(True)
-            btn.setChecked(val == "")
-            btn.clicked.connect(lambda _, v=val: self._apply_stato_filter(v))
-            chips_row.addWidget(btn)
-            self._filter_btns[val] = btn
+        filter_layout.addWidget(QLabel("Stato:"))
+        self._stato_combo = QComboBox()
+        self._stato_combo.addItems(["Tutte", "Attiva", "Inattiva", "Aperta", "Chiusa"])
+        self._stato_combo.currentTextChanged.connect(self._on_stato_combo_changed)
+        filter_layout.addWidget(self._stato_combo)
 
-        chips_row.addStretch()
+        filter_layout.addStretch()
 
         self._count_label = QLabel("Nessuna ricerca eseguita.")
-        self._count_label.setStyleSheet("color:#757575; font-style:italic;")
-        chips_row.addWidget(self._count_label)
+        self._count_label.setStyleSheet("color:#757575; font-style:italic; font-size:9pt;")
+        filter_layout.addWidget(self._count_label)
 
-        main_layout.addLayout(chips_row)
+        group_layout.addLayout(filter_layout)
 
-        # Main splitter: results table | detail panel
-        splitter = QSplitter(Qt.Orientation.Horizontal)
-        splitter.setHandleWidth(1)
-
-        # Left: results table
+        # ─────────────────────────────────────────────────────────
+        # Tabella risultati (full-width)
+        # ─────────────────────────────────────────────────────────
         self._table = QTableWidget()
         self._table.setColumnCount(5)
         self._table.setHorizontalHeaderLabels(["N° Partita", "Comune", "Stato", "Tipo", "Data Impianto"])
@@ -715,57 +709,39 @@ class RicercaPartiteWidget(QWidget):
         self._table.cellClicked.connect(lambda row, col: self._on_row_selected(row))
         self._table.doubleClicked.connect(lambda: self.show_details())
         self._table.customContextMenuRequested.connect(self._on_context_menu)
-        splitter.addWidget(self._table)
+        group_layout.addWidget(self._table, 1)
 
-        # Right: detail panel
-        right_widget = QWidget()
-        right_layout = QVBoxLayout(right_widget)
-        right_layout.setContentsMargins(0, 0, 0, 0)
-        right_layout.setSpacing(0)
-
-        self._detail_browser = QTextBrowser()
-        self._detail_browser.setFrameShape(QFrame.Shape.NoFrame)
-        self._detail_browser.setOpenLinks(False)
-        self._detail_browser.setHtml(
-            '<div style="color:#9E9E9E;font-size:14px;margin-top:40px;text-align:center;">'
-            '← Seleziona una partita dalla lista</div>'
-        )
-        right_layout.addWidget(self._detail_browser, 1)
-
-        # Action buttons bar
-        actions_bar = QFrame()
-        actions_bar.setObjectName("detailActionsBar")
-        actions_bar.setVisible(False)
-        self._actions_bar = actions_bar
-        ab_layout = QHBoxLayout(actions_bar)
-        ab_layout.setContentsMargins(12, 8, 12, 8)
-        ab_layout.setSpacing(8)
+        # ─────────────────────────────────────────────────────────
+        # Bottoni azione (come ElencoComuniWidget)
+        # ─────────────────────────────────────────────────────────
+        action_layout = QHBoxLayout()
+        action_layout.setContentsMargins(0, 0, 0, 0)
+        action_layout.setSpacing(8)
 
         self._btn_open_full = QPushButton("Apri Dettagli Completi")
+        self._btn_open_full.setEnabled(False)
         self._btn_open_full.clicked.connect(self.show_details)
-        ab_layout.addWidget(self._btn_open_full)
+        action_layout.addWidget(self._btn_open_full)
 
         self._btn_albero = QPushButton("Albero Genealogico")
         self._btn_albero.setObjectName("secondaryButton")
+        self._btn_albero.setEnabled(False)
         self._btn_albero.clicked.connect(self._apri_albero)
-        ab_layout.addWidget(self._btn_albero)
+        action_layout.addWidget(self._btn_albero)
 
-        ab_layout.addStretch()
+        action_layout.addStretch()
 
         self._btn_copy_id = QPushButton("Copia ID")
         self._btn_copy_id.setObjectName("secondaryButton")
+        self._btn_copy_id.setEnabled(False)
         self._btn_copy_id.clicked.connect(lambda: QApplication.clipboard().setText(
             str(self._selected_partita_id or "")))
-        ab_layout.addWidget(self._btn_copy_id)
+        action_layout.addWidget(self._btn_copy_id)
 
-        right_layout.addWidget(actions_bar)
+        group_layout.addLayout(action_layout)
 
-        splitter.addWidget(right_widget)
-        splitter.setStretchFactor(0, 3)
-        splitter.setStretchFactor(1, 2)
-        splitter.setSizes([560, 380])
+        main_layout.addWidget(group)
 
-        main_layout.addWidget(splitter, 1)
 
     def _select_comune(self):
         dialog = ComuneSelectionDialog(self.db_manager, self)
@@ -784,39 +760,39 @@ class RicercaPartiteWidget(QWidget):
         self._numero_edit.setValue(0)
         self._possessore_edit.clear()
         self._natura_edit.clear()
-        self._active_stato_filter = ""
-        for key, btn in self._filter_btns.items():
-            btn.setChecked(key == "")
+        self._stato_combo.setCurrentText("Tutte")
         self._table.setSortingEnabled(False)
         self._table.setRowCount(0)
         self._table.setSortingEnabled(True)
         self._all_partite.clear()
         self._selected_partita_id = None
         self._count_label.setText("Nessuna ricerca eseguita.")
-        self._detail_browser.setHtml(
-            '<div style="color:#9E9E9E;font-size:14px;margin-top:40px;text-align:center;">'
-            '← Seleziona una partita dalla lista</div>'
-        )
-        self._actions_bar.setVisible(False)
+        self._btn_open_full.setEnabled(False)
+        self._btn_albero.setEnabled(False)
+        self._btn_copy_id.setEnabled(False)
 
-    def _apply_stato_filter(self, stato: str):
-        self._active_stato_filter = stato
-        for key, btn in self._filter_btns.items():
-            btn.setChecked(key == stato)
+    def _on_stato_combo_changed(self, text: str):
+        """Quando il combo filtro stato cambia, aggiorna la visibilità righe."""
         self._update_row_visibility()
 
     def _update_row_visibility(self):
+        """Filtra la tabella in base al valore del combo stato."""
+        stato_filtro = self._stato_combo.currentText()
+        if stato_filtro == "Tutte":
+            stato_filtro = ""
+
         visible = 0
         for row in range(self._table.rowCount()):
             stato_item = self._table.item(row, 2)
             partita_stato = (stato_item.text() if stato_item else "").strip()
-            show = (not self._active_stato_filter or
-                    partita_stato.lower() == self._active_stato_filter.lower())
+            show = (not stato_filtro or
+                    partita_stato.lower() == stato_filtro.lower())
             self._table.setRowHidden(row, not show)
             if show:
                 visible += 1
+
         total = len(self._all_partite)
-        if self._active_stato_filter:
+        if stato_filtro:
             self._count_label.setText(f"{visible} di {total} partite mostrate.")
         else:
             self._count_label.setText(f"{total} partite trovate.")
@@ -873,11 +849,9 @@ class RicercaPartiteWidget(QWidget):
         self._table.setSortingEnabled(True)
 
         self._selected_partita_id = None
-        self._actions_bar.setVisible(False)
-        self._detail_browser.setHtml(
-            '<div style="color:#9E9E9E;font-size:14px;margin-top:40px;text-align:center;">'
-            '← Seleziona una partita dalla lista</div>'
-        )
+        self._btn_open_full.setEnabled(False)
+        self._btn_albero.setEnabled(False)
+        self._btn_copy_id.setEnabled(False)
 
         self._update_row_visibility()
 
@@ -898,7 +872,12 @@ class RicercaPartiteWidget(QWidget):
 
     def _on_row_selected(self, current_row: int):
         if current_row < 0:
+            self._selected_partita_id = None
+            self._btn_open_full.setEnabled(False)
+            self._btn_albero.setEnabled(False)
+            self._btn_copy_id.setEnabled(False)
             return
+
         id_item = self._table.item(current_row, 0)
         if id_item is None:
             return
@@ -907,85 +886,9 @@ class RicercaPartiteWidget(QWidget):
             return
 
         self._selected_partita_id = partita_id
-
-        try:
-            partita = self.db_manager.get_partita_details(partita_id)
-            if partita:
-                self._render_detail(partita)
-                self._actions_bar.setVisible(True)
-            else:
-                self._detail_browser.setHtml(
-                    '<p style="color:red;">Impossibile caricare i dettagli.</p>')
-        except Exception as e:
-            self._detail_browser.setHtml(
-                f'<p style="color:red;">Errore: {e}</p>')
-
-    def _render_detail(self, p: dict):
-        suffisso = (p.get('suffisso_partita') or '').strip()
-        suf_disp = f" / {suffisso}" if suffisso else ""
-        stato = p.get('stato', '')
-        tipo = p.get('tipo', '')
-        comune = p.get('comune_nome', '')
-        data_imp = p.get('data_impianto', '—')
-        data_chiu = p.get('data_chiusura')
-        n_possessori = len(p.get('possessori') or [])
-        n_immobili = len(p.get('immobili') or [])
-
-        stato_color = {"attiva": "#2E7D32", "inattiva": "#616161",
-                       "aperta": "#1565C0", "chiusa": "#BF360C"}.get(stato.lower(), "#333")
-
-        html = f"""
-<style>
-  body {{ font-family: "Segoe UI", Arial, sans-serif; font-size: 10pt; color: #212121; margin:0; padding:0; }}
-  h2 {{ font-size: 15pt; margin:0 0 4px 0; color:#212121; }}
-  .meta {{ color:#757575; font-size:9pt; margin-bottom:12px; }}
-  .stato {{ color:{stato_color}; font-weight:600; }}
-  table {{ width:100%; border-collapse:collapse; margin-bottom:12px; font-size:9pt; }}
-  th {{ background:#E8EAF6; color:#3F51B5; padding:5px 8px; text-align:left; font-weight:600; }}
-  td {{ padding:4px 8px; border-bottom:1px solid #EEEEEE; }}
-  tr:last-child td {{ border-bottom:none; }}
-  .section-title {{ font-weight:600; color:#3F51B5; font-size:10pt; margin:12px 0 4px 0; }}
-  .badge {{ display:inline-block; background:#E8EAF6; color:#3F51B5;
-            border-radius:10px; padding:1px 10px; font-size:9pt; }}
-</style>
-<body>
-<h2>Partita N.&nbsp;{p.get('numero_partita')}{suf_disp}</h2>
-<div class="meta">{comune} &bull; <span class="stato">{stato}</span> &bull; {tipo}</div>
-
-<table>
-  <tr><th>Campo</th><th>Valore</th></tr>
-  <tr><td>ID</td><td>{p.get('id')}</td></tr>
-  <tr><td>Data Impianto</td><td>{data_imp}</td></tr>
-  {'<tr><td>Data Chiusura</td><td>' + str(data_chiu) + '</td></tr>' if data_chiu else ''}
-  <tr><td>Possessori</td><td><span class="badge">{n_possessori}</span></td></tr>
-  <tr><td>Immobili</td><td><span class="badge">{n_immobili}</span></td></tr>
-</table>
-"""
-
-        possessori = p.get('possessori') or []
-        if possessori:
-            html += '<div class="section-title">Possessori</div>'
-            html += '<table><tr><th>Nome</th><th>Titolo</th><th>Quota</th></tr>'
-            for pos in possessori:
-                html += (f"<tr><td>{pos.get('nome_completo','')}</td>"
-                         f"<td>{pos.get('titolo','')}</td>"
-                         f"<td>{pos.get('quota','')}</td></tr>")
-            html += '</table>'
-
-        immobili = p.get('immobili') or []
-        if immobili:
-            html += '<div class="section-title">Immobili</div>'
-            html += '<table><tr><th>Natura</th><th>Località</th><th>Classificazione</th></tr>'
-            for imm in immobili[:10]:
-                html += (f"<tr><td>{imm.get('natura','')}</td>"
-                         f"<td>{imm.get('localita_nome','')}</td>"
-                         f"<td>{imm.get('classificazione','')}</td></tr>")
-            if len(immobili) > 10:
-                html += f'<tr><td colspan="3" style="color:#757575;">... e altri {len(immobili)-10}</td></tr>'
-            html += '</table>'
-
-        html += '</body>'
-        self._detail_browser.setHtml(html)
+        self._btn_open_full.setEnabled(True)
+        self._btn_albero.setEnabled(True)
+        self._btn_copy_id.setEnabled(True)
 
     def show_details(self):
         if not self._selected_partita_id:
