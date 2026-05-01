@@ -312,13 +312,44 @@ class InserimentoPossessoreWidget(LazyLoadedWidget):
         button_layout.addWidget(btn_template)
         main_layout.addLayout(button_layout)
 
-        main_layout.addStretch(1)
+        # ── Sezione lista possessori registrati ──
+        lista_group = QGroupBox("Possessori Registrati")
+        lista_layout = QVBoxLayout(lista_group)
+        lista_btn_layout = QHBoxLayout()
+        self.btn_refresh_possessori = QPushButton("Aggiorna Lista")
+        self.btn_refresh_possessori.clicked.connect(self._load_possessori_table)
+        self.btn_archivia_possessore = QPushButton("Archivia Selezionato")
+        self.btn_archivia_possessore.setObjectName("dangerButton")
+        self.btn_archivia_possessore.setEnabled(False)
+        self.btn_archivia_possessore.setToolTip("Archivia il possessore selezionato (non viene eliminato, solo nascosto)")
+        self.btn_archivia_possessore.clicked.connect(self._archivia_possessore_selezionato)
+        lista_btn_layout.addWidget(self.btn_refresh_possessori)
+        lista_btn_layout.addStretch()
+        lista_btn_layout.addWidget(self.btn_archivia_possessore)
+        self.possessori_browse_table = QTableWidget()
+        self.possessori_browse_table.setColumnCount(3)
+        self.possessori_browse_table.setHorizontalHeaderLabels(["ID", "Nome Completo", "Comune"])
+        self.possessori_browse_table.setAlternatingRowColors(True)
+        self.possessori_browse_table.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeMode.Interactive)
+        self.possessori_browse_table.horizontalHeader().setStretchLastSection(True)
+        self.possessori_browse_table.setColumnWidth(0, 45)
+        self.possessori_browse_table.setColumnWidth(1, 260)
+        self.possessori_browse_table.itemSelectionChanged.connect(
+            lambda: self.btn_archivia_possessore.setEnabled(
+                len(self.possessori_browse_table.selectedItems()) > 0
+            )
+        )
+        lista_layout.addLayout(lista_btn_layout)
+        lista_layout.addWidget(self.possessori_browse_table)
+        main_layout.addWidget(lista_group)
+
         self.setLayout(main_layout)
 
     def _load_data_on_first_show(self):
         """Metodo per il lazy loading: carica i comuni la prima volta che il tab viene visualizzato."""
         self.logger.info("InserimentoPossessoreWidget: Esecuzione lazy loading dei comuni...")
         self._load_comuni_for_combo()
+        self._load_possessori_table()
 
     def _load_comuni_for_combo(self):
         """Carica e popola il QComboBox con l'elenco dei comuni."""
@@ -337,6 +368,46 @@ class InserimentoPossessoreWidget(LazyLoadedWidget):
             self.logger.error(f"Errore caricamento comuni: {e}")
             self.comune_combo.addItem("Errore caricamento", None)
             self.comune_combo.setEnabled(False)
+
+    def _load_possessori_table(self):
+        """Carica i possessori nel pannello browse."""
+        self.possessori_browse_table.setRowCount(0)
+        self.btn_archivia_possessore.setEnabled(False)
+        try:
+            rows = self.db_manager.search_possessori_by_term_globally(None, limit=500)
+            for i, p in enumerate(rows):
+                self.possessori_browse_table.insertRow(i)
+                self.possessori_browse_table.setItem(i, 0, QTableWidgetItem(str(p['id'])))
+                self.possessori_browse_table.setItem(i, 1, QTableWidgetItem(p.get('nome_completo') or ''))
+                self.possessori_browse_table.setItem(i, 2, QTableWidgetItem(p.get('comune_riferimento_nome') or ''))
+        except Exception as e:
+            self.logger.error(f"Errore caricamento possessori: {e}")
+
+    def _archivia_possessore_selezionato(self):
+        row = self.possessori_browse_table.currentRow()
+        if row < 0:
+            return
+        id_item = self.possessori_browse_table.item(row, 0)
+        nome_item = self.possessori_browse_table.item(row, 1)
+        if not id_item:
+            return
+        possessore_id = int(id_item.text())
+        nome = nome_item.text() if nome_item else str(possessore_id)
+        risposta = QMessageBox.question(
+            self, "Conferma Archiviazione",
+            f"Archiviare il possessore '{nome}'?\n\nNon verrà eliminato, solo nascosto dalle ricerche.",
+            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+            QMessageBox.StandardButton.No,
+        )
+        if risposta != QMessageBox.StandardButton.Yes:
+            return
+        try:
+            self.db_manager.archivia_possessore(possessore_id)
+            self._load_possessori_table()
+            _show_status_message(f"Possessore '{nome}' archiviato con successo", 3000)
+        except Exception as e:
+            QMessageBox.critical(self, "Errore", f"Impossibile archiviare il possessore:\n{e}")
+
     def _mostra_info_formato_csv(self):
         """Mostra un dialogo con le informazioni sul formato CSV per i possessori."""
         info_text = """
@@ -536,8 +607,17 @@ class InserimentoLocalitaWidget(QWidget):
         layout.addLayout(button_layout)
         summary_group = QGroupBox("Località nel Comune Selezionato")
         summary_layout = QVBoxLayout(summary_group)
+        summary_btn_layout = QHBoxLayout()
         self.refresh_button = QPushButton("Aggiorna Lista")
         self.refresh_button.clicked.connect(self.refresh_localita)
+        self.btn_archivia_localita = QPushButton("Archivia Selezionata")
+        self.btn_archivia_localita.setObjectName("dangerButton")
+        self.btn_archivia_localita.setEnabled(False)
+        self.btn_archivia_localita.setToolTip("Archivia la località selezionata (non viene eliminata, solo nascosta)")
+        self.btn_archivia_localita.clicked.connect(self._archivia_localita_selezionata)
+        summary_btn_layout.addWidget(self.refresh_button)
+        summary_btn_layout.addStretch()
+        summary_btn_layout.addWidget(self.btn_archivia_localita)
         self.localita_table = QTableWidget()
         self.localita_table.setColumnCount(3)
         self.localita_table.setHorizontalHeaderLabels(["ID", "Nome", "Tipologia"])
@@ -546,7 +626,12 @@ class InserimentoLocalitaWidget(QWidget):
         self.localita_table.horizontalHeader().setStretchLastSection(True)
         self.localita_table.setColumnWidth(0, 45)   # ID
         self.localita_table.setColumnWidth(1, 220)  # Nome
-        summary_layout.addWidget(self.refresh_button)
+        self.localita_table.itemSelectionChanged.connect(
+            lambda: self.btn_archivia_localita.setEnabled(
+                len(self.localita_table.selectedItems()) > 0
+            )
+        )
+        summary_layout.addLayout(summary_btn_layout)
         summary_layout.addWidget(self.localita_table)
         layout.addWidget(summary_group)
         self.setLayout(layout)
@@ -631,6 +716,31 @@ class InserimentoLocalitaWidget(QWidget):
                 self.localita_table.setItem(i, 2, QTableWidgetItem(tipologia))
         except Exception as e:
             QMessageBox.warning(self, "Errore", f"Errore nel caricamento delle località: {e}")
+
+    def _archivia_localita_selezionata(self):
+        row = self.localita_table.currentRow()
+        if row < 0:
+            return
+        localita_id_item = self.localita_table.item(row, 0)
+        nome_item = self.localita_table.item(row, 1)
+        if not localita_id_item:
+            return
+        localita_id = int(localita_id_item.text())
+        nome = nome_item.text() if nome_item else str(localita_id)
+        risposta = QMessageBox.question(
+            self, "Conferma Archiviazione",
+            f"Archiviare la località '{nome}'?\n\nNon verrà eliminata, solo nascosta dalle ricerche.",
+            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+            QMessageBox.StandardButton.No,
+        )
+        if risposta != QMessageBox.StandardButton.Yes:
+            return
+        try:
+            self.db_manager.archivia_localita(localita_id)
+            self.refresh_localita()
+            _show_status_message(f"Località '{nome}' archiviata con successo", 3000)
+        except Exception as e:
+            QMessageBox.critical(self, "Errore", f"Impossibile archiviare la località:\n{e}")
 
 class InserimentoPartitaWidget(QWidget):
     import_csv_requested = pyqtSignal()
