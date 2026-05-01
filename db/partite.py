@@ -197,7 +197,7 @@ class DBPartiteMixin:
                 (SELECT COUNT(*) FROM {self.schema}.immobile i WHERE i.partita_id = p.id) AS num_immobili,
                 (SELECT COUNT(*) FROM {self.schema}.documento_partita dp WHERE dp.partita_id = p.id) AS num_documenti_allegati
             FROM {self.schema}.partita p
-            WHERE p.comune_id = %s
+            WHERE p.comune_id = %s AND NOT p.archiviato
         """
         params: List[Union[int, str]] = [comune_id]
 
@@ -344,9 +344,9 @@ class DBPartiteMixin:
                 conditions.append("p.suffisso_partita ILIKE %s")
                 params.append(f"%{suffisso_partita.strip()}%")
 
+        conditions.append("NOT p.archiviato")
         query = query_base + joins
-        if conditions:
-            query += " WHERE " + " AND ".join(conditions)
+        query += " WHERE " + " AND ".join(conditions)
         query += f" ORDER BY c.nome, p.numero_partita LIMIT %s"
         params.append(max_results + 1)
 

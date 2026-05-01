@@ -117,10 +117,10 @@ class DBComuniMixin:
 
         TIER 1: @db_handle_errors centralizes exception handling.
         """
-        query = f"SELECT id, nome, provincia, regione FROM {self.schema}.comune"
+        query = f"SELECT id, nome, provincia, regione FROM {self.schema}.comune WHERE NOT archiviato"
         params = []
         if search_term:
-            query += " WHERE nome ILIKE %s"
+            query += " AND nome ILIKE %s"
             params.append(f"%{search_term}%")
         query += " ORDER BY nome"
 
@@ -149,7 +149,7 @@ class DBComuniMixin:
                 note,
                 data_creazione,
                 data_modifica
-            FROM {self.schema}.comune ORDER BY nome
+            FROM {self.schema}.comune WHERE NOT archiviato ORDER BY nome
         """
 
         with self._get_connection() as conn:
@@ -189,7 +189,7 @@ class DBComuniMixin:
     def get_elenco_comuni_semplice(self) -> List[Tuple]:
         """Recupera un elenco di tutti i comuni (ID e nome) per popolare una scelta utente."""
         def _fetch():
-            query = f"SELECT id, nome FROM {self.schema}.comune ORDER BY nome"
+            query = f"SELECT id, nome FROM {self.schema}.comune WHERE NOT archiviato ORDER BY nome"
             with self._get_connection() as conn:
                 with conn.cursor() as cur:
                     cur.execute(query)

@@ -49,9 +49,11 @@ from db.backup     import DBBackupMixin
 from db.documenti  import DBDocumentiMixin
 from db.stats      import DBStatsMixin
 from db.io         import DBIOMixin
+from db.archivio   import DBArchiviaMixin
 
 
 class CatastoDBManager(
+    DBArchiviaMixin,
     DBComuniMixin,
     DBLocalitaMixin,
     DBPossessoriMixin,

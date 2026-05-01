@@ -96,8 +96,10 @@ class DBLocalitaMixin:
         """
         params = []
         if comune_id:
-            query += " WHERE l.comune_id = %s"
+            query += " WHERE l.comune_id = %s AND NOT l.archiviato"
             params.append(comune_id)
+        else:
+            query += " WHERE NOT l.archiviato"
         query += " ORDER BY c.nome, l.nome;"
         with self._get_connection() as conn:
             with conn.cursor(cursor_factory=psycopg2.extras.DictCursor) as cur:
@@ -115,7 +117,7 @@ class DBLocalitaMixin:
                 loc.nome,
                 loc.tipologia_stradale
             FROM {self.schema}.localita loc
-            WHERE loc.comune_id = %s
+            WHERE loc.comune_id = %s AND NOT loc.archiviato
         """
 
         params: List[Union[int, str]] = [comune_id]

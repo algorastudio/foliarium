@@ -414,14 +414,42 @@ class ElencoComuniWidget(LazyLoadedWidget):
         
         menu.addSeparator()
 
-        # --- NUOVA AZIONE PER MODIFICA COMUNE ---
-         # Azione 4: Modifica Dati Comune (senza icona)
         action_modifica_comune = menu.addAction("Modifica Dati Comune")
         action_modifica_comune.triggered.connect(
             lambda: self._slot_modifica_dati_comune(comune_id_selezionato)
         )
-        
+
+        menu.addSeparator()
+
+        action_archivia = menu.addAction(
+            QApplication.style().standardIcon(QStyle.StandardPixmap.SP_TrashIcon),
+            f"Archivia '{nome_comune_selezionato}'"
+        )
+        action_archivia.triggered.connect(
+            lambda: self._slot_archivia_comune(comune_id_selezionato, nome_comune_selezionato)
+        )
+
         menu.exec(self.comuni_table.viewport().mapToGlobal(position))
+
+    def _slot_archivia_comune(self, comune_id: int, nome: str):
+        from PyQt6.QtWidgets import QMessageBox
+        risposta = QMessageBox.question(
+            self, "Archivia Comune",
+            f"Archiviare il comune '{nome}'?\n\n"
+            "Il comune non verrà eliminato ma nascosto dalle liste.\n"
+            "Le partite e i possessori collegati resteranno visibili.\n"
+            "Puoi ripristinarlo in qualsiasi momento dal pannello Archivio.",
+            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+            QMessageBox.StandardButton.No
+        )
+        if risposta != QMessageBox.StandardButton.Yes:
+            return
+        try:
+            self.db_manager.archivia_comune(comune_id)
+            self.load_data()
+            from app_utils import show_status_message
+        except Exception as e:
+            QMessageBox.critical(self, "Errore", f"Impossibile archiviare il comune:\n{e}")
 
    
     def _slot_vedi_partite_comune(self, comune_id: int, nome_comune: str):
@@ -946,7 +974,29 @@ class RicercaPartiteWidget(QWidget):
             lambda: QApplication.clipboard().setText(numero_text))
         menu.addAction(f"Copia ID ({partita_id})").triggered.connect(
             lambda: QApplication.clipboard().setText(str(partita_id)))
+        menu.addSeparator()
+        menu.addAction(
+            QApplication.style().standardIcon(QStyle.StandardPixmap.SP_TrashIcon),
+            f"Archivia Partita N. {numero_text}"
+        ).triggered.connect(lambda: self._archivia_partita(partita_id, numero_text))
         menu.exec(self._table.viewport().mapToGlobal(pos))
+
+    def _archivia_partita(self, partita_id: int, numero_text: str):
+        risposta = QMessageBox.question(
+            self, "Archivia Partita",
+            f"Archiviare la partita N. {numero_text}?\n\n"
+            "La partita non verrà eliminata ma nascosta dalle ricerche.\n"
+            "Puoi ripristinarla in qualsiasi momento dal pannello Archivio.",
+            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+            QMessageBox.StandardButton.No
+        )
+        if risposta != QMessageBox.StandardButton.Yes:
+            return
+        try:
+            self.db_manager.archivia_partita(partita_id)
+            self.do_search()
+        except Exception as e:
+            QMessageBox.critical(self, "Errore", f"Impossibile archiviare la partita:\n{e}")
 
 
 class RicercaAvanzataImmobiliWidget(QWidget):
@@ -3597,7 +3647,7 @@ from reporting_widgets import (
     StatisticheWidget, RegistraConsultazioneWidget,
 )
 
-from admin_widgets import GestioneUtentiWidget, AuditLogViewerWidget, BackupWidget
+from admin_widgets import GestioneUtentiWidget, AuditLogViewerWidget, BackupWidget, ArchivioWidget
 
 class UnifiedFuzzySearchThread(QThread):
     """Thread unificato per eseguire ricerche fuzzy in background."""

@@ -48,7 +48,7 @@ from gui_widgets import (
     RicercaAvanzataImmobiliWidget, InserimentoComuneWidget,
     InserimentoPossessoreWidget, InserimentoLocalitaWidget, RegistrazioneProprietaWidget,
     OperazioniPartitaWidget, EsportazioniWidget, ReportisticaWidget, StatisticheWidget,
-    GestioneUtentiWidget, AuditLogViewerWidget, BackupWidget,
+    GestioneUtentiWidget, AuditLogViewerWidget, BackupWidget, ArchivioWidget,
     RegistraConsultazioneWidget, WelcomeScreen, GestionePeriodiStoriciWidget,
     GestioneTipiLocalitaWidget, NuovaPartitaWizardWidget,
     DBConfigDialog, InserimentoPartitaWidget, RicercaDocumentiWidget)
@@ -547,6 +547,7 @@ class SidebarWidget(QWidget):
             insert("Utenti", "utenti", "users")
             insert("Audit Log", "audit", "shield")
             insert("Backup", "backup", "database")
+            insert("Archivio", "archivio", "archive")
 
         layout.addStretch()
 
@@ -1356,6 +1357,9 @@ class CatastoMainWindow(QMainWindow):
 
             self.backup_restore_widget_ref = BackupWidget(self.db_manager)
             _add_page("backup", self.backup_restore_widget_ref)
+
+            self.archivio_widget_ref = ArchivioWidget(self.db_manager)
+            _add_page("archivio", self.archivio_widget_ref)
 
         # Costruisce la sidebar verticale
         self.sidebar.build_nav(is_admin=is_admin, fuzzy_available=FUZZY_SEARCH_AVAILABLE)

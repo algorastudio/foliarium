@@ -1560,3 +1560,208 @@ class BackupWidget(QWidget):
 
         self.process.setProperty("is_restore_operation", True)
         self.process.start(executable, args)
+
+
+class ArchivioWidget(QWidget):
+    """
+    Pannello amministrativo per la visualizzazione e il ripristino degli elementi archiviati.
+    Mostra in tab separate: Comuni, Possessori, Località, Partite archiviate.
+    """
+
+    def __init__(self, db_manager: "CatastoDBManager", parent=None):
+        super().__init__(parent)
+        self.db_manager = db_manager
+        self.logger = logging.getLogger("CatastoGUI.ArchivioWidget")
+
+        main_layout = QVBoxLayout(self)
+        main_layout.setContentsMargins(16, 12, 16, 12)
+        main_layout.setSpacing(8)
+
+        header = QLabel("Archivio — Elementi nascosti (soft delete)")
+        header.setStyleSheet("font-size:13pt; font-weight:600; color:#424242;")
+        main_layout.addWidget(header)
+
+        sub = QLabel(
+            "Gli elementi archiviati non compaiono nelle liste e nelle ricerche. "
+            "Seleziona un elemento e clicca 'Ripristina' per renderlo nuovamente visibile."
+        )
+        sub.setWordWrap(True)
+        sub.setStyleSheet("color:#757575; font-size:9pt;")
+        main_layout.addWidget(sub)
+
+        self._tabs = QTabWidget()
+        self._tabs.currentChanged.connect(self._on_tab_changed)
+        main_layout.addWidget(self._tabs, 1)
+
+        # Pulsante ripristina (condiviso)
+        btn_row = QHBoxLayout()
+        btn_row.addStretch()
+        self._btn_ripristina = QPushButton("Ripristina Selezionato")
+        self._btn_ripristina.setEnabled(False)
+        self._btn_ripristina.clicked.connect(self._ripristina_selezionato)
+        btn_row.addWidget(self._btn_ripristina)
+
+        btn_refresh = QPushButton("Aggiorna")
+        btn_refresh.setObjectName("secondaryButton")
+        btn_refresh.clicked.connect(self.load_data)
+        btn_row.addWidget(btn_refresh)
+        main_layout.addLayout(btn_row)
+
+        # ── Tab Comuni ──────────────────────────────────────────────────────
+        self._t_comuni = self._make_table(["ID", "Nome", "Provincia", "Regione", "Archiviato il"])
+        self._tabs.addTab(self._t_comuni, "Comuni")
+
+        # ── Tab Possessori ──────────────────────────────────────────────────
+        self._t_poss = self._make_table(["ID", "Nome Completo", "Cognome Nome", "Comune", "Archiviato il"])
+        self._tabs.addTab(self._t_poss, "Possessori")
+
+        # ── Tab Località ─────────────────────────────────────────────────────
+        self._t_loc = self._make_table(["ID", "Nome", "Tipologia", "Comune", "Archiviato il"])
+        self._tabs.addTab(self._t_loc, "Località")
+
+        # ── Tab Partite ──────────────────────────────────────────────────────
+        self._t_part = self._make_table(["ID", "N° Partita", "Comune", "Stato", "Tipo", "Archiviato il"])
+        self._tabs.addTab(self._t_part, "Partite")
+
+        self._current_entity: str = "comuni"
+
+    # ── helpers ──────────────────────────────────────────────────────────────
+
+    def _make_table(self, headers: list[str]) -> QTableWidget:
+        t = QTableWidget()
+        t.setColumnCount(len(headers))
+        t.setHorizontalHeaderLabels(headers)
+        t.setEditTriggers(QAbstractItemView.EditTrigger.NoEditTriggers)
+        t.setSelectionBehavior(QAbstractItemView.SelectionBehavior.SelectRows)
+        t.setSelectionMode(QAbstractItemView.SelectionMode.SingleSelection)
+        t.setAlternatingRowColors(True)
+        t.verticalHeader().setVisible(False)
+        hh = t.horizontalHeader()
+        hh.setSectionResizeMode(QHeaderView.ResizeMode.Interactive)
+        hh.setStretchLastSection(True)
+        t.itemSelectionChanged.connect(
+            lambda: self._btn_ripristina.setEnabled(t.currentRow() >= 0))
+        return t
+
+    def _on_tab_changed(self, idx: int):
+        self._current_entity = ["comuni", "possessori", "localita", "partite"][idx]
+        self._btn_ripristina.setEnabled(False)
+
+    # ── data loading ─────────────────────────────────────────────────────────
+
+    def load_data(self):
+        try:
+            data = self.db_manager.get_tutti_archiviati()
+        except Exception as e:
+            QMessageBox.critical(self, "Errore", f"Impossibile caricare l'archivio:\n{e}")
+            return
+        self._fill_comuni(data.get("comuni", []))
+        self._fill_possessori(data.get("possessori", []))
+        self._fill_localita(data.get("localita", []))
+        self._fill_partite(data.get("partite", []))
+        self._btn_ripristina.setEnabled(False)
+        self._update_tab_titles(data)
+
+    def _update_tab_titles(self, data: dict):
+        labels = ["Comuni", "Possessori", "Località", "Partite"]
+        keys   = ["comuni", "possessori", "localita", "partite"]
+        for i, (label, key) in enumerate(zip(labels, keys)):
+            n = len(data.get(key, []))
+            self._tabs.setTabText(i, f"{label} ({n})" if n else label)
+
+    def _fill_row(self, table: QTableWidget, row: int, values: list, record_id: int):
+        table.insertRow(row)
+        for col, val in enumerate(values):
+            item = QTableWidgetItem(str(val) if val is not None else "")
+            item.setFlags(item.flags() & ~Qt.ItemFlag.ItemIsEditable)
+            if col == 0:
+                item.setData(Qt.ItemDataRole.UserRole, record_id)
+            item.setForeground(QColor("#616161"))
+            table.setItem(row, col, item)
+
+    def _fill_comuni(self, rows: list):
+        t = self._t_comuni
+        t.setRowCount(0)
+        for r in rows:
+            self._fill_row(t, t.rowCount(), [
+                r["id"], r["nome"], r["provincia"], r["regione"],
+                str(r.get("archiviato_il") or "—")[:19]
+            ], r["id"])
+
+    def _fill_possessori(self, rows: list):
+        t = self._t_poss
+        t.setRowCount(0)
+        for r in rows:
+            self._fill_row(t, t.rowCount(), [
+                r["id"], r.get("nome_completo"), r.get("cognome_nome"),
+                r.get("comune_nome"), str(r.get("archiviato_il") or "—")[:19]
+            ], r["id"])
+
+    def _fill_localita(self, rows: list):
+        t = self._t_loc
+        t.setRowCount(0)
+        for r in rows:
+            self._fill_row(t, t.rowCount(), [
+                r["id"], r["nome"], r.get("tipologia_stradale"),
+                r.get("comune_nome"), str(r.get("archiviato_il") or "—")[:19]
+            ], r["id"])
+
+    def _fill_partite(self, rows: list):
+        t = self._t_part
+        t.setRowCount(0)
+        for r in rows:
+            suf = (r.get("suffisso_partita") or "").strip()
+            num = f"{r['numero_partita']}{f'/{suf}' if suf else ''}"
+            self._fill_row(t, t.rowCount(), [
+                r["id"], num, r.get("comune_nome"),
+                r.get("stato"), r.get("tipo"),
+                str(r.get("archiviato_il") or "—")[:19]
+            ], r["id"])
+
+    # ── ripristino ───────────────────────────────────────────────────────────
+
+    def _ripristina_selezionato(self):
+        tables = {
+            "comuni":     self._t_comuni,
+            "possessori": self._t_poss,
+            "localita":   self._t_loc,
+            "partite":    self._t_part,
+        }
+        ripristina_fn = {
+            "comuni":     self.db_manager.ripristina_comune,
+            "possessori": self.db_manager.ripristina_possessore,
+            "localita":   self.db_manager.ripristina_localita,
+            "partite":    self.db_manager.ripristina_partita,
+        }
+        entity_label = {
+            "comuni": "comune", "possessori": "possessore",
+            "localita": "località", "partite": "partita",
+        }
+
+        table = tables[self._current_entity]
+        row = table.currentRow()
+        if row < 0:
+            return
+        id_item = table.item(row, 0)
+        if id_item is None:
+            return
+        record_id = id_item.data(Qt.ItemDataRole.UserRole)
+        nome_item = table.item(row, 1)
+        nome = nome_item.text() if nome_item else str(record_id)
+        label = entity_label[self._current_entity]
+
+        risposta = QMessageBox.question(
+            self, "Ripristina elemento",
+            f"Ripristinare {label} '{nome}'?\n\n"
+            "L'elemento tornerà visibile nelle liste e nelle ricerche.",
+            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+            QMessageBox.StandardButton.No
+        )
+        if risposta != QMessageBox.StandardButton.Yes:
+            return
+
+        try:
+            ripristina_fn[self._current_entity](record_id)
+            self.load_data()
+        except Exception as e:
+            QMessageBox.critical(self, "Errore", f"Impossibile ripristinare:\n{e}")
