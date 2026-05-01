@@ -500,6 +500,32 @@ class ElencoComuniWidget(LazyLoadedWidget):
 
 
 
+class _PartiteSearchWorker(QThread):
+    """Esegue search_partite in background per non bloccare la UI."""
+    results_ready = pyqtSignal(list)
+    error_occurred = pyqtSignal(str)
+
+    def __init__(self, db_manager, comune_id, numero, possessore, natura, parent=None):
+        super().__init__(parent)
+        self._db = db_manager
+        self._comune_id = comune_id
+        self._numero = numero
+        self._possessore = possessore
+        self._natura = natura
+
+    def run(self):
+        try:
+            partite = self._db.search_partite(
+                comune_id=self._comune_id,
+                numero_partita=self._numero,
+                possessore=self._possessore,
+                immobile_natura=self._natura,
+            )
+            self.results_ready.emit(partite or [])
+        except Exception as e:
+            self.error_occurred.emit(str(e))
+
+
 class PartitaResultCard(QFrame):
     """Card cliccabile per un risultato di ricerca partite."""
     card_clicked = pyqtSignal(int)
@@ -584,6 +610,7 @@ class RicercaPartiteWidget(QWidget):
         self._all_partite: list[dict] = []
         self._active_stato_filter: str = ""
         self._comune_id: Optional[int] = None
+        self._search_worker: Optional[_PartiteSearchWorker] = None
 
         main_layout = QVBoxLayout(self)
         main_layout.setContentsMargins(16, 12, 16, 12)
@@ -619,9 +646,9 @@ class RicercaPartiteWidget(QWidget):
         self._natura_edit.returnPressed.connect(self.do_search)
         bar_layout.addWidget(self._natura_edit, 1)
 
-        search_btn = QPushButton("Cerca")
-        search_btn.clicked.connect(self.do_search)
-        bar_layout.addWidget(search_btn)
+        self._search_btn = QPushButton("Cerca")
+        self._search_btn.clicked.connect(self.do_search)
+        bar_layout.addWidget(self._search_btn)
 
         clear_btn = QPushButton("Pulisci")
         clear_btn.setObjectName("secondaryButton")
@@ -629,6 +656,14 @@ class RicercaPartiteWidget(QWidget):
         bar_layout.addWidget(clear_btn)
 
         main_layout.addWidget(bar)
+
+        # Loading progress bar (hidden by default)
+        self._loading_bar = QProgressBar()
+        self._loading_bar.setRange(0, 0)  # indeterminate
+        self._loading_bar.setFixedHeight(4)
+        self._loading_bar.setVisible(False)
+        self._loading_bar.setTextVisible(False)
+        main_layout.addWidget(self._loading_bar)
 
         # Filter chips
         chips_row = QHBoxLayout()
@@ -739,6 +774,11 @@ class RicercaPartiteWidget(QWidget):
             self._comune_btn.setText(dialog.selected_comune_name or "Comune...")
 
     def _clear_search(self):
+        if self._search_worker and self._search_worker.isRunning():
+            self._search_worker.quit()
+            self._search_worker.wait(500)
+        self._loading_bar.setVisible(False)
+        self._search_btn.setEnabled(True)
         self._comune_id = None
         self._comune_btn.setText("Comune...")
         self._numero_edit.setValue(0)
@@ -782,61 +822,79 @@ class RicercaPartiteWidget(QWidget):
             self._count_label.setText(f"{total} partite trovate.")
 
     def do_search(self):
+        # Cancel any running search
+        if self._search_worker and self._search_worker.isRunning():
+            self._search_worker.quit()
+            self._search_worker.wait(500)
+
         numero_val = self._numero_edit.value()
         numero = numero_val if numero_val > 0 else None
         possessore = self._possessore_edit.text().strip() or None
         natura = self._natura_edit.text().strip() or None
 
-        try:
-            partite = self.db_manager.search_partite(
-                comune_id=self._comune_id,
-                numero_partita=numero,
-                possessore=possessore,
-                immobile_natura=natura
-            )
-            self._all_partite = partite or []
-            truncated = bool(self._all_partite and self._all_partite[-1].get('_truncated'))
+        self._search_btn.setEnabled(False)
+        self._loading_bar.setVisible(True)
+        self._count_label.setText("Ricerca in corso…")
 
-            self._table.setSortingEnabled(False)
-            self._table.setRowCount(0)
-            for p in self._all_partite:
-                row = self._table.rowCount()
-                self._table.insertRow(row)
-                suf = (p.get('suffisso_partita') or '').strip()
-                num_text = f"{p.get('numero_partita')}{f'/{suf}' if suf else ''}"
-                data_imp = str(p.get('data_impianto') or '—')
-                for col, val in enumerate([
-                    num_text,
-                    p.get('comune_nome', ''),
-                    p.get('stato', ''),
-                    p.get('tipo', ''),
-                    data_imp,
-                ]):
-                    item = QTableWidgetItem(str(val))
-                    item.setFlags(item.flags() & ~Qt.ItemFlag.ItemIsEditable)
-                    if col == 0:
-                        item.setData(Qt.ItemDataRole.UserRole, p.get('id'))
-                    self._table.setItem(row, col, item)
-            self._table.setSortingEnabled(True)
+        self._search_worker = _PartiteSearchWorker(
+            self.db_manager, self._comune_id, numero, possessore, natura, self
+        )
+        self._search_worker.results_ready.connect(self._on_search_results)
+        self._search_worker.error_occurred.connect(self._on_search_error)
+        self._search_worker.start()
 
-            self._selected_partita_id = None
-            self._actions_bar.setVisible(False)
-            self._detail_browser.setHtml(
-                '<div style="color:#9E9E9E;font-size:14px;margin-top:40px;text-align:center;">'
-                '← Seleziona una partita dalla lista</div>'
-            )
+    def _on_search_results(self, partite: list):
+        self._loading_bar.setVisible(False)
+        self._search_btn.setEnabled(True)
 
-            self._update_row_visibility()
+        self._all_partite = partite
+        truncated = bool(self._all_partite and self._all_partite[-1].get('_truncated'))
 
-            if truncated:
-                self._count_label.setText(
-                    f"Visualizzate le prime {len(self._all_partite)} partite. Affina la ricerca per risultati più precisi.")
+        self._table.setSortingEnabled(False)
+        self._table.setRowCount(0)
+        for p in self._all_partite:
+            row = self._table.rowCount()
+            self._table.insertRow(row)
+            suf = (p.get('suffisso_partita') or '').strip()
+            num_text = f"{p.get('numero_partita')}{f'/{suf}' if suf else ''}"
+            data_imp = str(p.get('data_impianto') or '—')
+            for col, val in enumerate([
+                num_text,
+                p.get('comune_nome', ''),
+                p.get('stato', ''),
+                p.get('tipo', ''),
+                data_imp,
+            ]):
+                item = QTableWidgetItem(str(val))
+                item.setFlags(item.flags() & ~Qt.ItemFlag.ItemIsEditable)
+                if col == 0:
+                    item.setData(Qt.ItemDataRole.UserRole, p.get('id'))
+                self._table.setItem(row, col, item)
+        self._table.setSortingEnabled(True)
 
-        except Exception as e:
-            logging.getLogger("CatastoGUI").error(
-                f"Errore durante la ricerca partite: {e}", exc_info=True)
-            QMessageBox.critical(self, "Errore di Ricerca",
-                                 f"Si è verificato un errore durante la ricerca: {e}")
+        self._selected_partita_id = None
+        self._actions_bar.setVisible(False)
+        self._detail_browser.setHtml(
+            '<div style="color:#9E9E9E;font-size:14px;margin-top:40px;text-align:center;">'
+            '← Seleziona una partita dalla lista</div>'
+        )
+
+        self._update_row_visibility()
+
+        if truncated:
+            self._count_label.setText(
+                f"Visualizzate le prime {len(self._all_partite)} partite. "
+                f"Affina la ricerca per risultati più precisi.")
+
+    def _on_search_error(self, error_msg: str):
+        self._loading_bar.setVisible(False)
+        self._search_btn.setEnabled(True)
+        self._count_label.setText("Errore durante la ricerca.")
+        logging.getLogger("CatastoGUI").error(f"Errore ricerca partite: {error_msg}")
+        QMessageBox.critical(self, "Errore di Ricerca",
+                             f"Si è verificato un errore durante la ricerca:\n\n{error_msg}"
+                             "\n\nSe l'errore riguarda la colonna 'archiviato', eseguire "
+                             "la migrazione del database: sql_scripts/07_soft_delete_archiviazione.sql")
 
     def _on_row_selected(self, current_row: int):
         if current_row < 0:
