@@ -82,6 +82,20 @@ QPushButton#secondaryButton:hover {
     border-color: #9FA8DA;
 }
 
+QPushButton#dangerButton {
+    background-color: transparent;
+    color: #C62828;
+    border: 1.5px solid #EF9A9A;
+}
+QPushButton#dangerButton:hover {
+    background-color: #FFEBEE;
+    border-color: #EF5350;
+}
+QPushButton#dangerButton:disabled {
+    color: #BDBDBD;
+    border-color: #E0E0E0;
+}
+
 /* ── Tabs ── */
 QTabWidget::pane {
     border-top: 2px solid #C5CAE9;

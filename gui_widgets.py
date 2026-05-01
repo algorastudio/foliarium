@@ -189,8 +189,15 @@ class ElencoComuniWidget(LazyLoadedWidget):
         self.btn_mostra_localita = QPushButton("Mostra Località del Comune Selezionato")
         self.btn_mostra_localita.clicked.connect(self.azione_mostra_localita)
         action_buttons_layout.addWidget(self.btn_mostra_localita)
-        
+
         action_buttons_layout.addStretch()
+
+        self.btn_archivia_comune = QPushButton("Archivia Comune")
+        self.btn_archivia_comune.setObjectName("dangerButton")
+        self.btn_archivia_comune.setEnabled(False)
+        self.btn_archivia_comune.setToolTip("Archivia il comune selezionato (non viene eliminato, solo nascosto)")
+        self.btn_archivia_comune.clicked.connect(self._azione_archivia_comune)
+        action_buttons_layout.addWidget(self.btn_archivia_comune)
         comuni_layout.addLayout(action_buttons_layout)
         layout.addWidget(comuni_group)
         self.setLayout(layout)
@@ -497,6 +504,16 @@ class ElencoComuniWidget(LazyLoadedWidget):
         self.btn_mostra_partite.setEnabled(has_selection)
         self.btn_mostra_possessori.setEnabled(has_selection)
         self.btn_mostra_localita.setEnabled(has_selection)
+        self.btn_archivia_comune.setEnabled(has_selection)
+
+    def _azione_archivia_comune(self):
+        """Archivia il comune selezionato tramite pulsante."""
+        row = self.comuni_table.currentRow()
+        if row < 0:
+            return
+        comune_id = int(self.comuni_table.item(row, 0).text())
+        nome = self.comuni_table.item(row, 1).text() if self.comuni_table.item(row, 1) else "?"
+        self._slot_archivia_comune(comune_id, nome)
 
 
 
@@ -738,6 +755,13 @@ class RicercaPartiteWidget(QWidget):
             str(self._selected_partita_id or "")))
         action_layout.addWidget(self._btn_copy_id)
 
+        self._btn_archivia = QPushButton("Archivia Partita")
+        self._btn_archivia.setObjectName("dangerButton")
+        self._btn_archivia.setEnabled(False)
+        self._btn_archivia.setToolTip("Archivia la partita selezionata (non viene eliminata, solo nascosta)")
+        self._btn_archivia.clicked.connect(self._azione_archivia_partita)
+        action_layout.addWidget(self._btn_archivia)
+
         group_layout.addLayout(action_layout)
 
         main_layout.addWidget(group)
@@ -767,9 +791,8 @@ class RicercaPartiteWidget(QWidget):
         self._all_partite.clear()
         self._selected_partita_id = None
         self._count_label.setText("Nessuna ricerca eseguita.")
-        self._btn_open_full.setEnabled(False)
-        self._btn_albero.setEnabled(False)
-        self._btn_copy_id.setEnabled(False)
+        for btn in (self._btn_open_full, self._btn_albero, self._btn_copy_id, self._btn_archivia):
+            btn.setEnabled(False)
 
     def _on_stato_combo_changed(self, text: str):
         """Quando il combo filtro stato cambia, aggiorna la visibilità righe."""
@@ -849,9 +872,8 @@ class RicercaPartiteWidget(QWidget):
         self._table.setSortingEnabled(True)
 
         self._selected_partita_id = None
-        self._btn_open_full.setEnabled(False)
-        self._btn_albero.setEnabled(False)
-        self._btn_copy_id.setEnabled(False)
+        for btn in (self._btn_open_full, self._btn_albero, self._btn_copy_id, self._btn_archivia):
+            btn.setEnabled(False)
 
         self._update_row_visibility()
 
@@ -873,9 +895,8 @@ class RicercaPartiteWidget(QWidget):
     def _on_row_selected(self, current_row: int):
         if current_row < 0:
             self._selected_partita_id = None
-            self._btn_open_full.setEnabled(False)
-            self._btn_albero.setEnabled(False)
-            self._btn_copy_id.setEnabled(False)
+            for btn in (self._btn_open_full, self._btn_albero, self._btn_copy_id, self._btn_archivia):
+                btn.setEnabled(False)
             return
 
         id_item = self._table.item(current_row, 0)
@@ -886,9 +907,8 @@ class RicercaPartiteWidget(QWidget):
             return
 
         self._selected_partita_id = partita_id
-        self._btn_open_full.setEnabled(True)
-        self._btn_albero.setEnabled(True)
-        self._btn_copy_id.setEnabled(True)
+        for btn in (self._btn_open_full, self._btn_albero, self._btn_copy_id, self._btn_archivia):
+            btn.setEnabled(True)
 
     def show_details(self):
         if not self._selected_partita_id:
@@ -958,6 +978,14 @@ class RicercaPartiteWidget(QWidget):
             self.do_search()
         except Exception as e:
             QMessageBox.critical(self, "Errore", f"Impossibile archiviare la partita:\n{e}")
+
+    def _azione_archivia_partita(self):
+        """Archivia la partita selezionata tramite pulsante."""
+        if not self._selected_partita_id:
+            return
+        row = self._table.currentRow()
+        numero_text = self._table.item(row, 0).text() if row >= 0 and self._table.item(row, 0) else str(self._selected_partita_id)
+        self._archivia_partita(self._selected_partita_id, numero_text)
 
 
 class RicercaAvanzataImmobiliWidget(QWidget):
