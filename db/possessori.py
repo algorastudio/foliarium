@@ -180,8 +180,14 @@ class DBPossessoriMixin:
                 return [dict(row) for row in cur.fetchall()]
 
     @db_handle_errors
-    def search_possessori_by_term_globally(self, search_term: Optional[str], limit: int = 200) -> List[Dict[str, Any]]:
+    def search_possessori_by_term_globally(self, search_term: Optional[str], limit: int = 200,
+                                            solo_attivi: bool = True) -> List[Dict[str, Any]]:
         """Ricerca possessori globalmente.
+
+        Args:
+            search_term: termine di ricerca (None = tutti)
+            limit: numero massimo di risultati
+            solo_attivi: se True (default), filtra i possessori archiviati (attivo=FALSE)
 
         TIER 1: @db_handle_errors centralizes exception handling.
         """
@@ -194,6 +200,9 @@ class DBPossessoriMixin:
 
         params: List[Union[str, int]] = []
         where_clauses = []
+
+        if solo_attivi:
+            where_clauses.append("p.attivo = TRUE")
 
         if search_term and search_term.strip():
             like_term = f"%{search_term.strip()}%"

@@ -454,7 +454,8 @@ class ElencoComuniWidget(LazyLoadedWidget):
         try:
             self.db_manager.archivia_comune(comune_id)
             self.load_data()
-            _show_status_message("Comune archiviato con successo", 3000)
+            QMessageBox.information(self, "Operazione completata",
+                                    f"Comune '{nome}' archiviato con successo.")
         except Exception as e:
             QMessageBox.critical(self, "Errore", f"Impossibile archiviare il comune:\n{e}")
 
@@ -976,6 +977,8 @@ class RicercaPartiteWidget(QWidget):
         try:
             self.db_manager.archivia_partita(partita_id)
             self.do_search()
+            QMessageBox.information(self, "Operazione completata",
+                                    f"Partita N. {numero_text} archiviata con successo.")
         except Exception as e:
             QMessageBox.critical(self, "Errore", f"Impossibile archiviare la partita:\n{e}")
 

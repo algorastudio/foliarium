@@ -330,13 +330,17 @@ class InserimentoPossessoreWidget(LazyLoadedWidget):
         self.possessori_browse_table.setColumnCount(3)
         self.possessori_browse_table.setHorizontalHeaderLabels(["ID", "Nome Completo", "Comune"])
         self.possessori_browse_table.setAlternatingRowColors(True)
+        self.possessori_browse_table.setSelectionBehavior(QAbstractItemView.SelectionBehavior.SelectRows)
+        self.possessori_browse_table.setSelectionMode(QAbstractItemView.SelectionMode.SingleSelection)
+        self.possessori_browse_table.setEditTriggers(QAbstractItemView.EditTrigger.NoEditTriggers)
         self.possessori_browse_table.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeMode.Interactive)
         self.possessori_browse_table.horizontalHeader().setStretchLastSection(True)
         self.possessori_browse_table.setColumnWidth(0, 45)
         self.possessori_browse_table.setColumnWidth(1, 260)
+        self.possessori_browse_table.setMinimumHeight(200)
         self.possessori_browse_table.itemSelectionChanged.connect(
             lambda: self.btn_archivia_possessore.setEnabled(
-                len(self.possessori_browse_table.selectedItems()) > 0
+                self.possessori_browse_table.currentRow() >= 0
             )
         )
         lista_layout.addLayout(lista_btn_layout)
@@ -349,6 +353,13 @@ class InserimentoPossessoreWidget(LazyLoadedWidget):
         """Metodo per il lazy loading: carica i comuni la prima volta che il tab viene visualizzato."""
         self.logger.info("InserimentoPossessoreWidget: Esecuzione lazy loading dei comuni...")
         self._load_comuni_for_combo()
+        self._load_possessori_table()
+
+    def load_initial_data(self):
+        """Override: carica i comuni solo la prima volta, ma aggiorna sempre la tabella possessori."""
+        if not self._data_loaded:
+            self._load_comuni_for_combo()
+            self._data_loaded = True
         self._load_possessori_table()
 
     def _load_comuni_for_combo(self):
@@ -404,7 +415,8 @@ class InserimentoPossessoreWidget(LazyLoadedWidget):
         try:
             self.db_manager.archivia_possessore(possessore_id)
             self._load_possessori_table()
-            _show_status_message(f"Possessore '{nome}' archiviato con successo", 3000)
+            QMessageBox.information(self, "Operazione completata",
+                                    f"Possessore '{nome}' archiviato con successo.")
         except Exception as e:
             QMessageBox.critical(self, "Errore", f"Impossibile archiviare il possessore:\n{e}")
 
@@ -622,19 +634,28 @@ class InserimentoLocalitaWidget(QWidget):
         self.localita_table.setColumnCount(3)
         self.localita_table.setHorizontalHeaderLabels(["ID", "Nome", "Tipologia"])
         self.localita_table.setAlternatingRowColors(True)
+        self.localita_table.setSelectionBehavior(QAbstractItemView.SelectionBehavior.SelectRows)
+        self.localita_table.setSelectionMode(QAbstractItemView.SelectionMode.SingleSelection)
+        self.localita_table.setEditTriggers(QAbstractItemView.EditTrigger.NoEditTriggers)
         self.localita_table.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeMode.Interactive)
         self.localita_table.horizontalHeader().setStretchLastSection(True)
         self.localita_table.setColumnWidth(0, 45)   # ID
         self.localita_table.setColumnWidth(1, 220)  # Nome
+        self.localita_table.setMinimumHeight(180)
         self.localita_table.itemSelectionChanged.connect(
             lambda: self.btn_archivia_localita.setEnabled(
-                len(self.localita_table.selectedItems()) > 0
+                self.localita_table.currentRow() >= 0
             )
         )
         summary_layout.addLayout(summary_btn_layout)
         summary_layout.addWidget(self.localita_table)
         layout.addWidget(summary_group)
         self.setLayout(layout)
+
+    def load_initial_data(self):
+        """Aggiorna la tabella delle località se è già stato selezionato un comune."""
+        if self.comune_id:
+            self.refresh_localita()
 
     def _pulisci_campi(self):
         self.nome_edit.clear()
@@ -738,7 +759,8 @@ class InserimentoLocalitaWidget(QWidget):
         try:
             self.db_manager.archivia_localita(localita_id)
             self.refresh_localita()
-            _show_status_message(f"Località '{nome}' archiviata con successo", 3000)
+            QMessageBox.information(self, "Operazione completata",
+                                    f"Località '{nome}' archiviata con successo.")
         except Exception as e:
             QMessageBox.critical(self, "Errore", f"Impossibile archiviare la località:\n{e}")
 
