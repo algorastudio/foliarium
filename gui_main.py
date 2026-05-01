@@ -173,7 +173,7 @@ class FoliariumSplashScreen(QSplashScreen):
     """Splash screen mostrata all'avvio prima del login."""
 
     def __init__(self):
-        logo_path = str(get_resource_path("Logo_foliarium_1.png"))
+        logo_path = str(get_resource_path("Logo_foliarium.png"))
         if os.path.exists(logo_path):
             from PyQt6.QtGui import QPixmap
             pixmap = QPixmap(logo_path).scaled(
