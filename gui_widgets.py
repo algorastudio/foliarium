@@ -2046,7 +2046,8 @@ td {{ padding:4px 8px; border-bottom:1px solid #EEE; }}
                 html += f'<tr><td>{nome}</td><td>{titolo}</td></tr>'
             html += '</table>'
 
-        html += f'<h3>Immobili <span class="{'ok' if n_imm > 0 else 'warn'}">[{n_imm}]</span></h3>'
+        css_class = 'ok' if n_imm > 0 else 'warn'
+        html += f'<h3>Immobili <span class="{css_class}">[{n_imm}]</span></h3>'
         if n_imm > 0:
             html += '<table><tr><th>Natura</th><th>Classificazione</th></tr>'
             for row in range(n_imm):
