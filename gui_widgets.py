@@ -553,7 +553,6 @@ class RicercaPartiteWidget(QWidget):
         super().__init__(parent)
         self.db_manager = db_manager
         self._selected_partita_id: Optional[int] = None
-        self._cards: list[PartitaResultCard] = []
         self._all_partite: list[dict] = []
         self._active_stato_filter: str = ""
         self._comune_id: Optional[int] = None
@@ -628,24 +627,32 @@ class RicercaPartiteWidget(QWidget):
 
         main_layout.addLayout(chips_row)
 
-        # Main splitter: card list | detail panel
+        # Main splitter: results table | detail panel
         splitter = QSplitter(Qt.Orientation.Horizontal)
         splitter.setHandleWidth(1)
 
-        # Left: scrollable card list
-        cards_scroll = QScrollArea()
-        cards_scroll.setWidgetResizable(True)
-        cards_scroll.setFrameShape(QFrame.Shape.NoFrame)
-        cards_scroll.setMinimumWidth(280)
-
-        self._cards_container = QWidget()
-        self._cards_layout = QVBoxLayout(self._cards_container)
-        self._cards_layout.setContentsMargins(2, 2, 8, 8)
-        self._cards_layout.setSpacing(6)
-        self._cards_layout.addStretch()
-
-        cards_scroll.setWidget(self._cards_container)
-        splitter.addWidget(cards_scroll)
+        # Left: results table
+        self._table = QTableWidget()
+        self._table.setColumnCount(5)
+        self._table.setHorizontalHeaderLabels(["N° Partita", "Comune", "Stato", "Tipo", "Data Impianto"])
+        self._table.setEditTriggers(QAbstractItemView.EditTrigger.NoEditTriggers)
+        self._table.setSelectionBehavior(QAbstractItemView.SelectionBehavior.SelectRows)
+        self._table.setSelectionMode(QAbstractItemView.SelectionMode.SingleSelection)
+        self._table.setAlternatingRowColors(True)
+        self._table.setSortingEnabled(True)
+        self._table.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
+        self._table.verticalHeader().setVisible(False)
+        hh = self._table.horizontalHeader()
+        hh.setSectionResizeMode(QHeaderView.ResizeMode.Interactive)
+        hh.setStretchLastSection(True)
+        self._table.setColumnWidth(0, 90)
+        self._table.setColumnWidth(1, 160)
+        self._table.setColumnWidth(2, 80)
+        self._table.setColumnWidth(3, 100)
+        self._table.currentRowChanged.connect(self._on_row_selected)
+        self._table.doubleClicked.connect(lambda: self.show_details())
+        self._table.customContextMenuRequested.connect(self._on_context_menu)
+        splitter.addWidget(self._table)
 
         # Right: detail panel
         right_widget = QWidget()
@@ -691,9 +698,9 @@ class RicercaPartiteWidget(QWidget):
         right_layout.addWidget(actions_bar)
 
         splitter.addWidget(right_widget)
-        splitter.setStretchFactor(0, 2)
-        splitter.setStretchFactor(1, 3)
-        splitter.setSizes([380, 560])
+        splitter.setStretchFactor(0, 3)
+        splitter.setStretchFactor(1, 2)
+        splitter.setSizes([560, 380])
 
         main_layout.addWidget(splitter, 1)
 
@@ -709,8 +716,14 @@ class RicercaPartiteWidget(QWidget):
         self._numero_edit.setValue(0)
         self._possessore_edit.clear()
         self._natura_edit.clear()
-        self._apply_stato_filter("")
-        self._clear_cards()
+        self._active_stato_filter = ""
+        for key, btn in self._filter_btns.items():
+            btn.setChecked(key == "")
+        self._table.setSortingEnabled(False)
+        self._table.setRowCount(0)
+        self._table.setSortingEnabled(True)
+        self._all_partite.clear()
+        self._selected_partita_id = None
         self._count_label.setText("Nessuna ricerca eseguita.")
         self._detail_browser.setHtml(
             '<div style="color:#9E9E9E;font-size:14px;margin-top:40px;text-align:center;">'
@@ -718,27 +731,20 @@ class RicercaPartiteWidget(QWidget):
         )
         self._actions_bar.setVisible(False)
 
-    def _clear_cards(self):
-        for card in self._cards:
-            self._cards_layout.removeWidget(card)
-            card.deleteLater()
-        self._cards.clear()
-        self._all_partite.clear()
-        self._selected_partita_id = None
-
     def _apply_stato_filter(self, stato: str):
         self._active_stato_filter = stato
         for key, btn in self._filter_btns.items():
             btn.setChecked(key == stato)
-        self._update_card_visibility()
+        self._update_row_visibility()
 
-    def _update_card_visibility(self):
+    def _update_row_visibility(self):
         visible = 0
-        for card in self._cards:
-            partita_stato = (card._partita_data.get('stato') or '').strip()
+        for row in range(self._table.rowCount()):
+            stato_item = self._table.item(row, 2)
+            partita_stato = (stato_item.text() if stato_item else "").strip()
             show = (not self._active_stato_filter or
                     partita_stato.lower() == self._active_stato_filter.lower())
-            card.setVisible(show)
+            self._table.setRowHidden(row, not show)
             if show:
                 visible += 1
         total = len(self._all_partite)
@@ -760,17 +766,43 @@ class RicercaPartiteWidget(QWidget):
                 possessore=possessore,
                 immobile_natura=natura
             )
-            self._clear_cards()
             self._all_partite = partite or []
+            truncated = bool(self._all_partite and self._all_partite[-1].get('_truncated'))
 
+            self._table.setSortingEnabled(False)
+            self._table.setRowCount(0)
             for p in self._all_partite:
-                card = PartitaResultCard(p, self._cards_container)
-                card.card_clicked.connect(self._show_card_detail)
-                card.context_menu_requested.connect(self._apri_menu_contestuale_partita)
-                self._cards_layout.insertWidget(self._cards_layout.count() - 1, card)
-                self._cards.append(card)
+                row = self._table.rowCount()
+                self._table.insertRow(row)
+                suf = (p.get('suffisso_partita') or '').strip()
+                num_text = f"{p.get('numero_partita')}{f'/{suf}' if suf else ''}"
+                data_imp = str(p.get('data_impianto') or '—')
+                for col, val in enumerate([
+                    num_text,
+                    p.get('comune_nome', ''),
+                    p.get('stato', ''),
+                    p.get('tipo', ''),
+                    data_imp,
+                ]):
+                    item = QTableWidgetItem(str(val))
+                    item.setFlags(item.flags() & ~Qt.ItemFlag.ItemIsEditable)
+                    if col == 0:
+                        item.setData(Qt.ItemDataRole.UserRole, p.get('id'))
+                    self._table.setItem(row, col, item)
+            self._table.setSortingEnabled(True)
 
-            self._update_card_visibility()
+            self._selected_partita_id = None
+            self._actions_bar.setVisible(False)
+            self._detail_browser.setHtml(
+                '<div style="color:#9E9E9E;font-size:14px;margin-top:40px;text-align:center;">'
+                '← Seleziona una partita dalla lista</div>'
+            )
+
+            self._update_row_visibility()
+
+            if truncated:
+                self._count_label.setText(
+                    f"Visualizzate le prime {len(self._all_partite)} partite. Affina la ricerca per risultati più precisi.")
 
         except Exception as e:
             logging.getLogger("CatastoGUI").error(
@@ -778,9 +810,15 @@ class RicercaPartiteWidget(QWidget):
             QMessageBox.critical(self, "Errore di Ricerca",
                                  f"Si è verificato un errore durante la ricerca: {e}")
 
-    def _show_card_detail(self, partita_id: int):
-        for card in self._cards:
-            card.set_selected(card._partita_id == partita_id)
+    def _on_row_selected(self, current_row: int):
+        if current_row < 0:
+            return
+        id_item = self._table.item(current_row, 0)
+        if id_item is None:
+            return
+        partita_id = id_item.data(Qt.ItemDataRole.UserRole)
+        if not partita_id:
+            return
 
         self._selected_partita_id = partita_id
 
@@ -886,22 +924,29 @@ class RicercaPartiteWidget(QWidget):
         except Exception as e:
             QMessageBox.critical(self, "Errore", str(e))
 
-    def _apri_menu_contestuale_partita(self, partita_id: int, global_pos: QPoint):
-        partita_data = next(
-            (p for p in self._all_partite if p.get('id') == partita_id), {})
-        numero_text = str(partita_data.get('numero_partita', ''))
+    def _on_context_menu(self, pos: QPoint):
+        row = self._table.rowAt(pos.y())
+        if row < 0:
+            return
+        id_item = self._table.item(row, 0)
+        if id_item is None:
+            return
+        partita_id = id_item.data(Qt.ItemDataRole.UserRole)
+        numero_text = id_item.text()
+
+        self._table.selectRow(row)
 
         menu = QMenu(self)
         menu.addAction(
             QApplication.style().standardIcon(QStyle.StandardPixmap.SP_FileDialogContentsView),
-            "Apri Dettagli"
-        ).triggered.connect(lambda: self._show_card_detail(partita_id) or self.show_details())
+            "Apri Dettagli Completi"
+        ).triggered.connect(self.show_details)
         menu.addSeparator()
         menu.addAction(f"Copia Numero Partita ({numero_text})").triggered.connect(
             lambda: QApplication.clipboard().setText(numero_text))
         menu.addAction(f"Copia ID ({partita_id})").triggered.connect(
             lambda: QApplication.clipboard().setText(str(partita_id)))
-        menu.exec(global_pos)
+        menu.exec(self._table.viewport().mapToGlobal(pos))
 
 
 class RicercaAvanzataImmobiliWidget(QWidget):

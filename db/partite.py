@@ -311,14 +311,16 @@ class DBPartiteMixin:
     @db_handle_errors
     def search_partite(self, comune_id: Optional[int] = None, numero_partita: Optional[int] = None,
                     possessore: Optional[str] = None, immobile_natura: Optional[str] = None,
-                    suffisso_partita: Optional[str] = None) -> List[Dict[str, Any]]:
+                    suffisso_partita: Optional[str] = None,
+                    max_results: int = 500) -> List[Dict[str, Any]]:
         """
         Ricerca partite con filtri multipli.
 
         TIER 1: @db_handle_errors centralizes exception handling.
+        Returns max_results rows; sets result['_truncated'] = True on last row if more exist.
         """
         conditions, params, joins = [], [], ""
-        select_cols = "p.id, c.nome as comune_nome, p.numero_partita, p.suffisso_partita, p.tipo, p.stato"
+        select_cols = "p.id, c.nome as comune_nome, p.numero_partita, p.suffisso_partita, p.tipo, p.stato, p.data_impianto"
         query_base = f"SELECT DISTINCT {select_cols} FROM {self.schema}.partita p JOIN {self.schema}.comune c ON p.comune_id = c.id"
 
         if possessore:
@@ -345,13 +347,20 @@ class DBPartiteMixin:
         query = query_base + joins
         if conditions:
             query += " WHERE " + " AND ".join(conditions)
-        query += " ORDER BY c.nome, p.numero_partita"
+        query += f" ORDER BY c.nome, p.numero_partita LIMIT %s"
+        params.append(max_results + 1)
 
         with self._get_connection() as conn:
             with conn.cursor(cursor_factory=DictCursor) as cur:
                 cur.execute(query, tuple(params))
-                results = [dict(row) for row in cur.fetchall()]
-                self.logger.info(f"search_partite — trovate {len(results)} partite")
+                rows = cur.fetchall()
+                truncated = len(rows) > max_results
+                results = [dict(row) for row in rows[:max_results]]
+                if truncated and results:
+                    results[-1]['_truncated'] = True
+                self.logger.info(
+                    f"search_partite — trovate {'>' if truncated else ''}{len(results)} partite"
+                )
                 return results
 
     def duplicate_partita(self, partita_id_originale: int, nuovo_numero_partita: int,
