@@ -119,6 +119,7 @@ class DBArchiviaMixin:
 
     @db_handle_errors
     def get_archiviati_possessori(self) -> List[Dict[str, Any]]:
+        # archiviato_il IS NOT NULL distingue gli archiviati dagli inattivi storici
         with self._get_connection() as conn:
             with conn.cursor(cursor_factory=DictCursor) as cur:
                 cur.execute(
@@ -126,7 +127,8 @@ class DBArchiviaMixin:
                     f"c.nome AS comune_nome, p.archiviato_il "
                     f"FROM {self.schema}.possessore p "
                     f"LEFT JOIN {self.schema}.comune c ON p.comune_id = c.id "
-                    f"WHERE NOT p.attivo ORDER BY p.archiviato_il DESC"
+                    f"WHERE NOT p.attivo AND p.archiviato_il IS NOT NULL "
+                    f"ORDER BY p.archiviato_il DESC"
                 )
                 return [dict(r) for r in cur.fetchall()]
 
@@ -235,6 +237,80 @@ class DBArchiviaMixin:
                     f"WHERE p.archiviato ORDER BY p.archiviato_il DESC"
                 )
                 return [dict(r) for r in cur.fetchall()]
+
+    # ─────────────────────────────────────────────────────────────────────────
+    # ELIMINAZIONE DEFINITIVA (hard delete su elementi già archiviati)
+    # ─────────────────────────────────────────────────────────────────────────
+
+    @db_handle_errors
+    def elimina_definitivamente_comune(self, comune_id: int) -> bool:
+        if not isinstance(comune_id, int) or comune_id <= 0:
+            raise DBDataError(f"ID comune non valido: {comune_id}")
+        with self._get_connection() as conn:
+            with conn.cursor() as cur:
+                cur.execute(
+                    f"DELETE FROM {self.schema}.comune "
+                    "WHERE id = %s AND archiviato RETURNING id",
+                    (comune_id,)
+                )
+                if cur.fetchone() is None:
+                    raise DBNotFoundError(
+                        f"Comune ID {comune_id} non archiviato o non trovato. "
+                        "Solo elementi archiviati possono essere eliminati definitivamente.")
+        self.logger.info(f"Comune {comune_id} eliminato definitivamente.")
+        return True
+
+    @db_handle_errors
+    def elimina_definitivamente_possessore(self, possessore_id: int) -> bool:
+        if not isinstance(possessore_id, int) or possessore_id <= 0:
+            raise DBDataError(f"ID possessore non valido: {possessore_id}")
+        with self._get_connection() as conn:
+            with conn.cursor() as cur:
+                cur.execute(
+                    f"DELETE FROM {self.schema}.possessore "
+                    "WHERE id = %s AND NOT attivo AND archiviato_il IS NOT NULL "
+                    "RETURNING id",
+                    (possessore_id,)
+                )
+                if cur.fetchone() is None:
+                    raise DBNotFoundError(
+                        f"Possessore ID {possessore_id} non archiviato o non trovato.")
+        self.logger.info(f"Possessore {possessore_id} eliminato definitivamente.")
+        return True
+
+    @db_handle_errors
+    def elimina_definitivamente_localita(self, localita_id: int) -> bool:
+        if not isinstance(localita_id, int) or localita_id <= 0:
+            raise DBDataError(f"ID località non valido: {localita_id}")
+        with self._get_connection() as conn:
+            with conn.cursor() as cur:
+                cur.execute(
+                    f"DELETE FROM {self.schema}.localita "
+                    "WHERE id = %s AND archiviato RETURNING id",
+                    (localita_id,)
+                )
+                if cur.fetchone() is None:
+                    raise DBNotFoundError(
+                        f"Località ID {localita_id} non archiviata o non trovata.")
+        self.logger.info(f"Località {localita_id} eliminata definitivamente.")
+        return True
+
+    @db_handle_errors
+    def elimina_definitivamente_partita(self, partita_id: int) -> bool:
+        if not isinstance(partita_id, int) or partita_id <= 0:
+            raise DBDataError(f"ID partita non valido: {partita_id}")
+        with self._get_connection() as conn:
+            with conn.cursor() as cur:
+                cur.execute(
+                    f"DELETE FROM {self.schema}.partita "
+                    "WHERE id = %s AND archiviato RETURNING id",
+                    (partita_id,)
+                )
+                if cur.fetchone() is None:
+                    raise DBNotFoundError(
+                        f"Partita ID {partita_id} non archiviata o non trovata.")
+        self.logger.info(f"Partita {partita_id} eliminata definitivamente.")
+        return True
 
     # ─────────────────────────────────────────────────────────────────────────
     # AGGREGATO

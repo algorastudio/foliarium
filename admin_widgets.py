@@ -1562,16 +1562,16 @@ class BackupWidget(QWidget):
         self.process.start(executable, args)
 
 
-class ArchivioWidget(QWidget):
+class ArchivioWidget(LazyLoadedWidget):
     """
-    Pannello amministrativo per la visualizzazione e il ripristino degli elementi archiviati.
+    Pannello amministrativo per la visualizzazione, ripristino ed eliminazione
+    definitiva degli elementi archiviati.
     Mostra in tab separate: Comuni, Possessori, Località, Partite archiviate.
     """
 
     def __init__(self, db_manager: "CatastoDBManager", parent=None):
         super().__init__(parent)
         self.db_manager = db_manager
-        self.logger = logging.getLogger("CatastoGUI.ArchivioWidget")
 
         main_layout = QVBoxLayout(self)
         main_layout.setContentsMargins(16, 12, 16, 12)
@@ -1583,7 +1583,8 @@ class ArchivioWidget(QWidget):
 
         sub = QLabel(
             "Gli elementi archiviati non compaiono nelle liste e nelle ricerche. "
-            "Seleziona un elemento e clicca 'Ripristina' per renderlo nuovamente visibile."
+            "Usa 'Ripristina' per renderli nuovamente visibili, oppure "
+            "'Elimina Definitivamente' per cancellarli in modo permanente."
         )
         sub.setWordWrap(True)
         sub.setStyleSheet("color:#757575; font-size:9pt;")
@@ -1593,13 +1594,19 @@ class ArchivioWidget(QWidget):
         self._tabs.currentChanged.connect(self._on_tab_changed)
         main_layout.addWidget(self._tabs, 1)
 
-        # Pulsante ripristina (condiviso)
+        # Pulsanti azione (condivisi)
         btn_row = QHBoxLayout()
         btn_row.addStretch()
         self._btn_ripristina = QPushButton("Ripristina Selezionato")
         self._btn_ripristina.setEnabled(False)
         self._btn_ripristina.clicked.connect(self._ripristina_selezionato)
         btn_row.addWidget(self._btn_ripristina)
+
+        self._btn_elimina = QPushButton("Elimina Definitivamente")
+        self._btn_elimina.setObjectName("dangerButton")
+        self._btn_elimina.setEnabled(False)
+        self._btn_elimina.clicked.connect(self._elimina_definitivamente)
+        btn_row.addWidget(self._btn_elimina)
 
         btn_refresh = QPushButton("Aggiorna")
         btn_refresh.setObjectName("secondaryButton")
@@ -1639,13 +1646,27 @@ class ArchivioWidget(QWidget):
         hh = t.horizontalHeader()
         hh.setSectionResizeMode(QHeaderView.ResizeMode.Interactive)
         hh.setStretchLastSection(True)
-        t.itemSelectionChanged.connect(
-            lambda: self._btn_ripristina.setEnabled(t.currentRow() >= 0))
+        t.itemSelectionChanged.connect(self._update_button_state)
         return t
+
+    def _update_button_state(self):
+        tables = {
+            "comuni":     self._t_comuni,
+            "possessori": self._t_poss,
+            "localita":   self._t_loc,
+            "partite":    self._t_part,
+        }
+        has_selection = tables[self._current_entity].currentRow() >= 0
+        self._btn_ripristina.setEnabled(has_selection)
+        self._btn_elimina.setEnabled(has_selection)
 
     def _on_tab_changed(self, idx: int):
         self._current_entity = ["comuni", "possessori", "localita", "partite"][idx]
         self._btn_ripristina.setEnabled(False)
+        self._btn_elimina.setEnabled(False)
+
+    def _load_data_on_first_show(self):
+        self.load_data()
 
     # ── data loading ─────────────────────────────────────────────────────────
 
@@ -1660,6 +1681,7 @@ class ArchivioWidget(QWidget):
         self._fill_localita(data.get("localita", []))
         self._fill_partite(data.get("partite", []))
         self._btn_ripristina.setEnabled(False)
+        self._btn_elimina.setEnabled(False)
         self._update_tab_titles(data)
 
     def _update_tab_titles(self, data: dict):
@@ -1765,6 +1787,65 @@ class ArchivioWidget(QWidget):
             self.load_data()
         except Exception as e:
             QMessageBox.critical(self, "Errore", f"Impossibile ripristinare:\n{e}")
+
+    # ── eliminazione definitiva ──────────────────────────────────────────────
+
+    def _elimina_definitivamente(self):
+        tables = {
+            "comuni":     self._t_comuni,
+            "possessori": self._t_poss,
+            "localita":   self._t_loc,
+            "partite":    self._t_part,
+        }
+        elimina_fn = {
+            "comuni":     self.db_manager.elimina_definitivamente_comune,
+            "possessori": self.db_manager.elimina_definitivamente_possessore,
+            "localita":   self.db_manager.elimina_definitivamente_localita,
+            "partite":    self.db_manager.elimina_definitivamente_partita,
+        }
+        entity_label = {
+            "comuni": "comune", "possessori": "possessore",
+            "localita": "località", "partite": "partita",
+        }
+
+        table = tables[self._current_entity]
+        row = table.currentRow()
+        if row < 0:
+            return
+        id_item = table.item(row, 0)
+        if id_item is None:
+            return
+        record_id = id_item.data(Qt.ItemDataRole.UserRole)
+        nome_item = table.item(row, 1)
+        nome = nome_item.text() if nome_item else str(record_id)
+        label = entity_label[self._current_entity]
+
+        risposta = QMessageBox.warning(
+            self, "Eliminazione DEFINITIVA",
+            f"ATTENZIONE: Eliminare DEFINITIVAMENTE {label} '{nome}'?\n\n"
+            "Questa operazione NON può essere annullata.\n"
+            "Tutti i dati correlati (immobili, variazioni, etc.) potrebbero "
+            "essere eliminati o causare errori se referenziati.\n\n"
+            "Sei sicuro di voler procedere?",
+            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+            QMessageBox.StandardButton.No
+        )
+        if risposta != QMessageBox.StandardButton.Yes:
+            return
+
+        try:
+            elimina_fn[self._current_entity](record_id)
+            self.load_data()
+            QMessageBox.information(
+                self, "Eliminato",
+                f"Il {label} '{nome}' è stato eliminato definitivamente."
+            )
+        except Exception as e:
+            QMessageBox.critical(
+                self, "Errore",
+                f"Impossibile eliminare definitivamente:\n{e}\n\n"
+                "Potrebbero esserci elementi correlati che impediscono l'eliminazione."
+            )
 
 
 class TipiPossessoWidget(LazyLoadedWidget):
