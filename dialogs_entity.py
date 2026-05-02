@@ -45,26 +45,26 @@ except ImportError:
 
 class DettagliLegamePossessoreDialog(QDialog):
     def __init__(self, nome_possessore_selezionato: str, partita_tipo: str,
-                 titolo_attuale: Optional[str] = None,  # Nuovo
-                 quota_attuale: Optional[str] = None,   # Nuovo
+                 titolo_attuale: Optional[str] = None,
+                 quota_attuale: Optional[str] = None,
+                 db_manager: Optional['CatastoDBManager'] = None,
                  parent=None):
         super().__init__(parent)
+        self.db_manager = db_manager
+        self.logger = logging.getLogger(f"CatastoGUI.{self.__class__.__name__}")
         self.setWindowTitle(
             f"Dettagli Legame per {nome_possessore_selezionato}")
         self.setMinimumWidth(400)
 
         self.titolo: Optional[str] = None
         self.quota: Optional[str] = None
-        # self.tipo_partita_rel: str = partita_tipo
 
         layout = QFormLayout(self)
 
-        self.titolo_edit = QLineEdit()
-        self.titolo_edit.setPlaceholderText(
-            "Es. proprietà esclusiva, usufrutto")
-        self.titolo_edit.setText(
-            titolo_attuale if titolo_attuale is not None else "proprietà esclusiva")  # Pre-compila
-        layout.addRow("Titolo di Possesso (*):", self.titolo_edit)
+        self.titolo_combo = QComboBox()
+        self.titolo_combo.setPlaceholderText("Seleziona un tipo di possesso...")
+        self._load_tipi_possesso(titolo_attuale)
+        layout.addRow("Titolo di Possesso (*):", self.titolo_combo)
 
         self.quota_edit = QLineEdit()
         self.quota_edit.setPlaceholderText(
@@ -88,13 +88,30 @@ class DettagliLegamePossessoreDialog(QDialog):
         self.setLayout(layout)
         self.titolo_edit.setFocus()
 
+    def _load_tipi_possesso(self, titolo_attuale: Optional[str] = None):
+        """Carica i tipi di possesso dal database."""
+        self.titolo_combo.clear()
+        self.titolo_combo.addItem("--- Seleziona ---", None)
+        try:
+            if self.db_manager:
+                tipi = self.db_manager.get_tipi_possesso()
+                for tipo in tipi:
+                    self.titolo_combo.addItem(tipo['nome'], tipo['id'])
+        except Exception as e:
+            self.logger.error(f"Errore caricamento tipi possesso: {e}")
+            self.titolo_combo.addItem("Errore caricamento", None)
+
+        if titolo_attuale:
+            idx = self.titolo_combo.findText(titolo_attuale)
+            if idx >= 0:
+                self.titolo_combo.setCurrentIndex(idx)
+
     def _accept_details(self):
-        # ... (come prima) ...
-        titolo_val = self.titolo_edit.text().strip()
-        if not titolo_val:
+        titolo_val = self.titolo_combo.currentText()
+        if titolo_val == "--- Seleziona ---" or not titolo_val:
             QMessageBox.warning(self, "Dato Mancante",
                                 "Il titolo di possesso è obbligatorio.")
-            self.titolo_edit.setFocus()
+            self.titolo_combo.setFocus()
             return
         self.titolo = titolo_val
         self.quota = self.quota_edit.text().strip() or None
@@ -103,34 +120,33 @@ class DettagliLegamePossessoreDialog(QDialog):
     # Metodo statico per l'inserimento (come prima)
 
     @staticmethod
-    def get_details_for_new_legame(nome_possessore: str, tipo_partita_attuale: str, parent=None) -> Optional[Dict[str, Any]]:
-        # Chiamiamo il costruttore senza titolo_attuale e quota_attuale,
-        # così userà i default (None) e quindi il testo placeholder o il default "proprietà esclusiva"
+    def get_details_for_new_legame(nome_possessore: str, tipo_partita_attuale: str, parent=None, db_manager: Optional['CatastoDBManager'] = None) -> Optional[Dict[str, Any]]:
+        if db_manager is None and hasattr(parent, 'db_manager'):
+            db_manager = parent.db_manager
         dialog = DettagliLegamePossessoreDialog(
             nome_possessore_selezionato=nome_possessore,
             partita_tipo=tipo_partita_attuale,
-            # titolo_attuale e quota_attuale non vengono passati,
-            # quindi __init__ userà i loro valori di default (None)
+            db_manager=db_manager,
             parent=parent
         )
         if dialog.exec() == QDialog.DialogCode.Accepted:
             return {
                 "titolo": dialog.titolo,
                 "quota": dialog.quota,
-                # "tipo_partita_rel": dialog.tipo_partita_rel # Se lo gestisci
             }
         return None
 
-    # NUOVO Metodo statico per la modifica
     @staticmethod
     def get_details_for_edit_legame(nome_possessore: str, tipo_partita_attuale: str,
                                     titolo_init: str, quota_init: Optional[str],
-                                    parent=None) -> Optional[Dict[str, Any]]:
+                                    parent=None, db_manager: Optional['CatastoDBManager'] = None) -> Optional[Dict[str, Any]]:
+        if db_manager is None and hasattr(parent, 'db_manager'):
+            db_manager = parent.db_manager
         dialog = DettagliLegamePossessoreDialog(nome_possessore, tipo_partita_attuale,
                                                 titolo_attuale=titolo_init,
                                                 quota_attuale=quota_init,
+                                                db_manager=db_manager,
                                                 parent=parent)
-        # Titolo specifico per modifica
         dialog.setWindowTitle(f"Modifica Legame per {nome_possessore}")
         if dialog.exec() == QDialog.DialogCode.Accepted:
             return {
@@ -1800,105 +1816,7 @@ class LocalitaSelectionDialog(QDialog):
         self.nome_edit_nuova.clear()
         self.tipologia_edit_nuova.clear()
     # --- FINE METODO MANCANTE/DA RIPRISTINARE ---
-        
 
-
-class DettagliLegamePossessoreDialog(QDialog):
-    def __init__(self, nome_possessore_selezionato: str, partita_tipo: str,
-                 titolo_attuale: Optional[str] = None,  # Nuovo
-                 quota_attuale: Optional[str] = None,   # Nuovo
-                 parent=None):
-        super().__init__(parent)
-        self.setWindowTitle(
-            f"Dettagli Legame per {nome_possessore_selezionato}")
-        self.setMinimumWidth(400)
-
-        self.titolo: Optional[str] = None
-        self.quota: Optional[str] = None
-        # self.tipo_partita_rel: str = partita_tipo
-
-        layout = QFormLayout(self)
-
-        self.titolo_edit = QLineEdit()
-        self.titolo_edit.setPlaceholderText(
-            "Es. proprietà esclusiva, usufrutto")
-        self.titolo_edit.setText(
-            titolo_attuale if titolo_attuale is not None else "proprietà esclusiva")  # Pre-compila
-        layout.addRow("Titolo di Possesso (*):", self.titolo_edit)
-
-        self.quota_edit = QLineEdit()
-        self.quota_edit.setPlaceholderText(
-            "Es. 1/1, 1/2 (lasciare vuoto se non applicabile)")
-        self.quota_edit.setText(
-            quota_attuale if quota_attuale is not None else "")  # Pre-compila
-        layout.addRow("Quota (opzionale):", self.quota_edit)
-
-        # ... (pulsanti OK/Annulla e metodo _accept_details come prima) ...
-        buttons_layout = QHBoxLayout()
-        self.ok_button = QPushButton(
-            QApplication.style().standardIcon(QStyle.StandardPixmap.SP_DialogOkButton), "OK")
-        self.ok_button.clicked.connect(self._accept_details)
-        self.cancel_button = QPushButton(QApplication.style().standardIcon(
-            QStyle.StandardPixmap.SP_DialogCancelButton), "Annulla")
-        self.cancel_button.clicked.connect(self.reject)
-        buttons_layout.addStretch()
-        buttons_layout.addWidget(self.ok_button)
-        buttons_layout.addWidget(self.cancel_button)
-        layout.addRow(buttons_layout)
-        self.setLayout(layout)
-        self.titolo_edit.setFocus()
-
-    def _accept_details(self):
-        # ... (come prima) ...
-        titolo_val = self.titolo_edit.text().strip()
-        if not titolo_val:
-            QMessageBox.warning(self, "Dato Mancante",
-                                "Il titolo di possesso è obbligatorio.")
-            self.titolo_edit.setFocus()
-            return
-        self.titolo = titolo_val
-        self.quota = self.quota_edit.text().strip() or None
-        self.accept()
-
-    # Metodo statico per l'inserimento (come prima)
-
-    @staticmethod
-    def get_details_for_new_legame(nome_possessore: str, tipo_partita_attuale: str, parent=None) -> Optional[Dict[str, Any]]:
-        # Chiamiamo il costruttore senza titolo_attuale e quota_attuale,
-        # così userà i default (None) e quindi il testo placeholder o il default "proprietà esclusiva"
-        dialog = DettagliLegamePossessoreDialog(
-            nome_possessore_selezionato=nome_possessore,
-            partita_tipo=tipo_partita_attuale,
-            # titolo_attuale e quota_attuale non vengono passati,
-            # quindi __init__ userà i loro valori di default (None)
-            parent=parent
-        )
-        if dialog.exec() == QDialog.DialogCode.Accepted:
-            return {
-                "titolo": dialog.titolo,
-                "quota": dialog.quota,
-                # "tipo_partita_rel": dialog.tipo_partita_rel # Se lo gestisci
-            }
-        return None
-
-    # NUOVO Metodo statico per la modifica
-    @staticmethod
-    def get_details_for_edit_legame(nome_possessore: str, tipo_partita_attuale: str,
-                                    titolo_init: str, quota_init: Optional[str],
-                                    parent=None) -> Optional[Dict[str, Any]]:
-        dialog = DettagliLegamePossessoreDialog(nome_possessore, tipo_partita_attuale,
-                                                titolo_attuale=titolo_init,
-                                                quota_attuale=quota_init,
-                                                parent=parent)
-        # Titolo specifico per modifica
-        dialog.setWindowTitle(f"Modifica Legame per {nome_possessore}")
-        if dialog.exec() == QDialog.DialogCode.Accepted:
-            return {
-                "titolo": dialog.titolo,
-                "quota": dialog.quota,
-            }
-        return None
-# In dialogs.py, aggiungi questa nuova classe
 
 
 class PeriodoStoricoEditDialog(QDialog):
