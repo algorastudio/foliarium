@@ -206,6 +206,10 @@ class ModificaPossessoreDialog(QDialog):
 
         # Pulsanti
         buttons_layout = QHBoxLayout()
+        self.btn_archivia = QPushButton("Archivia Possessore")
+        self.btn_archivia.setObjectName("dangerButton")
+        self.btn_archivia.setToolTip("Archivia questo possessore (non viene eliminato, solo nascosto)")
+        self.btn_archivia.clicked.connect(self._archivia_possessore)
         self.save_button = QPushButton(QApplication.style().standardIcon(
             QStyle.StandardPixmap.SP_DialogSaveButton), "Salva Modifiche")
         self.save_button.clicked.connect(self._save_changes)
@@ -213,6 +217,7 @@ class ModificaPossessoreDialog(QDialog):
             QStyle.StandardPixmap.SP_DialogCancelButton), "Annulla")
         self.cancel_button.clicked.connect(self.reject)
 
+        buttons_layout.addWidget(self.btn_archivia)
         buttons_layout.addStretch()
         buttons_layout.addWidget(self.save_button)
         buttons_layout.addWidget(self.cancel_button)
@@ -342,6 +347,25 @@ class ModificaPossessoreDialog(QDialog):
                 f"Errore critico imprevisto durante il salvataggio del possessore ID {self.possessore_id}: {e_poss}", exc_info=True)
             QMessageBox.critical(self, "Errore Critico Imprevisto",
                                  f"Si è verificato un errore di sistema imprevisto:\n{type(e_poss).__name__}: {e_poss}")
+
+    def _archivia_possessore(self):
+        nome = self.nome_completo_edit.text()
+        risposta = QMessageBox.question(
+            self, "Conferma Archiviazione",
+            f"Archiviare il possessore '{nome}'?\n\nNon verrà eliminato, solo nascosto dalle ricerche.",
+            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+            QMessageBox.StandardButton.No,
+        )
+        if risposta != QMessageBox.StandardButton.Yes:
+            return
+        try:
+            self.db_manager.archivia_possessore(self.possessore_id)
+            QMessageBox.information(self, "Operazione completata",
+                                    f"Possessore '{nome}' archiviato con successo.")
+            self.reject()  # Chiude il dialog
+        except Exception as e:
+            QMessageBox.critical(self, "Errore", f"Impossibile archiviare il possessore:\n{e}")
+
 # In dialogs.py, SOSTITUISCI l'intera classe ModificaComuneDialog con questa:
 
 
@@ -409,10 +433,20 @@ class ModificaComuneDialog(QDialog):
 
         main_layout.addLayout(form_layout)
 
+        buttons_layout = QHBoxLayout()
+        self.btn_archivia = QPushButton("Archivia Comune")
+        self.btn_archivia.setObjectName("dangerButton")
+        self.btn_archivia.setToolTip("Archivia questo comune (non viene eliminato, solo nascosto)")
+        self.btn_archivia.clicked.connect(self._archivia_comune)
+        buttons_layout.addWidget(self.btn_archivia)
+        buttons_layout.addStretch()
+
         self.button_box = QDialogButtonBox(QDialogButtonBox.StandardButton.Save | QDialogButtonBox.StandardButton.Cancel)
         self.button_box.accepted.connect(self._save_changes)
         self.button_box.rejected.connect(self.reject)
-        main_layout.addWidget(self.button_box)
+        buttons_layout.addWidget(self.button_box)
+
+        main_layout.addLayout(buttons_layout)
 
         self.setLayout(main_layout)
 
@@ -487,6 +521,24 @@ class ModificaComuneDialog(QDialog):
             QMessageBox.critical(self, "Errore Salvataggio", str(e))
         except Exception as e_gen:
             QMessageBox.critical(self, "Errore Imprevisto", f"Si è verificato un errore: {str(e_gen)}")
+
+    def _archivia_comune(self):
+        nome = self.nome_edit.text()
+        risposta = QMessageBox.question(
+            self, "Conferma Archiviazione",
+            f"Archiviare il comune '{nome}'?\n\nNon verrà eliminato, solo nascosto dalle ricerche.",
+            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+            QMessageBox.StandardButton.No,
+        )
+        if risposta != QMessageBox.StandardButton.Yes:
+            return
+        try:
+            self.db_manager.archivia_comune(self.comune_id)
+            QMessageBox.information(self, "Operazione completata",
+                                    f"Comune '{nome}' archiviato con successo.")
+            self.reject()  # Chiude il dialog
+        except Exception as e:
+            QMessageBox.critical(self, "Errore", f"Impossibile archiviare il comune:\n{e}")
 
 
 class PossessoriComuneDialog(QDialog):
@@ -869,7 +921,6 @@ class ModificaLocalitaDialog(QDialog):
         self._load_localita_data()
 
     def _init_ui(self):
-        # ... (la UI è identica a prima, con la QComboBox per il tipo)
         layout = QVBoxLayout(self)
         form_layout = QFormLayout()
         self.id_label = QLabel(str(self.localita_id))
@@ -881,10 +932,21 @@ class ModificaLocalitaDialog(QDialog):
         self.tipologia_edit = QLineEdit()
         form_layout.addRow("Tipologia Stradale (opzionale):", self.tipologia_edit)
         layout.addLayout(form_layout)
-        buttons = QDialogButtonBox(QDialogButtonBox.StandardButton.Save | QDialogButtonBox.StandardButton.Cancel, self)
-        buttons.accepted.connect(self._save_changes)
-        buttons.rejected.connect(self.reject)
-        layout.addWidget(buttons)
+
+        buttons_layout = QHBoxLayout()
+        self.btn_archivia = QPushButton("Archivia Località")
+        self.btn_archivia.setObjectName("dangerButton")
+        self.btn_archivia.setToolTip("Archivia questa località (non viene eliminata, solo nascosta)")
+        self.btn_archivia.clicked.connect(self._archivia_localita)
+        buttons_layout.addWidget(self.btn_archivia)
+        buttons_layout.addStretch()
+
+        self.button_box = QDialogButtonBox(QDialogButtonBox.StandardButton.Save | QDialogButtonBox.StandardButton.Cancel)
+        self.button_box.accepted.connect(self._save_changes)
+        self.button_box.rejected.connect(self.reject)
+        buttons_layout.addWidget(self.button_box)
+
+        layout.addLayout(buttons_layout)
         self.setLayout(layout)
 
     def _load_localita_data(self):
@@ -916,6 +978,24 @@ class ModificaLocalitaDialog(QDialog):
             self.accept()
         except (DBMError, DBDataError, DBUniqueConstraintError) as e:
             QMessageBox.critical(self, "Errore Salvataggio", str(e))
+
+    def _archivia_localita(self):
+        nome = self.nome_edit.text()
+        risposta = QMessageBox.question(
+            self, "Conferma Archiviazione",
+            f"Archiviare la località '{nome}'?\n\nNon verrà eliminata, solo nascosta dalle ricerche.",
+            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+            QMessageBox.StandardButton.No,
+        )
+        if risposta != QMessageBox.StandardButton.Yes:
+            return
+        try:
+            self.db_manager.archivia_localita(self.localita_id)
+            QMessageBox.information(self, "Operazione completata",
+                                    f"Località '{nome}' archiviata con successo.")
+            self.reject()
+        except Exception as e:
+            QMessageBox.critical(self, "Errore", f"Impossibile archiviare la località:\n{e}")
 
 
 
