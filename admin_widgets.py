@@ -28,7 +28,7 @@ from PyQt6.QtGui import QColor, QFont, QIcon, QAction
 from PyQt6.QtWidgets import (
     QAbstractItemView, QApplication,
     QCheckBox, QComboBox, QDateEdit, QDateTimeEdit,
-    QDialog, QFileDialog, QFormLayout, QFrame, QGridLayout,
+    QDialog, QDialogButtonBox, QFileDialog, QFormLayout, QFrame, QGridLayout,
     QGroupBox, QHBoxLayout, QHeaderView, QInputDialog,
     QLabel, QLineEdit, QMenu, QMessageBox, QProgressBar,
     QPushButton, QScrollArea, QSizePolicy, QSpacerItem,
@@ -1771,9 +1771,12 @@ class TipiPossessoWidget(LazyLoadedWidget):
     """Gestione tipi di possesso (proprietà esclusiva, comproprietà, usufrutto, etc.)"""
 
     def __init__(self, db_manager: 'CatastoDBManager', parent=None):
-        super().__init__(db_manager, parent)
-        self.setWindowTitle("Gestione Tipi di Possesso")
+        super().__init__(parent)
+        self.db_manager = db_manager
         self._init_ui()
+
+    def _load_data_on_first_show(self):
+        self.load_data()
 
     def _init_ui(self):
         main_layout = QVBoxLayout()
