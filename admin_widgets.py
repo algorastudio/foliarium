@@ -1765,3 +1765,181 @@ class ArchivioWidget(QWidget):
             self.load_data()
         except Exception as e:
             QMessageBox.critical(self, "Errore", f"Impossibile ripristinare:\n{e}")
+
+
+class TipiPossessoWidget(LazyLoadedWidget):
+    """Gestione tipi di possesso (proprietà esclusiva, comproprietà, usufrutto, etc.)"""
+
+    def __init__(self, db_manager: 'CatastoDBManager', parent=None):
+        super().__init__(db_manager, parent)
+        self.setWindowTitle("Gestione Tipi di Possesso")
+        self._init_ui()
+
+    def _init_ui(self):
+        main_layout = QVBoxLayout()
+
+        title = QLabel("Tipi di Possesso Disponibili")
+        title.setStyleSheet("font-size: 14px; font-weight: bold;")
+        main_layout.addWidget(title)
+
+        # Tabella tipi possesso
+        self.table = QTableWidget()
+        self.table.setColumnCount(3)
+        self.table.setHorizontalHeaderLabels(["ID", "Nome", "Descrizione"])
+        self.table.setSelectionBehavior(QAbstractItemView.SelectionBehavior.SelectRows)
+        self.table.setSelectionMode(QAbstractItemView.SelectionMode.SingleSelection)
+        self.table.setEditTriggers(QAbstractItemView.EditTrigger.NoEditTriggers)
+        self.table.setAlternatingRowColors(True)
+        header = self.table.horizontalHeader()
+        header.setSectionResizeMode(0, QHeaderView.ResizeMode.ResizeToContents)
+        header.setSectionResizeMode(1, QHeaderView.ResizeMode.ResizeToContents)
+        header.setSectionResizeMode(2, QHeaderView.ResizeMode.Stretch)
+        main_layout.addWidget(self.table)
+
+        # Bottoni
+        buttons_layout = QHBoxLayout()
+        btn_nuovo = QPushButton("Aggiungi Tipo")
+        btn_nuovo.clicked.connect(self._aggiungi_tipo)
+        buttons_layout.addWidget(btn_nuovo)
+
+        btn_modifica = QPushButton("Modifica Selezionato")
+        btn_modifica.clicked.connect(self._modifica_tipo)
+        btn_modifica.setEnabled(False)
+        self.btn_modifica = btn_modifica
+        buttons_layout.addWidget(btn_modifica)
+
+        btn_elimina = QPushButton("Elimina Selezionato")
+        btn_elimina.setObjectName("dangerButton")
+        btn_elimina.clicked.connect(self._elimina_tipo)
+        btn_elimina.setEnabled(False)
+        self.btn_elimina = btn_elimina
+        buttons_layout.addWidget(btn_elimina)
+
+        buttons_layout.addStretch()
+        main_layout.addLayout(buttons_layout)
+
+        self.setLayout(main_layout)
+        self.table.itemSelectionChanged.connect(self._on_selection_changed)
+
+    def load_data(self):
+        """Carica i tipi di possesso dal database."""
+        self.table.setRowCount(0)
+        try:
+            tipi = self.db_manager.get_tipi_possesso()
+            for i, tipo in enumerate(tipi):
+                self.table.insertRow(i)
+                self.table.setItem(i, 0, QTableWidgetItem(str(tipo['id'])))
+                self.table.setItem(i, 1, QTableWidgetItem(tipo['nome']))
+                self.table.setItem(i, 2, QTableWidgetItem(tipo.get('descrizione') or ''))
+        except Exception as e:
+            self.logger.error(f"Errore caricamento tipi possesso: {e}")
+            QMessageBox.critical(self, "Errore", f"Impossibile caricare i tipi di possesso:\n{e}")
+
+    def _on_selection_changed(self):
+        """Abilita/disabilita i bottoni modifica/elimina."""
+        has_selection = self.table.currentRow() >= 0
+        self.btn_modifica.setEnabled(has_selection)
+        self.btn_elimina.setEnabled(has_selection)
+
+    def _aggiungi_tipo(self):
+        """Aggiunge un nuovo tipo di possesso."""
+        dialog = QDialog(self)
+        dialog.setWindowTitle("Aggiungi Tipo di Possesso")
+        dialog.setMinimumWidth(400)
+
+        layout = QFormLayout(dialog)
+        nome_edit = QLineEdit()
+        layout.addRow("Nome (*):", nome_edit)
+        descrizione_edit = QTextEdit()
+        descrizione_edit.setMinimumHeight(80)
+        layout.addRow("Descrizione:", descrizione_edit)
+
+        button_box = QDialogButtonBox(QDialogButtonBox.StandardButton.Ok | QDialogButtonBox.StandardButton.Cancel)
+        button_box.accepted.connect(dialog.accept)
+        button_box.rejected.connect(dialog.reject)
+        layout.addRow(button_box)
+
+        if dialog.exec() == QDialog.DialogCode.Accepted:
+            nome = nome_edit.text().strip()
+            descrizione = descrizione_edit.toPlainText().strip() or None
+
+            if not nome:
+                QMessageBox.warning(self, "Dato Mancante", "Il nome è obbligatorio.")
+                return
+
+            try:
+                self.db_manager.insert_tipo_possesso(nome, descrizione)
+                self.load_data()
+                QMessageBox.information(self, "Successo", f"Tipo '{nome}' aggiunto con successo.")
+            except Exception as e:
+                QMessageBox.critical(self, "Errore", f"Impossibile aggiungere il tipo:\n{e}")
+
+    def _modifica_tipo(self):
+        """Modifica il tipo selezionato."""
+        row = self.table.currentRow()
+        if row < 0:
+            return
+
+        tipo_id = int(self.table.item(row, 0).text())
+        nome_attuale = self.table.item(row, 1).text()
+        descrizione_attuale = self.table.item(row, 2).text() or ''
+
+        dialog = QDialog(self)
+        dialog.setWindowTitle(f"Modifica Tipo: {nome_attuale}")
+        dialog.setMinimumWidth(400)
+
+        layout = QFormLayout(dialog)
+        nome_edit = QLineEdit()
+        nome_edit.setText(nome_attuale)
+        layout.addRow("Nome (*):", nome_edit)
+        descrizione_edit = QTextEdit()
+        descrizione_edit.setMinimumHeight(80)
+        descrizione_edit.setPlainText(descrizione_attuale)
+        layout.addRow("Descrizione:", descrizione_edit)
+
+        button_box = QDialogButtonBox(QDialogButtonBox.StandardButton.Ok | QDialogButtonBox.StandardButton.Cancel)
+        button_box.accepted.connect(dialog.accept)
+        button_box.rejected.connect(dialog.reject)
+        layout.addRow(button_box)
+
+        if dialog.exec() == QDialog.DialogCode.Accepted:
+            nome = nome_edit.text().strip()
+            descrizione = descrizione_edit.toPlainText().strip() or None
+
+            if not nome:
+                QMessageBox.warning(self, "Dato Mancante", "Il nome è obbligatorio.")
+                return
+
+            try:
+                self.db_manager.update_tipo_possesso(tipo_id, nome, descrizione)
+                self.load_data()
+                QMessageBox.information(self, "Successo", f"Tipo '{nome}' aggiornato con successo.")
+            except Exception as e:
+                QMessageBox.critical(self, "Errore", f"Impossibile aggiornare il tipo:\n{e}")
+
+    def _elimina_tipo(self):
+        """Elimina il tipo selezionato."""
+        row = self.table.currentRow()
+        if row < 0:
+            return
+
+        tipo_id = int(self.table.item(row, 0).text())
+        nome = self.table.item(row, 1).text()
+
+        risposta = QMessageBox.question(
+            self, "Conferma Eliminazione",
+            f"Eliminare il tipo '{nome}'?\n\n"
+            "Questa azione non può essere annullata se il tipo non è in uso.",
+            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+            QMessageBox.StandardButton.No
+        )
+
+        if risposta != QMessageBox.StandardButton.Yes:
+            return
+
+        try:
+            self.db_manager.delete_tipo_possesso(tipo_id)
+            self.load_data()
+            QMessageBox.information(self, "Successo", f"Tipo '{nome}' eliminato con successo.")
+        except Exception as e:
+            QMessageBox.critical(self, "Errore", f"Impossibile eliminare il tipo:\n{e}")
