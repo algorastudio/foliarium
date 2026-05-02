@@ -197,7 +197,7 @@ class DBPartiteMixin:
                 (SELECT COUNT(*) FROM {self.schema}.immobile i WHERE i.partita_id = p.id) AS num_immobili,
                 (SELECT COUNT(*) FROM {self.schema}.documento_partita dp WHERE dp.partita_id = p.id) AS num_documenti_allegati
             FROM {self.schema}.partita p
-            WHERE p.comune_id = %s
+            WHERE p.comune_id = %s AND NOT p.archiviato
         """
         params: List[Union[int, str]] = [comune_id]
 
@@ -311,14 +311,16 @@ class DBPartiteMixin:
     @db_handle_errors
     def search_partite(self, comune_id: Optional[int] = None, numero_partita: Optional[int] = None,
                     possessore: Optional[str] = None, immobile_natura: Optional[str] = None,
-                    suffisso_partita: Optional[str] = None) -> List[Dict[str, Any]]:
+                    suffisso_partita: Optional[str] = None,
+                    max_results: int = 500) -> List[Dict[str, Any]]:
         """
         Ricerca partite con filtri multipli.
 
         TIER 1: @db_handle_errors centralizes exception handling.
+        Returns max_results rows; sets result['_truncated'] = True on last row if more exist.
         """
         conditions, params, joins = [], [], ""
-        select_cols = "p.id, c.nome as comune_nome, p.numero_partita, p.suffisso_partita, p.tipo, p.stato"
+        select_cols = "p.id, c.nome as comune_nome, p.numero_partita, p.suffisso_partita, p.tipo, p.stato, p.data_impianto"
         query_base = f"SELECT DISTINCT {select_cols} FROM {self.schema}.partita p JOIN {self.schema}.comune c ON p.comune_id = c.id"
 
         if possessore:
@@ -342,16 +344,23 @@ class DBPartiteMixin:
                 conditions.append("p.suffisso_partita ILIKE %s")
                 params.append(f"%{suffisso_partita.strip()}%")
 
+        conditions.append("NOT p.archiviato")
         query = query_base + joins
-        if conditions:
-            query += " WHERE " + " AND ".join(conditions)
-        query += " ORDER BY c.nome, p.numero_partita"
+        query += " WHERE " + " AND ".join(conditions)
+        query += f" ORDER BY c.nome, p.numero_partita LIMIT %s"
+        params.append(max_results + 1)
 
         with self._get_connection() as conn:
             with conn.cursor(cursor_factory=DictCursor) as cur:
                 cur.execute(query, tuple(params))
-                results = [dict(row) for row in cur.fetchall()]
-                self.logger.info(f"search_partite — trovate {len(results)} partite")
+                rows = cur.fetchall()
+                truncated = len(rows) > max_results
+                results = [dict(row) for row in rows[:max_results]]
+                if truncated and results:
+                    results[-1]['_truncated'] = True
+                self.logger.info(
+                    f"search_partite — trovate {'>' if truncated else ''}{len(results)} partite"
+                )
                 return results
 
     def duplicate_partita(self, partita_id_originale: int, nuovo_numero_partita: int,
@@ -732,6 +741,83 @@ class DBPartiteMixin:
                     return [dict(row) for row in cur.fetchall()]
         except psycopg2.Error as db_err: self.logger.error(f"Errore DB get_report_annuale_partite: {db_err}"); return []
         except Exception as e: self.logger.error(f"Errore Python get_report_annuale_partite: {e}"); return []
+
+    @db_handle_errors
+    def get_tipi_possesso(self) -> List[Dict[str, Any]]:
+        """Ritorna la lista di tutti i tipi di possesso (lookup table)."""
+        with self._get_connection() as conn:
+            with conn.cursor(cursor_factory=DictCursor) as cur:
+                cur.execute(
+                    f"SELECT id, nome, descrizione FROM {self.schema}.tipo_possesso "
+                    "ORDER BY nome"
+                )
+                return [dict(row) for row in cur.fetchall()]
+
+    @db_handle_errors
+    def insert_tipo_possesso(self, nome: str, descrizione: Optional[str] = None) -> int:
+        """Inserisce un nuovo tipo di possesso."""
+        if not nome or not isinstance(nome, str) or len(nome.strip()) == 0:
+            raise DBDataError(f"Nome tipo di possesso non valido: {nome}")
+        with self._get_connection() as conn:
+            with conn.cursor() as cur:
+                try:
+                    cur.execute(
+                        f"INSERT INTO {self.schema}.tipo_possesso (nome, descrizione) "
+                        "VALUES (%s, %s) RETURNING id",
+                        (nome.strip(), descrizione)
+                    )
+                    tipo_id = cur.fetchone()[0]
+                    conn.commit()
+                    self.logger.info(f"Tipo di possesso '{nome}' inserito (ID: {tipo_id})")
+                    return tipo_id
+                except psycopg2.IntegrityError as e:
+                    conn.rollback()
+                    raise DBUniqueConstraintError(f"Tipo di possesso '{nome}' già esiste: {e}")
+
+    @db_handle_errors
+    def update_tipo_possesso(self, tipo_id: int, nome: str, descrizione: Optional[str] = None) -> bool:
+        """Aggiorna un tipo di possesso."""
+        if not isinstance(tipo_id, int) or tipo_id <= 0:
+            raise DBDataError(f"ID tipo di possesso non valido: {tipo_id}")
+        if not nome or not isinstance(nome, str) or len(nome.strip()) == 0:
+            raise DBDataError(f"Nome tipo di possesso non valido: {nome}")
+        with self._get_connection() as conn:
+            with conn.cursor() as cur:
+                try:
+                    cur.execute(
+                        f"UPDATE {self.schema}.tipo_possesso SET nome = %s, descrizione = %s, "
+                        "data_modifica = NOW() WHERE id = %s RETURNING id",
+                        (nome.strip(), descrizione, tipo_id)
+                    )
+                    if cur.fetchone() is None:
+                        raise DBNotFoundError(f"Tipo di possesso ID {tipo_id} non trovato.")
+                    conn.commit()
+                    self.logger.info(f"Tipo di possesso ID {tipo_id} aggiornato.")
+                    return True
+                except psycopg2.IntegrityError as e:
+                    conn.rollback()
+                    raise DBUniqueConstraintError(f"Nome '{nome}' già esiste per un altro tipo: {e}")
+
+    @db_handle_errors
+    def delete_tipo_possesso(self, tipo_id: int) -> bool:
+        """Elimina un tipo di possesso (solo se non in uso)."""
+        if not isinstance(tipo_id, int) or tipo_id <= 0:
+            raise DBDataError(f"ID tipo di possesso non valido: {tipo_id}")
+        with self._get_connection() as conn:
+            with conn.cursor() as cur:
+                try:
+                    cur.execute(
+                        f"DELETE FROM {self.schema}.tipo_possesso WHERE id = %s RETURNING id",
+                        (tipo_id,)
+                    )
+                    if cur.fetchone() is None:
+                        raise DBNotFoundError(f"Tipo di possesso ID {tipo_id} non trovato.")
+                    conn.commit()
+                    self.logger.info(f"Tipo di possesso ID {tipo_id} eliminato.")
+                    return True
+                except psycopg2.IntegrityError as e:
+                    conn.rollback()
+                    raise DBMError(f"Impossibile eliminare il tipo di possesso (in uso): {e}")
 
     def get_report_proprieta_possessore(self, possessore_id: int, data_inizio: date, data_fine: date) -> List[Dict]:
         """Chiama la funzione SQL report_proprieta_possessore per ricavare le proprietà di un possessore nel periodo."""

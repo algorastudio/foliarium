@@ -312,7 +312,6 @@ class InserimentoPossessoreWidget(LazyLoadedWidget):
         button_layout.addWidget(btn_template)
         main_layout.addLayout(button_layout)
 
-        main_layout.addStretch(1)
         self.setLayout(main_layout)
 
     def _load_data_on_first_show(self):
@@ -337,6 +336,7 @@ class InserimentoPossessoreWidget(LazyLoadedWidget):
             self.logger.error(f"Errore caricamento comuni: {e}")
             self.comune_combo.addItem("Errore caricamento", None)
             self.comune_combo.setEnabled(False)
+
     def _mostra_info_formato_csv(self):
         """Mostra un dialogo con le informazioni sul formato CSV per i possessori."""
         info_text = """
@@ -534,22 +534,9 @@ class InserimentoLocalitaWidget(QWidget):
         button_layout.addWidget(btn_scarica)
         button_layout.addWidget(btn_template)
         layout.addLayout(button_layout)
-        summary_group = QGroupBox("Località nel Comune Selezionato")
-        summary_layout = QVBoxLayout(summary_group)
-        self.refresh_button = QPushButton("Aggiorna Lista")
-        self.refresh_button.clicked.connect(self.refresh_localita)
-        self.localita_table = QTableWidget()
-        self.localita_table.setColumnCount(3)
-        self.localita_table.setHorizontalHeaderLabels(["ID", "Nome", "Tipologia"])
-        self.localita_table.setAlternatingRowColors(True)
-        self.localita_table.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeMode.Interactive)
-        self.localita_table.horizontalHeader().setStretchLastSection(True)
-        self.localita_table.setColumnWidth(0, 45)   # ID
-        self.localita_table.setColumnWidth(1, 220)  # Nome
-        summary_layout.addWidget(self.refresh_button)
-        summary_layout.addWidget(self.localita_table)
-        layout.addWidget(summary_group)
+
         self.setLayout(layout)
+
 
     def _pulisci_campi(self):
         self.nome_edit.clear()
@@ -591,13 +578,11 @@ class InserimentoLocalitaWidget(QWidget):
             QMessageBox.critical(self, "Errore", f"Impossibile caricare le tipologie di località:\n{e}")
 
     def select_comune(self):
-        # ... (invariato)
         dialog = ComuneSelectionDialog(self.db_manager, self)
         if dialog.exec() == QDialog.DialogCode.Accepted and dialog.selected_comune_id:
             self.comune_id = dialog.selected_comune_id
             self.comune_display.setText(dialog.selected_comune_name)
-            self._load_tipi_localita() # Carica i tipi dopo aver selezionato il comune
-            self.refresh_localita()
+            self._load_tipi_localita()
 
     def insert_localita(self):
         nome = self.nome_edit.text().strip()
@@ -611,26 +596,8 @@ class InserimentoLocalitaWidget(QWidget):
             localita_id = self.db_manager.insert_localita(self.comune_id, nome, tipologia_stradale)
             _show_status_message(f"Località '{nome}' inserita con successo (ID: {localita_id}).", 5000)
             self.nome_edit.clear()
-            self.refresh_localita()
         except (DBMError, DBDataError, DBUniqueConstraintError) as e:
             QMessageBox.critical(self, "Errore Inserimento", str(e))
-
-    def refresh_localita(self):
-        """Popola la tabella con le località del comune selezionato."""
-        self.localita_table.setRowCount(0)
-        if not self.comune_id:
-            return
-
-        try:
-            localita_list = self.db_manager.get_localita_by_comune(self.comune_id)
-            for i, loc in enumerate(localita_list):
-                self.localita_table.insertRow(i)
-                self.localita_table.setItem(i, 0, QTableWidgetItem(str(loc['id'])))
-                self.localita_table.setItem(i, 1, QTableWidgetItem(loc['nome']))
-                tipologia = loc.get('tipologia_stradale') or 'N/D'
-                self.localita_table.setItem(i, 2, QTableWidgetItem(tipologia))
-        except Exception as e:
-            QMessageBox.warning(self, "Errore", f"Errore nel caricamento delle località: {e}")
 
 class InserimentoPartitaWidget(QWidget):
     import_csv_requested = pyqtSignal()

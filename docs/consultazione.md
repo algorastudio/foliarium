@@ -4,6 +4,26 @@ La sezione **Consultazione** è il cuore di Foliarium per la ricerca e la visual
 
 > 📸 **Screenshot:** Sezione Consultazione con le sotto-tab: Partite, Possessori, Immobili, Documenti.
 
+## Interazione con le tabelle
+
+### Ridimensionamento colonne
+
+Tutte le tabelle dei risultati supportano il **ridimensionamento interattivo delle colonne**:
+- Posizionare il cursore sul bordo tra due intestazioni di colonna (fino a quando il cursore diventa una doppia freccia ↔)
+- Trascinare sinistra/destra per allargare o restringere la colonna
+- Le colonne si adattano in tempo reale e l'ultima colonna occupa lo spazio rimanente
+
+### Ordinamento
+
+Fare clic su un'intestazione di colonna per **ordinare i risultati** in base a quella colonna (crescente/decrescente).
+
+### Menu contestuale (tasto destro)
+
+Sulle tabelle di ricerca è disponibile un **menu contestuale** al clic destro che consente di:
+- Copiare il valore di una cella negli appunti
+- Aprire il dettaglio del record selezionato (se disponibile)
+- Accedere a operazioni specifiche (es. "Albero Genealogico" per le partite)
+
 ---
 
 ## Elenco Comuni

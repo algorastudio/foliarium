@@ -20,14 +20,25 @@ La sezione **Inserimento** permette di aggiungere nuovi record al database catas
 
 ## Pulsanti uniformi nei pannelli di inserimento
 
-Tutti i pannelli di inserimento espongono 4 pulsanti nella parte inferiore:
+Tutti i pannelli di inserimento espongono **5 pulsanti** nella parte inferiore, per un flusso di lavoro completo:
 
 | Pulsante | Funzione |
 |---|---|
-| **Inserisci** | Salva il record nel database |
+| **Inserisci / Salva** | Salva il record nel database |
 | **Pulisci Campi** | Azzera tutti i campi del modulo |
 | **Importa CSV** | Apre la finestra di importazione massiva da file |
+| **Scarica CSV** | Scarica i dati esistenti (comuni, possessori, etc.) in formato CSV per la modifica massiva |
 | **Scarica Template** | Scarica il file CSV di esempio con le intestazioni corrette |
+
+### Flusso di lavoro round-trip: Scarica → Modifica → Reimporta
+
+Foliarium supporta un flusso di lavoro efficiente per aggiornare i dati in massa:
+
+1. **Scarica CSV** — esporta i dati esistenti (es. tutti i comuni, tutti i possessori)
+2. Modifica il file CSV in Excel, LibreOffice Calc o un editor di testo
+3. **Importa CSV** — reimporta il file modificato (con conferma prima di salvare)
+
+Il file scaricato usa esattamente le stesse colonne del template di import, garantendo compatibilità totale.
 
 ---
 

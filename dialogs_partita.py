@@ -799,12 +799,17 @@ class ModificaPartitaDialog(QDialog):
 
         # --- Blocco Pulsanti Finale ---
         buttons_layout = QHBoxLayout()
+        self.btn_archivia = QPushButton("Archivia Partita")
+        self.btn_archivia.setObjectName("dangerButton")
+        self.btn_archivia.setToolTip("Archivia questa partita (non viene eliminata, solo nascosta)")
+        self.btn_archivia.clicked.connect(self._archivia_partita)
         self.btn_duplica_partita = QPushButton(self.style().standardIcon(QStyle.StandardPixmap.SP_FileDialogNewFolder), " Duplica questa Partita...")
         self.save_button = QPushButton("Salva Modifiche Dati Generali")
         self.close_dialog_button = QPushButton("Chiudi")
         self.btn_duplica_partita.clicked.connect(self._handle_duplica_partita)
         self.save_button.clicked.connect(self._save_changes)
         self.close_dialog_button.clicked.connect(self.accept)
+        buttons_layout.addWidget(self.btn_archivia)
         buttons_layout.addWidget(self.btn_duplica_partita)
         buttons_layout.addStretch()
         buttons_layout.addWidget(self.save_button)
@@ -1761,6 +1766,25 @@ class ModificaPartitaDialog(QDialog):
             # ...
             QMessageBox.critical(self, "Errore Critico", f"Si è verificato un errore di sistema imprevisto: {e_gen}")
 
+    def _archivia_partita(self):
+        numero = self.numero_partita_spinbox.value()
+        suffisso = self.suffisso_partita_edit.text().strip()
+        numero_display = f"{numero} {suffisso}" if suffisso else str(numero)
+        risposta = QMessageBox.question(
+            self, "Conferma Archiviazione",
+            f"Archiviare la partita N.{numero_display}?\n\nNon verrà eliminata, solo nascosta dalle ricerche.",
+            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+            QMessageBox.StandardButton.No,
+        )
+        if risposta != QMessageBox.StandardButton.Yes:
+            return
+        try:
+            self.db_manager.archivia_partita(self.partita_id)
+            QMessageBox.information(self, "Operazione completata",
+                                    f"Partita N.{numero_display} archiviata con successo.")
+            self.reject()
+        except Exception as e:
+            QMessageBox.critical(self, "Errore", f"Impossibile archiviare la partita:\n{e}")
 
 
 class DuplicaPartitaOptionsDialog(QDialog):

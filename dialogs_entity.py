@@ -45,26 +45,26 @@ except ImportError:
 
 class DettagliLegamePossessoreDialog(QDialog):
     def __init__(self, nome_possessore_selezionato: str, partita_tipo: str,
-                 titolo_attuale: Optional[str] = None,  # Nuovo
-                 quota_attuale: Optional[str] = None,   # Nuovo
+                 titolo_attuale: Optional[str] = None,
+                 quota_attuale: Optional[str] = None,
+                 db_manager: Optional['CatastoDBManager'] = None,
                  parent=None):
         super().__init__(parent)
+        self.db_manager = db_manager
+        self.logger = logging.getLogger(f"CatastoGUI.{self.__class__.__name__}")
         self.setWindowTitle(
             f"Dettagli Legame per {nome_possessore_selezionato}")
         self.setMinimumWidth(400)
 
         self.titolo: Optional[str] = None
         self.quota: Optional[str] = None
-        # self.tipo_partita_rel: str = partita_tipo
 
         layout = QFormLayout(self)
 
-        self.titolo_edit = QLineEdit()
-        self.titolo_edit.setPlaceholderText(
-            "Es. proprietà esclusiva, usufrutto")
-        self.titolo_edit.setText(
-            titolo_attuale if titolo_attuale is not None else "proprietà esclusiva")  # Pre-compila
-        layout.addRow("Titolo di Possesso (*):", self.titolo_edit)
+        self.titolo_combo = QComboBox()
+        self.titolo_combo.setPlaceholderText("Seleziona un tipo di possesso...")
+        self._load_tipi_possesso(titolo_attuale)
+        layout.addRow("Titolo di Possesso (*):", self.titolo_combo)
 
         self.quota_edit = QLineEdit()
         self.quota_edit.setPlaceholderText(
@@ -88,13 +88,30 @@ class DettagliLegamePossessoreDialog(QDialog):
         self.setLayout(layout)
         self.titolo_edit.setFocus()
 
+    def _load_tipi_possesso(self, titolo_attuale: Optional[str] = None):
+        """Carica i tipi di possesso dal database."""
+        self.titolo_combo.clear()
+        self.titolo_combo.addItem("--- Seleziona ---", None)
+        try:
+            if self.db_manager:
+                tipi = self.db_manager.get_tipi_possesso()
+                for tipo in tipi:
+                    self.titolo_combo.addItem(tipo['nome'], tipo['id'])
+        except Exception as e:
+            self.logger.error(f"Errore caricamento tipi possesso: {e}")
+            self.titolo_combo.addItem("Errore caricamento", None)
+
+        if titolo_attuale:
+            idx = self.titolo_combo.findText(titolo_attuale)
+            if idx >= 0:
+                self.titolo_combo.setCurrentIndex(idx)
+
     def _accept_details(self):
-        # ... (come prima) ...
-        titolo_val = self.titolo_edit.text().strip()
-        if not titolo_val:
+        titolo_val = self.titolo_combo.currentText()
+        if titolo_val == "--- Seleziona ---" or not titolo_val:
             QMessageBox.warning(self, "Dato Mancante",
                                 "Il titolo di possesso è obbligatorio.")
-            self.titolo_edit.setFocus()
+            self.titolo_combo.setFocus()
             return
         self.titolo = titolo_val
         self.quota = self.quota_edit.text().strip() or None
@@ -103,34 +120,33 @@ class DettagliLegamePossessoreDialog(QDialog):
     # Metodo statico per l'inserimento (come prima)
 
     @staticmethod
-    def get_details_for_new_legame(nome_possessore: str, tipo_partita_attuale: str, parent=None) -> Optional[Dict[str, Any]]:
-        # Chiamiamo il costruttore senza titolo_attuale e quota_attuale,
-        # così userà i default (None) e quindi il testo placeholder o il default "proprietà esclusiva"
+    def get_details_for_new_legame(nome_possessore: str, tipo_partita_attuale: str, parent=None, db_manager: Optional['CatastoDBManager'] = None) -> Optional[Dict[str, Any]]:
+        if db_manager is None and hasattr(parent, 'db_manager'):
+            db_manager = parent.db_manager
         dialog = DettagliLegamePossessoreDialog(
             nome_possessore_selezionato=nome_possessore,
             partita_tipo=tipo_partita_attuale,
-            # titolo_attuale e quota_attuale non vengono passati,
-            # quindi __init__ userà i loro valori di default (None)
+            db_manager=db_manager,
             parent=parent
         )
         if dialog.exec() == QDialog.DialogCode.Accepted:
             return {
                 "titolo": dialog.titolo,
                 "quota": dialog.quota,
-                # "tipo_partita_rel": dialog.tipo_partita_rel # Se lo gestisci
             }
         return None
 
-    # NUOVO Metodo statico per la modifica
     @staticmethod
     def get_details_for_edit_legame(nome_possessore: str, tipo_partita_attuale: str,
                                     titolo_init: str, quota_init: Optional[str],
-                                    parent=None) -> Optional[Dict[str, Any]]:
+                                    parent=None, db_manager: Optional['CatastoDBManager'] = None) -> Optional[Dict[str, Any]]:
+        if db_manager is None and hasattr(parent, 'db_manager'):
+            db_manager = parent.db_manager
         dialog = DettagliLegamePossessoreDialog(nome_possessore, tipo_partita_attuale,
                                                 titolo_attuale=titolo_init,
                                                 quota_attuale=quota_init,
+                                                db_manager=db_manager,
                                                 parent=parent)
-        # Titolo specifico per modifica
         dialog.setWindowTitle(f"Modifica Legame per {nome_possessore}")
         if dialog.exec() == QDialog.DialogCode.Accepted:
             return {
@@ -206,6 +222,10 @@ class ModificaPossessoreDialog(QDialog):
 
         # Pulsanti
         buttons_layout = QHBoxLayout()
+        self.btn_archivia = QPushButton("Archivia Possessore")
+        self.btn_archivia.setObjectName("dangerButton")
+        self.btn_archivia.setToolTip("Archivia questo possessore (non viene eliminato, solo nascosto)")
+        self.btn_archivia.clicked.connect(self._archivia_possessore)
         self.save_button = QPushButton(QApplication.style().standardIcon(
             QStyle.StandardPixmap.SP_DialogSaveButton), "Salva Modifiche")
         self.save_button.clicked.connect(self._save_changes)
@@ -213,6 +233,7 @@ class ModificaPossessoreDialog(QDialog):
             QStyle.StandardPixmap.SP_DialogCancelButton), "Annulla")
         self.cancel_button.clicked.connect(self.reject)
 
+        buttons_layout.addWidget(self.btn_archivia)
         buttons_layout.addStretch()
         buttons_layout.addWidget(self.save_button)
         buttons_layout.addWidget(self.cancel_button)
@@ -342,6 +363,25 @@ class ModificaPossessoreDialog(QDialog):
                 f"Errore critico imprevisto durante il salvataggio del possessore ID {self.possessore_id}: {e_poss}", exc_info=True)
             QMessageBox.critical(self, "Errore Critico Imprevisto",
                                  f"Si è verificato un errore di sistema imprevisto:\n{type(e_poss).__name__}: {e_poss}")
+
+    def _archivia_possessore(self):
+        nome = self.nome_completo_edit.text()
+        risposta = QMessageBox.question(
+            self, "Conferma Archiviazione",
+            f"Archiviare il possessore '{nome}'?\n\nNon verrà eliminato, solo nascosto dalle ricerche.",
+            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+            QMessageBox.StandardButton.No,
+        )
+        if risposta != QMessageBox.StandardButton.Yes:
+            return
+        try:
+            self.db_manager.archivia_possessore(self.possessore_id)
+            QMessageBox.information(self, "Operazione completata",
+                                    f"Possessore '{nome}' archiviato con successo.")
+            self.reject()  # Chiude il dialog
+        except Exception as e:
+            QMessageBox.critical(self, "Errore", f"Impossibile archiviare il possessore:\n{e}")
+
 # In dialogs.py, SOSTITUISCI l'intera classe ModificaComuneDialog con questa:
 
 
@@ -409,10 +449,20 @@ class ModificaComuneDialog(QDialog):
 
         main_layout.addLayout(form_layout)
 
+        buttons_layout = QHBoxLayout()
+        self.btn_archivia = QPushButton("Archivia Comune")
+        self.btn_archivia.setObjectName("dangerButton")
+        self.btn_archivia.setToolTip("Archivia questo comune (non viene eliminato, solo nascosto)")
+        self.btn_archivia.clicked.connect(self._archivia_comune)
+        buttons_layout.addWidget(self.btn_archivia)
+        buttons_layout.addStretch()
+
         self.button_box = QDialogButtonBox(QDialogButtonBox.StandardButton.Save | QDialogButtonBox.StandardButton.Cancel)
         self.button_box.accepted.connect(self._save_changes)
         self.button_box.rejected.connect(self.reject)
-        main_layout.addWidget(self.button_box)
+        buttons_layout.addWidget(self.button_box)
+
+        main_layout.addLayout(buttons_layout)
 
         self.setLayout(main_layout)
 
@@ -487,6 +537,24 @@ class ModificaComuneDialog(QDialog):
             QMessageBox.critical(self, "Errore Salvataggio", str(e))
         except Exception as e_gen:
             QMessageBox.critical(self, "Errore Imprevisto", f"Si è verificato un errore: {str(e_gen)}")
+
+    def _archivia_comune(self):
+        nome = self.nome_edit.text()
+        risposta = QMessageBox.question(
+            self, "Conferma Archiviazione",
+            f"Archiviare il comune '{nome}'?\n\nNon verrà eliminato, solo nascosto dalle ricerche.",
+            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+            QMessageBox.StandardButton.No,
+        )
+        if risposta != QMessageBox.StandardButton.Yes:
+            return
+        try:
+            self.db_manager.archivia_comune(self.comune_id)
+            QMessageBox.information(self, "Operazione completata",
+                                    f"Comune '{nome}' archiviato con successo.")
+            self.reject()  # Chiude il dialog
+        except Exception as e:
+            QMessageBox.critical(self, "Errore", f"Impossibile archiviare il comune:\n{e}")
 
 
 class PossessoriComuneDialog(QDialog):
@@ -869,7 +937,6 @@ class ModificaLocalitaDialog(QDialog):
         self._load_localita_data()
 
     def _init_ui(self):
-        # ... (la UI è identica a prima, con la QComboBox per il tipo)
         layout = QVBoxLayout(self)
         form_layout = QFormLayout()
         self.id_label = QLabel(str(self.localita_id))
@@ -881,10 +948,21 @@ class ModificaLocalitaDialog(QDialog):
         self.tipologia_edit = QLineEdit()
         form_layout.addRow("Tipologia Stradale (opzionale):", self.tipologia_edit)
         layout.addLayout(form_layout)
-        buttons = QDialogButtonBox(QDialogButtonBox.StandardButton.Save | QDialogButtonBox.StandardButton.Cancel, self)
-        buttons.accepted.connect(self._save_changes)
-        buttons.rejected.connect(self.reject)
-        layout.addWidget(buttons)
+
+        buttons_layout = QHBoxLayout()
+        self.btn_archivia = QPushButton("Archivia Località")
+        self.btn_archivia.setObjectName("dangerButton")
+        self.btn_archivia.setToolTip("Archivia questa località (non viene eliminata, solo nascosta)")
+        self.btn_archivia.clicked.connect(self._archivia_localita)
+        buttons_layout.addWidget(self.btn_archivia)
+        buttons_layout.addStretch()
+
+        self.button_box = QDialogButtonBox(QDialogButtonBox.StandardButton.Save | QDialogButtonBox.StandardButton.Cancel)
+        self.button_box.accepted.connect(self._save_changes)
+        self.button_box.rejected.connect(self.reject)
+        buttons_layout.addWidget(self.button_box)
+
+        layout.addLayout(buttons_layout)
         self.setLayout(layout)
 
     def _load_localita_data(self):
@@ -916,6 +994,24 @@ class ModificaLocalitaDialog(QDialog):
             self.accept()
         except (DBMError, DBDataError, DBUniqueConstraintError) as e:
             QMessageBox.critical(self, "Errore Salvataggio", str(e))
+
+    def _archivia_localita(self):
+        nome = self.nome_edit.text()
+        risposta = QMessageBox.question(
+            self, "Conferma Archiviazione",
+            f"Archiviare la località '{nome}'?\n\nNon verrà eliminata, solo nascosta dalle ricerche.",
+            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+            QMessageBox.StandardButton.No,
+        )
+        if risposta != QMessageBox.StandardButton.Yes:
+            return
+        try:
+            self.db_manager.archivia_localita(self.localita_id)
+            QMessageBox.information(self, "Operazione completata",
+                                    f"Località '{nome}' archiviata con successo.")
+            self.reject()
+        except Exception as e:
+            QMessageBox.critical(self, "Errore", f"Impossibile archiviare la località:\n{e}")
 
 
 
@@ -1720,105 +1816,7 @@ class LocalitaSelectionDialog(QDialog):
         self.nome_edit_nuova.clear()
         self.tipologia_edit_nuova.clear()
     # --- FINE METODO MANCANTE/DA RIPRISTINARE ---
-        
 
-
-class DettagliLegamePossessoreDialog(QDialog):
-    def __init__(self, nome_possessore_selezionato: str, partita_tipo: str,
-                 titolo_attuale: Optional[str] = None,  # Nuovo
-                 quota_attuale: Optional[str] = None,   # Nuovo
-                 parent=None):
-        super().__init__(parent)
-        self.setWindowTitle(
-            f"Dettagli Legame per {nome_possessore_selezionato}")
-        self.setMinimumWidth(400)
-
-        self.titolo: Optional[str] = None
-        self.quota: Optional[str] = None
-        # self.tipo_partita_rel: str = partita_tipo
-
-        layout = QFormLayout(self)
-
-        self.titolo_edit = QLineEdit()
-        self.titolo_edit.setPlaceholderText(
-            "Es. proprietà esclusiva, usufrutto")
-        self.titolo_edit.setText(
-            titolo_attuale if titolo_attuale is not None else "proprietà esclusiva")  # Pre-compila
-        layout.addRow("Titolo di Possesso (*):", self.titolo_edit)
-
-        self.quota_edit = QLineEdit()
-        self.quota_edit.setPlaceholderText(
-            "Es. 1/1, 1/2 (lasciare vuoto se non applicabile)")
-        self.quota_edit.setText(
-            quota_attuale if quota_attuale is not None else "")  # Pre-compila
-        layout.addRow("Quota (opzionale):", self.quota_edit)
-
-        # ... (pulsanti OK/Annulla e metodo _accept_details come prima) ...
-        buttons_layout = QHBoxLayout()
-        self.ok_button = QPushButton(
-            QApplication.style().standardIcon(QStyle.StandardPixmap.SP_DialogOkButton), "OK")
-        self.ok_button.clicked.connect(self._accept_details)
-        self.cancel_button = QPushButton(QApplication.style().standardIcon(
-            QStyle.StandardPixmap.SP_DialogCancelButton), "Annulla")
-        self.cancel_button.clicked.connect(self.reject)
-        buttons_layout.addStretch()
-        buttons_layout.addWidget(self.ok_button)
-        buttons_layout.addWidget(self.cancel_button)
-        layout.addRow(buttons_layout)
-        self.setLayout(layout)
-        self.titolo_edit.setFocus()
-
-    def _accept_details(self):
-        # ... (come prima) ...
-        titolo_val = self.titolo_edit.text().strip()
-        if not titolo_val:
-            QMessageBox.warning(self, "Dato Mancante",
-                                "Il titolo di possesso è obbligatorio.")
-            self.titolo_edit.setFocus()
-            return
-        self.titolo = titolo_val
-        self.quota = self.quota_edit.text().strip() or None
-        self.accept()
-
-    # Metodo statico per l'inserimento (come prima)
-
-    @staticmethod
-    def get_details_for_new_legame(nome_possessore: str, tipo_partita_attuale: str, parent=None) -> Optional[Dict[str, Any]]:
-        # Chiamiamo il costruttore senza titolo_attuale e quota_attuale,
-        # così userà i default (None) e quindi il testo placeholder o il default "proprietà esclusiva"
-        dialog = DettagliLegamePossessoreDialog(
-            nome_possessore_selezionato=nome_possessore,
-            partita_tipo=tipo_partita_attuale,
-            # titolo_attuale e quota_attuale non vengono passati,
-            # quindi __init__ userà i loro valori di default (None)
-            parent=parent
-        )
-        if dialog.exec() == QDialog.DialogCode.Accepted:
-            return {
-                "titolo": dialog.titolo,
-                "quota": dialog.quota,
-                # "tipo_partita_rel": dialog.tipo_partita_rel # Se lo gestisci
-            }
-        return None
-
-    # NUOVO Metodo statico per la modifica
-    @staticmethod
-    def get_details_for_edit_legame(nome_possessore: str, tipo_partita_attuale: str,
-                                    titolo_init: str, quota_init: Optional[str],
-                                    parent=None) -> Optional[Dict[str, Any]]:
-        dialog = DettagliLegamePossessoreDialog(nome_possessore, tipo_partita_attuale,
-                                                titolo_attuale=titolo_init,
-                                                quota_attuale=quota_init,
-                                                parent=parent)
-        # Titolo specifico per modifica
-        dialog.setWindowTitle(f"Modifica Legame per {nome_possessore}")
-        if dialog.exec() == QDialog.DialogCode.Accepted:
-            return {
-                "titolo": dialog.titolo,
-                "quota": dialog.quota,
-            }
-        return None
-# In dialogs.py, aggiungi questa nuova classe
 
 
 class PeriodoStoricoEditDialog(QDialog):
