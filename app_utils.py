@@ -17,7 +17,7 @@ from PyQt6.QtCore import QDate
 from PyQt6.QtGui import QFont # QFont serve per i report
 from PyQt6.QtWidgets import (QDialog, QVBoxLayout, QTextEdit, QDialogButtonBox,
                              QTableWidget, QTableWidgetItem, QAbstractItemView,
-                             QMessageBox, QFileDialog)
+                             QFileDialog)
 from catasto_db_manager import CatastoDBManager
 
 
@@ -781,7 +781,6 @@ def gui_esporta_possessore_pdf(parent_widget, db_manager: CatastoDBManager, poss
                              f"Errore durante l'esportazione PDF:\n{e}")
 # In app_utils.py, dopo le importazioni
 
-import os # Assicurati che 'os' sia importato
 
 def _get_default_export_path(default_filename: str) -> str:
     """
@@ -859,7 +858,7 @@ def is_file_locked(filepath):
     
     try:
         # Prova ad aprire il file in modalità esclusiva
-        with open(filepath, 'a') as f:
+        with open(filepath, 'a'):
             pass
         return False
     except (IOError, PermissionError):

@@ -82,8 +82,6 @@ class QPasswordLineEdit(QLineEdit):
         self.setEchoMode(QLineEdit.EchoMode.Password)
 # In custom_widgets.py
 
-import logging
-from PyQt6.QtWidgets import QWidget
 
 class LazyLoadedWidget(QWidget):
     """
@@ -121,9 +119,8 @@ class LazyLoadedWidget(QWidget):
 
 # ── StatCard ─────────────────────────────────────────────────────────────────
 
-from PyQt6.QtWidgets import QFrame, QVBoxLayout
-from PyQt6.QtGui import QPainter, QColor, QPen, QBrush, QFont, QFontMetrics, QLinearGradient
-from PyQt6.QtCore import Qt, QRect, QRectF
+from PyQt6.QtGui import QPainter, QPen, QBrush, QFontMetrics, QLinearGradient
+from PyQt6.QtCore import QRect, QRectF
 
 class StatCard(QFrame):
     """Stat card pittata con QPainter: bordo arrotondato, accent bar, ombra leggera."""

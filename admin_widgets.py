@@ -52,6 +52,22 @@ if TYPE_CHECKING:
 
 logger = logging.getLogger("CatastoGUI.admin_widgets")
 
+
+def _show_status_message(message: str, timeout_ms: int = 4000) -> None:
+    """Mostra un messaggio nella status bar della finestra principale (non bloccante)."""
+    # Cerca la prima finestra top-level che esponga una status bar (es. QMainWindow)
+    win = QApplication.activeWindow()
+    if win is None or not hasattr(win, "statusBar"):
+        for w in QApplication.topLevelWidgets():
+            if hasattr(w, "statusBar") and w.isVisible():
+                win = w
+                break
+    if win and hasattr(win, "statusBar"):
+        try:
+            win.statusBar().showMessage(message, timeout_ms)
+        except Exception:
+            pass
+
 class GestioneTipiLocalitaWidget(LazyLoadedWidget):
     def __init__(self, db_manager: 'CatastoDBManager', parent=None):
         super().__init__(parent)
@@ -379,7 +395,7 @@ class GestioneUtentiWidget(LazyLoadedWidget):
         dialog = CreateUserDialog(self.db_manager, self)
         if dialog.exec() == QDialog.DialogCode.Accepted:
             self.refresh_user_list()
-            QMessageBox.information(self, "Successo", "Nuovo utente creato.")
+            _show_status_message("Nuovo utente creato.", 4000)
             # --- Notifica email creazione account ---
             try:
                 from email_service import EmailService, EmailWorker
@@ -456,8 +472,7 @@ class GestioneUtentiWidget(LazyLoadedWidget):
 
         if update_params:
             if self.db_manager.update_user_details(user_id, **update_params):
-                QMessageBox.information(
-                    self, "Successo", "Dettagli utente aggiornati.")
+                _show_status_message("Dettagli utente aggiornati.", 4000)
                 self.refresh_user_list()
                 # --- Notifica email cambio ruolo ---
                 if 'ruolo' in update_params:
@@ -1015,9 +1030,10 @@ class AuditLogViewerWidget(LazyLoadedWidget):
             for row_idx, log in enumerate(logs):
                 item_id = QTableWidgetItem(str(log.get('id', ''))); item_id.setData(Qt.ItemDataRole.UserRole, log)
                 ts = log.get('timestamp'); ts_str = ts.strftime("%Y-%m-%d %H:%M:%S") if ts else "N/D"
-                session_id = log.get('session_id', ''); session_display = (session_id[:8] + '...') if session_id else ''
+                session_id = log.get('session_id', '')
+                session_display = (session_id[:8] + '…') if session_id else ''
                 self.log_table.setItem(row_idx, 0, item_id); self.log_table.setItem(row_idx, 1, QTableWidgetItem(ts_str))
-                self.log_table.setItem(row_idx, 2, QTableWidgetItem(log.get('username', 'N/D'))) # Usa il campo 'username'
+                self.log_table.setItem(row_idx, 2, QTableWidgetItem(log.get('username', 'N/D'))); self.log_table.setItem(row_idx, 3, QTableWidgetItem(session_display))
                 self.log_table.setItem(row_idx, 4, QTableWidgetItem(log.get('tabella'))); self.log_table.setItem(row_idx, 5, QTableWidgetItem(log.get('operazione')))
                 self.log_table.setItem(row_idx, 6, QTableWidgetItem(str(log.get('record_id', '')))); self.log_table.setItem(row_idx, 7, QTableWidgetItem(log.get('ip_address')))
             self._update_pagination_controls()
@@ -1053,7 +1069,7 @@ class AuditLogViewerWidget(LazyLoadedWidget):
             headers = logs[0].keys()
             with open(filename, 'w', newline='', encoding='utf-8') as f:
                 writer = csv.DictWriter(f, fieldnames=headers, delimiter=';'); writer.writeheader(); writer.writerows(logs)
-            QMessageBox.information(self, "Successo", f"{len(logs)} record di audit esportati in CSV.")
+            _show_status_message(f"{len(logs)} record di audit esportati in CSV.", 5000)
         except Exception as e: QMessageBox.critical(self, "Errore Esportazione", f"Errore durante l'esportazione CSV:\n{e}")
 
     def _handle_export_xls(self):
@@ -1064,7 +1080,7 @@ class AuditLogViewerWidget(LazyLoadedWidget):
         try:
             import pandas as pd
             df = pd.DataFrame(logs); df.to_excel(filename, index=False, engine='openpyxl')
-            QMessageBox.information(self, "Successo", f"{len(logs)} record di audit esportati in Excel.")
+            _show_status_message(f"{len(logs)} record di audit esportati in Excel.", 5000)
         except ImportError: QMessageBox.critical(self, "Libreria Mancante", "L'esportazione in Excel richiede 'pandas' e 'openpyxl'.")
         except Exception as e: QMessageBox.critical(self, "Errore Esportazione", f"Errore durante l'esportazione Excel:\n{e}")
 
@@ -1957,7 +1973,7 @@ class TipiPossessoWidget(LazyLoadedWidget):
             try:
                 self.db_manager.insert_tipo_possesso(nome, descrizione)
                 self.load_data()
-                QMessageBox.information(self, "Successo", f"Tipo '{nome}' aggiunto con successo.")
+                _show_status_message(f"Tipo '{nome}' aggiunto.", 4000)
             except Exception as e:
                 QMessageBox.critical(self, "Errore", f"Impossibile aggiungere il tipo:\n{e}")
 
@@ -2000,7 +2016,7 @@ class TipiPossessoWidget(LazyLoadedWidget):
             try:
                 self.db_manager.update_tipo_possesso(tipo_id, nome, descrizione)
                 self.load_data()
-                QMessageBox.information(self, "Successo", f"Tipo '{nome}' aggiornato con successo.")
+                _show_status_message(f"Tipo '{nome}' aggiornato.", 4000)
             except Exception as e:
                 QMessageBox.critical(self, "Errore", f"Impossibile aggiornare il tipo:\n{e}")
 
@@ -2027,6 +2043,6 @@ class TipiPossessoWidget(LazyLoadedWidget):
         try:
             self.db_manager.delete_tipo_possesso(tipo_id)
             self.load_data()
-            QMessageBox.information(self, "Successo", f"Tipo '{nome}' eliminato con successo.")
+            _show_status_message(f"Tipo '{nome}' eliminato.", 4000)
         except Exception as e:
             QMessageBox.critical(self, "Errore", f"Impossibile eliminare il tipo:\n{e}")

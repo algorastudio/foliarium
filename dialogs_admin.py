@@ -24,8 +24,7 @@ from PyQt6.QtPdf import QPdfDocument
 from PyQt6.QtPdfWidgets import QPdfView
 from PyQt6.QtWidgets import (QAbstractItemView, QApplication,
                              QCheckBox, QComboBox, QDateEdit,
-                             QDialog, QDialogButtonBox,
-                             QFileDialog, QFormLayout, QFrame, QGridLayout,
+                             QDialog, QFileDialog, QFormLayout, QFrame, QGridLayout,
                              QGroupBox, QHBoxLayout, QHeaderView, QInputDialog,
                              QLabel, QLineEdit, QListWidget, QListWidgetItem,
                              QMenu, QMessageBox, QProgressBar,
@@ -1628,7 +1627,6 @@ class LicenseDialog(QDialog):
     # ------------------------------------------------------------------
     def _load_settings(self):
         from PyQt6.QtCore import QSettings
-        from config import SETTINGS_LICENSE_FILE_PATH, SETTINGS_LICENSE_NETWORK_SHARE
         s = QSettings()
         self._edit_license_path.setText(s.value(SETTINGS_LICENSE_FILE_PATH, "", type=str))
         self._edit_share.setText(s.value(SETTINGS_LICENSE_NETWORK_SHARE, "", type=str))
@@ -1708,7 +1706,6 @@ class LicenseDialog(QDialog):
 
     def _save_and_close(self):
         from PyQt6.QtCore import QSettings
-        from config import SETTINGS_LICENSE_FILE_PATH, SETTINGS_LICENSE_NETWORK_SHARE
         s = QSettings()
         s.setValue(SETTINGS_LICENSE_FILE_PATH, self._edit_license_path.text().strip())
         s.setValue(SETTINGS_LICENSE_NETWORK_SHARE, self._edit_share.text().strip())

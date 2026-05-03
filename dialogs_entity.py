@@ -20,7 +20,7 @@ from PyQt6.QtGui import (QBrush, QColor, QDesktopServices, QFont,
                          QIcon, QPalette, QAction)
 from PyQt6.QtWidgets import (QAbstractItemView, QApplication,
                              QCheckBox, QComboBox, QDateEdit,
-                             QDialog, QDialogButtonBox, QDoubleSpinBox,
+                             QDialog, QDoubleSpinBox,
                              QFileDialog, QFormLayout, QFrame, QGridLayout,
                              QGroupBox, QHBoxLayout, QHeaderView, QInputDialog,
                              QLabel, QLineEdit, QListWidget, QListWidgetItem,

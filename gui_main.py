@@ -339,7 +339,7 @@ class LoginDialog(QDialog):
 try:
     from gui_widgets import UnifiedFuzzySearchWidget,UnifiedFuzzySearchThread
     FUZZY_SEARCH_AVAILABLE = True
-except ImportError as e:
+except ImportError:
     logging.warning("[INIT] Ricerca fuzzy non disponibile")
     FUZZY_SEARCH_AVAILABLE = False
 
@@ -2427,14 +2427,8 @@ def run_gui_app():
 
             while True: # Loop per riprovare la configurazione manuale
                 config_dialog = DBConfigDialog(parent=None)
-                # --- INIZIO MODIFICA: Leggiamo le impostazioni AD OGNI ciclo ---
-                db_type = settings.value("Database/Type", "local", type=str)
                 db_host = settings.value("Database/Host", "localhost", type=str)
-                db_port = settings.value("Database/Port", 5432, type=int)
-                db_name = settings.value("Database/DBName", "catasto_storico", type=str)
                 db_user = settings.value("Database/User", "postgres", type=str)
-                db_password = get_password_from_keyring(db_host, db_user)
-                # --- FINE MODIFICA ---
 
                 if config_dialog.exec() != QDialog.DialogCode.Accepted:
                     gui_logger.info("Configurazione manuale annullata. Uscita.")

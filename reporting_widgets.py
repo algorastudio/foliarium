@@ -160,7 +160,7 @@ class RicercaDocumentiWidget(QWidget):
         def _cell(col):
             item = self.tabella.item(row, col)
             return item.text() if item else ""
-        id_doc, titolo, tipo, anno, comune, partita = (
+        id_doc, titolo, _tipo, anno, _comune, partita = (
             _cell(0), _cell(1), _cell(2), _cell(3), _cell(4), _cell(5)
         )
         menu = QMenu(self.tabella)

@@ -5,7 +5,7 @@ Usati per mapping DB rows → structured Python objects.
 Uso:
     row = cur.fetchone()
     partita = Partita(**row)  # Type-safe
-    print(partita.numero_partita)  # IDE hints
+    partita.numero_partita  # IDE hints
 """
 
 from dataclasses import dataclass, field
