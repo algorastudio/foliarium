@@ -5,6 +5,7 @@ Estratto da catasto_db_manager.py — mixin per CatastoDBManager.
 
 from __future__ import annotations
 import logging
+from datetime import date
 from typing import Optional, List, Dict, Any, TYPE_CHECKING
 
 import psycopg2

@@ -23,8 +23,8 @@ from typing import Optional
 
 logger = logging.getLogger("CatastoGUI")
 
-GITHUB_API_URL    = "https://api.github.com/repos/santoromarco74/catasto/releases/latest"
-RELEASES_PAGE_URL = "https://github.com/santoromarco74/catasto/releases"
+GITHUB_API_URL    = "https://api.github.com/repos/algorastudio/foliarium/releases/latest"
+RELEASES_PAGE_URL = "https://github.com/algorastudio/foliarium/releases"
 
 # Nome dell'asset Windows nell'elenco della release (Inno Setup installer)
 _ASSET_INSTALLER_SUFFIX = "_Setup.exe"

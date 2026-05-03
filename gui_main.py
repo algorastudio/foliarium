@@ -505,7 +505,6 @@ class SidebarWidget(QWidget):
         self._buttons.clear()
 
         layout = self._nav_layout
-        stretch = layout.takeAt(0)  # rimuovi stretch temporaneamente
 
         def insert(lbl, page, icon=""):
             self._add_nav_button(layout, lbl, page, icon)
@@ -513,7 +512,7 @@ class SidebarWidget(QWidget):
         # Home
         insert("Home", "home", "home")
 
-        # ARCHIVIO
+        # ARCHIVIO — consultazione e ricerca
         self._add_section(layout, "ARCHIVIO")
         insert("Comuni", "comuni", "building")
         insert("Ricerca Partite", "partite", "search")
@@ -521,9 +520,14 @@ class SidebarWidget(QWidget):
         insert("Ricerca Documenti", "documenti", "file-text")
         if fuzzy_available:
             insert("Ricerca Globale", "fuzzy", "globe")
+        # Archivio (record archiviati): è un'operazione di consultazione/recupero,
+        # non di configurazione — collocato qui sotto ARCHIVIO è semanticamente corretto.
+        if is_admin:
+            insert("Archiviati", "archivio", "archive")
 
-        # INSERIMENTO
+        # INSERIMENTO — il wizard guida il flusso Comune → Possessore → Partita
         self._add_section(layout, "INSERIMENTO")
+        insert("Nuova Partita (Wizard)", "ins_wizard", "magic")
         insert("Comune", "ins_comune", "building")
         insert("Possessore", "ins_possessore", "user")
         insert("Partita", "ins_partita", "file-text")
@@ -537,21 +541,16 @@ class SidebarWidget(QWidget):
         insert("Report", "report", "report")
         insert("Statistiche", "statistiche", "bar-chart")
 
-        # CONFIGURAZIONE (admin only)
+        # AMMINISTRAZIONE (admin only) — fonde le precedenti CONFIGURAZIONE e SISTEMA
         if is_admin:
-            self._add_section(layout, "CONFIGURAZIONE")
+            self._add_section(layout, "AMMINISTRAZIONE")
             insert("Operazioni", "operazioni", "settings")
+            insert("Utenti", "utenti", "users")
+            insert("Backup", "backup", "database")
+            insert("Audit Log", "audit", "shield")
             insert("Tipi Possesso", "tipi_possesso", "tag")
             insert("Tipi Località", "tipi_localita", "map-pin")
             insert("Periodi Storici", "periodi", "clock")
-            insert("Archivio", "archivio", "archive")
-
-        # SISTEMA (admin only)
-        if is_admin:
-            self._add_section(layout, "SISTEMA")
-            insert("Utenti", "utenti", "users")
-            insert("Audit Log", "audit", "shield")
-            insert("Backup", "backup", "database")
 
         layout.addStretch()
 
@@ -595,199 +594,6 @@ class SidebarWidget(QWidget):
     def get_page_names(self) -> list:
         """Restituisce la lista ordinata dei nomi pagina (per shortcut Ctrl+N)."""
         return list(self._buttons.keys())
-
-
-# ---------------------------------------------------------------------------
-# Mappa pagina → sezione e pagina default per sezione
-# ---------------------------------------------------------------------------
-_PAGE_SECTION: dict[str, str] = {
-    "home": "home",
-    "comuni": "archivio", "partite": "archivio", "immobili": "archivio",
-    "documenti": "archivio", "fuzzy": "archivio",
-    "ins_comune": "inserimento", "ins_possessore": "inserimento",
-    "ins_partita": "inserimento", "ins_localita": "inserimento",
-    "ins_wizard": "inserimento", "reg_proprieta": "inserimento",
-    "reg_consult": "inserimento",
-    "operazioni": "configurazione", "tipi_possesso": "configurazione",
-    "tipi_localita": "configurazione", "periodi": "configurazione",
-    "archivio": "configurazione",
-    "esportazioni": "analisi", "report": "analisi", "statistiche": "analisi",
-    "utenti": "sistema", "audit": "sistema", "backup": "sistema",
-}
-
-_SECTION_DEFAULT_PAGE: dict[str, str] = {
-    "home": "home",
-    "archivio": "comuni",
-    "inserimento": "ins_comune",
-    "analisi": "esportazioni",
-    "configurazione": "operazioni",
-    "sistema": "utenti",
-}
-
-
-# ---------------------------------------------------------------------------
-# TopNavWidget — navigazione orizzontale principale (livello sezione)
-# ---------------------------------------------------------------------------
-class TopNavWidget(QFrame):
-    section_requested = pyqtSignal(str)
-
-    _SECTIONS = [
-        ("home",        "Home"),
-        ("archivio",    "Archivio"),
-        ("inserimento", "Inserimento"),
-        ("analisi",     "Analisi"),
-        ("gestione",    "Gestione"),
-    ]
-
-    def __init__(self, parent=None):
-        super().__init__(parent)
-        self.setObjectName("topNav")
-        self.setFixedHeight(44)
-        self.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
-        self._buttons: dict[str, QPushButton] = {}
-
-        layout = QHBoxLayout(self)
-        layout.setContentsMargins(16, 0, 8, 0)
-        layout.setSpacing(0)
-
-        for key, label in self._SECTIONS:
-            btn = QPushButton(label)
-            btn.setObjectName("topNavButton")
-            btn.setProperty("active", "false")
-            btn.setFlat(True)
-            btn.setSizePolicy(QSizePolicy.Policy.Fixed, QSizePolicy.Policy.Expanding)
-            btn.clicked.connect(lambda _, k=key: self.section_requested.emit(k))
-            layout.addWidget(btn)
-            self._buttons[key] = btn
-
-        layout.addStretch()
-
-    def build_nav(self, is_admin: bool):
-        self._buttons["gestione"].setVisible(is_admin)
-
-    def set_active_section(self, section: str):
-        for key, btn in self._buttons.items():
-            active = (key == section)
-            btn.setProperty("active", "true" if active else "false")
-            btn.style().unpolish(btn)
-            btn.style().polish(btn)
-
-    def set_section_visible(self, section: str, visible: bool):
-        if section in self._buttons:
-            self._buttons[section].setVisible(visible)
-
-
-# ---------------------------------------------------------------------------
-# SubNavWidget — navigazione orizzontale secondaria (livello pagina)
-# ---------------------------------------------------------------------------
-class SubNavWidget(QFrame):
-    page_requested = pyqtSignal(str)
-
-    _SECTION_PAGES: dict[str, list] = {
-        "home": [],
-        "archivio": [
-            ("comuni",    "Comuni"),
-            ("partite",   "Partite"),
-            ("immobili",  "Immobili"),
-            ("documenti", "Documenti"),
-            ("fuzzy",     "Ricerca Globale"),
-        ],
-        "inserimento": [
-            ("ins_comune",    "Comune"),
-            ("ins_possessore","Possessore"),
-            ("ins_partita",   "Partita"),
-            ("ins_localita",  "Località"),
-            ("ins_wizard",    "Nuova Partita"),
-            ("reg_proprieta", "Reg. Proprietà"),
-            ("operazioni",    "Operazioni"),
-            ("reg_consult",   "Consultazione"),
-            ("tipi_localita", "Tipi Località"),
-            ("periodi",       "Periodi Storici"),
-        ],
-        "analisi": [
-            ("esportazioni", "Esportazioni"),
-            ("report",       "Report"),
-            ("statistiche",  "Statistiche"),
-        ],
-        "gestione": [
-            ("utenti", "Utenti"),
-            ("audit",  "Audit Log"),
-            ("backup", "Backup"),
-        ],
-    }
-
-    def __init__(self, parent=None):
-        super().__init__(parent)
-        self.setObjectName("subNav")
-        self.setFixedHeight(36)
-        self.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
-        self._buttons: dict[str, QPushButton] = {}
-        self._current_section = ""
-
-        outer = QHBoxLayout(self)
-        outer.setContentsMargins(0, 0, 0, 0)
-        outer.setSpacing(0)
-
-        scroll = QScrollArea()
-        scroll.setWidgetResizable(True)
-        scroll.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
-        scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAsNeeded)
-        scroll.setFrameShape(QFrame.Shape.NoFrame)
-
-        container = QWidget()
-        self._btn_layout = QHBoxLayout(container)
-        self._btn_layout.setContentsMargins(16, 0, 16, 0)
-        self._btn_layout.setSpacing(2)
-        self._btn_layout.addStretch()
-
-        scroll.setWidget(container)
-        outer.addWidget(scroll)
-
-    def build_nav(self, is_admin: bool, fuzzy_available: bool = False):
-        while self._btn_layout.count() > 1:
-            item = self._btn_layout.takeAt(0)
-            if item.widget():
-                item.widget().deleteLater()
-        self._buttons.clear()
-
-        _admin_pages = {"tipi_localita", "periodi", "utenti", "audit", "backup"}
-        for section, pages in self._SECTION_PAGES.items():
-            for page_key, label in pages:
-                if page_key == "fuzzy" and not fuzzy_available:
-                    continue
-                if page_key in _admin_pages and not is_admin:
-                    continue
-                btn = QPushButton(label)
-                btn.setObjectName("subNavButton")
-                btn.setProperty("active", "false")
-                btn.setFlat(True)
-                btn.setVisible(False)
-                btn.setSizePolicy(QSizePolicy.Policy.Fixed, QSizePolicy.Policy.Fixed)
-                btn.clicked.connect(lambda _, p=page_key: self.page_requested.emit(p))
-                self._btn_layout.insertWidget(self._btn_layout.count() - 1, btn)
-                self._buttons[page_key] = btn
-
-    def show_section(self, section: str):
-        self._current_section = section
-        section_keys = {p for p, _ in self._SECTION_PAGES.get(section, [])}
-        for key, btn in self._buttons.items():
-            btn.setVisible(key in section_keys)
-        self.setVisible(bool(section_keys))
-
-    def set_active(self, page_name: str):
-        for key, btn in self._buttons.items():
-            active = (key == page_name)
-            btn.setProperty("active", "true" if active else "false")
-            btn.style().unpolish(btn)
-            btn.style().polish(btn)
-
-    def set_page_visible(self, page_name: str, visible: bool):
-        if page_name in self._buttons:
-            section_keys = {p for p, _ in self._SECTION_PAGES.get(self._current_section, [])}
-            self._buttons[page_name].setVisible(visible and page_name in section_keys)
-
-    def get_visible_page_names(self) -> list:
-        return [k for k, btn in self._buttons.items() if btn.isVisible()]
 
 
 class CatastoMainWindow(QMainWindow):
@@ -1529,12 +1335,6 @@ class CatastoMainWindow(QMainWindow):
         anim_out.start()
         self._anim_out = anim_out
 
-    def _on_section_requested(self, section: str):
-        """Compatibilità: naviga alla pagina default della sezione (sidebar non usa sezioni)."""
-        default = _SECTION_DEFAULT_PAGE.get(section, "home")
-        if default in self._page_index:
-            self.navigate_to(default)
-
     def update_ui_based_on_role(self):
         """Controlla la visibilità dei bottoni nav in base al ruolo utente."""
         self.logger.info(">>> CatastoMainWindow: update_ui_based_on_role")
@@ -1562,10 +1362,14 @@ class CatastoMainWindow(QMainWindow):
         for page in ("comuni", "partite", "immobili", "documenti", "fuzzy"):
             self.sidebar.set_button_visible(page, db_ready)
         for page in ("ins_comune", "ins_possessore", "ins_partita", "ins_localita",
-                     "ins_wizard", "reg_proprieta", "operazioni", "reg_consult"):
+                     "ins_wizard", "reg_proprieta", "reg_consult"):
             self.sidebar.set_button_visible(page, inserimento_ok)
         for page in ("esportazioni", "report", "statistiche"):
             self.sidebar.set_button_visible(page, analisi_ok)
+        # Pagine sezione AMMINISTRAZIONE + Archiviati (esistono solo se is_admin)
+        for page in ("operazioni", "utenti", "backup", "audit",
+                     "tipi_possesso", "tipi_localita", "periodi", "archivio"):
+            self.sidebar.set_button_visible(page, db_ready and is_admin)
 
         # Pulsante logout nella topbar
         self.top_bar.set_logout_enabled(

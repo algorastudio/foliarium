@@ -14,10 +14,11 @@ Backward compatibility: gui_widgets.py re-esporta tutte le classi.
 
 from __future__ import annotations
 
+import csv
 import json
 import os
 import logging
-from datetime import datetime
+from datetime import datetime, date
 from typing import Optional, Dict, List, Any, TYPE_CHECKING
 
 from PyQt6.QtCore import (

@@ -41,7 +41,8 @@ from PyQt6.QtWidgets import (
     QVBoxLayout, QWidget,
 )
 
-from app_utils import BulkReportPDF, FPDF_AVAILABLE, _get_default_export_path, prompt_to_open_file
+from app_utils import BulkReportPDF, FPDF_AVAILABLE, GenericTextReportPDF, _get_default_export_path, prompt_to_open_file
+from catasto_exceptions import DBMError, DBDataError, DBNotFoundError, DBUniqueConstraintError  # noqa: F401
 from config import (
     APP_VERSION,
     COLONNE_POSSESSORI_DETTAGLI_NUM, COLONNE_POSSESSORI_DETTAGLI_LABELS,
