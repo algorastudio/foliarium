@@ -26,7 +26,8 @@ from PyQt6.QtWidgets import QGraphicsOpacityEffect
 from PyQt6.QtWidgets import (QApplication,
                              QDialog, QFileDialog, QFrame, QGridLayout,
                              QHBoxLayout, QInputDialog,
-                             QLabel, QLineEdit, QMainWindow, QMessageBox, QPushButton,
+                             QLabel, QLineEdit, QListWidget, QListWidgetItem,
+                             QMainWindow, QMessageBox, QPushButton,
                              QScrollArea, QSizePolicy, QSplashScreen, QStackedWidget,
                              QStyle, QStyleFactory, QTabWidget,
                              QVBoxLayout, QWidget)
@@ -418,6 +419,12 @@ class TopBarWidget(QFrame):
 
         layout.addSpacing(8)
 
+        # Chip scadenza licenza (nascosto finché non serve)
+        self._license_chip = QLabel("")
+        self._license_chip.setObjectName("licenseExpiryChip")
+        self._license_chip.setVisible(False)
+        layout.addWidget(self._license_chip)
+
         # Pulsante Logout
         self._logout_btn = QPushButton("Logout")
         self._logout_btn.setObjectName("logoutButton")
@@ -459,6 +466,154 @@ class TopBarWidget(QFrame):
 
     def set_logout_enabled(self, enabled: bool):
         self._logout_btn.setEnabled(enabled)
+
+    def set_license_expiry(self, days_left: Optional[int]) -> None:
+        """Mostra/nasconde il chip di scadenza licenza nella top bar.
+
+        days_left=None → nasconde il chip (licenza perpetua o non disponibile).
+        days_left<=30  → chip arancione/rosso visibile.
+        """
+        if days_left is None or days_left > 30:
+            self._license_chip.setVisible(False)
+            return
+        if days_left <= 0:
+            text = "Licenza scaduta!"
+            color = "#B71C1C"
+        elif days_left <= 7:
+            text = f"Licenza: scade in {days_left}g"
+            color = "#E65100"
+        else:
+            text = f"Licenza: {days_left}gg alla scadenza"
+            color = "#F57F17"
+        self._license_chip.setText(f"  {text}  ")
+        self._license_chip.setStyleSheet(
+            f"background: {color}; color: white; border-radius: 4px; "
+            "font-size: 11px; font-weight: bold; padding: 2px 6px;"
+        )
+        self._license_chip.setVisible(True)
+
+
+# ---------------------------------------------------------------------------
+# CommandPaletteDialog — navigazione rapida Ctrl+K
+# ---------------------------------------------------------------------------
+
+class CommandPaletteDialog(QDialog):
+    """Palette di navigazione rapida in stile VS Code (Ctrl+K).
+
+    Mostra le pagine disponibili filtrabili in tempo reale.
+    Premendo Invio o doppio click naviga alla pagina selezionata.
+    """
+
+    page_selected = pyqtSignal(str)  # emette il page_name selezionato
+
+    # Mappa page_name → label leggibile (per la ricerca testuale)
+    _PAGE_LABELS: dict[str, str] = {
+        "home":           "Home",
+        "comuni":         "Comuni — archivio",
+        "partite":        "Ricerca Partite",
+        "immobili":       "Ricerca Immobili",
+        "documenti":      "Ricerca Documenti",
+        "fuzzy":          "Ricerca Globale (fuzzy)",
+        "archivio":       "Archiviati",
+        "ins_wizard":     "Nuova Partita (Wizard)",
+        "ins_comune":     "Inserimento Comune",
+        "ins_possessore": "Inserimento Possessore",
+        "ins_localita":   "Inserimento Località",
+        "ins_partita":    "Inserimento Partita",
+        "reg_proprieta":  "Registrazione Proprietà",
+        "reg_consult":    "Registrazione Consultazione",
+        "operazioni":     "Operazioni partita",
+        "esportazioni":   "Esportazioni",
+        "report":         "Reportistica",
+        "statistiche":    "Statistiche",
+        "utenti":         "Gestione Utenti",
+        "audit":          "Audit Log",
+        "backup":         "Backup",
+        "tabelle_sistema":"Tabelle di sistema",
+    }
+
+    def __init__(self, available_pages: list[str], parent=None):
+        super().__init__(parent)
+        self.setWindowTitle("Vai a…")
+        self.setWindowFlags(
+            Qt.WindowType.Dialog |
+            Qt.WindowType.FramelessWindowHint
+        )
+        self.setAttribute(Qt.WidgetAttribute.WA_DeleteOnClose)
+        self.setMinimumWidth(400)
+
+        layout = QVBoxLayout(self)
+        layout.setContentsMargins(8, 8, 8, 8)
+        layout.setSpacing(4)
+
+        self._search = QLineEdit()
+        self._search.setPlaceholderText("Cerca pagina… (Ctrl+K per chiudere)")
+        self._search.setObjectName("cmdPaletteSearch")
+        layout.addWidget(self._search)
+
+        self._list = QListWidget()
+        self._list.setObjectName("cmdPaletteList")
+        self._list.setFrameShape(QFrame.Shape.NoFrame)
+        layout.addWidget(self._list)
+
+        # Popola con le pagine disponibili
+        self._available = available_pages
+        self._populate("")
+
+        self._search.textChanged.connect(self._populate)
+        self._search.returnPressed.connect(self._accept_current)
+        self._list.itemDoubleClicked.connect(self._accept_item)
+
+        # Frecce su/giù dalla search box spostano la selezione nella lista
+        self._search.installEventFilter(self)
+
+    def eventFilter(self, obj, event):
+        from PyQt6.QtCore import QEvent
+        if obj is self._search and event.type() == QEvent.Type.KeyPress:
+            key = event.key()
+            if key == Qt.Key.Key_Down:
+                cur = self._list.currentRow()
+                self._list.setCurrentRow(min(cur + 1, self._list.count() - 1))
+                return True
+            if key == Qt.Key.Key_Up:
+                self._list.setCurrentRow(max(self._list.currentRow() - 1, 0))
+                return True
+            if key == Qt.Key.Key_Escape:
+                self.reject()
+                return True
+        return super().eventFilter(obj, event)
+
+    def _populate(self, text: str = ""):
+        self._list.clear()
+        query = text.strip().lower()
+        for page in self._available:
+            label = self._PAGE_LABELS.get(page, page.replace("_", " ").title())
+            if not query or query in label.lower() or query in page.lower():
+                item = QListWidgetItem(label)
+                item.setData(Qt.ItemDataRole.UserRole, page)
+                self._list.addItem(item)
+        if self._list.count():
+            self._list.setCurrentRow(0)
+
+    def _accept_current(self):
+        item = self._list.currentItem()
+        if item:
+            self._accept_item(item)
+
+    def _accept_item(self, item: QListWidgetItem):
+        page = item.data(Qt.ItemDataRole.UserRole)
+        self.page_selected.emit(page)
+        self.accept()
+
+    def showEvent(self, event):
+        super().showEvent(event)
+        self._search.setFocus()
+        # Centra il dialog rispetto alla finestra padre
+        if self.parent():
+            parent_geo = self.parent().geometry()
+            x = parent_geo.x() + (parent_geo.width() - self.width()) // 2
+            y = parent_geo.y() + max(80, (parent_geo.height() - self.height()) // 4)
+            self.move(x, y)
 
 
 # ---------------------------------------------------------------------------
@@ -793,6 +948,9 @@ class CatastoMainWindow(QMainWindow):
                 self.top_bar.update_user_info("", "", db_connected, db_name_configured)
                 self.statusBar().showMessage("Pronto.")
 
+        # Chip scadenza licenza — mostra avviso se <30 giorni alla scadenza
+        self._update_license_expiry_chip()
+
         logging.getLogger("CatastoGUI").info(
             ">>> CatastoMainWindow: Chiamata a setup_pages")
         self.setup_pages()
@@ -812,6 +970,7 @@ class CatastoMainWindow(QMainWindow):
 
         self.check_mv_refresh_status()
         self._check_offline_mode()
+        QTimer.singleShot(800, self._check_db_schema_migrations)
 
         # --- Refresh periodico del seat di rete (ogni 60 secondi) ---
         if hasattr(self, '_license_manager') and self._license_manager:
@@ -1044,6 +1203,29 @@ class CatastoMainWindow(QMainWindow):
         self.auto_theme_action.setChecked(False)
         self.logger.info("Stile nativo Windows 11 attivato.")
 
+    def _update_license_expiry_chip(self) -> None:
+        """Aggiorna il chip di scadenza licenza nella top bar.
+
+        Usa il LicenseManager già inizializzato se disponibile, altrimenti
+        crea un'istanza temporanea di sola lettura (best-effort, non bloccante).
+        """
+        try:
+            from license_manager import LicenseManager
+            from config import IS_TEST_ENV, IS_DEMO_MODE
+            if IS_TEST_ENV or IS_DEMO_MODE:
+                return
+            mgr = getattr(self, '_license_manager', None) or LicenseManager()
+            info = mgr.validate()
+            if info and info.expiry_date:
+                from datetime import date
+                days_left = (info.expiry_date - date.today()).days
+                self.top_bar.set_license_expiry(days_left)
+            else:
+                self.top_bar.set_license_expiry(None)
+        except Exception as e:
+            self.logger.debug(f"_update_license_expiry_chip: {e}")
+            self.top_bar.set_license_expiry(None)
+
     def _apri_gestione_licenza(self):
         """Apre il dialogo di gestione licenza."""
         from dialogs import LicenseDialog
@@ -1183,9 +1365,19 @@ class CatastoMainWindow(QMainWindow):
         self._f5_shortcut = QShortcut(QKeySequence("F5"), self)
         self._f5_shortcut.activated.connect(self._handle_f5_refresh)
 
+        self._cmd_palette_shortcut = QShortcut(QKeySequence("Ctrl+K"), self)
+        self._cmd_palette_shortcut.activated.connect(self._open_command_palette)
+
         # Vai alla home
         self.navigate_to("home")
         self.logger.info("Setup pagine completato (layout sidebar).")
+
+    def _open_command_palette(self):
+        """Ctrl+K: apre la command palette per navigazione rapida."""
+        available = list(self._page_index.keys())
+        dlg = CommandPaletteDialog(available, parent=self)
+        dlg.page_selected.connect(self.navigate_to)
+        dlg.exec()
 
     def _handle_f5_refresh(self):
         """F5: ricarica i dati della pagina corrente."""
@@ -1931,6 +2123,62 @@ class CatastoMainWindow(QMainWindow):
             self.offline_bar.show()
         else:
             self.offline_bar.hide()
+
+    def _check_db_schema_migrations(self):
+        """Controlla se mancano migrazioni DB critiche e avvisa l'utente."""
+        if not self.db_manager:
+            return
+        from config import IS_TEST_ENV, IS_DEMO_MODE
+        if IS_TEST_ENV or IS_DEMO_MODE:
+            return
+
+        missing = self.db_manager.check_missing_migrations()
+        if not missing:
+            return
+
+        descriptions = {
+            "soft_delete": (
+                "Colonne di archiviazione (soft-delete) mancanti",
+                "Le tabelle comune, località, partita e possessore non hanno le colonne\n"
+                "archiviato / archiviato_il. Alcune funzioni (ricerca, archiviazione) potrebbero\n"
+                "non funzionare correttamente.\n\n"
+                "Script: sql_scripts/07_soft_delete_archiviazione.sql"
+            ),
+            "tipo_possesso": (
+                "Tabella tipo_possesso mancante",
+                "La tabella di lookup 'tipo_possesso' non è presente.\n"
+                "Il dropdown dei tipi di possesso nei legami proprietà sarà vuoto.\n\n"
+                "Script: sql_scripts/07_create_tipo_possesso_table.sql"
+            ),
+        }
+
+        lines = []
+        scripts = []
+        for key in missing:
+            title, detail = descriptions.get(key, (key, ""))
+            lines.append(f"• {title}")
+            if detail:
+                lines.append(f"  {detail.splitlines()[0]}")
+            # extract script path from detail
+            for row in detail.splitlines():
+                if row.strip().startswith("Script:"):
+                    scripts.append(row.strip().replace("Script: ", ""))
+
+        msg = QMessageBox(self)
+        msg.setWindowTitle("Migrazioni database necessarie")
+        msg.setIcon(QMessageBox.Icon.Warning)
+        msg.setText(
+            "<b>Alcune migrazioni dello schema del database non sono state applicate.</b><br><br>"
+            + "<br>".join(l.replace("\n", "<br>") for l in lines)
+        )
+        msg.setInformativeText(
+            "Per applicare le migrazioni, eseguire gli script SQL indicati con:\n"
+            "  psql -U postgres -d catasto_storico -f <script>\n\n"
+            "L'applicazione continuerà, ma alcune funzioni potrebbero non funzionare."
+        )
+        msg.setStandardButtons(QMessageBox.StandardButton.Ok)
+        msg.setDefaultButton(QMessageBox.StandardButton.Ok)
+        msg.exec()
 
     def _apri_dialogo_impostazioni_aggiornamento(self):
         """

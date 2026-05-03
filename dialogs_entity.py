@@ -33,7 +33,7 @@ from PyQt6.QtWidgets import (QAbstractItemView, QApplication,
                              QTextBrowser, QDialogButtonBox)
 
 from catasto_db_manager import CatastoDBManager
-from custom_widgets import ImmobiliTableWidget
+from custom_widgets import ImmobiliTableWidget, show_status_message as _show_status_message
 
 try:
     from catasto_db_manager import DBMError, DBUniqueConstraintError, DBNotFoundError, DBDataError
@@ -376,8 +376,7 @@ class ModificaPossessoreDialog(QDialog):
             return
         try:
             self.db_manager.archivia_possessore(self.possessore_id)
-            QMessageBox.information(self, "Operazione completata",
-                                    f"Possessore '{nome}' archiviato con successo.")
+            _show_status_message(f"Possessore '{nome}' archiviato.", 4000)
             self.reject()  # Chiude il dialog
         except Exception as e:
             QMessageBox.critical(self, "Errore", f"Impossibile archiviare il possessore:\n{e}")
@@ -531,7 +530,7 @@ class ModificaComuneDialog(QDialog):
         try:
             success = self.db_manager.update_comune(self.comune_id, dati_modificati)
             if success:
-                QMessageBox.information(self, "Successo", "Dati del comune aggiornati con successo.")
+                _show_status_message("Dati del comune aggiornati con successo.", 4000)
                 self.accept()
         except (DBNotFoundError, DBUniqueConstraintError, DBDataError, DBMError) as e:
             QMessageBox.critical(self, "Errore Salvataggio", str(e))
@@ -550,8 +549,7 @@ class ModificaComuneDialog(QDialog):
             return
         try:
             self.db_manager.archivia_comune(self.comune_id)
-            QMessageBox.information(self, "Operazione completata",
-                                    f"Comune '{nome}' archiviato con successo.")
+            _show_status_message(f"Comune '{nome}' archiviato.", 4000)
             self.reject()  # Chiude il dialog
         except Exception as e:
             QMessageBox.critical(self, "Errore", f"Impossibile archiviare il comune:\n{e}")
@@ -668,8 +666,7 @@ class PossessoriComuneDialog(QDialog):
             if dialog_result == QDialog.DialogCode.Accepted:
                 logging.getLogger("CatastoGUI").info(
                     "DEBUG: ModificaPossessoreDialog accettato. Ricaricamento dati possessori...")  # NUOVA STAMPA
-                QMessageBox.information(self, "Modifica Possessore",
-                                        "Modifiche al possessore salvate con successo.")
+                _show_status_message("Modifiche al possessore salvate.", 4000)
                 self.load_possessori_data()
             else:
                 logging.getLogger("CatastoGUI").info(
@@ -902,7 +899,7 @@ class PartiteComuneDialog(QDialog):
             dialog = ModificaPartitaDialog(self.db_manager, partita_id, self)
             if dialog.exec() == QDialog.DialogCode.Accepted:
                 self.load_partite_data()
-                QMessageBox.information(self, "Modifica Partita", "Modifiche alla partita salvate con successo.")
+                _show_status_message("Modifiche alla partita salvate.", 4000)
         else:
             QMessageBox.warning(self, "Nessuna Selezione", "Per favore, seleziona una partita da modificare.")
     
@@ -1007,8 +1004,7 @@ class ModificaLocalitaDialog(QDialog):
             return
         try:
             self.db_manager.archivia_localita(self.localita_id)
-            QMessageBox.information(self, "Operazione completata",
-                                    f"Località '{nome}' archiviata con successo.")
+            _show_status_message(f"Località '{nome}' archiviata.", 4000)
             self.reject()
         except Exception as e:
             QMessageBox.critical(self, "Errore", f"Impossibile archiviare la località:\n{e}")
@@ -1147,8 +1143,7 @@ class PeriodoStoricoDetailsDialog(QDialog):
             success = self.db_manager.update_periodo_storico(
                 self.periodo_id, dati_da_salvare)
             if success:
-                QMessageBox.information(
-                    self, "Successo", "Periodo storico aggiornato con successo.")
+                _show_status_message("Periodo storico aggiornato.", 4000)
                 self.accept()  # Chiude il dialogo e segnala successo
             # else: # update_periodo_storico solleva eccezioni per fallimenti
             # QMessageBox.critical(self, "Errore", "Impossibile aggiornare il periodo storico.")
@@ -1670,7 +1665,7 @@ class LocalitaSelectionDialog(QDialog):
             if dialog.exec() == QDialog.DialogCode.Accepted:
                 self.logger.info(f"Modifiche a località ID {localita_id_sel} salvate. Ricarico l'elenco.")
                 self.load_localita(self.filter_edit.text().strip() or None) # Ricarica con il filtro corrente
-                QMessageBox.information(self, "Modifica Località", "Modifiche alla località salvate con successo.")
+                _show_status_message("Modifiche alla località salvate.", 4000)
             else:
                 self.logger.info(f"Modifica località ID {localita_id_sel} annullata dall'utente.")
         else:
@@ -1751,7 +1746,7 @@ class LocalitaSelectionDialog(QDialog):
                     if tipologia_stradale:
                         self.selected_localita_name += f" ({tipologia_stradale})"
 
-                    QMessageBox.information(self, "Località Creata", f"Località '{self.selected_localita_name}' registrata con ID: {self.selected_localita_id}.")
+                    _show_status_message(f"Località '{self.selected_localita_name}' registrata (ID: {self.selected_localita_id}).", 5000)
                     self._pulisci_campi_creazione_localita()
                     self.load_localita()
                     self.tabs.setCurrentIndex(0)
@@ -1794,7 +1789,7 @@ class LocalitaSelectionDialog(QDialog):
             )
 
             if localita_id_creata is not None:
-                QMessageBox.information(self, "Località Creata", f"Località '{nome}' registrata con ID: {localita_id_creata}")
+                _show_status_message(f"Località '{nome}' registrata (ID: {localita_id_creata}).", 5000)
                 self.logger.info(f"Nuova località creata tramite tab 'Crea Nuova': ID {localita_id_creata}, Nome: '{nome}'")
 
                 self._pulisci_campi_creazione_localita()

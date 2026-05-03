@@ -181,6 +181,40 @@ class DBConnectionBase:
             self.pool = None
             return False
 
+    def check_missing_migrations(self) -> list[str]:
+        """Verifica se mancano migrazioni critiche nello schema del DB.
+
+        Restituisce una lista di descrizioni delle migrazioni mancanti.
+        Lista vuota → schema aggiornato.  Errori di connessione → lista vuota
+        (non bloccante: il DB potrebbe essere offline).
+        """
+        missing = []
+        try:
+            with self._get_connection() as conn:
+                with conn.cursor() as cur:
+                    # Soft-delete (archiviazione) — script 07_soft_delete_archiviazione.sql
+                    cur.execute(
+                        "SELECT 1 FROM information_schema.columns "
+                        "WHERE table_schema = %s AND table_name = 'comune' "
+                        "  AND column_name = 'archiviato'",
+                        (self.schema,)
+                    )
+                    if not cur.fetchone():
+                        missing.append("soft_delete")
+
+                    # Tipo possesso — script 07_create_tipo_possesso_table.sql
+                    cur.execute(
+                        "SELECT 1 FROM information_schema.tables "
+                        "WHERE table_schema = %s AND table_name = 'tipo_possesso'",
+                        (self.schema,)
+                    )
+                    if not cur.fetchone():
+                        missing.append("tipo_possesso")
+
+        except Exception as e:
+            self.logger.debug(f"check_missing_migrations: impossibile verificare ({e})")
+        return missing
+
     def _apply_pending_schema_migrations(self):
         """Applica migrazioni schema idempotenti all'avvio (silent best-effort)."""
         try:
