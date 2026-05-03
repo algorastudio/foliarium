@@ -46,10 +46,14 @@ Dopo il login viene mostrata la finestra principale di Foliarium con una **barra
 
 | Area | Descrizione |
 |---|---|
-| **Barra superiore (Top Bar)** | Logo Foliarium, titolo pagina corrente, indicatore stato DB, nome utente, ruolo, pulsante logout |
+| **Barra superiore (Top Bar)** | Logo Foliarium, titolo pagina corrente, indicatore stato DB, nome utente, ruolo, eventuale chip scadenza licenza, pulsante logout |
 | **Barra laterale (Sidebar)** | Menu di navigazione verticale con bottoni per le sezioni disponibili in base al ruolo |
 | **Area contenuto** | Pannello principale che cambia al clic su un bottone della sidebar |
-| **Barra di stato** | Messaggi di sistema e notifiche temporanee |
+| **Barra di stato** | Messaggi di sistema, conferme di salvataggio e notifiche temporanee (non bloccanti) |
+
+> 💡 **Da v1.0.1**: i messaggi di conferma (salvataggi, modifiche, eliminazioni) compaiono nella barra di stato in basso anziché in dialog modali, per non interrompere il flusso di lavoro. Gli errori e le richieste di conferma rimangono in dialog dedicati.
+
+> 💡 **Chip scadenza licenza**: se la licenza è in scadenza, accanto al nome utente compare un'indicazione colorata (arancione ≤ 30 giorni, rosso ≤ 7 giorni). Aprire *Impostazioni → Gestione Licenza…* per i dettagli.
 
 ---
 
@@ -65,8 +69,10 @@ Fare clic sui bottoni nella **barra laterale sinistra** per passare da una sezio
 
 ### Shortcut da tastiera
 
+- **Ctrl+K**: Apre la **command palette** — una finestra di ricerca rapida che permette di passare a qualsiasi pagina dell'applicazione digitando parte del nome. Naviga con le frecce, conferma con Invio, chiudi con Esc.
 - **Ctrl+1...9**: Navigazione rapida ai bottoni della sidebar (in ordine)
 - **F5**: Aggiorna i dati della pagina corrente
+- **F1**: Apre il manuale utente integrato
 
 ---
 

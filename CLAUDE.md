@@ -1404,3 +1404,45 @@ Per applicare i cambiamenti a un'installazione esistente:
    - Menu CONFIGURAZIONE presente e visibile (admin only)
    - Archivio mostra conteggio corretto possessori
    - TipiPossesso widget carica dropdown e CRUD funzionanti
+
+---
+
+## Changelog sessione corrente (v1.0.1 — manutenzione e UX)
+
+Branch: `claude/analyze-program-improvements-WHIQS` (PR #23).
+
+### A — Bug fix e igiene codice
+
+- **A.4** `check_missing_migrations()` aggiunto a `db/base.py` (`DBConnectionBase`): all'avvio verifica via `information_schema` la presenza di `comune.archiviato` e tabella `tipo_possesso`; mostra avviso non-bloccante se mancanti. Chiamato da `gui_main.perform_initial_setup` con `QTimer.singleShot(800, ...)`.
+- **A.8** Rimossi dal repo `prova di backup del server.dump` (1.8 MB) e `resources/EULA.rtf`. `.gitignore` aggiornato con `*.dump`, `*.backup`, `*.sql.gz`.
+
+### B — UX e workflow
+
+- **B.5** 10+ `QMessageBox.information` di successo → `_show_status_message` non-bloccante in `dialogs_entity.py` e `dialogs_admin.py`. La funzione canonica `show_status_message()` vive ora in `custom_widgets.py`; `gui_widgets.py` e `admin_widgets.py` importano da lì (no duplicazione, no rischio circular import).
+- **B.6** `CommandPaletteDialog` (`gui_main.py`) attivato con `Ctrl+K`: campo di ricerca + `QListWidget` filtrabile, frecce per navigare, Invio per confermare, Esc per chiudere. `_PAGE_LABELS` mappa ID pagina → etichetta italiana. Stili `#cmdPaletteSearch` / `#cmdPaletteList` in `foliarium_styles.qss` e `dark_mode_stylesheet.qss`.
+- **B.8** EULA unificata a `.txt`. `Foliarium_Installer.iss` e `Foliarium_Unified_Installer.iss` aggiornati: `LicenseFile=resources\EULA.txt`.
+- **B.9** Chip scadenza licenza in `TopBarWidget` (`gui_main.py`): `_license_chip = QLabel(objectName="licenseExpiryChip")`, metodo `set_license_expiry(days_left)`. Arancione ≤ 30 giorni, rosso ≤ 7 giorni, nascosto altrimenti. Aggiornato in `perform_initial_setup` e via `_update_license_expiry_chip()`.
+
+### Fix puntuali
+
+- `gui_main.py`: aggiunto `QListWidgetItem` agli import `PyQt6.QtWidgets` (fix `NameError` in `CommandPaletteDialog._accept_item` — annotation evaluata a runtime nonostante `from __future__ import annotations`).
+- `db/base.py`: rimosso `print()` di debug in docstring `bulk_insert`.
+- `db/models.py`: rimosso `print(partita.numero_partita)` di test.
+- `db/partite.py`: rimossa variabile `where_clauses = []` non usata.
+- `dialogs_partita.py`: rimossa variabile `documento_id_storico` non usata.
+- `app_utils.py`: `with open(filepath, 'a') as f:` → `with open(filepath, 'a'):` (variabile `f` non usata).
+
+### Verifica finale
+
+- `ruff check --select=F821,F811,F841,E9 --exclude=tests .` → **0 errori**
+- Import test (`gui_main, gui_widgets, admin_widgets, dialogs_entity, dialogs_admin, dialogs_partita`) → **OK**
+
+### Documentazione aggiornata
+
+- `docs/index.md`: versione `1.0.0` → `1.0.1`, data rilascio Maggio 2026
+- `docs/riferimento/changelog.md`: nuova sezione v1.0.1 in cima
+- `docs/primo-avvio.md`: aggiunta riga shortcut `Ctrl+K` e `F1`, note su chip licenza e notifiche non-bloccanti
+
+### Sezioni rimandate
+
+- **C** (package restructuring) — esplicitamente esclusa dall'utente, da affrontare in sessione separata

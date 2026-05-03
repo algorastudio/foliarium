@@ -1,5 +1,38 @@
 # Changelog
 
+## v1.0.1 — Maggio 2026 — Manutenzione e miglioramenti UX
+
+Release di manutenzione che consolida bug fix, igiene del codice e miglioramenti di esperienza utente. Nessuna modifica allo schema del database — aggiornamento sicuro da v1.0.0.
+
+### Bug fix e robustezza
+
+- **Verifica automatica schema database all'avvio**: l'applicazione rileva all'avvio eventuali migrazioni mancanti (colonne `archiviato` su `comune`, tabella `tipo_possesso`) e mostra un avviso non-bloccante con le indicazioni per applicare gli script SQL pendenti.
+- **Igiene repository**: rimossi file non destinati al versionamento (dump database di prova, EULA in formato `.rtf` ridondante). `.gitignore` aggiornato per ignorare automaticamente file `*.dump`, `*.backup`, `*.sql.gz`.
+- **Stabilità import**: corretto un `NameError` che poteva manifestarsi all'apertura della command palette su alcune installazioni.
+
+### Miglioramenti UX
+
+- **Command palette (Ctrl+K)**: nuova finestra di ricerca rapida che permette di passare a qualsiasi pagina dell'applicazione digitando parte del nome. Supporta navigazione con frecce, conferma con Invio, chiusura con Esc. Stile coerente con tema chiaro e scuro.
+- **Chip scadenza licenza nella top bar**: quando la licenza è in scadenza, appare un'indicazione colorata accanto al nome utente:
+    - Arancione: ≤ 30 giorni alla scadenza
+    - Rosso: ≤ 7 giorni alla scadenza
+    - Nascosto: licenza valida oltre i 30 giorni
+- **Notifiche meno invasive**: i messaggi di conferma per operazioni andate a buon fine (salvataggi, modifiche, eliminazioni) non sono più dialog modali da chiudere ma compaiono nella status bar in basso, senza interrompere il flusso di lavoro. Sono stati convertiti oltre 10 dialog di successo in `dialogs_entity.py` e `dialogs_admin.py`.
+
+### Igiene del codice
+
+- Centralizzata la funzione `show_status_message()` in `custom_widgets.py`: i moduli `gui_widgets.py` e `admin_widgets.py` non duplicano più la logica.
+- `ruff check` su tutti i moduli sorgente con regole `F821` (nomi non definiti), `F811` (ridefinizioni), `F841` (variabili non usate), `E9` (errori di parsing): zero errori.
+- Rimossi residui di stampe diagnostiche (`print()`) in `db/base.py` e `db/models.py`.
+- Installer Inno Setup (`Foliarium_Installer.iss`, `Foliarium_Unified_Installer.iss`) aggiornati per puntare al singolo file EULA `.txt`.
+
+### Procedura di aggiornamento
+
+L'aggiornamento da v1.0.0 a v1.0.1 è automatico tramite l'aggiornatore integrato (menu *Help → Verifica aggiornamenti…*) oppure manuale sostituendo il contenuto della cartella di installazione.
+**Non è necessaria alcuna modifica al database**.
+
+---
+
 ## v1.0.0 (= v1.6.1) — Aprile 2026 — VERSIONE FINALE STABILE
 
 **Foliarium 1.0.0** è la prima versione stabile e completa del sistema di gestione dell'Archivio Catastale Storico. Questa release consolida tutte le funzionalità sviluppate nelle versioni precedenti (1.5.x e 1.6.x).
