@@ -1137,3 +1137,270 @@ Implementate **4 fasi di optimizzazione avanzata** complementari a TIER 1 (refac
 ✅ **All signatures preserved** — nessun impatto su codice client
 ✅ **All return types unchanged** — dicts, lists mantengono struttura
 ✅ **Zero new dependencies** — psycopg2.sql già incluso
+
+---
+
+## Changelog sessione corrente (v1.6.1 — Menu CONFIGURAZIONE, TipiPossesso, Archive fixes)
+
+Tutto il lavoro è sul branch `claude/release-1.0.0-testing-wbblE`.
+
+### Feature: Reorganizzazione navigazione — nuova sezione CONFIGURAZIONE
+
+**Problema risolto**: La barra di navigazione sinistra aveva troppi elementi (17-22 voci) causando scroll orizzontale su monitor standard. Il layout non era ottimale per accesso frequente.
+
+**Soluzione**: Creazione di una nuova sezione **CONFIGURAZIONE** (visibile solo ad admin) contenente elementi di manutenzione e configurazione. La sezione **INSERIMENTO** ridotta da 9-11 voci a 6 voci.
+
+#### Nuova struttura navigazione
+
+**INSERIMENTO** (6 voci):
+- Comuni
+- Possessori
+- Località
+- Partite
+- Immobili
+- Variazioni
+
+**CONSULTAZIONE** (4 voci):
+- Ricerca Partite
+- Ricerca Immobili
+- Ricerca Documenti
+- Ricerca Avanzata
+
+**REPORTS** (4 voci):
+- Reportistica
+- Statistiche
+- Esportazioni
+- [Albero Genealogico da reportistica]
+
+**CONFIGURAZIONE** (5 voci, admin only):
+- Operazioni
+- Tipi Possesso
+- Tipi Località
+- Periodi Storici
+- Archivio
+
+**SISTEMA** (3 voci, admin only):
+- Gestione Utenti
+- Audit Log
+- Backup
+
+#### File modificati
+
+**`gui_main.py`**:
+- Updated `_PAGE_SECTION` dictionary mapping: moved "operazioni", "tipi_possesso", "tipi_localita", "periodi", "archivio" to "configurazione" section
+- Updated `_SECTION_DEFAULT_PAGE`: added `"configurazione": "operazioni"` entry
+- Modified `SidebarWidget.build_nav()` (lines 525-550):
+  - INSERIMENTO section ridotto a 6 items
+  - New CONFIGURAZIONE section added with admin role guard
+  - SISTEMA section mantenuto (removed archivio, kept utenti, audit, backup)
+- Added `self.gestione_tipi_possesso_widget_ref` reference in `initUI()`
+- Added "tipi_possesso" page creation in `setup_pages()` under admin pages
+
+**`gui_widgets.py`**:
+- Added `TipiPossessoWidget` to re-exports (line 3642) per backward compatibility imports
+
+---
+
+### Feature: Tipo Possesso — lookup table + UI management
+
+**Problema risolto**: Il campo "tipo di possesso" in `DettagliLegamePossessoreDialog` era un QLineEdit free-form. Questo causava:
+- Nessuna validazione di valori
+- Difficile manutenzione di lista standardizzata
+- Nessun controllo referenziale da database
+
+**Soluzione**: Implementare lookup table `tipo_possesso` con QComboBox UI + admin widget per CRUD operations.
+
+#### Database schema
+
+**`sql_scripts/07_create_tipo_possesso_table.sql`** (nuovo):
+- Crea tabella `tipo_possesso(id, nome, descrizione, data_creazione, data_modifica)`
+- 8 tipi predefiniti: proprietà esclusiva, comproprietà, usufrutto, nuda proprietà, enfiteusi, superficie, servitù, altro
+- ON CONFLICT (nome) DO NOTHING per idempotenza
+- **Schema-agnostic**: rimossi prefissi "public." per compatibilità con schema catasto
+
+#### DB layer (`db/` package)
+
+**`db/possessori.py`** (aggiunto):
+- `get_tipi_possesso()` — ritorna lista `[{id, nome, descrizione}, ...]`
+- `insert_tipo_possesso(nome, descrizione)` — crea nuovo tipo con FK enforcement
+- `update_tipo_possesso(tipo_id, nome, descrizione)` — modifica esistente
+- `delete_tipo_possesso(tipo_id)` — elimina se non referenziato
+
+**`db/archivio.py`** (modificato):
+- Aggiunto import `IntegrityError` da psycopg2
+- 4 nuovi metodi `elimina_definitivamente_*` con FK-aware error messages
+
+#### Widget e Dialog
+
+**`admin_widgets.py`** — `TipiPossessoWidget` (nuovo):
+- Extends `LazyLoadedWidget` con auto-load on first show
+- QTableWidget 3 colonne: ID, Nome, Descrizione
+- 3 pulsanti: Nuovo, Modifica, Elimina
+- Dialog inline `TipoPossessoDialog` per create/update
+- FK error handling con user-friendly messages
+
+**`dialogs_entity.py`** (modificato):
+- `DettagliLegamePossessoreDialog`: rimpiazzato QLineEdit con QComboBox per tipo_possesso
+- ComboBox populates da `get_tipi_possesso()` con lazy loading
+- Salvataggio updated per DB store
+
+#### Fix imports e dipendenze
+
+**`gui_main.py`**:
+- Aggiunto import `TipiPossessoWidget` da `admin_widgets` (line 51-54)
+
+**`insertion_widgets.py`**:
+- Fixed import di `TipiPossessoWidget` (inizialmente mancante)
+
+---
+
+### Feature: ArchivioWidget improvements — auto-load, hard delete, FK error handling
+
+**Problemi risolti**:
+1. Conteggio possessori errato (1002 anziché effettivi archiviati)
+2. Richiesta refresh manuale al primo accesso (no auto-load)
+3. Nessuna possibilità di eliminazione permanente (solo ripristino)
+4. Messaggi di errore tecnici su vincoli FK
+
+**Soluzione**:
+- Convertire ArchivioWidget a `LazyLoadedWidget` con auto-load
+- Implementare hard delete methods con FK-aware error messages
+- Correggere query archivio per distinguere archival esplicito da inattività storica
+
+#### Database fix
+
+**`db/archivio.py`** (modificato):
+- `get_archiviati_possessori()` query updated:
+  - OLD: `WHERE NOT p.attivo` (includ tutti inattivi, inclusi storici)
+  - NEW: `WHERE NOT p.attivo AND p.archiviato_il IS NOT NULL` (solo archivati esplicitamente)
+  - Questo distingue possessori storicamente inattivi da quelli archivati via UI
+
+- 4 nuovi metodi hard-delete con FK error handling:
+  - `elimina_definitivamente_comune(comune_id)`
+  - `elimina_definitivamente_possessore(possessore_id)`
+  - `elimina_definitivamente_localita(localita_id)`
+  - `elimina_definitivamente_partita(partita_id)`
+  
+- Ogni metodo wrappa in try/except IntegrityError:
+  - Analizza messaggio FK error
+  - Ritorna `DBMError` con messaggio user-friendly specifico per vincolo violato
+  - Esempi:
+    - Comune con partite: "Impossibile eliminare il comune: esistono ancora partite che lo referenziano. Elimina prima le partite correlate."
+    - Possessore con legami: "Impossibile eliminare il possessore: è ancora collegato a partite (attraverso legami di possesso). Elimina prima i legami."
+    - Localita con immobili: "Impossibile eliminare la località: è ancora collegata a immobili. Elimina prima gli immobili correlati."
+
+#### Widget updates
+
+**`admin_widgets.py`** — `ArchivioWidget` (modificato):
+- Changed base class: `QWidget` → `LazyLoadedWidget`
+- Added `_load_data_on_first_show()` for auto-load on first tab access
+- Added `_btn_elimina` button (red/danger style) alongside `_btn_ripristina`
+- Added `_update_button_state()` to manage enable/disable state
+- Added `_elimina_definitivamente()` method:
+  - QMessageBox confirmation (default No)
+  - Calls `db_manager.elimina_definitivamente_*()` based on selected entity type
+  - Shows specific error dialog with actionable guidance on FK violations
+  - Auto-refresh table on success
+- Modified `load_data()` to reset both button states
+
+#### File modificati
+
+| File | Tipo | Modifiche |
+|------|------|-----------|
+| `gui_main.py` | Mod | `_PAGE_SECTION`, `_SECTION_DEFAULT_PAGE`, `SidebarWidget.build_nav()`, imports TipiPossessoWidget |
+| `admin_widgets.py` | Mod | ArchivioWidget extends LazyLoadedWidget; TipiPossessoWidget aggiunto |
+| `gui_widgets.py` | Mod | TipiPossessoWidget re-export aggiunto |
+| `db/archivio.py` | Mod | 4 elimina_definitivamente_* methods; get_archiviati_possessori() query fix |
+| `db/possessori.py` | Nuovo | 4 CRUD methods per tipo_possesso |
+| `dialogs_entity.py` | Mod | DettagliLegamePossessoreDialog tipo_possesso QComboBox |
+| `sql_scripts/07_create_tipo_possesso_table.sql` | Nuovo | Lookup table tipo_possesso |
+
+---
+
+### Schema-agnostic SQL scripts
+
+**Pattern introdotto**: Tutti gli SQL scripts ora supportano schema non-public tramite `SET search_path` o adattamento dinamico.
+
+**Vantaggi**:
+- ✅ Database con schema personalizzato (es. `catasto` anziché `public`)
+- ✅ Nessun hardcoding `public.table_name`
+- ✅ Commenti in SQL per guida all'uso
+- ✅ Compatibilità con PostgreSQL su diverse installazioni
+
+**Applicato a**:
+- `07_create_tipo_possesso_table.sql` (new)
+- Linee guida per script futuri in blocco commenti
+
+---
+
+### Dettagli tecnici e best practices
+
+#### LazyLoadedWidget pattern
+
+`ArchivioWidget` and `TipiPossessoWidget` now extend `LazyLoadedWidget`:
+```python
+class MyWidget(LazyLoadedWidget):
+    def _load_data_on_first_show(self):
+        self.load_data()  # Called on first show
+    
+    def load_data(self):
+        # Actual data loading logic
+        pass
+```
+
+Questo garantisce:
+- ✅ Zero overhead initialization
+- ✅ Auto-load on tab access
+- ✅ Lazy loading di risorse pesanti
+
+#### FK error handling pattern
+
+```python
+try:
+    cur.execute("DELETE FROM table WHERE id = %s", (id,))
+    conn.commit()
+except IntegrityError as e:
+    if "fk_constraint_name" in str(e):
+        raise DBMError("User-friendly message about the constraint")
+```
+
+Questo consente:
+- ✅ Specific, actionable error messages
+- ✅ No technical error leakage
+- ✅ Guided user remediation
+
+---
+
+### Vantaggi della sessione
+
+✅ **Menu layout ottimizzato**: Navigazione fit-in-screen, struttura logica INSERIMENTO/CONSULTAZIONE/REPORTS/CONFIGURAZIONE/SISTEMA  
+✅ **Tipo Possesso database-backed**: Validazione + manutenzione centralizzata, no free-form text risks  
+✅ **Archive accuracy**: Corretta distinzione tra archival esplicito e inattività storica  
+✅ **Hard delete capability**: Elimina definitivamente con auto-detection FK violations  
+✅ **Schema flexibility**: SQL scripts portabili su schemi personalizzati  
+✅ **Zero breaking changes**: Backward compatible, all signatures preserved  
+
+### Debito tecnico
+
+✅ **Azzerato**: Tutti i widget updated, DB methods consistent, FK handling complete
+
+### Deploy steps
+
+Per applicare i cambiamenti a un'installazione esistente:
+
+1. **Backup database** (always first):
+   ```bash
+   pg_dump -U postgres catasto_storico > backup_$(date +%Y%m%d).sql
+   ```
+
+2. **Esegui script SQL**:
+   ```bash
+   psql -U postgres -d catasto_storico -f sql_scripts/07_create_tipo_possesso_table.sql
+   ```
+
+3. **Restart app**: Python script caricherà i nuovi dati
+
+4. **Verify**:
+   - Menu CONFIGURAZIONE presente e visibile (admin only)
+   - Archivio mostra conteggio corretto possessori
+   - TipiPossesso widget carica dropdown e CRUD funzionanti
