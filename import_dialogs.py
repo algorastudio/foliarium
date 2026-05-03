@@ -129,7 +129,6 @@ class ISTATDownloadWorker(QThread):
         self.provincia_filter = provincia_filter.strip().upper()
 
     def run(self):
-        import urllib.request
         import io as _io
         try:
             self.progress.emit("Connessione al server ISTAT...")
@@ -499,7 +498,6 @@ class OSMLocalitaWorker(QThread):
         self.include_luoghi = include_luoghi
 
     def run(self):
-        import urllib.request
         import urllib.parse
         import json as _json
         try:

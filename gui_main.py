@@ -52,6 +52,7 @@ from gui_widgets import (
     RegistraConsultazioneWidget, WelcomeScreen, GestionePeriodiStoriciWidget,
     GestioneTipiLocalitaWidget, TipiPossessoWidget, NuovaPartitaWizardWidget,
     DBConfigDialog, InserimentoPartitaWidget, RicercaDocumentiWidget)
+from admin_widgets import TabelleDiSistemaWidget
 
 from custom_widgets import QPasswordLineEdit
 import update_checker
@@ -339,7 +340,7 @@ class LoginDialog(QDialog):
 try:
     from gui_widgets import UnifiedFuzzySearchWidget,UnifiedFuzzySearchThread
     FUZZY_SEARCH_AVAILABLE = True
-except ImportError as e:
+except ImportError:
     logging.warning("[INIT] Ricerca fuzzy non disponibile")
     FUZZY_SEARCH_AVAILABLE = False
 
@@ -548,9 +549,7 @@ class SidebarWidget(QWidget):
             insert("Utenti", "utenti", "users")
             insert("Backup", "backup", "database")
             insert("Audit Log", "audit", "shield")
-            insert("Tipi Possesso", "tipi_possesso", "tag")
-            insert("Tipi Località", "tipi_localita", "map-pin")
-            insert("Periodi Storici", "periodi", "clock")
+            insert("Tabelle di sistema", "tabelle_sistema", "table")
 
         layout.addStretch()
 
@@ -1143,16 +1142,15 @@ class CatastoMainWindow(QMainWindow):
             self.db_manager, self.logged_in_user_info)
         _add_page("reg_consult", self.registra_consultazione_widget_ref)
 
-        # Admin — configurazione lookup tables
+        # Admin — configurazione lookup tables (unificate in un'unica pagina con sub-tab)
         if is_admin:
-            self.gestione_tipi_localita_widget_ref = GestioneTipiLocalitaWidget(self.db_manager)
-            _add_page("tipi_localita", self.gestione_tipi_localita_widget_ref)
-
-            self.gestione_periodi_storici_widget_ref = GestionePeriodiStoriciWidget(self.db_manager)
-            _add_page("periodi", self.gestione_periodi_storici_widget_ref)
-
-            self.gestione_tipi_possesso_widget_ref = TipiPossessoWidget(self.db_manager)
-            _add_page("tipi_possesso", self.gestione_tipi_possesso_widget_ref)
+            self.tabelle_sistema_widget_ref = TabelleDiSistemaWidget(self.db_manager)
+            _add_page("tabelle_sistema", self.tabelle_sistema_widget_ref)
+            # Riferimenti diretti ai sub-widget per compatibilità con codice esistente
+            # (es. refresh dopo CRUD da altre parti dell'app).
+            self.gestione_tipi_localita_widget_ref = self.tabelle_sistema_widget_ref.tipi_localita_tab
+            self.gestione_periodi_storici_widget_ref = self.tabelle_sistema_widget_ref.periodi_tab
+            self.gestione_tipi_possesso_widget_ref = self.tabelle_sistema_widget_ref.tipi_possesso_tab
 
         # Analisi
         self.esportazioni_widget_ref = EsportazioniWidget(self.db_manager)
@@ -1217,8 +1215,8 @@ class CatastoMainWindow(QMainWindow):
             ("Inserimento", "Reg. Proprietà"):      "reg_proprieta",
             ("Inserimento", "Operazioni"):          "operazioni",
             ("Inserimento", "Reg. Consultazione"):  "reg_consult",
-            ("Inserimento", "Tipi Località"):       "tipi_localita",
-            ("Inserimento", "Periodi"):             "periodi",
+            ("Inserimento", "Tipi Località"):       "tabelle_sistema",
+            ("Inserimento", "Periodi"):             "tabelle_sistema",
             ("Esportazioni", ""):                   "esportazioni",
             ("Report", ""):                         "report",
             ("Statistiche", ""):                    "statistiche",
@@ -1368,7 +1366,7 @@ class CatastoMainWindow(QMainWindow):
             self.sidebar.set_button_visible(page, analisi_ok)
         # Pagine sezione AMMINISTRAZIONE + Archiviati (esistono solo se is_admin)
         for page in ("operazioni", "utenti", "backup", "audit",
-                     "tipi_possesso", "tipi_localita", "periodi", "archivio"):
+                     "tabelle_sistema", "archivio"):
             self.sidebar.set_button_visible(page, db_ready and is_admin)
 
         # Pulsante logout nella topbar
@@ -2427,14 +2425,8 @@ def run_gui_app():
 
             while True: # Loop per riprovare la configurazione manuale
                 config_dialog = DBConfigDialog(parent=None)
-                # --- INIZIO MODIFICA: Leggiamo le impostazioni AD OGNI ciclo ---
-                db_type = settings.value("Database/Type", "local", type=str)
                 db_host = settings.value("Database/Host", "localhost", type=str)
-                db_port = settings.value("Database/Port", 5432, type=int)
-                db_name = settings.value("Database/DBName", "catasto_storico", type=str)
                 db_user = settings.value("Database/User", "postgres", type=str)
-                db_password = get_password_from_keyring(db_host, db_user)
-                # --- FINE MODIFICA ---
 
                 if config_dialog.exec() != QDialog.DialogCode.Accepted:
                     gui_logger.info("Configurazione manuale annullata. Uscita.")

@@ -21,7 +21,7 @@ from PyQt6.QtGui import (QBrush, QColor, QDesktopServices, QFont,
                          QIcon, QPalette, QPixmap, QAction)
 from PyQt6.QtWidgets import (QAbstractItemView, QApplication,
                              QCheckBox, QComboBox, QDateEdit,
-                             QDialog, QDialogButtonBox, QDoubleSpinBox,
+                             QDialog, QDoubleSpinBox,
                              QFileDialog, QFormLayout, QFrame, QGridLayout,
                              QGroupBox, QHBoxLayout, QHeaderView, QInputDialog,
                              QLabel, QLineEdit, QListWidget, QListWidgetItem,
@@ -1081,8 +1081,6 @@ class ModificaPartitaDialog(QDialog):
             if documenti:
                 self.documents_table.setRowCount(len(documenti))
                 for row, doc in enumerate(documenti):
-                    documento_id_storico = doc.get("documento_id")
-                    
                     # --- INIZIO CORREZIONE: Salvataggio dati robusto ---
             # Salviamo un dizionario con gli ID di relazione nell'UserRole
                     rel_data = {
@@ -2092,7 +2090,7 @@ class PossessoreSelectionDialog(QDialog):
             self.new_poss_comune_combo.addItem("--- Seleziona Comune ---", None)
             for id, nome in comuni:
                 self.new_poss_comune_combo.addItem(nome, id)
-        except DBMError as e:
+        except DBMError:
             self.new_poss_comune_combo.addItem("Errore caricamento", None)
 
     def filter_possessori(self):

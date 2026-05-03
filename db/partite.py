@@ -615,7 +615,6 @@ class DBPartiteMixin:
             params = []
             # La vista SQL è stata aggiornata per usare nome comune
             query = "SELECT * FROM mv_partite_complete" # La vista ha 'comune_nome'
-            where_clauses = []
             if comune_id is not None:
                  # Filtra con JOIN
                  query = """

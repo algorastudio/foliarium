@@ -27,7 +27,6 @@ from functools import wraps
 COLONNE_POSSESSORI_DETTAGLI_NUM = 6 # Esempio: ID, Nome Compl, Cognome/Nome, Paternità, Quota, Titolo
 COLONNE_POSSESSORI_DETTAGLI_LABELS = ["ID Poss.", "Nome Completo", "Cognome Nome", "Paternità", "Quota", "Titolo"]
 
-import logging
 logger = logging.getLogger(__name__)
 # ------------ ECCEZIONI PERSONALIZZATE ------------
 # Definite in catasto_exceptions.py; re-esportate qui per backward compatibility.
@@ -550,8 +549,7 @@ class DBConnectionBase:
             try:
                 # CORREZIONE: Usa 'with' per ottenere e rilasciare automaticamente la connessione.
                 # Se questo blocco viene eseguito senza errori, significa che il pool funziona.
-                with self._get_connection() as conn_test:
-                    # La connessione è valida se siamo arrivati qui. Non dobbiamo fare altro.
+                with self._get_connection():
                     self.logger.info("Pool ricreato/verificato e testato con successo dopo riconnessione.")
                 return True
             except (DBMError, psycopg2.pool.PoolError) as e:
@@ -674,7 +672,6 @@ class DBConnectionBase:
                 {"numero_partita": 1, "stato": "Attiva"},
                 {"numero_partita": 2, "stato": "Inattiva"},
             ])
-            print(f"Inserted: {len(result['success'])}, Errors: {len(result['errors'])}")
         """
         if not records:
             return {"success": [], "errors": []}
