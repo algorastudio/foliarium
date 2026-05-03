@@ -50,7 +50,7 @@ from gui_widgets import (
     OperazioniPartitaWidget, EsportazioniWidget, ReportisticaWidget, StatisticheWidget,
     GestioneUtentiWidget, AuditLogViewerWidget, BackupWidget, ArchivioWidget,
     RegistraConsultazioneWidget, WelcomeScreen, GestionePeriodiStoriciWidget,
-    GestioneTipiLocalitaWidget, NuovaPartitaWizardWidget,
+    GestioneTipiLocalitaWidget, TipiPossessoWidget, NuovaPartitaWizardWidget,
     DBConfigDialog, InserimentoPartitaWidget, RicercaDocumentiWidget)
 
 from custom_widgets import QPasswordLineEdit
@@ -529,11 +529,7 @@ class SidebarWidget(QWidget):
         insert("Partita", "ins_partita", "file-text")
         insert("Località", "ins_localita", "map-pin")
         insert("Reg. Proprietà", "reg_proprieta", "key")
-        insert("Operazioni", "operazioni", "settings")
         insert("Reg. Consultazione", "reg_consult", "book")
-        if is_admin:
-            insert("Tipi Località", "tipi_localita", "map-pin")
-            insert("Periodi Storici", "periodi", "clock")
 
         # ANALISI
         self._add_section(layout, "ANALISI")
@@ -541,13 +537,21 @@ class SidebarWidget(QWidget):
         insert("Report", "report", "report")
         insert("Statistiche", "statistiche", "bar-chart")
 
+        # CONFIGURAZIONE (admin only)
+        if is_admin:
+            self._add_section(layout, "CONFIGURAZIONE")
+            insert("Operazioni", "operazioni", "settings")
+            insert("Tipi Possesso", "tipi_possesso", "tag")
+            insert("Tipi Località", "tipi_localita", "map-pin")
+            insert("Periodi Storici", "periodi", "clock")
+            insert("Archivio", "archivio", "archive")
+
         # SISTEMA (admin only)
         if is_admin:
             self._add_section(layout, "SISTEMA")
             insert("Utenti", "utenti", "users")
             insert("Audit Log", "audit", "shield")
             insert("Backup", "backup", "database")
-            insert("Archivio", "archivio", "archive")
 
         layout.addStretch()
 
@@ -603,10 +607,12 @@ _PAGE_SECTION: dict[str, str] = {
     "ins_comune": "inserimento", "ins_possessore": "inserimento",
     "ins_partita": "inserimento", "ins_localita": "inserimento",
     "ins_wizard": "inserimento", "reg_proprieta": "inserimento",
-    "operazioni": "inserimento", "reg_consult": "inserimento",
-    "tipi_localita": "inserimento", "periodi": "inserimento",
+    "reg_consult": "inserimento",
+    "operazioni": "configurazione", "tipi_possesso": "configurazione",
+    "tipi_localita": "configurazione", "periodi": "configurazione",
+    "archivio": "configurazione",
     "esportazioni": "analisi", "report": "analisi", "statistiche": "analisi",
-    "utenti": "gestione", "audit": "gestione", "backup": "gestione",
+    "utenti": "sistema", "audit": "sistema", "backup": "sistema",
 }
 
 _SECTION_DEFAULT_PAGE: dict[str, str] = {
@@ -614,7 +620,8 @@ _SECTION_DEFAULT_PAGE: dict[str, str] = {
     "archivio": "comuni",
     "inserimento": "ins_comune",
     "analisi": "esportazioni",
-    "gestione": "utenti",
+    "configurazione": "operazioni",
+    "sistema": "utenti",
 }
 
 
@@ -834,6 +841,7 @@ class CatastoMainWindow(QMainWindow):
         self.backup_restore_widget_ref: Optional[BackupWidget] = None
         self.gestione_periodi_storici_widget_ref: Optional[GestionePeriodiStoriciWidget] = None
         self.gestione_tipi_localita_widget_ref: Optional[GestioneTipiLocalitaWidget] = None
+        self.gestione_tipi_possesso_widget_ref: Optional[TipiPossessoWidget] = None
 
         # Indice pagine sidebar: page_name -> QStackedWidget index
         self._page_index: dict = {}
@@ -1329,13 +1337,16 @@ class CatastoMainWindow(QMainWindow):
             self.db_manager, self.logged_in_user_info)
         _add_page("reg_consult", self.registra_consultazione_widget_ref)
 
-        # Admin — voci inserimento
+        # Admin — configurazione lookup tables
         if is_admin:
             self.gestione_tipi_localita_widget_ref = GestioneTipiLocalitaWidget(self.db_manager)
             _add_page("tipi_localita", self.gestione_tipi_localita_widget_ref)
 
             self.gestione_periodi_storici_widget_ref = GestionePeriodiStoriciWidget(self.db_manager)
             _add_page("periodi", self.gestione_periodi_storici_widget_ref)
+
+            self.gestione_tipi_possesso_widget_ref = TipiPossessoWidget(self.db_manager)
+            _add_page("tipi_possesso", self.gestione_tipi_possesso_widget_ref)
 
         # Analisi
         self.esportazioni_widget_ref = EsportazioniWidget(self.db_manager)

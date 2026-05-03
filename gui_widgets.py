@@ -3639,7 +3639,7 @@ from reporting_widgets import (
     StatisticheWidget, RegistraConsultazioneWidget,
 )
 
-from admin_widgets import GestioneUtentiWidget, AuditLogViewerWidget, BackupWidget, ArchivioWidget
+from admin_widgets import GestioneUtentiWidget, AuditLogViewerWidget, BackupWidget, ArchivioWidget, TipiPossessoWidget
 
 class UnifiedFuzzySearchThread(QThread):
     """Thread unificato per eseguire ricerche fuzzy in background."""

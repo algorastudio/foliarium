@@ -1,8 +1,13 @@
 -- sql_scripts/07_create_tipo_possesso_table.sql
 -- Tabella di lookup per i tipi di possesso
 -- Da eseguire dopo la creazione dello schema base
+-- Nota: Se usi uno schema diverso da public, adatta il comando come segue:
+-- Per schema catasto: esegui con "SET search_path TO catasto;" OPPURE sostituisci "public." con "catasto."
 
-CREATE TABLE IF NOT EXISTS public.tipo_possesso (
+-- Se usi schema catasto, esegui prima:
+-- SET search_path TO catasto;
+
+CREATE TABLE IF NOT EXISTS tipo_possesso (
     id SERIAL PRIMARY KEY,
     nome VARCHAR(50) NOT NULL UNIQUE,
     descrizione TEXT,
@@ -15,7 +20,7 @@ COMMENT ON COLUMN tipo_possesso.nome IS 'Nome del tipo di possesso (es. "proprie
 COMMENT ON COLUMN tipo_possesso.descrizione IS 'Descrizione opzionale per chiarire il tipo';
 
 -- Inserisci i tipi predefiniti comuni
-INSERT INTO public.tipo_possesso (nome, descrizione) VALUES
+INSERT INTO tipo_possesso (nome, descrizione) VALUES
     ('proprietà esclusiva', 'Pieno diritto di proprietà esclusivo'),
     ('comproprietà', 'Proprietà condivisa con altri soggetti'),
     ('usufrutto', 'Diritto di uso e godimento della proprietà altrui'),
