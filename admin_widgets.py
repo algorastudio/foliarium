@@ -2046,3 +2046,47 @@ class TipiPossessoWidget(LazyLoadedWidget):
             _show_status_message(f"Tipo '{nome}' eliminato.", 4000)
         except Exception as e:
             QMessageBox.critical(self, "Errore", f"Impossibile eliminare il tipo:\n{e}")
+
+
+class TabelleDiSistemaWidget(QWidget):
+    """Pagina unificata per le tabelle di lookup del sistema.
+
+    Raggruppa in un solo QTabWidget i tre widget di gestione:
+      - Tipi di possesso  (TipiPossessoWidget)
+      - Tipi di località  (GestioneTipiLocalitaWidget)
+      - Periodi storici   (GestionePeriodiStoriciWidget)
+
+    Sostituisce le tre voci sidebar separate per ridurre il rumore di
+    navigazione: queste sono operazioni di configurazione poco frequenti.
+    """
+
+    def __init__(self, db_manager: 'CatastoDBManager', parent=None):
+        super().__init__(parent)
+        self.db_manager = db_manager
+        self._build_ui()
+
+    def _build_ui(self):
+        layout = QVBoxLayout(self)
+        layout.setContentsMargins(8, 8, 8, 8)
+
+        intro = QLabel(
+            "<b>Tabelle di sistema</b> — gestione delle tabelle di lookup "
+            "utilizzate dal database (tipi di possesso, tipi di località, "
+            "periodi storici). Modifiche poco frequenti, riservate agli amministratori."
+        )
+        intro.setWordWrap(True)
+        intro.setStyleSheet("color: gray; padding: 4px 0 8px 0;")
+        layout.addWidget(intro)
+
+        self.tabs = QTabWidget()
+        self.tabs.setDocumentMode(True)
+
+        self.tipi_possesso_tab = TipiPossessoWidget(self.db_manager)
+        self.tipi_localita_tab = GestioneTipiLocalitaWidget(self.db_manager)
+        self.periodi_tab = GestionePeriodiStoriciWidget(self.db_manager)
+
+        self.tabs.addTab(self.tipi_possesso_tab, "Tipi di possesso")
+        self.tabs.addTab(self.tipi_localita_tab, "Tipi di località")
+        self.tabs.addTab(self.periodi_tab, "Periodi storici")
+
+        layout.addWidget(self.tabs, 1)
