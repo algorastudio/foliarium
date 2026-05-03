@@ -16,7 +16,7 @@ from datetime import date, datetime
 from typing import Optional, List, Dict, Any, Tuple
 
 from PyQt6.QtCore import (QDate, QDateTime, QPoint, QSettings,
-                          QSize, Qt, QUrl, pyqtSignal)
+                          QSize, Qt, QTimer, QUrl, pyqtSignal)
 from PyQt6.QtGui import (QBrush, QColor, QDesktopServices, QFont,
                          QIcon, QPalette, QPixmap, QAction)
 from PyQt6.QtWidgets import (QAbstractItemView, QApplication,
@@ -1186,6 +1186,7 @@ class ModificaPartitaDialog(QDialog):
 
         self.logger.info(f"Possessore selezionato/creato: ID {selected_possessore_id}, Nome: {selected_possessore_nome}")
         tipo_partita_corrente = self.partita_data_originale.get('tipo', 'principale')
+        from dialogs_entity import DettagliLegamePossessoreDialog
         dettagli_legame = DettagliLegamePossessoreDialog.get_details_for_new_legame(selected_possessore_nome, tipo_partita_corrente, self)
 
         if not dettagli_legame:

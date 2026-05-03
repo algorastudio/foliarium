@@ -15,7 +15,7 @@ from datetime import date, datetime
 from typing import Optional, List, Dict, Any, Tuple
 
 from PyQt6.QtCore import (QDate, QDateTime, QPoint, QSettings,
-                          QSize, Qt, QUrl, pyqtSignal)
+                          QSize, Qt, QTimer, QUrl, pyqtSignal)
 from PyQt6.QtGui import (QBrush, QColor, QDesktopServices, QFont,
                          QIcon, QPalette, QAction)
 from PyQt6.QtWidgets import (QAbstractItemView, QApplication,

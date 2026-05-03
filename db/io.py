@@ -5,12 +5,13 @@ Estratto da catasto_db_manager.py — mixin per CatastoDBManager.
 
 from __future__ import annotations
 import logging
-from typing import Optional, List, Dict, Any, TYPE_CHECKING
+from typing import Optional, List, Dict, Any, Tuple, TYPE_CHECKING
 
 import os
 from datetime import date, datetime
 import psycopg2
 from psycopg2.extras import DictCursor
+from psycopg2.extensions import ISOLATION_LEVEL_AUTOCOMMIT
 
 from catasto_exceptions import DBMError, DBUniqueConstraintError, DBNotFoundError, DBDataError
 from db.base import db_handle_errors
@@ -211,11 +212,14 @@ class DBIOMixin:
             self.logger.error(f"Errore export CSV partite per comune {comune_id}: {e}", exc_info=True)
             raise DBMError(f"Impossibile recuperare le partite per l'export: {e}") from e
 
-    def create_clean_environment(self) -> 'QProcessEnvironment':
-        """Crea un ambiente pulito per QProcess, ereditando le variabili di sistema."""
+    def create_clean_environment(self) -> Any:
+        """Crea un ambiente pulito per QProcess, ereditando le variabili di sistema.
+
+        Lazy-import di QProcessEnvironment così il package db/ resta utilizzabile
+        in ambienti headless dove PyQt6 potrebbe non essere disponibile.
+        """
         from PyQt6.QtCore import QProcessEnvironment
-        env = QProcessEnvironment.systemEnvironment()
-        return env
+        return QProcessEnvironment.systemEnvironment()
 
     def execute_sql_from_file(self, file_path: str) -> Tuple[bool, str]:
         """Esegue uno script SQL da un file in modo sicuro, gestendo l'autocommit."""

@@ -34,9 +34,10 @@ from PyQt6.QtWidgets import (QAbstractItemView, QApplication,
                              QSplitter, QTableWidget, QTableWidgetItem, QTextEdit,
                              QTreeWidget, QTreeWidgetItem,
                              QVBoxLayout, QWidget,
-                             QTextBrowser, QDialogButtonBox, QRadioButton)
+                             QTextBrowser, QDialogButtonBox, QRadioButton,
+                             QGraphicsScene, QGraphicsView)
 from PyQt6.QtGui import QPainter
-from app_paths import get_resource_path, get_doc_path
+from app_paths import get_resource_path, get_resource_path as resource_path, get_doc_path  # noqa: F401
 from config import (
     SETTINGS_DB_TYPE, SETTINGS_DB_HOST, SETTINGS_DB_PORT,
     SETTINGS_DB_NAME, SETTINGS_DB_USER, SETTINGS_DB_SCHEMA, SETTINGS_DB_PASSWORD,
@@ -47,6 +48,7 @@ from config import (
     SETTINGS_LICENSE_FILE_PATH, SETTINGS_LICENSE_NETWORK_SHARE,
 )
 from catasto_db_manager import CatastoDBManager
+from catasto_exceptions import DBMError, DBUniqueConstraintError, DBNotFoundError, DBDataError  # noqa: F401
 from custom_widgets import QPasswordLineEdit
 
 try:
