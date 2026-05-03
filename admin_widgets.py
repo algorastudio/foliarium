@@ -1841,10 +1841,12 @@ class ArchivioWidget(LazyLoadedWidget):
                 f"Il {label} '{nome}' è stato eliminato definitivamente."
             )
         except Exception as e:
+            msg = str(e).strip()
             QMessageBox.critical(
-                self, "Errore",
-                f"Impossibile eliminare definitivamente:\n{e}\n\n"
-                "Potrebbero esserci elementi correlati che impediscono l'eliminazione."
+                self, "Errore Eliminazione",
+                msg if msg else
+                f"Impossibile eliminare il {label}. "
+                "Potrebbero esserci elementi correlati che lo referenziano."
             )
 
 
