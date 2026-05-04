@@ -30,6 +30,10 @@ from PyQt6.QtWidgets import (QApplication,
                              QScrollArea, QSizePolicy, QSplashScreen, QStackedWidget,
                              QStyle, QStyleFactory, QTabWidget,
                              QVBoxLayout, QWidget)
+try:
+    from PyQt6 import QtWebEngineWidgets
+except ImportError:
+    QtWebEngineWidgets = None
 # --- FINE MODIFICA ---
 
 
@@ -2255,13 +2259,12 @@ class WebViewWindow(QMainWindow):
         self._db_manager = db_manager
 
         try:
-            from PyQt6.QtWebEngineWidgets import QWebEngineView
+            from PyQt6.QtWebEngineWidgets import QWebEngineView  # type: ignore
             from PyQt6.QtCore import QUrl
             view = QWebEngineView()
             view.load(QUrl(f"http://127.0.0.1:{port}"))
             self.setCentralWidget(view)
         except ImportError:
-            # WebEngine non installato: apre il browser di sistema
             import webbrowser
             webbrowser.open(f"http://127.0.0.1:{port}")
             label = QLabel(
