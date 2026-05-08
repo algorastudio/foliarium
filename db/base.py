@@ -400,7 +400,10 @@ class DBConnectionBase:
         """
         Context manager per ottenere e rilasciare in sicurezza una connessione dal pool.
         Garantisce che putconn() sia sempre chiamato.
-        TIER 3 Phase 2: Tracked metrics su salute pool.
+
+        Thread-safety: ThreadedConnectionPool.getconn() è thread-safe; ogni chiamante
+        riceve una connessione dedicata. NON conservare il conn fuori dal blocco `with`
+        né passarlo ad altri thread — le connessioni psycopg2 non sono thread-safe.
         """
         conn = None
         try:
