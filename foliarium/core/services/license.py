@@ -37,9 +37,38 @@ from typing import Optional
 
 logger = logging.getLogger("CatastoGUI")
 
-# Chiave HMAC interna — non esposta nell'eseguibile finale tramite offuscamento;
-# in una distribuzione enterprise si può sostituire con RSA/chiave pubblica.
-_HMAC_KEY = b"Foliarium-AlgoraStudio-LicKey-2025"
+
+def _load_hmac_key() -> bytes:
+    """
+    Carica la chiave HMAC da sorgente esterna. Non deve mai essere hardcoded.
+
+    Ordine di ricerca:
+      1. Variabile d'ambiente FOLIARIUM_LICENSE_KEY
+      2. File 'foliarium.key' nella directory dell'eseguibile (EXE_DIR)
+
+    Raises:
+        RuntimeError: se nessuna sorgente è disponibile.
+    """
+    env_key = os.environ.get("FOLIARIUM_LICENSE_KEY", "").strip()
+    if env_key:
+        return env_key.encode("utf-8")
+
+    try:
+        from app_paths import EXE_DIR
+        key_file = Path(EXE_DIR) / "foliarium.key"
+        if key_file.exists():
+            data = key_file.read_bytes().strip()
+            if data:
+                return data
+    except Exception as e:
+        logger.debug("Impossibile leggere foliarium.key: %s", e)
+
+    raise RuntimeError(
+        "Chiave di licenza non trovata. "
+        "Impostare la variabile d'ambiente FOLIARIUM_LICENSE_KEY "
+        "oppure fornire il file foliarium.key nella cartella dell'eseguibile."
+    )
+
 
 # Durata massima (secondi) prima che un file-seat venga considerato stale
 _SEAT_TTL_SECONDS = 120
@@ -92,7 +121,7 @@ def get_hardware_fingerprint() -> str:
 def _sign_payload(payload: dict) -> str:
     """Calcola la firma HMAC-SHA256 del payload (senza campo 'signature')."""
     payload_bytes = json.dumps(payload, sort_keys=True, ensure_ascii=False).encode("utf-8")
-    return hmac.new(_HMAC_KEY, payload_bytes, hashlib.sha256).hexdigest()
+    return hmac.new(_load_hmac_key(), payload_bytes, hashlib.sha256).hexdigest()
 
 
 def generate_license(

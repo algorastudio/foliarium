@@ -20,10 +20,12 @@ CREATE EXTENSION IF NOT EXISTS pgcrypto;
 
 \set ON_ERROR_STOP on
 
--- Default per le variabili psql non passate da -v
+-- La variabile admin_password è obbligatoria; senza di essa lo script si interrompe.
 \if :{?admin_password}
 \else
-  \set admin_password admin123
+  \echo 'ERRORE: variabile admin_password non impostata.'
+  \echo 'Uso: psql -v admin_password=password_sicura -f 07a_bootstrap_admin.sql'
+  \quit
 \endif
 
 \if :{?admin_email}

@@ -106,6 +106,23 @@ from foliarium.ui.widgets.custom import show_status_message as _show_status_mess
 
 # ---------------------------------------------------------------------------
 
+class _ComuniLoaderWorker(QThread):
+    """Carica l'elenco comuni dal DB in background per non bloccare la UI."""
+    results_ready = pyqtSignal(list)
+    error_occurred = pyqtSignal(str)
+
+    def __init__(self, db_manager, parent=None):
+        super().__init__(parent)
+        self._db = db_manager
+
+    def run(self):
+        try:
+            result = self._db.get_all_comuni_details()
+            self.results_ready.emit(result or [])
+        except Exception as e:
+            self.error_occurred.emit(str(e))
+
+
 class ElencoComuniWidget(LazyLoadedWidget):
     def __init__(self, db_manager: 'CatastoDBManager', parent=None):
         super().__init__(parent)
@@ -193,35 +210,38 @@ class ElencoComuniWidget(LazyLoadedWidget):
         self.logger.info("Chiamata a load_comuni_data() da __init__.")
         
     def load_data(self):
-        """
-        Metodo pubblico per caricare o ricaricare i dati dei comuni nella tabella.
-        Questo metodo contiene la logica principale di popolamento.
-        """
-        self.logger.info(">>> ESECUZIONE DI load_data in ElencoComuniWidget...")
-        # Il resto del suo codice da _load_data_on_first_show rimane identico qui...
+        """Avvia il caricamento dell'elenco comuni in background (non blocca la UI)."""
+        if not self.db_manager:
+            self.logger.error("load_data chiamato ma self.db_manager è None!")
+            return
+        if hasattr(self, '_loader') and self._loader.isRunning():
+            return  # caricamento già in corso
+
         self.comuni_table.setSortingEnabled(False)
+        self.comuni_table.setRowCount(1)
+        loading_item = QTableWidgetItem("Caricamento in corso…")
+        loading_item.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
+        self.comuni_table.setItem(0, 0, loading_item)
+        self.comuni_table.setSpan(0, 0, 1, self.comuni_table.columnCount())
+
+        self._loader = _ComuniLoaderWorker(self.db_manager, self)
+        self._loader.results_ready.connect(self._on_comuni_loaded)
+        self._loader.error_occurred.connect(self._on_comuni_error)
+        self._loader.start()
+        self.logger.debug("_ComuniLoaderWorker avviato.")
+
+    def _on_comuni_loaded(self, comuni_list: list):
+        self.comuni_table.setSortingEnabled(False)
+        self.comuni_table.clearSpans()
         self.comuni_table.setRowCount(0)
-
-        try:
-            if not self.db_manager:
-                self.logger.error("load_data chiamato ma self.db_manager è None!")
-                return
-
-            self.logger.info(">>> Chiamata a db_manager.get_all_comuni_details() in corso...")
-            comuni_list = self.db_manager.get_all_comuni_details()
-            
-            self.logger.info(f"--- RISULTATO RICEVUTO da db_manager: Tipo={type(comuni_list)}, Lunghezza={len(comuni_list) if comuni_list is not None else 'None'} ---")
-
-            if not comuni_list:
-                self.logger.warning("Nessun comune restituito dal DB manager per la visualizzazione.")
-                self.comuni_table.setRowCount(1)
-                item = QTableWidgetItem("Nessun comune trovato nel database.")
-                item.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
-                self.comuni_table.setItem(0, 0, item)
-                self.comuni_table.setSpan(0, 0, 1, self.comuni_table.columnCount())
-                return
-                
-            self.logger.info(f">>> Inizio ciclo FOR per popolare la tabella con {len(comuni_list)} elementi.")
+        if not comuni_list:
+            self.logger.warning("Nessun comune restituito dal DB.")
+            self.comuni_table.setRowCount(1)
+            item = QTableWidgetItem("Nessun comune trovato nel database.")
+            item.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
+            self.comuni_table.setItem(0, 0, item)
+            self.comuni_table.setSpan(0, 0, 1, self.comuni_table.columnCount())
+        else:
             self.comuni_table.setRowCount(len(comuni_list))
             for row_idx, comune in enumerate(comuni_list):
                 self.comuni_table.setItem(row_idx, 0, QTableWidgetItem(str(comune.get('id', ''))))
@@ -233,16 +253,17 @@ class ElencoComuniWidget(LazyLoadedWidget):
                 data_soppr = comune.get('data_soppressione')
                 self.comuni_table.setItem(row_idx, 5, QTableWidgetItem(str(data_soppr) if data_soppr else ''))
                 self.comuni_table.setItem(row_idx, 6, QTableWidgetItem(comune.get('note', '')))
-            
             self.comuni_table.resizeColumnsToContents()
-            self.logger.info(">>> Fine ciclo FOR.")
+        self.comuni_table.setSortingEnabled(True)
+        self.logger.debug("Tabella comuni popolata con %d righe.", len(comuni_list))
 
-        except Exception as e:
-            self.logger.error(f"Errore imprevisto durante il popolamento della tabella comuni: {e}", exc_info=True)
-            QMessageBox.critical(self, "Errore Caricamento Dati", f"Si è verificato un errore imprevisto: {e}")
-        finally:
-            self.comuni_table.setSortingEnabled(True)
-            self.logger.info(">>> load_data terminato.")
+    def _on_comuni_error(self, error_msg: str):
+        self.comuni_table.setSortingEnabled(True)
+        self.comuni_table.clearSpans()
+        self.comuni_table.setRowCount(0)
+        self.logger.error("Errore caricamento comuni: %s", error_msg)
+        QMessageBox.critical(self, "Errore Caricamento Dati",
+                             f"Impossibile caricare l'elenco dei comuni:\n{error_msg}")
 
     def _load_data_on_first_show(self):
         """
@@ -533,10 +554,25 @@ from foliarium.ui.widgets.reporting import (
 
 from foliarium.ui.widgets.admin import GestioneUtentiWidget, AuditLogViewerWidget, BackupWidget, ArchivioWidget, TipiPossessoWidget
 
-# In gui_widgets.py
+class _DashboardLoaderWorker(QThread):
+    """Esegue le tre query della dashboard in background per non bloccare la UI."""
+    stats_ready = pyqtSignal(dict)
+    sessions_ready = pyqtSignal(list)
+    ultimi_ready = pyqtSignal(dict)
+    error_occurred = pyqtSignal(str)
 
-# In gui_widgets.py, puoi commentare o eliminare la vecchia classe LandingPageWidget
-# e aggiungere questa nuova classe.
+    def __init__(self, db_manager, parent=None):
+        super().__init__(parent)
+        self._db = db_manager
+
+    def run(self):
+        try:
+            self.stats_ready.emit(self._db.get_dashboard_stats() or {})
+            self.sessions_ready.emit(self._db.get_recent_session_logs(limit=5) or [])
+            self.ultimi_ready.emit(self._db.get_ultimi_inserimenti_dashboard(limit=3) or {})
+        except Exception as e:
+            self.error_occurred.emit(str(e))
+
 
 class DashboardWidget(QWidget):
     # Segnali per navigare ad altri tab (manteniamo la logica)
@@ -690,56 +726,57 @@ class DashboardWidget(QWidget):
     # In gui_widgets.py, nel metodo DashboardWidget.load_initial_data
 
     def load_initial_data(self):
-        """Carica tutti i dati necessari per la dashboard."""
-        self.logger.info("Caricamento dati per la Dashboard...")
-        # La parte delle statistiche rimane invariata
-        stats = self.db_manager.get_dashboard_stats()
+        """Avvia il caricamento dei dati dashboard in background (non blocca la UI)."""
+        self.logger.info("Avvio caricamento asincrono dati Dashboard...")
+        if hasattr(self, '_dash_loader') and self._dash_loader.isRunning():
+            return
+
+        self._dash_loader = _DashboardLoaderWorker(self.db_manager, self)
+        self._dash_loader.stats_ready.connect(self._on_stats_ready)
+        self._dash_loader.sessions_ready.connect(self._on_sessions_ready)
+        self._dash_loader.ultimi_ready.connect(self._on_ultimi_ready)
+        self._dash_loader.error_occurred.connect(
+            lambda msg: self.logger.warning("Errore caricamento dashboard: %s", msg)
+        )
+        self._dash_loader.start()
+
+    def _on_stats_ready(self, stats: dict):
         self.stat_comuni_card.setValue(stats.get('total_comuni', 0))
         self.stat_partite_card.setValue(stats.get('total_partite', 0))
         self.stat_possessori_card.setValue(stats.get('total_possessori', 0))
         self.stat_immobili_card.setValue(stats.get('total_immobili', 0))
 
-        # Carica gli ultimi log di sessione
-        session_logs = self.db_manager.get_recent_session_logs(limit=5)
-        
+    def _on_sessions_ready(self, session_logs: list):
         self.audit_table.setRowCount(len(session_logs))
         for row, log in enumerate(session_logs):
-            # Usiamo le chiavi corrette ('data_login' e 'indirizzo_ip') restituite dalla query
             ts = log.get('data_login')
             ts_str = ts.strftime("%d/%m/%y %H:%M") if ts else "N/D"
-
             user_display = log.get('nome_completo') or log.get('username', 'N/D')
             action_display = log.get('azione', 'N/D').replace('_', ' ').title()
             esito_display = "Successo" if log.get('esito') else "Fallito"
-
             self.audit_table.setItem(row, 0, QTableWidgetItem(ts_str))
             self.audit_table.setItem(row, 1, QTableWidgetItem(user_display))
             self.audit_table.setItem(row, 2, QTableWidgetItem(action_display))
             self.audit_table.setItem(row, 3, QTableWidgetItem(esito_display))
-            self.audit_table.setItem(row, 4, QTableWidgetItem(log.get('indirizzo_ip', 'N/D'))) # <-- Colonna corretta
-            
+            self.audit_table.setItem(row, 4, QTableWidgetItem(log.get('indirizzo_ip', 'N/D')))
         self.audit_table.resizeColumnsToContents()
 
-        # Ultimi inserimenti
-        try:
-            ultimi = self.db_manager.get_ultimi_inserimenti_dashboard(limit=3)
-            comuni = ultimi.get("comuni", [])
-            self.tab_comuni_recenti.setRowCount(len(comuni))
-            for i, c in enumerate(comuni):
-                self.tab_comuni_recenti.setItem(i, 0, QTableWidgetItem(c.get("nome", "")))
-                self.tab_comuni_recenti.setItem(i, 1, QTableWidgetItem(c.get("provincia", "")))
-            partite = ultimi.get("partite", [])
-            self.tab_partite_recenti.setRowCount(len(partite))
-            for i, p in enumerate(partite):
-                self.tab_partite_recenti.setItem(i, 0, QTableWidgetItem(str(p.get("numero_partita", ""))))
-                self.tab_partite_recenti.setItem(i, 1, QTableWidgetItem(p.get("comune", "")))
-            possessori = ultimi.get("possessori", [])
-            self.tab_possessori_recenti.setRowCount(len(possessori))
-            for i, pos in enumerate(possessori):
-                self.tab_possessori_recenti.setItem(i, 0, QTableWidgetItem(pos.get("cognome_nome", "")))
-                self.tab_possessori_recenti.setItem(i, 1, QTableWidgetItem(pos.get("nome_completo", "")))
-        except Exception as e:
-            self.logger.warning(f"Errore caricamento ultimi inserimenti: {e}")
+    def _on_ultimi_ready(self, ultimi: dict):
+        comuni = ultimi.get("comuni", [])
+        self.tab_comuni_recenti.setRowCount(len(comuni))
+        for i, c in enumerate(comuni):
+            self.tab_comuni_recenti.setItem(i, 0, QTableWidgetItem(c.get("nome", "")))
+            self.tab_comuni_recenti.setItem(i, 1, QTableWidgetItem(c.get("provincia", "")))
+        partite = ultimi.get("partite", [])
+        self.tab_partite_recenti.setRowCount(len(partite))
+        for i, p in enumerate(partite):
+            self.tab_partite_recenti.setItem(i, 0, QTableWidgetItem(str(p.get("numero_partita", ""))))
+            self.tab_partite_recenti.setItem(i, 1, QTableWidgetItem(p.get("comune", "")))
+        possessori = ultimi.get("possessori", [])
+        self.tab_possessori_recenti.setRowCount(len(possessori))
+        for i, pos in enumerate(possessori):
+            self.tab_possessori_recenti.setItem(i, 0, QTableWidgetItem(pos.get("cognome_nome", "")))
+            self.tab_possessori_recenti.setItem(i, 1, QTableWidgetItem(pos.get("nome_completo", "")))
 
         # Stato backup (legge da QSettings)
         try:

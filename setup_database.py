@@ -567,6 +567,8 @@ def setup(
 
     if db_password is None:
         db_password = generate_password(16)
+    if admin_password is None:
+        admin_password = generate_password(16)
 
     print(f"\n{'='*60}")
     print(f" Foliarium — Inizializzazione Database ({SYSTEM})")
@@ -720,13 +722,12 @@ def setup(
         # CRITICO per fresh install: senza questo non si puo' accedere al primo avvio.
         bootstrap_file = sql_dir / BOOTSTRAP_ADMIN_SCRIPT
         if bootstrap_file.exists():
-            effective_admin_pwd = admin_password or "admin123"
             log(f"→ {BOOTSTRAP_ADMIN_SCRIPT} (password admin dinamica)")
             run_psql_file(
                 pg_bin, port, bootstrap_file,
                 dbname=DB_NAME, password=db_password,
                 variables={
-                    "admin_password": effective_admin_pwd,
+                    "admin_password": admin_password,
                     "admin_email": "admin@archivio.local",
                 },
             )
@@ -937,11 +938,13 @@ def main() -> None:
         else:
             pg_bin = Path(args.pg_bin)
 
+        _db_pwd = args.db_password or generate_password(16)
+        _admin_pwd = args.admin_password or generate_password(16)
         ok = _setup_on_external_pg(
             install_dir=install_dir,
             pg_bin=pg_bin,
-            db_password=args.db_password or generate_password(16),
-            admin_password=args.admin_password or "admin123",
+            db_password=_db_pwd,
+            admin_password=_admin_pwd,
             postgres_password=args.postgres_password,
             port=args.port,
             db_name=args.db_name,

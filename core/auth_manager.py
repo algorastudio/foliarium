@@ -23,6 +23,8 @@ Utilizzo:
 from __future__ import annotations
 
 import logging
+import threading
+import time
 from typing import Optional
 
 import bcrypt
@@ -31,6 +33,16 @@ from core.session_manager import SessionManager, Role
 from utils.error_handlers import AuthenticationError, AuthorizationError
 
 logger = logging.getLogger(__name__)
+
+# ---------------------------------------------------------------------------
+# Rate limiting in-memory (per-processo).
+# Protegge da brute-force sul login GUI/API della singola istanza.
+# ---------------------------------------------------------------------------
+_LOCKOUT_THRESHOLD = 5        # tentativi falliti prima del blocco
+_LOCKOUT_DURATION = 900       # secondi di lockout (15 minuti)
+
+_login_failures: dict[str, dict] = {}  # {username: {"count": int, "locked_until": float}}
+_rate_lock = threading.Lock()
 
 # Hash precomputato (bcrypt cost 12) usato come dummy per normalizzare i tempi
 # di risposta del login e impedire user enumeration tramite timing.
@@ -58,6 +70,45 @@ class AuthManager:
     # Autenticazione
     # ------------------------------------------------------------------
 
+    # ------------------------------------------------------------------
+    # Rate limiting helpers
+    # ------------------------------------------------------------------
+
+    @staticmethod
+    def _is_locked_out(username: str) -> bool:
+        with _rate_lock:
+            entry = _login_failures.get(username)
+            if not entry:
+                return False
+            if entry["count"] >= _LOCKOUT_THRESHOLD:
+                if time.monotonic() < entry["locked_until"]:
+                    return True
+                # Lockout scaduto: azzera
+                _login_failures.pop(username, None)
+            return False
+
+    @staticmethod
+    def _record_failure(username: str) -> int:
+        with _rate_lock:
+            entry = _login_failures.setdefault(username, {"count": 0, "locked_until": 0.0})
+            entry["count"] += 1
+            if entry["count"] >= _LOCKOUT_THRESHOLD:
+                entry["locked_until"] = time.monotonic() + _LOCKOUT_DURATION
+                logger.warning(
+                    "Account '%s' bloccato per %d minuti dopo %d tentativi falliti.",
+                    username, _LOCKOUT_DURATION // 60, entry["count"],
+                )
+            return entry["count"]
+
+    @staticmethod
+    def _reset_failures(username: str) -> None:
+        with _rate_lock:
+            _login_failures.pop(username, None)
+
+    # ------------------------------------------------------------------
+    # Autenticazione
+    # ------------------------------------------------------------------
+
     def authenticate(self, username: str, password: str) -> bool:
         """
         Autentica l'utente e apre la sessione in caso di successo.
@@ -70,14 +121,23 @@ class AuthManager:
             True se autenticato, False se credenziali errate.
 
         Raises:
-            AuthenticationError: Se l'account è disabilitato o si verifica
-                                  un errore durante il recupero dei dati.
+            AuthenticationError: Se l'account è bloccato, disabilitato o si
+                                  verifica un errore durante il recupero.
         """
         if not username or not password:
             return False
 
+        username = username.strip()
+
+        if self._is_locked_out(username):
+            logger.warning("Login bloccato per rate limiting: '%s'", username)
+            raise AuthenticationError(
+                "Account temporaneamente bloccato per troppi tentativi falliti.\n"
+                f"Riprovare tra {_LOCKOUT_DURATION // 60} minuti o contattare l'amministratore."
+            )
+
         try:
-            user = self._db.get_utente_by_username(username.strip())
+            user = self._db.get_utente_by_username(username)
         except Exception as e:
             logger.error("Errore recupero utente '%s': %s", username, e)
             raise AuthenticationError(
@@ -89,6 +149,7 @@ class AuthManager:
             # Esegue un check bcrypt dummy per normalizzare i tempi di risposta
             # e impedire user enumeration tramite timing.
             self._verify_password(_DUMMY_HASH, password)
+            self._record_failure(username)
             return False
 
         # Verifica account attivo
@@ -102,9 +163,11 @@ class AuthManager:
         stored_hash = user.get("password_hash", "")
         if not self._verify_password(stored_hash, password):
             logger.warning("Password errata per utente '%s'", username)
+            self._record_failure(username)
             return False
 
-        # Successo — apri sessione
+        # Successo — azzera contatore e apri sessione
+        self._reset_failures(username)
         self._session.login(
             user_id=user["id"],
             user_info={
