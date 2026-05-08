@@ -1537,7 +1537,6 @@ class LocalitaSelectionDialog(QDialog):
 
         self.load_localita()
         self._tab_changed(self.tabs.currentIndex()) # Imposta lo stato iniziale del pulsante
-     # --- INIZIO METODO MANCANTE/DA RIPRISTINARE ---
     def load_localita(self, filter_text: Optional[str] = None):
         """
         Carica le località per il comune_id corrente, applicando un filtro testuale opzionale.
@@ -1596,9 +1595,7 @@ class LocalitaSelectionDialog(QDialog):
 
         self.localita_table.setSortingEnabled(True)
         self._aggiorna_stato_pulsanti_action_localita() # Aggiorna stato pulsanti
-    # --- FINE METODO MANCANTE/DA RIPRISTINARE ---
 
-    # --- INIZIO METODO MANCANTE/DA RIPRISTINARE ---
     def _handle_double_click(self, item: QTableWidgetItem):
         """Gestisce il doppio click sulla tabella."""
         if self.selection_mode and self.tabs.currentIndex() == 0:
@@ -1608,7 +1605,6 @@ class LocalitaSelectionDialog(QDialog):
             # Se non in modalità selezione (ovvero gestione) e nel tab di visualizzazione,
             # il doppio click apre la modifica (se l'utente ha i permessi e una riga è selezionata).
             self.apri_modifica_localita_selezionata()
-    # --- FINE METODO MANCANTE/DA RIPRISTINARE ---
     def _aggiorna_stato_pulsanti_action_localita(self):
         """Abilita/disabilita i pulsanti di azione (Modifica, Seleziona) in base alla selezione nella tabella."""
         is_select_tab_active = (self.tabs.currentIndex() == 0)
@@ -1622,7 +1618,6 @@ class LocalitaSelectionDialog(QDialog):
         # Pulsante Seleziona (visibile e attivo solo se nel tab corretto e c'è selezione)
         # La visibilità del pulsante "Seleziona" è gestita in _tab_changed e _init_ui
         self.select_button.setEnabled(is_select_tab_active and has_selection_in_table)
-    # --- FINE METODO MANCANTE/DA RIPRISTINARE ---
 
 
     def _tab_changed(self, index):
@@ -1644,8 +1639,6 @@ class LocalitaSelectionDialog(QDialog):
             
         self._aggiorna_stato_pulsanti_action_localita() # Aggiorna abilitazione
 
-    # --- MODIFICA CRUCIALE: Unifica la gestione di selezione ed creazione ---
-    # --- INIZIO METODO MANCANTE/DA RIPRISTINARE ---
     def apri_modifica_localita_selezionata(self):
         """
         Apre un dialogo per modificare la località selezionata dalla tabella.
@@ -1678,7 +1671,6 @@ class LocalitaSelectionDialog(QDialog):
         if id_item and id_item.text().isdigit():
             return int(id_item.text())
         return None
-    # --- FINE METODO MANCANTE/DA RIPRISTINARE ---
     def _handle_selection_or_creation(self):
         """
         Gestisce la selezione di una località esistente o la creazione/selezione di una nuova.
@@ -1804,7 +1796,6 @@ class LocalitaSelectionDialog(QDialog):
         """Ripulisce i campi di creazione nuova località."""
         self.nome_edit_nuova.clear()
         self.tipologia_edit_nuova.clear()
-    # --- FINE METODO MANCANTE/DA RIPRISTINARE ---
 
 
 class PeriodoStoricoEditDialog(QDialog):

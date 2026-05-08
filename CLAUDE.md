@@ -4,7 +4,7 @@
 
 **Foliarium** is a desktop application for managing historical Italian cadastral records (archivio catastale storico). It allows archivists to search, insert, and export property records (partite catastali) and owners (possessori).
 
-- **Current version:** 1.0.0
+- **Current version:** 1.0.1
 - **Author:** Marco Santoro / Algora Studio
 - **Primary platform:** Windows 10+
 - **Code/UI language:** Italian

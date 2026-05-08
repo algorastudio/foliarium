@@ -1,9 +1,12 @@
 """api/routes/dashboard.py — Statistiche per la dashboard analytics."""
+import logging
 from datetime import date, datetime, timedelta
 
 from fastapi import APIRouter, Depends
 
 from api.deps import get_db, get_current_session
+
+logger = logging.getLogger("FoliariumAPI.dashboard")
 
 router = APIRouter(prefix="/dashboard", tags=["dashboard"])
 
@@ -13,14 +16,15 @@ def get_stats(session=Depends(get_current_session), db=Depends(get_db)):
     """Statistiche aggregate base — usate dalla pagina Analytics."""
     try:
         stats_comune = db.get_statistiche_comune() or []
-    except Exception:
+    except Exception as _e:
+        logger.warning("Errore stats comune: %s", _e)
         stats_comune = []
 
     base = {"total_comuni": 0, "total_partite": 0, "total_possessori": 0, "total_immobili": 0}
     try:
         base.update(db.get_dashboard_stats() or {})
-    except Exception:
-        pass
+    except Exception as _e:
+        logger.warning("Errore dashboard stats: %s", _e)
 
     totale_partite = base.get("total_partite") or sum(r.get("num_partite", 0) for r in stats_comune)
     totale_comuni = base.get("total_comuni") or len(stats_comune)
@@ -39,14 +43,15 @@ def get_analytics(session=Depends(get_current_session), db=Depends(get_db)):
     """Aggregati per la dashboard analytics: KPI + breakdown per comune e tipologia."""
     try:
         stats_comune = db.get_statistiche_comune() or []
-    except Exception:
+    except Exception as _e:
+        logger.warning("Errore stats comune: %s", _e)
         stats_comune = []
 
     base = {"total_comuni": 0, "total_partite": 0, "total_possessori": 0, "total_immobili": 0}
     try:
         base.update(db.get_dashboard_stats() or {})
-    except Exception:
-        pass
+    except Exception as _e:
+        logger.warning("Errore dashboard stats: %s", _e)
 
     # Top 5 comuni per numero partite
     sorted_comuni = sorted(
@@ -71,7 +76,8 @@ def get_analytics(session=Depends(get_current_session), db=Depends(get_db)):
                 row = cur.fetchone()
                 if row:
                     variazioni = int(row[0] or 0)
-    except Exception:
+    except Exception as _e:
+        logger.warning("Errore conteggio variazioni: %s", _e)
         variazioni = 0
 
     # Distribuzione tipologie (Partite / Variazioni / Atti notarili surrogato = contratti)
@@ -83,7 +89,8 @@ def get_analytics(session=Depends(get_current_session), db=Depends(get_db)):
                 row = cur.fetchone()
                 if row:
                     contratti = int(row[0] or 0)
-    except Exception:
+    except Exception as _e:
+        logger.warning("Errore conteggio contratti: %s", _e)
         contratti = 0
 
     total_docs = (base.get("total_partite", 0) or 0) + variazioni + contratti
@@ -107,7 +114,8 @@ def get_analytics(session=Depends(get_current_session), db=Depends(get_db)):
                 row = cur.fetchone()
                 if row:
                     utenti_attivi = int(row[0] or 0)
-    except Exception:
+    except Exception as _e:
+        logger.warning("Errore conteggio utenti attivi: %s", _e)
         utenti_attivi = 0
 
     return {
@@ -143,7 +151,8 @@ def _completezza_pct(db) -> float:
                 )
                 row = cur.fetchone()
                 return round(float(row[0] or 0), 1)
-    except Exception:
+    except Exception as _e:
+        logger.warning("Errore calcolo metrica qualita: %s", _e)
         return 0.0
 
 
@@ -167,5 +176,6 @@ def _duplicati_pct(db) -> float:
                 )
                 row = cur.fetchone()
                 return round(float(row[0] or 0), 1)
-    except Exception:
+    except Exception as _e:
+        logger.warning("Errore calcolo metrica qualita: %s", _e)
         return 0.0

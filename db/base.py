@@ -413,8 +413,14 @@ class DBConnectionBase:
         except psycopg2.pool.PoolError as pe:
             self._pool_metrics["connection_errors"] += 1
             self._pool_metrics["last_error_time"] = datetime.now()
-            self.logger.error(f"Errore critico nell'ottenere una connessione dal pool: {pe}")
-            raise psycopg2.OperationalError(f"Impossibile ottenere una connessione valida dal pool: {pe}")
+            self.logger.error(
+                "Pool connessioni esaurito (max=%s in uso). Dettaglio: %s",
+                getattr(self.pool, '_maxconn', '?'), pe,
+            )
+            raise psycopg2.OperationalError(
+                "Il database è al massimo delle connessioni attive. "
+                "Attendere un momento e riprovare l'operazione."
+            ) from pe
         except Exception as e:
             if conn:
                 try:

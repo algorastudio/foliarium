@@ -762,10 +762,10 @@ class DashboardWidget(QWidget):
                         f"QLabel {{ background: #F0F4F8; border: 1px solid {color}; border-radius: 6px; "
                         f"padding: 6px 10px; font-size: 11px; color: {color}; font-weight: bold; }}"
                     )
-                except Exception:
-                    pass
-        except Exception:
-            pass
+                except Exception as _e:
+                    logger.debug("Impossibile aggiornare stato backup dalla data '%s': %s", last_backup, _e)
+        except Exception as _e:
+            logger.debug("Impossibile leggere stato backup da QSettings: %s", _e)
 
     def _avvia_ricerca_globale(self):
         """Emette un segnale per passare al tab di ricerca globale e inserire il testo."""
@@ -929,7 +929,8 @@ class WelcomeScreen(QDialog):
         try:
             with open(str(eula_path), "r", encoding="utf-8") as f:
                 self.eula_browser.setPlainText(f.read())
-        except Exception:
+        except Exception as _e:
+            logger.warning("Impossibile caricare EULA da '%s': %s", eula_path, _e)
             self.eula_browser.setPlainText(
                 "Impossibile caricare il testo della licenza.\n"
                 "Contatta Algora Studio per una copia del contratto."
