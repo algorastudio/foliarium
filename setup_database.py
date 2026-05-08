@@ -110,10 +110,18 @@ def log(msg: str) -> None:
 
 
 def run(cmd: list, **kw) -> subprocess.CompletedProcess:
-    """Esegue un comando e logga."""
+    """Esegue un comando e logga. Su errore, stampa stdout/stderr catturati."""
     display = " ".join(str(c) for c in cmd)
     log(f"$ {display}")
-    return subprocess.run(cmd, check=True, **kw)
+    try:
+        return subprocess.run(cmd, check=True, **kw)
+    except subprocess.CalledProcessError as e:
+        # Se l'output era catturato, mostralo per non perdere il messaggio reale
+        if e.stdout:
+            sys.stdout.write(e.stdout.decode(errors="replace") if isinstance(e.stdout, bytes) else e.stdout)
+        if e.stderr:
+            sys.stderr.write(e.stderr.decode(errors="replace") if isinstance(e.stderr, bytes) else e.stderr)
+        raise
 
 
 def run_quiet(cmd: list, **kw) -> subprocess.CompletedProcess:
@@ -178,8 +186,10 @@ def run_psql_file(pg_bin: Path, port: int, sql_file: Path,
     cmd = [exe(pg_bin, "psql"), "-h", "127.0.0.1", "-p", str(port),
            "-U", "postgres", "-d", dbname]
     for k, v in (variables or {}).items():
-        # psql -v admin_password='valore'  → diventa :'admin_password' nel file
-        cmd += ["-v", f"{k}={v!r}"]
+        # psql -v admin_password=valore  → variabile letterale "valore",
+        # poi :'admin_password' nel file aggiunge le virgolette per il SQL.
+        # NB: NON usare repr() qui, altrimenti la quotatura diventa doppia.
+        cmd += ["-v", f"{k}={v}"]
     cmd += ["-f", str(sql_file)]
     run(cmd, env=env, capture_output=True)
 
