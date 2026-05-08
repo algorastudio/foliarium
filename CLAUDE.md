@@ -32,36 +32,55 @@
 ## Project structure
 
 ```
-catasto/
-├── gui_main.py              # Entry point — QMainWindow, app init
-├── gui_widgets.py           # Main UI panels/widgets (re-export facade)
-├── insertion_widgets.py     # Widget inserimento: Comune, Possessore, Località, Partita
-├── admin_widgets.py         # Widget admin: Utenti, Audit, Backup, TipiLocalità, Periodi
-├── reporting_widgets.py     # Widget report: Documenti, Esportazioni, Reportistica, Statistiche
-├── import_dialogs.py        # Dialog import CSV/ISTAT/OSM per Comuni e Località
-├── dialogs.py               # Dialog windows (tutti gli altri dialog)
-├── catasto_db_manager.py    # Database layer — facade per il package db/
-├── app_utils.py             # PDF/report utilities
-├── app_paths.py             # Path resolution & resource loading
-├── config.py                # App config, logging, env-var DB credentials
-├── custom_widgets.py        # Reusable custom PyQt6 widgets
-├── sql_scripts/             # PostgreSQL DDL, stored procedures, init scripts
-├── styles/                  # Qt stylesheets (.qss) — 16 themes
-├── resources/               # Icons, images, EULA
-├── tests/                   # Test suite (pytest)
-├── docs/                    # MkDocs documentation source
-├── esportazioni/            # Export output directory (PDFs, CSVs)
-├── .devcontainer/           # Dev container config (VS Code / Codespaces)
-├── .github/workflows/       # CI/CD pipeline
-├── meridiana.spec           # PyInstaller build spec
-├── foliarium_demo.spec      # PyInstaller spec versione demo (include PG portabile)
-├── Meridiana_Installer.iss  # Inno Setup installer script
-├── demo_launcher.py         # Avvia/ferma PostgreSQL portabile (solo demo)
-├── prepare_demo_db.py       # Script CI: initdb + schema + dati demo
-├── demo_config.ini          # Credenziali DB demo + guida inizializzazione
-├── license_manager.py       # Gestione licenze (fingerprint, validazione, seat rete)
-├── generate_license.py      # CLI utility: genera/ispeziona file .license
-└── update_checker.py        # Verifica e download automatico aggiornamenti
+foliarium/
+├── gui_main.py                   # Entry point — QMainWindow, app init
+├── gui_widgets.py                # Widget UI principali (monolite, candidato a refactor futuro)
+├── dialogs.py                    # Dialog windows secondari
+├── catasto_db_manager.py         # Facade DB — delega al package db/
+├── app_utils.py                  # PDF/report utilities
+├── app_paths.py                  # Path resolution & resource loading
+├── config.py                     # Costanti, logging, APP_VERSION
+├── validators.py                 # Validatori campi form
+│
+├── foliarium/                    # Package principale (servizi + UI estratti)
+│   ├── core/services/            # email.py, license.py, update_checker.py, demo_launcher.py
+│   └── ui/                       # top_bar.py, sidebar.py, command_palette.py
+│       ├── dialogs/              # entity.py, admin.py, partita.py, import_.py
+│       └── widgets/              # admin.py, insertion.py, reporting.py, custom.py
+│
+├── db/                           # Database layer — 14 mixin via ereditarietà multipla
+│   ├── base.py                   # DBConnectionBase: pool, _get_connection(), bulk_insert
+│   ├── comuni.py, localita.py, possessori.py, partite.py, immobili.py
+│   ├── variazioni.py, documenti.py, audit.py, utenti.py
+│   ├── backup.py, stats.py, ricerca.py, io.py, archivio.py
+│   └── models.py                 # Dataclass models
+│
+├── core/                         # Gestione sessione e autenticazione
+│   ├── session_manager.py        # SessionManager (stato utente corrente)
+│   └── auth_manager.py           # AuthManager (authn + permessi)
+│
+├── api/                          # REST API FastAPI (opzionale, per integrazioni esterne)
+│   ├── main.py, server_thread.py
+│   └── routes/                   # comuni, partite, possessori, audit, genealogia, ecc.
+│
+├── utils/
+│   └── error_handlers.py         # Eccezioni custom (AuthenticationError, ecc.)
+│
+├── sql_scripts/                  # Script PostgreSQL (init + migrazioni)
+├── styles/                       # Qt stylesheets (.qss) — 16 temi
+├── resources/                    # Icone, immagini, EULA
+├── tests/                        # Test suite (pytest)
+├── docs/                         # MkDocs documentation source
+├── esportazioni/                 # Output directory (PDF, CSV)
+├── .devcontainer/                # Dev container config (VS Code / Codespaces)
+├── .github/workflows/            # CI/CD pipeline
+├── foliarium.spec                # PyInstaller build spec (produzione)
+├── foliarium_demo.spec           # PyInstaller build spec (demo portabile)
+├── Foliarium_Unified_Installer.iss  # Inno Setup installer unificato
+├── setup_database.bat / .py      # Init DB Windows / cross-platform
+├── prepare_demo_db.py            # Script CI: initdb + schema + dati demo
+├── generate_license.py           # CLI: genera/ispeziona file .license
+└── demo_config.ini               # Guida + credenziali DB demo
 ```
 
 ---
@@ -99,7 +118,7 @@ pytest -m integration
 pytest -m "not gui"          # skip GUI tests (e.g. in headless env)
 
 # Build Windows executable
-pyinstaller meridiana.spec
+pyinstaller foliarium.spec
 
 # Install dependencies
 pip install -r requirements.txt

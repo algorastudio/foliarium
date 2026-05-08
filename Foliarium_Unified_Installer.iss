@@ -16,7 +16,7 @@
 ; ============================================================================
 
 #define MyAppName "Foliarium"
-#define MyAppVersion "1.6.0"
+#define MyAppVersion "1.0.0"
 #define MyAppPublisher "Marco Santoro"
 #define MyAppURL "https://github.com/saintgold74/catasto"
 #define MyAppExeName "Foliarium.exe"
