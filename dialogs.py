@@ -23,6 +23,7 @@ from foliarium.ui.dialogs.admin import (                        # noqa: F401
     SMTPSettingsDialog,
     HelpViewerDialog,
     LicenseDialog,
+    LoginDialog,
     qdate_to_datetime,
     datetime_to_qdate,
     _validate_password_strength,

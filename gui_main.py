@@ -31,8 +31,6 @@ from PyQt6.QtWidgets import (QApplication,
                              QScrollArea, QSizePolicy, QSplashScreen, QStackedWidget,
                              QStyle, QStyleFactory, QTabWidget,
                              QVBoxLayout, QWidget)
-# --- FINE MODIFICA ---
-
 
 
 from catasto_db_manager import CatastoDBManager
@@ -43,7 +41,6 @@ from dialogs import (CSVImportResultDialog, EulaDialog, BackupReminderSettingsDi
                      ImportComuniDialog, ImportLocalitaDialog)
 
 
-# Dai nuovi moduli che creeremo:
 from gui_widgets import (
     DashboardWidget, ElencoComuniWidget, RicercaPartiteWidget,
     RicercaAvanzataImmobiliWidget, InserimentoComuneWidget,
@@ -83,12 +80,9 @@ except ImportError:
     # QMessageBox.warning(None, "Avviso Dipendenza", "La libreria FPDF non è installata. L'esportazione in PDF non sarà disponibile.")
     # Non mostrare il messaggio qui, ma gestire la disabilitazione dei pulsanti PDF.
 
-# Importazione del gestore DB (il percorso potrebbe necessitare aggiustamenti)
 try:
     from catasto_db_manager import DBMError, DBUniqueConstraintError, DBNotFoundError, DBDataError
 except ImportError:
-    # Fallback o definizione locale se preferisci non importare direttamente
-    # (ma l'importazione è più pulita se sono definite in db_manager)
     class DBMError(Exception):
         pass
 
@@ -114,228 +108,8 @@ except ImportError:
                              "Non è possibile importare CatastoDBManager. "
                              "Assicurati che catasto_db_manager.py sia accessibile.")
         sys.exit(1)
-# Hash/verifica password: logica centralizzata in core.auth_manager
-from core.auth_manager import AuthManager as _AuthManager
-def _hash_password(password: str) -> str:
-    """Genera un hash sicuro per la password usando bcrypt."""
-    return _AuthManager._hash_password(password)
-
-def _verify_password(stored_hash: str, provided_password: str) -> bool:
-    """Verifica se la password fornita corrisponde all'hash memorizzato."""
-    return _AuthManager._verify_password(stored_hash, provided_password)
-
-# ---------------------------------------------------------------------------
-# Splash screen Foliarium
-# ---------------------------------------------------------------------------
-
-def _build_foliarium_splash_pixmap():
-    """Genera il pixmap di fallback per la splash screen (usato se il PNG non esiste)."""
-    from PyQt6.QtGui import QPixmap, QPainter, QColor, QFont, QPen
-    from PyQt6.QtCore import QRect
-
-    W, H = 700, 394
-    pixmap = QPixmap(W, H)
-    pixmap.fill(QColor("#f5f0e8"))
-
-    painter = QPainter(pixmap)
-    painter.setRenderHint(QPainter.RenderHint.Antialiasing)
-
-    # Bordo oro
-    pen = QPen(QColor("#b8960c"), 4)
-    painter.setPen(pen)
-    painter.drawRect(8, 8, W - 16, H - 16)
-    # Linea separatrice
-    painter.drawLine(40, H // 2 + 30, W - 40, H // 2 + 30)
-
-    # Titolo
-    font_title = QFont("Georgia", 64, QFont.Weight.Bold)
-    painter.setFont(font_title)
-    painter.setPen(QColor("#1a3c2b"))
-    painter.drawText(QRect(0, 50, W, 140), Qt.AlignmentFlag.AlignCenter, "FOLIARIUM")
-
-    # Sottotitolo
-    font_sub = QFont("Georgia", 16)
-    painter.setFont(font_sub)
-    painter.drawText(QRect(0, 210, W, 40), Qt.AlignmentFlag.AlignCenter, "GESTIONE DIGITALE")
-    painter.drawText(QRect(0, 245, W, 40), Qt.AlignmentFlag.AlignCenter, "ARCHIVI CATASTALI STORICI")
-
-    # Versione
-    font_ver = QFont("Georgia", 10)
-    painter.setFont(font_ver)
-    painter.setPen(QColor("#7a6a50"))
-    painter.drawText(QRect(0, H - 45, W - 20, 30),
-                     Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignBottom,
-                     f"v{APP_VERSION}")
-
-    painter.end()
-    return pixmap
-
-
-class FoliariumSplashScreen(QSplashScreen):
-    """Splash screen mostrata all'avvio prima del login."""
-
-    def __init__(self):
-        logo_path = str(get_resource_path("Logo_foliarium.png"))
-        if os.path.exists(logo_path):
-            from PyQt6.QtGui import QPixmap
-            pixmap = QPixmap(logo_path).scaled(
-                700, 394,
-                Qt.AspectRatioMode.KeepAspectRatio,
-                Qt.TransformationMode.SmoothTransformation,
-            )
-        else:
-            pixmap = _build_foliarium_splash_pixmap()
-        super().__init__(pixmap)
-        self.setWindowFlag(Qt.WindowType.FramelessWindowHint)
-
-
-# ---------------------------------------------------------------------------
-
-
-class LoginDialog(QDialog):
-    # --- INIZIO MODIFICA 1 ---
-    # Aggiungiamo 'client_ip' come parametro all'init
-    def __init__(self, db_manager: CatastoDBManager, client_ip: str, parent=None):
-        super(LoginDialog, self).__init__(parent)
-        self.db_manager = db_manager
-        self.client_ip = client_ip # Salviamo l'IP come attributo dell'istanza
-        self.logged_in_user_id: Optional[int] = None
-    # --- FINE MODIFICA 1 ---
-        self.logged_in_user_info: Optional[Dict] = None
-        # NUOVO attributo per conservare l'UUID
-        self.current_session_id_from_dialog: Optional[str] = None
-
-        self.setWindowTitle("Login - Foliarium")
-        self.setMinimumWidth(350)
-        self.setModal(True)
-
-        layout = QVBoxLayout(self)
-
-        form_layout = QGridLayout()
-        form_layout.addWidget(QLabel("Username:"), 0, 0)
-        self.username_edit = QLineEdit()
-        self.username_edit.setPlaceholderText("Inserisci username")
-        form_layout.addWidget(self.username_edit, 0, 1)
-
-        form_layout.addWidget(QLabel("Password:"), 1, 0)
-        self.password_edit = QPasswordLineEdit()
-        form_layout.addWidget(self.password_edit, 1, 1)
-
-        layout.addLayout(form_layout)
-
-        buttons_layout = QHBoxLayout()
-        self.login_button = QPushButton("Login")
-        self.login_button.setDefault(True)
-        self.login_button.clicked.connect(self.handle_login)
-
-        self.cancel_button = QPushButton("Esci")
-        self.cancel_button.clicked.connect(self.reject)
-
-        buttons_layout.addStretch()
-        buttons_layout.addWidget(self.login_button)
-        buttons_layout.addWidget(self.cancel_button)
-        layout.addLayout(buttons_layout)
-
-        self.username_edit.setFocus()
-
-    def handle_login(self):
-        username = self.username_edit.text().strip()
-        password = self.password_edit.text()
-
-        if not username or not password:
-            QMessageBox.warning(self, "Login Fallito",
-                                "Username e password sono obbligatori.")
-            return
-
-        credentials = self.db_manager.get_user_credentials(
-            username)  # Presumiamo restituisca anche 'id' utente app
-        login_success = False
-        user_id_app = None  # ID utente dell'applicazione
-
-        if credentials:
-            # ID dell'utente dalla tabella 'utente'
-            user_id_app = credentials.get('id')
-            stored_hash = credentials.get('password_hash')
-            is_active = credentials.get('attivo', False)
-
-            if not is_active:
-                QMessageBox.warning(self, "Login Fallito",
-                                    "Utente non attivo.")
-                logging.getLogger("CatastoGUI").warning(
-                    f"Login GUI fallito (utente '{username}' non attivo).")
-                return  # Non procedere oltre se l'utente non è attivo
-
-            # Usa la tua funzione di verifica
-            if stored_hash and _verify_password(stored_hash, password):
-                login_success = True
-                logging.getLogger("CatastoGUI").info(
-                    f"Verifica password GUI OK per utente '{username}' (ID App: {user_id_app})")
-            else:
-                QMessageBox.warning(self, "Login Fallito",
-                                    "Username o Password errati.")
-                logging.getLogger("CatastoGUI").warning(
-                    f"Login GUI fallito (pwd errata) per utente '{username}'.")
-                self.password_edit.selectAll()
-                self.password_edit.setFocus()
-                return
-        else:
-            # Messaggio generico
-            QMessageBox.warning(self, "Login Fallito",
-                                "Username o Password errati.")
-            logging.getLogger("CatastoGUI").warning(
-                f"Login GUI fallito (utente '{username}' non trovato).")
-            self.username_edit.selectAll()
-            self.username_edit.setFocus()
-            return
-
-        if login_success and user_id_app is not None:
-            try:
-                 # --- INIZIO MODIFICA 2 ---
-                # Usiamo self.client_ip invece della variabile globale non definita
-                session_uuid_returned = self.db_manager.register_access(
-                    user_id=user_id_app,
-                    action='login',
-                    esito=True,
-                    indirizzo_ip=self.client_ip, # <-- USA L'ATTRIBUTO DI ISTANZA
-                    application_name='CatastoAppGUI'
-                )
-                # --- FINE MODIFICA 2 ---
-
-                if session_uuid_returned:
-                    self.logged_in_user_id = user_id_app
-                    # Contiene tutti i dati dell'utente, incluso 'id'
-                    self.logged_in_user_info = credentials
-                    self.current_session_id_from_dialog = session_uuid_returned  # Salva l'UUID
-
-                    # Imposta le variabili di sessione PostgreSQL per l'audit
-                    # user_id_app è l'ID dell'utente da 'utente.id'
-                    # session_uuid_returned è l'UUID dalla tabella 'sessioni_accesso.id_sessione'
-                    if not self.db_manager.set_audit_session_variables(user_id_app, session_uuid_returned):
-                        QMessageBox.critical(
-                            self, "Errore Audit", "Impossibile impostare le informazioni di sessione per l'audit. Il login non può procedere.")
-                        # Considera di non fare self.accept() qui se questo è un errore bloccante
-                        return
-
-                    QMessageBox.information(self, "Login Riuscito",
-                                            f"Benvenuto {self.logged_in_user_info.get('nome_completo', username)}!")
-                    self.accept()  # Chiude il dialogo e segnala successo
-                else:
-                    # register_access ha fallito nel restituire un session_id
-                    QMessageBox.critical(
-                        self, "Login Fallito", "Errore critico: Impossibile registrare la sessione di accesso nel database.")
-                    logging.getLogger("CatastoGUI").error(
-                        f"Login GUI OK per utente '{username}' ma fallita registrazione della sessione (nessun UUID sessione restituito).")
-
-            except DBMError as e_dbm:  # Cattura DBMError da register_access o set_audit_session_variables
-                QMessageBox.critical(
-                    self, "Errore di Login (DB)", f"Errore durante il processo di login:\n{str(e_dbm)}")
-                logging.getLogger("CatastoGUI").error(
-                    f"DBMError durante il login per {username}: {str(e_dbm)}")
-            except Exception as e_gen:  # Altri errori imprevisti
-                QMessageBox.critical(
-                    self, "Errore Imprevisto", f"Errore di sistema durante il login:\n{str(e_gen)}")
-                logging.getLogger("CatastoGUI").error(
-                    f"Errore imprevisto durante il login per {username}: {str(e_gen)}", exc_info=True)
+from foliarium.ui.splash import FoliariumSplashScreen  # noqa: F401
+from foliarium.ui.dialogs.admin import LoginDialog       # noqa: F401
 
 
 try:
@@ -371,9 +145,7 @@ class CatastoMainWindow(QMainWindow):
         # Gestione sessione centralizzata (nuovo sistema modulare)
         self.session = SessionManager()
 
-        # --- INIZIO CORREZIONE DEFINITIVA: Aggiungi questa riga ---
         self.pool_initialized_successful: bool = False
-        # --- FINE CORREZIONE DEFINITIVA ---
 
         # --- Gestione licenza ---
         self._license_manager = None   # impostato in run_gui_app prima di perform_initial_setup
@@ -584,8 +356,6 @@ class CatastoMainWindow(QMainWindow):
             self._seat_refresh_timer = QTimer(self)
             self._seat_refresh_timer.timeout.connect(self._license_manager.refresh_seat)
             self._seat_refresh_timer.start(60_000)
-        # --- FINE AGGIUNTA ---
-# In gui_main.py, SOSTITUISCI il metodo _check_backup_reminder
 
     def _check_backup_reminder(self):
         settings = QSettings()
@@ -628,12 +398,10 @@ class CatastoMainWindow(QMainWindow):
         settings_menu = menu_bar.addMenu("&Impostazioni")
         help_menu = menu_bar.addMenu("&Help")
         
-            # --- INIZIO AGGIUNTA ---
         settings_menu.addSeparator()
         backup_reminder_action = QAction("Promemoria Backup...", self)
         backup_reminder_action.triggered.connect(self._show_backup_settings_dialog)
         settings_menu.addAction(backup_reminder_action)
-        # --- FINE AGGIUNTA ---
         
         # --- Azioni per il menu File ---
         import_comuni_action = QAction("Importa Comuni da CSV/ISTAT...", self)
@@ -746,13 +514,11 @@ class CatastoMainWindow(QMainWindow):
         show_manual_action.setShortcut(QKeySequence("F1"))
         show_manual_action.triggered.connect(self._apri_manuale_utente)
         help_menu.addAction(show_manual_action)
-            # --- INIZIO MODIFICA ---
         help_menu.addSeparator()
 
         show_eula_action = QAction("Informazioni su Foliarium / EULA...", self)
         show_eula_action.triggered.connect(self._show_about_eula_dialog)
         help_menu.addAction(show_eula_action)
-        # --- FINE MODIFICA ---
 
     def _change_stylesheet(self, filename: str):
         """Carica, applica e salva il nuovo stylesheet. Disabilita tema automatico e stile Win11."""
@@ -1586,24 +1352,16 @@ class CatastoMainWindow(QMainWindow):
             if risposta != QMessageBox.StandardButton.Yes:
                 return
 
-            # --- PASSO 3: Avvia l'importazione e mostra il nuovo dialogo di riepilogo ---
             QApplication.setOverrideCursor(Qt.CursorShape.WaitCursor)
-            
-            # --- MODIFICA CHIAVE QUI ---
-            # Chiamiamo il metodo del db_manager che ora restituisce un dizionario dettagliato.
-            # Passiamo anche il nome del comune per poterlo visualizzare nel report di successo.
             import_results = self.db_manager.import_possessori_from_csv(
                 file_path, comune_id_selezionato, nome_comune_selezionato
             )
-
-            # Invece di una semplice QMessageBox, creiamo e mostriamo il nostro nuovo dialogo.
             result_dialog = CSVImportResultDialog(
                 import_results.get('success', []),
                 import_results.get('errors', []),
                 self
             )
             result_dialog.exec()
-            # --- FINE MODIFICA ---
 
             # Dopo l'importazione, aggiorniamo la vista dei comuni per riflettere eventuali
             # cambiamenti (se ad esempio la vista mostrasse il numero di possessori).
@@ -1695,10 +1453,8 @@ class CatastoMainWindow(QMainWindow):
         """
         from datetime import timedelta, timezone
         if not self.db_manager or not self.db_manager.pool: return
-        # --- MODIFICA QUI: Leggiamo il valore da QSettings ---
         settings = QSettings()
         threshold_hours = settings.value("General/StaleDataThresholdHours", 24, type=int)
-        # ----------------------------------------------------
 
         last_refresh = self.db_manager.get_last_mv_refresh_timestamp()
         if last_refresh is None:
@@ -1984,13 +1740,8 @@ def run_web_app():
 def run_gui_app():
     try:
         app = QApplication(sys.argv)
-        # --- INIZIO MODIFICA ---
-        # Imposta i metadati dell'applicazione.
-        # Questo è FONDAMENTALE affinché QStandardPaths possa generare
-        # percorsi di dati scrivibili e univoci per l'app.
         QCoreApplication.setOrganizationName("AlgoraStudio")
         QCoreApplication.setApplicationName("Foliarium")
-        # --- FINE MODIFICA ---
 
         # Splash screen (saltata in ambiente CI/test)
         _splash = None
@@ -2271,7 +2022,6 @@ def run_gui_app():
         else:
             gui_logger.info("Dati di connessione incompleti (manca password o altri parametri essenziali). Skip connessione automatica.")
             db_manager_gui = None
-        # --- FINE CORREZIONE ---
 
         # 2. FALLBACK A CONFIGURAZIONE MANUALE se la connessione automatica è fallita
         if not db_manager_gui or not db_manager_gui.pool:
@@ -2312,8 +2062,7 @@ def run_gui_app():
                     gui_logger.error(f"Errore creazione CatastoDBManager: {e}")
                     QMessageBox.critical(None, "Errore Configurazione", f"Errore nella configurazione del database: {e}")
                     continue  # Riprova il loop di configurazione
-                # --- FINE CORREZIONE ---
-
+        
                 if db_manager_gui.initialize_main_pool():
                     main_window_instance.db_manager = db_manager_gui
                     main_window_instance.pool_initialized_successful = True

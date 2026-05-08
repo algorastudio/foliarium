@@ -307,18 +307,10 @@ def gui_esporta_partita_json(parent_widget, db_manager: CatastoDBManager, partit
     dict_data = db_manager.get_partita_data_for_export(partita_id)
 
     if dict_data:
-        # --- INIZIO MODIFICA ---
         def json_serial(obj):
-            """JSON serializer per oggetti non serializzabili di default (date/datetime)."""
             if isinstance(obj, (datetime, date)):
                 return obj.isoformat()
-            # Potresti voler gestire altri tipi qui se necessario
-            # Esempio per Decimal (se usi la libreria decimal):
-            # from decimal import Decimal
-            # if isinstance(obj, Decimal):
-            #    return str(obj) # o float(obj) a seconda della precisione richiesta
-            raise TypeError(
-                f"Object of type {type(obj).__name__} is not JSON serializable")
+            raise TypeError(f"Object of type {type(obj).__name__} is not JSON serializable")
 
         try:
             json_data_str = json.dumps(
@@ -330,19 +322,11 @@ def gui_esporta_partita_json(parent_widget, db_manager: CatastoDBManager, partit
                                  f"Errore durante la conversione dei dati della partita in JSON: {te}\n"
                                  "Controllare i log per i dettagli.")
             return
-        # --- FINE MODIFICA ---
 
-        # --- MODIFICA QUI ---
-        # 1. Crea solo il nome base del file
         default_filename_base = f"partita_{partita_id}_{date.today().isoformat()}.json"
-        
-        # 2. Usa la nuova funzione per ottenere il percorso completo di default
         full_default_path = _get_default_export_path(default_filename_base)
-
-        # 3. Passa il percorso completo a QFileDialog
         filename, _ = QFileDialog.getSaveFileName(
             parent_widget, "Salva JSON Partita", full_default_path, "JSON Files (*.json)")
-        # --- FINE MODIFICA ---
 
         if filename:
             try:
@@ -386,8 +370,6 @@ def gui_esporta_partita_csv(parent_widget, db_manager: CatastoDBManager, partita
                 preview_data_rows.append(["Possessori", f"...e altri {len(partita_data['possessori']) - MAX_ROWS_PREVIEW_SECTION}...", ""])
                 break
             preview_data_rows.append(["Possessori", f"Possessore {i+1}", ", ".join([str(pos.get(h, '')) for h in poss_headers])])
-    
-    # Aggiungere logica simile per Immobili e Variazioni...
 
     preview_dialog = CSVApreviewDialog(preview_headers, preview_data_rows, parent_widget,
                                        title=f"Anteprima CSV - Partita ID {partita_id}")
@@ -484,8 +466,6 @@ def gui_esporta_partita_pdf(parent_widget, db_manager: CatastoDBManager, partita
         if len(partita_data['possessori']) > 2:
             preview_text_content += "  ...e altri.\n"
     preview_text_content += "\n"
-    
-    # Aggiungere sezioni simili per Immobili e Variazioni (prime N righe)
 
     preview_dialog = PDFApreviewDialog(preview_text_content, parent_widget,
                                        title=f"Anteprima PDF - Partita ID {partita_id}")
@@ -583,8 +563,6 @@ def gui_esporta_possessore_json(parent_widget, db_manager: CatastoDBManager, pos
                             f"Possessore con ID {possessore_id} non trovato o errore recupero dati.")
 
 
-# In app_utils.py
-
 def gui_esporta_possessore_csv(parent_widget, db_manager: CatastoDBManager, possessore_id: int):
     possessore_data = db_manager.get_possessore_data_for_export(possessore_id)
     if not possessore_data or 'possessore' not in possessore_data:
@@ -616,7 +594,6 @@ def gui_esporta_possessore_csv(parent_widget, db_manager: CatastoDBManager, poss
             row_summary = f"N.{partita.get('numero_partita', '?')} ({partita.get('comune_nome', '?')}), Titolo: {partita.get('titolo', 'N/D')}"
             preview_data_rows.append(["Partite", f"Partita {i+1}", row_summary])
     
-    # Aggiungere qui una logica simile per gli immobili, se necessario
 
     preview_dialog = CSVApreviewDialog(preview_headers, preview_data_rows, parent_widget,
                                        title=f"Anteprima CSV - Possessore ID {possessore_id}")
@@ -697,7 +674,6 @@ def gui_esporta_possessore_pdf(parent_widget, db_manager: CatastoDBManager, poss
             preview_text_content += "  ...e altre.\n"
     preview_text_content += "\n"
 
-    # Aggiungere qui una sezione simile per gli immobili, se si desidera
     
     preview_dialog = PDFApreviewDialog(preview_text_content, parent_widget,
                                        title=f"Anteprima PDF - Possessore ID {possessore_id}")
@@ -743,22 +719,20 @@ def gui_esporta_possessore_pdf(parent_widget, db_manager: CatastoDBManager, poss
 
         if possessore_data.get('partite'):
             pdf.chapter_title('Partite Associate')
-            # --- MODIFICA QUI ---
             headers = ['ID Part.', 'Num. Partita', 'Suffisso', 'Comune', 'Tipo', 'Quota', 'Titolo']
-            col_widths_percent = [8, 12, 10, 20, 10, 15, 25] # Ribilanciamo le larghezze
+            col_widths_percent = [8, 12, 10, 20, 10, 15, 25]
             data_rows = []
             for part in possessore_data['partite']:
                 data_rows.append([
-                    part.get('id'), 
-                    part.get('numero_partita'), 
-                    part.get('suffisso_partita', '') or '', # Aggiunto suffisso
+                    part.get('id'),
+                    part.get('numero_partita'),
+                    part.get('suffisso_partita', '') or '',
                     part.get('comune_nome'),
                     part.get('tipo'), 
                     part.get('quota'), 
                     part.get('titolo')
                 ])
             pdf.simple_table(headers, data_rows, col_widths_percent=col_widths_percent)
-            # --- FINE MODIFICA ---
 
         if possessore_data.get('immobili'):
             pdf.chapter_title('Immobili Associati (tramite Partite)')
@@ -779,7 +753,6 @@ def gui_esporta_possessore_pdf(parent_widget, db_manager: CatastoDBManager, poss
             "Errore esportazione PDF possessore (GUI)")
         QMessageBox.critical(parent_widget, "Errore Esportazione",
                              f"Errore durante l'esportazione PDF:\n{e}")
-# In app_utils.py, dopo le importazioni
 
 
 def _get_default_export_path(default_filename: str) -> str:
@@ -847,8 +820,6 @@ def prompt_to_open_file(parent_widget, filename: str):
             logging.getLogger("CatastoGUI").error(f"Impossibile aprire il file {filename}: {e}", exc_info=True)
             QMessageBox.critical(parent_widget, "Errore Apertura File", f"Impossibile aprire il file:\n{e}")
             
-# In app_utils.py o come metodo statico
-
 def is_file_locked(filepath):
     """
     Verifica se un file è bloccato/in uso da un altro processo.
@@ -984,7 +955,3 @@ class CSVApreviewDialog(QDialog):
         self.button_box.rejected.connect(self.reject)
         layout.addWidget(self.button_box)
         self.setLayout(layout)
-
-
-
-# ASSICURATI CHE SIA QUI O PRIMA DI DOVE SERVE
