@@ -98,7 +98,6 @@ class GestioneTipiLocalitaWidget(LazyLoadedWidget):
         layout.addWidget(group)
         self.setLayout(layout)
 
-    # --- INIZIO CORREZIONE ---
 
     def load_data(self):
         """
@@ -125,7 +124,6 @@ class GestioneTipiLocalitaWidget(LazyLoadedWidget):
         """
         self.load_data()
 
-    # --- FINE CORREZIONE ---
 
     def _add_or_edit_item(self, edit_mode=False):
         tipo_id, old_nome, old_desc = None, "", ""

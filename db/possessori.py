@@ -265,7 +265,6 @@ class DBPossessoriMixin:
 
         params: List[Union[int, str]] = [comune_id]
 
-        # --- INIZIO CORREZIONE: Query modificata per conteggio e filtro partite ---
         query_base = f"""
             SELECT 
                 p.id, 
@@ -297,7 +296,6 @@ class DBPossessoriMixin:
             query_base += " HAVING COUNT(pp.partita_id) > 0"
 
         query = query_base + " ORDER BY p.nome_completo;"
-        # --- FINE CORREZIONE ---
 
         try:
             with self._get_connection() as conn:

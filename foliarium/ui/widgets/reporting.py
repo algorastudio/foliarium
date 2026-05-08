@@ -573,11 +573,9 @@ class EsportazioniWidget(LazyLoadedWidget):
     def _handle_export_pdf(self):
         export_type, comune_id, comune_name = self._get_export_parameters()
         if not export_type: return
-            # --- INIZIO MODIFICA: Gestione dedicata per il report speciale ---
         if export_type == "Report Consistenza Patrimoniale":
             self._export_consistenza_patrimoniale_pdf(comune_id, comune_name)
             return # Termina qui l'esecuzione per questo report
-        # --- FINE MODIFICA ---
         data = self._fetch_data_for_export(export_type, comune_id)
         if not data:
             QMessageBox.information(self, "Nessun Dato", "Nessun dato trovato per l'esportazione.")
@@ -766,7 +764,6 @@ class EsportazioniWidget(LazyLoadedWidget):
             QMessageBox.critical(self, "Errore Esportazione", f"Impossibile creare il file PDF:\n{e}")
 
 
-    
     def _open_export_file_link(self, url: QUrl):
         """Apre il file locale puntato dall'URL cliccato nel log."""
         self.logger.info(f"Tentativo di aprire il file dal link: {url.toLocalFile()}")
@@ -811,10 +808,8 @@ class ReportisticaWidget(LazyLoadedWidget):
         output_layout = QVBoxLayout(output_group)
         self.report_output_browser = QTextBrowser()
         self.report_output_browser.setOpenLinks(False)
-        # --- INIZIO CORREZIONE ---
         # Collega il segnale al nuovo metodo corretto
         self.report_output_browser.anchorClicked.connect(self._open_export_file_link)
-        # --- FINE CORREZIONE ---
         self.report_output_browser.setPlaceholderText("L'anteprima del report generato apparirà qui.")
         output_layout.addWidget(self.report_output_browser)
 
@@ -941,14 +936,12 @@ class ReportisticaWidget(LazyLoadedWidget):
         if partita_id <= 0: return QMessageBox.warning(self, "Errore", "Selezionare un ID partita valido.")
 
         report_text = self.db_manager.genera_report_proprieta(partita_id)
-        # --- INIZIO CORREZIONE ---
         self.current_report_content = report_text or f"Nessun report generato per la partita ID {partita_id}."
 
         # 1. Pulisci completamente il widget
         self.report_output_browser.clear()
         # 2. Imposta il nuovo contenuto come testo semplice
         self.report_output_browser.setPlainText(self.current_report_content)
-        # --- FINE CORREZIONE ---
 
     def generate_genealogico(self):
         partita_id = self.partita_id_gen_edit.value()
@@ -961,7 +954,6 @@ class ReportisticaWidget(LazyLoadedWidget):
         self.report_output_browser.clear()
         # 2. Imposta il nuovo contenuto come testo semplice
         self.report_output_browser.setPlainText(self.current_report_content)
-        # --- FINE CORREZIONE ---
 
     def _apri_albero_genealogico(self):
         partita_id = self.partita_id_gen_edit.value()
@@ -989,7 +981,6 @@ class ReportisticaWidget(LazyLoadedWidget):
         self.report_output_browser.clear()
         # 2. Imposta il nuovo contenuto come testo semplice
         self.report_output_browser.setPlainText(self.current_report_content)
-        # --- FINE CORREZIONE ---
 
     # In gui_widgets.py, nella classe ReportisticaWidget
 
@@ -1537,7 +1528,6 @@ class StatisticheWidget(LazyLoadedWidget):
             QApplication.restoreOverrideCursor()
 
     
-
     def log_status(self, message, error=False):
         timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
         formatted_message = f"[{timestamp}] {message}"

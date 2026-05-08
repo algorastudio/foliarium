@@ -396,7 +396,6 @@ class DBAuditMixin:
         """
         self.logger.info(f"Recupero degli ultimi {limit} log di sessione.")
         
-        # --- INIZIO MODIFICA DEFINITIVA ---
         # La query ora usa i nomi corretti delle colonne: 'data_login' e 'indirizzo_ip'
         query = f"""
             SELECT
@@ -411,7 +410,6 @@ class DBAuditMixin:
             ORDER BY sa.data_login DESC
             LIMIT %s;
         """
-        # --- FINE MODIFICA DEFINITIVA ---
 
         try:
             with self._get_connection() as conn:

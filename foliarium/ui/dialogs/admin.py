@@ -72,9 +72,7 @@ except ImportError:
 class DBConfigDialog(QDialog):
     def __init__(self, parent=None, initial_config: Optional[Dict] = None):
         super().__init__(parent)
-        # --- INIZIO CORREZIONE: Aggiungere questa riga ---
         self.logger = logging.getLogger(f"CatastoGUI.{self.__class__.__name__}")
-        # --- FINE CORREZIONE ---
         self.setWindowTitle("Configurazione Connessione Database")
         self.settings = QSettings()
         self.setModal(True)
@@ -115,7 +113,6 @@ class DBConfigDialog(QDialog):
         buttons.rejected.connect(self.reject)
         layout.addWidget(buttons)
 
-        # --- INIZIO AGGIUNTA: Sezione Operazioni di Emergenza ---
         emergency_group = QGroupBox("Operazioni di Emergenza")
         emergency_layout = QHBoxLayout(emergency_group)
 
@@ -129,7 +126,6 @@ class DBConfigDialog(QDialog):
         emergency_layout.addWidget(self.btn_emergency_restore)
 
         layout.addWidget(emergency_group)
-        # --- FINE AGGIUNTA ---
 
         
         layout.addLayout(form_layout)
@@ -236,10 +232,8 @@ class DBConfigDialog(QDialog):
             password=config["password"]
         )
         
-        # --- INIZIO CORREZIONE ---
         # Usiamo il metodo corretto per testare la connessione e inizializzare il pool
         if test_db_manager.initialize_main_pool():
-        # --- FINE CORREZIONE ---
             self.logger.info("Test di connessione riuscito.")
             
             # Se il test ha successo, salva le impostazioni
@@ -360,7 +354,6 @@ class DBConfigDialog(QDialog):
         # Opzione 2: Se serve lo schema, usa un valore fisso:
         self.settings.setValue(SETTINGS_DB_SCHEMA, "catasto")  # Valore fisso
         
-        # --- FINE CORREZIONE ---
         
         # --- NUOVA LOGICA PER LA PASSWORD ---
         if self.save_password_check.isChecked():
@@ -441,14 +434,12 @@ class DBConfigDialog(QDialog):
         Recupera i valori di configurazione dai campi della UI.
         Corretto per leggere dai radio button invece che da una combobox.
         """
-        # --- INIZIO CORREZIONE ---
         if self.local_radio.isChecked():
             db_type_val = "local"
             host_val = "localhost"
         else:
             db_type_val = "remote"
             host_val = self.host_edit.text().strip()
-        # --- FINE CORREZIONE ---
 
         config = {
             "db_type": db_type_val,
@@ -464,7 +455,6 @@ class DBConfigDialog(QDialog):
         return config
     
     
-
 class DocumentViewerDialog(QDialog):
     def __init__(self, parent=None, file_path: str = None):
         super().__init__(parent)
@@ -629,7 +619,6 @@ class DocumentViewerDialog(QDialog):
 # *** FINE: Classe DocumentViewerDialog ***
 
 # --- Dialog per la Selezione dei Possessori ---
-
 
 
 class CreateUserDialog(QDialog):
@@ -802,7 +791,6 @@ class UserSelectionDialog(QDialog):
                                 "Per favore, seleziona un utente dalla lista.")
 
  
-
 class BackupReminderSettingsDialog(QDialog):
     """Dialogo per configurare il trigger temporale del promemoria di backup."""
     def __init__(self, parent=None):
@@ -855,7 +843,6 @@ class EulaDialog(QDialog):
         self.text_browser.setOpenExternalLinks(True)
         layout.addWidget(self.text_browser)
 
-        # --- INIZIO CORREZIONE ---
         # Usiamo i pulsanti standard 'Ok' e 'Cancel'
         button_box = QDialogButtonBox(QDialogButtonBox.StandardButton.Ok | QDialogButtonBox.StandardButton.Cancel)
 
@@ -867,7 +854,6 @@ class EulaDialog(QDialog):
         # perché si basano sul "ruolo" del pulsante (AcceptRole, RejectRole), non sul testo.
         button_box.accepted.connect(self.accept)
         button_box.rejected.connect(self.reject)
-        # --- FINE CORREZIONE ---
 
         layout.addWidget(button_box)
 
@@ -972,7 +958,6 @@ from foliarium.ui.dialogs.import_ import (
     ImportComuniDialog, ImportLocalitaDialog,
     _mostra_risultati_import, _popola_preview_tabella,
 )
-
 
 
 # ---------------------------------------------------------------------------
@@ -1155,7 +1140,6 @@ class SMTPSettingsDialog(QDialog):
             self.test_label.setStyleSheet("color: red;")
 
 
-
 # ---------------------------------------------------------------------------
 # HelpViewerDialog — Manuale utente integrato (Markdown → QTextBrowser)
 # ---------------------------------------------------------------------------
@@ -1215,7 +1199,6 @@ hr { border: none; border-top: 1px solid #e0e0e0; margin: 16px 0; }
 """
 
 _MKDOCS_YML = "mkdocs.yml"
-
 
 
 # ---------------------------------------------------------------------------

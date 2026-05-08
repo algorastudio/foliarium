@@ -69,7 +69,6 @@ from app_utils import (gui_esporta_partita_pdf, gui_esporta_partita_json, gui_es
 # In tal caso, gui_main.py importerà _hash_password da app_utils.py.
 
 
-
 # Importazione del gestore DB e eccezioni
 try:
     from catasto_db_manager import CatastoDBManager, DBMError, DBUniqueConstraintError, DBNotFoundError, DBDataError
@@ -155,21 +154,17 @@ class ElencoComuniWidget(LazyLoadedWidget):
         # Imposta la policy per il menu contestuale sulla tabella
         self.comuni_table.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
         self.comuni_table.customContextMenuRequested.connect(self.apri_menu_contestuale_comune)
-        # --- INIZIO MODIFICA ---
         # Collega il segnale di cambio selezione a una funzione che abilita/disabilita i pulsanti
         self.comuni_table.itemSelectionChanged.connect(self._update_action_buttons_state)
-        # --- FINE MODIFICA ---
 
         comuni_layout.addWidget(self.comuni_table)
 
         action_buttons_layout = QHBoxLayout()
         
-        # --- INIZIO MODIFICA: Creazione del nuovo pulsante ---
         self.btn_modifica_comune = QPushButton("Modifica Comune Selezionato")
         self.btn_modifica_comune.clicked.connect(self.azione_modifica_comune)
         self.btn_modifica_comune.setEnabled(False) # Inizia disabilitato
         action_buttons_layout.addWidget(self.btn_modifica_comune)
-        # --- FINE MODIFICA ---
         self.btn_mostra_partite = QPushButton("Mostra Partite del Comune Selezionato")
         self.btn_mostra_partite.clicked.connect(self.azione_mostra_partite)
         action_buttons_layout.addWidget(self.btn_mostra_partite)
@@ -325,7 +320,6 @@ class ElencoComuniWidget(LazyLoadedWidget):
         return self._get_comune_info_from_row(current_row)
     
     
-
     def _get_selected_comune_info(self) -> Optional[Tuple[int, str]]:
         """Helper per ottenere ID e nome del comune correntemente selezionato nella tabella."""
         selected_items = self.comuni_table.selectedItems()
@@ -508,8 +502,6 @@ class ElencoComuniWidget(LazyLoadedWidget):
         self._slot_archivia_comune(comune_id, nome)
 
 
-
-
 # Estratto in search_widgets.py — backward compat re-export
 from search_widgets import (
     _PartiteSearchWorker, PartitaResultCard,
@@ -549,10 +541,8 @@ from foliarium.ui.widgets.admin import GestioneUtentiWidget, AuditLogViewerWidge
 class DashboardWidget(QWidget):
     # Segnali per navigare ad altri tab (manteniamo la logica)
     go_to_tab_signal = pyqtSignal(str, str) # Segnale emetterà (nome_tab_principale, nome_sotto_tab)
-    # --- INIZIO MODIFICA ---
     # Definiamo il nuovo segnale che trasporterà una stringa (il testo della ricerca)
     ricerca_globale_richiesta = pyqtSignal(str)
-    # --- FINE MODIFICA ---
 
     def __init__(self, db_manager: 'CatastoDBManager', current_user_info: Optional[Dict], parent=None):
         super().__init__(parent)
@@ -646,11 +636,9 @@ class DashboardWidget(QWidget):
         recent_activity_layout = QVBoxLayout(recent_activity_group)
         self.audit_table = QTableWidget()
         
-        # --- INIZIO MODIFICA ---
         # Cambiamo le colonne per mostrare le informazioni della sessione
         self.audit_table.setColumnCount(5)
         self.audit_table.setHorizontalHeaderLabels(["Data/Ora", "Utente", "Azione", "Esito", "Indirizzo IP"])
-        # --- FINE MODIFICA ---
 
         self.audit_table.setEditTriggers(QAbstractItemView.EditTrigger.NoEditTriggers)
         self.audit_table.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeMode.Interactive)
@@ -670,7 +658,6 @@ class DashboardWidget(QWidget):
         btn_new_consult.clicked.connect(lambda: self.go_to_tab_signal.emit("Inserimento", "Reg. Consultazione"))
         btn_reports = QPushButton("Vai alla Reportistica"); 
         btn_reports.clicked.connect(lambda: self.go_to_tab_signal.emit("Report", ""))
-        # --- INIZIO MODIFICA: Pulsante visibile solo per admin ---
         if self.is_admin:
             actions_layout.addSpacing(15)
 
@@ -682,7 +669,6 @@ class DashboardWidget(QWidget):
             btn_backup.clicked.connect(lambda: self.go_to_tab_signal.emit("Sistema", "Backup/Ripristino DB"))
 
             actions_layout.addWidget(btn_backup)
-        # --- FINE MODIFICA ---
         
         actions_layout.addWidget(btn_new_prop); actions_layout.addWidget(btn_new_partita); actions_layout.addWidget(btn_new_consult) ; actions_layout.addWidget(btn_reports)
         actions_layout.addStretch()
@@ -718,7 +704,6 @@ class DashboardWidget(QWidget):
         
         self.audit_table.setRowCount(len(session_logs))
         for row, log in enumerate(session_logs):
-            # --- INIZIO MODIFICA DEFINITIVA ---
             # Usiamo le chiavi corrette ('data_login' e 'indirizzo_ip') restituite dalla query
             ts = log.get('data_login')
             ts_str = ts.strftime("%d/%m/%y %H:%M") if ts else "N/D"
@@ -732,7 +717,6 @@ class DashboardWidget(QWidget):
             self.audit_table.setItem(row, 2, QTableWidgetItem(action_display))
             self.audit_table.setItem(row, 3, QTableWidgetItem(esito_display))
             self.audit_table.setItem(row, 4, QTableWidgetItem(log.get('indirizzo_ip', 'N/D'))) # <-- Colonna corretta
-            # --- FINE MODIFICA DEFINITIVA ---
             
         self.audit_table.resizeColumnsToContents()
 

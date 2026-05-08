@@ -150,7 +150,6 @@ class DBUtentiMixin:
             # Azione critica: il pool non è più valido. Chiudiamolo forzatamente.
             self.close_pool()
             return False # Segnala il fallimento
-        # --- FINE CORREZIONE ---
 
         except Exception as e:
             self.logger.error(f"Errore durante il processo di logout per l'utente {user_id}: {e}", exc_info=True)

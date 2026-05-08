@@ -99,7 +99,6 @@ class RegistrazioneProprietaWidget(LazyLoadedWidget):
         form_layout.addWidget(QLabel("Comune (*):"), 0, 0); form_layout.addWidget(self.comune_display, 0, 1, 1, 2)
         form_layout.addWidget(self.comune_button, 0, 3)
         
-        # --- INIZIO MODIFICA LAYOUT ---
         self.num_partita_edit = QSpinBox(); self.num_partita_edit.setRange(1, 9999999)
         self.suffisso_partita_edit = QLineEdit(); self.suffisso_partita_edit.setPlaceholderText("Es. A"); self.suffisso_partita_edit.setMaximumWidth(80)
         self.data_edit = QDateEdit(calendarPopup=True); self.data_edit.setDate(QDate.currentDate()); self.data_edit.setDisplayFormat("yyyy-MM-dd")
@@ -111,7 +110,6 @@ class RegistrazioneProprietaWidget(LazyLoadedWidget):
         form_layout.addLayout(partita_line_layout, 1, 0, 1, 4)
         
         form_layout.addWidget(QLabel("Data Impianto (*):"), 2, 0); form_layout.addWidget(self.data_edit, 2, 1)
-        # --- FINE MODIFICA LAYOUT ---
         
         layout.addWidget(form_group)
 
@@ -380,7 +378,6 @@ class RegistrazioneProprietaWidget(LazyLoadedWidget):
         self._update_registra_button_state()
         
     
-        
     def _salva_proprieta(self):
         self.logger.info("Avvio registrazione nuova proprietà...")
         if not self.comune_id:
@@ -449,7 +446,6 @@ class RegistrazioneProprietaWidget(LazyLoadedWidget):
         # Passiamo 'None' come comune_id per indicare al dialogo di non filtrare
         # e permettere la selezione/creazione da qualsiasi comune.
         dialog_sel_poss = PossessoreSelectionDialog(self.db_manager, comune_id=None, parent=self)
-        # --- FINE MODIFICA ---
 
         if dialog_sel_poss.exec() == QDialog.DialogCode.Accepted and dialog_sel_poss.selected_possessore:
             selected_possessore_info = dialog_sel_poss.selected_possessore
@@ -478,9 +474,6 @@ class RegistrazioneProprietaWidget(LazyLoadedWidget):
         self.update_possessori_table()
 
     
-
-    
-
     def add_immobile(self):
        
         dialog = ImmobileDialog(self.db_manager, self.comune_id, self)
@@ -1217,7 +1210,6 @@ class OperazioniPartitaWidget(QWidget):
         
         passaggio_form_layout.addRow(
             "Tipo Atto/Contratto (*):", self.pp_tipo_contratto_combo) # USATO IL NUOVO WIDGET
-        # --- FINE MODIFICA ---
 
         self.pp_data_contratto_edit = QDateEdit(calendarPopup=True)
         self.pp_data_contratto_edit.setDisplayFormat("yyyy-MM-dd")
