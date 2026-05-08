@@ -112,6 +112,12 @@ python generate_license.py inspect savona.license
 # Show hardware fingerprint of current machine
 python generate_license.py fingerprint
 
+# Generate HMAC-SHA256 key for license signing (foliarium.key)
+python generate_key.py                    # Interactive menu
+python generate_key.py --save-exe-dir     # Auto-save to EXE_DIR (next to Foliarium.exe)
+python generate_key.py --save-base-dir    # Auto-save to BASE_DIR (project root)
+python generate_key.py --env-var          # Print only HEX value (for environment variable)
+
 # Prepare demo_data/ locally (requires pgsql/ portable in project root)
 python prepare_demo_db.py --pgsql-dir pgsql
 
@@ -235,3 +241,64 @@ In a PyInstaller `onedir` bundle there are two distinct roots:
 | Dati scrivibili (log, cache, esportazioni) | `%LOCALAPPDATA%\Foliarium` | `APP_DATA_DIR` |
 
 `app_paths.get_exe_dir()` returns `Path(sys.executable).parent` when frozen, `Path(__file__).parent` otherwise.
+
+---
+
+## License Management
+
+### HMAC-SHA256 Key (`foliarium.key`)
+
+The license system signs `.license` files with HMAC-SHA256. The signing key is loaded from:
+
+1. **Environment variable** `FOLIARIUM_LICENSE_KEY` (priority)
+2. **File** `foliarium.key` next to `Foliarium.exe` (EXE_DIR)
+
+**Generate the key:**
+
+```bash
+# Interactive menu (recommended)
+python generate_key.py
+
+# Auto-save next to exe
+python generate_key.py --save-exe-dir
+
+# Print HEX value only (for env vars)
+python generate_key.py --env-var
+```
+
+**Security rules:**
+
+- ✅ Generate **once per environment** (dev, staging, prod)
+- ✅ Store in secure location (env var or restricted file)
+- ✅ **Never commit** `foliarium.key` to Git (add to `.gitignore`)
+- ✅ Backup securely (if lost, all `.license` files become invalid)
+- ❌ Never hardcode the key in source code
+- ❌ Never share via email/chat
+
+**If compromised:**
+
+- Generate a new key immediately
+- All existing `.license` files must be re-signed with the new key
+- Notify clients to update their license files
+
+### License File Generation
+
+```bash
+# Generate a .license file for a client
+python generate_license.py generate \
+    --to "Archivio di Stato di Savona" \
+    --type standard \
+    --seats 2 \
+    --expiry 2027-12-31 \
+    --out savona.license
+```
+
+**License types:** `demo`, `standard`, `enterprise`
+
+The `.license` file is JSON-signed (signature field is HMAC-SHA256 of all other fields).
+
+`LicenseManager.validate()` verifies:
+- Signature validity
+- Hardware ID match (if bound to a specific machine)
+- Expiry date
+- Network seat limits (concurrent instances)
