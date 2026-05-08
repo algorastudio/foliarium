@@ -90,7 +90,35 @@ applicati su un DB fresco** (perché creato già con la struttura corretta).
 | `migrations/add_sessioni_accesso.sql` | Crea tabella `sessioni_accesso` | DB ante v1.0.0 senza la tabella |
 | `migrations/add_tipo_localita.sql` | Crea lookup `tipo_localita` + 4 default | DB ante v1.0.0 senza la lookup |
 
-Per applicarne una: `psql -d catasto_storico -f migrations/<file>.sql`.
+Per applicarne una manualmente: `psql -d catasto_storico -f migrations/<file>.sql`.
+
+### Script di gestione migration (consigliato)
+
+Per ambienti di sviluppo/produzione, usare `migrate_database.py` nella root
+del progetto. Tiene traccia delle migration applicate in
+`catasto.schema_migrations` ed evita doppie applicazioni:
+
+```bash
+# Mostra solo lo status (cosa è applicato e cosa è pending)
+python migrate_database.py --pg-bin auto --postgres-password postgres --list
+
+# Modalità interattiva: chiede conferma per ogni pending
+python migrate_database.py --pg-bin auto --postgres-password postgres
+
+# Applica tutte le pending senza chiedere
+python migrate_database.py --pg-bin auto --postgres-password postgres --apply-all
+
+# Applica solo una migration specifica (per nome senza .sql)
+python migrate_database.py --pg-bin auto --postgres-password postgres \
+    --apply add_soft_delete
+
+# DB con nome custom
+python migrate_database.py --pg-bin auto --postgres-password postgres \
+    --db-name catasto_dev --apply-all
+```
+
+Lo script crea la tracking table `catasto.schema_migrations` al primo
+avvio. Le migration già applicate vengono skipped automaticamente.
 
 ## Note
 
