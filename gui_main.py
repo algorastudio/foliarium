@@ -53,10 +53,10 @@ from gui_widgets import (
     RegistraConsultazioneWidget, WelcomeScreen, GestionePeriodiStoriciWidget,
     GestioneTipiLocalitaWidget, TipiPossessoWidget, NuovaPartitaWizardWidget,
     DBConfigDialog, InserimentoPartitaWidget, RicercaDocumentiWidget)
-from admin_widgets import TabelleDiSistemaWidget
+from foliarium.ui.widgets.admin import TabelleDiSistemaWidget
 
-from custom_widgets import QPasswordLineEdit
-import update_checker
+from foliarium.ui.widgets.custom import QPasswordLineEdit
+from foliarium.core.services import update_checker
 
 
 from config import (
@@ -529,7 +529,7 @@ class CatastoMainWindow(QMainWindow):
             self._start_inactivity_timer()
             # --- Notifica email login ---
             try:
-                from email_service import EmailService, EmailWorker
+                from foliarium.core.services.email import EmailService, EmailWorker
                 from config import SETTINGS_EMAIL_ON_LOGIN
                 _svc = EmailService(QSettings())
                 if _svc.is_configured() and QSettings().value(SETTINGS_EMAIL_ON_LOGIN, True, type=bool):
@@ -817,7 +817,7 @@ class CatastoMainWindow(QMainWindow):
         crea un'istanza temporanea di sola lettura (best-effort, non bloccante).
         """
         try:
-            from license_manager import LicenseManager
+            from foliarium.core.services.license import LicenseManager
             from config import IS_TEST_ENV, IS_DEMO_MODE
             if IS_TEST_ENV or IS_DEMO_MODE:
                 return
@@ -1513,7 +1513,7 @@ class CatastoMainWindow(QMainWindow):
         # Ferma il PostgreSQL portabile (solo in modalità demo con embedded PG)
         if IS_DEMO_MODE:
             try:
-                import demo_launcher
+                from foliarium.core.services import demo_launcher
                 demo_launcher.stop_demo_postgres()
             except Exception:
                 pass
@@ -2046,7 +2046,7 @@ def run_gui_app():
         # --- FINE CONTROLLO EULA ---
 
         # --- VERIFICA LICENZA ---
-        from license_manager import LicenseManager
+        from foliarium.core.services.license import LicenseManager
         _license_mgr = LicenseManager()
         _license_info = _license_mgr.validate()
         if not _license_info.is_valid:
@@ -2091,7 +2091,7 @@ def run_gui_app():
 
             # --- Avvia PostgreSQL portabile (se presente nel bundle) ---
             try:
-                import demo_launcher
+                from foliarium.core.services import demo_launcher
                 if demo_launcher.is_embedded_available():
                     gui_logger.info("PostgreSQL portabile rilevato — avvio in corso…")
 

@@ -26,7 +26,7 @@ from PyQt6.QtWidgets import (
     QWidget, QCompleter,
 )
 
-from custom_widgets import LazyLoadedWidget
+from foliarium.ui.widgets.custom import LazyLoadedWidget
 from catasto_exceptions import DBMError, DBUniqueConstraintError, DBNotFoundError, DBDataError
 from dialogs import ComuneSelectionDialog
 

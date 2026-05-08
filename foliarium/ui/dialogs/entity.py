@@ -33,7 +33,7 @@ from PyQt6.QtWidgets import (QAbstractItemView, QApplication,
                              QTextBrowser, QDialogButtonBox)
 
 from catasto_db_manager import CatastoDBManager
-from custom_widgets import ImmobiliTableWidget, show_status_message as _show_status_message
+from foliarium.ui.widgets.custom import ImmobiliTableWidget, show_status_message as _show_status_message
 
 try:
     from catasto_db_manager import DBMError, DBUniqueConstraintError, DBNotFoundError, DBDataError
@@ -883,7 +883,7 @@ class PartiteComuneDialog(QDialog):
             partita_details_data = self.db_manager.get_partita_details(partita_id)
             if partita_details_data:
                 # Lazy import per evitare dipendenza circolare con dialogs_partita
-                from dialogs_partita import PartitaDetailsDialog
+                from foliarium.ui.dialogs.partita import PartitaDetailsDialog
                 details_dialog = PartitaDetailsDialog(partita_details_data, self)
                 details_dialog.exec()
             else:
@@ -895,7 +895,7 @@ class PartiteComuneDialog(QDialog):
         partita_id = self._get_selected_partita_id()
         if partita_id is not None:
             # Lazy import per evitare dipendenza circolare con dialogs_partita
-            from dialogs_partita import ModificaPartitaDialog
+            from foliarium.ui.dialogs.partita import ModificaPartitaDialog
             dialog = ModificaPartitaDialog(self.db_manager, partita_id, self)
             if dialog.exec() == QDialog.DialogCode.Accepted:
                 self.load_partite_data()
@@ -910,7 +910,7 @@ class PartiteComuneDialog(QDialog):
         if partita_id is not None:
             partita_details_data = self.db_manager.get_partita_details(partita_id)
             if partita_details_data:
-                from dialogs_partita import PartitaDetailsDialog
+                from foliarium.ui.dialogs.partita import PartitaDetailsDialog
                 details_dialog = PartitaDetailsDialog(partita_details_data, self)
                 details_dialog.exec()
             else:

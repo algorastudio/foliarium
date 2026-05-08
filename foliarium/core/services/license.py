@@ -13,7 +13,7 @@ Formato del file .license (JSON firmato con HMAC-SHA256):
   }
 
 Uso tipico:
-  from license_manager import LicenseManager
+  from foliarium.core.services.license import LicenseManager
   lm = LicenseManager()
   info = lm.validate()
   if not info.is_valid:

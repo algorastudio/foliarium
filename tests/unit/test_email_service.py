@@ -23,7 +23,7 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.dirname(__file__))))
 def _make_service(enabled=True, host="smtp.test.com", port=587, user="user@test.com",
                   use_tls=True, from_addr="noreply@test.com", password="secret"):
     """Costruisce un EmailService con attributi iniettati (senza QSettings/keyring)."""
-    from email_service import EmailService
+    from foliarium.core.services.email import EmailService
     svc = EmailService.__new__(EmailService)
     svc.enabled = enabled
     svc.host = host
@@ -76,7 +76,7 @@ class TestEmailServiceSend:
         assert not ok
         assert "non configurato" in err.lower()
 
-    @patch("email_service.smtplib.SMTP")
+    @patch("foliarium.core.services.email.smtplib.SMTP")
     def test_send_tls_success(self, mock_smtp_cls):
         mock_server = MagicMock()
         mock_smtp_cls.return_value = mock_server
@@ -92,7 +92,7 @@ class TestEmailServiceSend:
         mock_server.sendmail.assert_called_once()
         mock_server.quit.assert_called_once()
 
-    @patch("email_service.smtplib.SMTP_SSL")
+    @patch("foliarium.core.services.email.smtplib.SMTP_SSL")
     def test_send_ssl_success(self, mock_smtp_ssl_cls):
         mock_server = MagicMock()
         mock_smtp_ssl_cls.return_value = mock_server
@@ -104,7 +104,7 @@ class TestEmailServiceSend:
         mock_smtp_ssl_cls.assert_called_once_with("smtp.test.com", 587, timeout=10)
         mock_server.starttls.assert_not_called()
 
-    @patch("email_service.smtplib.SMTP")
+    @patch("foliarium.core.services.email.smtplib.SMTP")
     def test_send_no_password(self, mock_smtp_cls):
         mock_server = MagicMock()
         mock_smtp_cls.return_value = mock_server
@@ -115,7 +115,7 @@ class TestEmailServiceSend:
         assert ok
         mock_server.login.assert_not_called()
 
-    @patch("email_service.smtplib.SMTP")
+    @patch("foliarium.core.services.email.smtplib.SMTP")
     def test_auth_error(self, mock_smtp_cls):
         import smtplib
         mock_server = MagicMock()
@@ -128,7 +128,7 @@ class TestEmailServiceSend:
         assert not ok
         assert "autenticazione" in err.lower()
 
-    @patch("email_service.smtplib.SMTP")
+    @patch("foliarium.core.services.email.smtplib.SMTP")
     def test_connect_error(self, mock_smtp_cls):
         import smtplib
         mock_smtp_cls.side_effect = smtplib.SMTPConnectError(421, b"Service unavailable")
@@ -139,7 +139,7 @@ class TestEmailServiceSend:
         assert not ok
         assert "connettersi" in err.lower()
 
-    @patch("email_service.smtplib.SMTP")
+    @patch("foliarium.core.services.email.smtplib.SMTP")
     def test_network_error(self, mock_smtp_cls):
         mock_smtp_cls.side_effect = OSError("Network unreachable")
 
