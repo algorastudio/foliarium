@@ -393,9 +393,11 @@ def _setup_on_external_pg(
     admin_password: str,
     postgres_password: str,
     port: int,
+    db_name: str = DB_NAME,
+    db_user: str = DB_USER,
 ) -> bool:
     """
-    Crea il DB catasto_storico su un PostgreSQL già in esecuzione (modalità sviluppo).
+    Crea il DB su un PostgreSQL già in esecuzione (modalità sviluppo).
     Non esegue initdb, non modifica pg_hba.conf, non registra servizi.
     """
     sql_dir = install_dir / "sql_scripts"
@@ -406,7 +408,8 @@ def _setup_on_external_pg(
     print(f"{'='*60}")
     log(f"PostgreSQL bin: {pg_bin}")
     log(f"Host/porta:     127.0.0.1:{port}")
-    log(f"Database:       {DB_NAME}")
+    log(f"Database:       {db_name}")
+    log(f"Utente app:     {db_user}")
 
     if not (pg_bin / f"psql{EXE}").exists():
         log(f"ERRORE: psql non trovato in '{pg_bin}'")
@@ -417,12 +420,12 @@ def _setup_on_external_pg(
         log("Verificare che il servizio sia in esecuzione.")
         return False
 
-    print(f"\n[1/4] Creazione ruolo '{DB_USER}' e database '{DB_NAME}'...")
+    print(f"\n[1/4] Creazione ruolo '{db_user}' e database '{db_name}'...")
     try:
         run_psql(pg_bin, port,
                  f"DO $$ BEGIN "
-                 f"IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname='{DB_USER}') THEN "
-                 f"CREATE ROLE {DB_USER} LOGIN PASSWORD '{db_password}'; "
+                 f"IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname='{db_user}') THEN "
+                 f"CREATE ROLE {db_user} LOGIN PASSWORD '{db_password}'; "
                  f"END IF; END $$;",
                  password=postgres_password)
 
@@ -431,19 +434,19 @@ def _setup_on_external_pg(
         r = run_quiet([exe(pg_bin, "psql"),
                        "-h", "127.0.0.1", "-p", str(port),
                        "-U", "postgres", "-d", "postgres",
-                       "-tc", f"SELECT 1 FROM pg_database WHERE datname='{DB_NAME}'"],
+                       "-tc", f"SELECT 1 FROM pg_database WHERE datname='{db_name}'"],
                       env=env)
         if "1" not in r.stdout:
             run_psql(pg_bin, port,
-                     f"CREATE DATABASE {DB_NAME} OWNER postgres ENCODING 'UTF8';",
+                     f"CREATE DATABASE {db_name} OWNER postgres ENCODING 'UTF8';",
                      password=postgres_password)
-            log(f"Database '{DB_NAME}' creato.")
+            log(f"Database '{db_name}' creato.")
         else:
-            log(f"Database '{DB_NAME}' già esistente.")
+            log(f"Database '{db_name}' già esistente.")
 
         run_psql(pg_bin, port,
-                 f"GRANT CONNECT ON DATABASE {DB_NAME} TO {DB_USER};",
-                 dbname=DB_NAME, password=postgres_password)
+                 f"GRANT CONNECT ON DATABASE {db_name} TO {db_user};",
+                 dbname=db_name, password=postgres_password)
 
     except subprocess.CalledProcessError as e:
         log(f"ERRORE nella creazione del DB: {e}")
@@ -457,7 +460,7 @@ def _setup_on_external_pg(
             if sql_file.exists():
                 log(f"→ {script_name}")
                 run_psql_file(pg_bin, port, sql_file,
-                              dbname=DB_NAME, password=postgres_password)
+                              dbname=db_name, password=postgres_password)
             else:
                 log(f"ATTENZIONE: {script_name} non trovato, saltato.")
 
@@ -465,7 +468,7 @@ def _setup_on_external_pg(
         if bootstrap_file.exists():
             log(f"→ {BOOTSTRAP_ADMIN_SCRIPT}")
             run_psql_file(pg_bin, port, bootstrap_file,
-                          dbname=DB_NAME, password=postgres_password,
+                          dbname=db_name, password=postgres_password,
                           variables={
                               "admin_password": admin_password,
                               "admin_email": "admin@archivio.local",
@@ -474,12 +477,12 @@ def _setup_on_external_pg(
             log(f"ATTENZIONE: {BOOTSTRAP_ADMIN_SCRIPT} non trovato — admin non creato!")
 
         run_psql(pg_bin, port,
-                 f"GRANT USAGE ON SCHEMA public TO {DB_USER}; "
-                 f"GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA public TO {DB_USER}; "
-                 f"GRANT USAGE ON ALL SEQUENCES IN SCHEMA public TO {DB_USER}; "
+                 f"GRANT USAGE ON SCHEMA public TO {db_user}; "
+                 f"GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA public TO {db_user}; "
+                 f"GRANT USAGE ON ALL SEQUENCES IN SCHEMA public TO {db_user}; "
                  f"ALTER DEFAULT PRIVILEGES IN SCHEMA public "
-                 f"GRANT SELECT, INSERT, UPDATE, DELETE ON TABLES TO {DB_USER};",
-                 dbname=DB_NAME, password=postgres_password)
+                 f"GRANT SELECT, INSERT, UPDATE, DELETE ON TABLES TO {db_user};",
+                 dbname=db_name, password=postgres_password)
 
     except subprocess.CalledProcessError as e:
         log(f"ERRORE nell'esecuzione degli script SQL: {e}")
@@ -490,7 +493,7 @@ def _setup_on_external_pg(
     config["database"] = {
         "host": "127.0.0.1",
         "port": str(port),
-        "dbname": DB_NAME,
+        "dbname": db_name,
         "user": "postgres",
         "password": postgres_password,
     }
@@ -515,8 +518,7 @@ def _setup_on_external_pg(
     print(f"\n{'='*60}")
     print(f" Setup completato!")
     print(f"{'='*60}")
-    log(f"Porta:    {port}  |  Database: {DB_NAME}")
-    log(f"Utente app:      {DB_USER}  (password in config.ini)")
+    log(f"Porta:    {port}  |  Database: {db_name}  |  Utente: {db_user}")
     log(f"Utente admin:    admin  /  {admin_password}")
     log("IMPORTANTE: cambiare la password admin al primo accesso!")
     print(f"{'='*60}\n")
@@ -906,6 +908,14 @@ def main() -> None:
         "--port", type=int, default=DEFAULT_PORT,
         help=f"Porta PostgreSQL (default: {DEFAULT_PORT})",
     )
+    parser.add_argument(
+        "--db-name", default=DB_NAME,
+        help=f"Nome del database da creare (default: {DB_NAME})",
+    )
+    parser.add_argument(
+        "--db-user", default=DB_USER,
+        help=f"Ruolo PostgreSQL dell'applicazione (default: {DB_USER})",
+    )
     args = parser.parse_args()
 
     install_dir = Path(args.install_dir) if args.install_dir else detect_install_dir()
@@ -934,6 +944,8 @@ def main() -> None:
             admin_password=args.admin_password or "admin123",
             postgres_password=args.postgres_password,
             port=args.port,
+            db_name=args.db_name,
+            db_user=args.db_user,
         )
         sys.exit(0 if ok else 1)
 
