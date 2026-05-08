@@ -44,7 +44,8 @@ from foliarium.ui.widgets.custom import QPasswordLineEdit, ImmobiliTableWidget
 
 from app_utils import (gui_esporta_partita_pdf, gui_esporta_partita_json, gui_esporta_partita_csv,
                        gui_esporta_possessore_pdf, gui_esporta_possessore_json, gui_esporta_possessore_csv,
-                       GenericTextReportPDF, FPDF_AVAILABLE, prompt_to_open_file, PDFApreviewDialog)
+                       GenericTextReportPDF, FPDF_AVAILABLE, prompt_to_open_file)
+from foliarium.ui.dialogs.export_ import PDFApreviewDialog
 
 from foliarium.ui.dialogs.admin import datetime_to_qdate, qdate_to_datetime
 
@@ -378,7 +379,6 @@ class PartitaDetailsDialog(QDialog):
         text_content = self._generate_partita_text_report()
 
         # Usa la classe generica per l'esportazione PDF (che include l'anteprima)
-        # Nota: PDFApreviewDialog e GenericTextReportPDF sono in app_utils
         preview_dialog = PDFApreviewDialog(text_content, self, title=f"Anteprima: {pdf_report_title}")
         if preview_dialog.exec() != QDialog.DialogCode.Accepted:
             self.logger.info(f"Esportazione PDF per '{pdf_report_title}' annullata dall'utente dopo anteprima.")

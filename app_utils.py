@@ -1,24 +1,17 @@
-import logging,socket ,bcrypt,json, csv, os
-import sys
-from PyQt6.QtCore import QStandardPaths
-from PyQt6.QtWidgets import QMessageBox
-logger = logging.getLogger("CatastoGUI.app_utils")
-
-from config import DEVELOPMENT_MODE # Rimuovi 'logger' da questa riga
-
-
-
-
+import logging
+import socket
+import json
+import csv
+import os
 from datetime import date, datetime
 from typing import Optional, List, Dict, Any
 
-# Importazioni PyQt6
-from PyQt6.QtCore import QDate
-from PyQt6.QtGui import QFont # QFont serve per i report
-from PyQt6.QtWidgets import (QDialog, QVBoxLayout, QTextEdit, QDialogButtonBox,
-                             QTableWidget, QTableWidgetItem, QAbstractItemView,
-                             QFileDialog)
+from PyQt6.QtCore import QStandardPaths
+from PyQt6.QtGui import QFont
+from PyQt6.QtWidgets import QDialog, QFileDialog, QMessageBox
+
 from catasto_db_manager import CatastoDBManager
+from foliarium.ui.dialogs.export_ import PDFApreviewDialog, CSVApreviewDialog  # noqa: F401
 
 
 # Importa FPDF e le sue utility, che ora funzioneranno grazie a fpdf2
@@ -903,55 +896,3 @@ if FPDF_AVAILABLE:
                     self.cell(self.col_widths[i], 6, cell_value, fill=True, align='L',
                               new_x=XPos.LMARGIN if is_last else XPos.RIGHT,
                               new_y=YPos.NEXT    if is_last else YPos.TOP)
-# In fondo al file app_utils.py
-
-# --- DIALOGHI DI ANTEPRIMA SPOSTATI QUI PER RISOLVERE IMPORTAZIONE CIRCOLARE ---
-
-class PDFApreviewDialog(QDialog):
-    def __init__(self, text_content: str, parent=None, title="Anteprima Esportazione PDF"):
-        super().__init__(parent)
-        self.setWindowTitle(title)
-        self.setMinimumSize(700, 500)
-
-        layout = QVBoxLayout(self)
-        self.text_preview = QTextEdit()
-        self.text_preview.setReadOnly(True)
-        self.text_preview.setFontFamily("Courier New")
-        self.text_preview.setPlainText(text_content)
-        layout.addWidget(self.text_preview)
-
-        self.button_box = QDialogButtonBox(QDialogButtonBox.StandardButton.Ok | QDialogButtonBox.StandardButton.Cancel)
-        self.button_box.button(QDialogButtonBox.StandardButton.Ok).setText("Procedi con Esportazione PDF")
-        self.button_box.accepted.connect(self.accept)
-        self.button_box.rejected.connect(self.reject)
-        layout.addWidget(self.button_box)
-        self.setLayout(layout)
-
-class CSVApreviewDialog(QDialog):
-    def __init__(self, headers: List[str], data_rows: List[List[Any]], parent=None, title="Anteprima Esportazione CSV"):
-        super().__init__(parent)
-        self.setWindowTitle(title)
-        self.setMinimumSize(600, 400)
-
-        layout = QVBoxLayout(self)
-        self.table_preview = QTableWidget()
-        self.table_preview.setColumnCount(len(headers))
-        self.table_preview.setHorizontalHeaderLabels(headers)
-        self.table_preview.setAlternatingRowColors(True)
-        self.table_preview.setEditTriggers(QAbstractItemView.EditTrigger.NoEditTriggers)
-        self.table_preview.setSelectionBehavior(QAbstractItemView.SelectionBehavior.SelectRows)
-
-        self.table_preview.setRowCount(len(data_rows))
-        for row_idx, row_data in enumerate(data_rows):
-            for col_idx, cell_data in enumerate(row_data):
-                self.table_preview.setItem(row_idx, col_idx, QTableWidgetItem(str(cell_data)))
-
-        self.table_preview.resizeColumnsToContents()
-        layout.addWidget(self.table_preview)
-
-        self.button_box = QDialogButtonBox(QDialogButtonBox.StandardButton.Ok | QDialogButtonBox.StandardButton.Cancel)
-        self.button_box.button(QDialogButtonBox.StandardButton.Ok).setText("Procedi con Esportazione")
-        self.button_box.accepted.connect(self.accept)
-        self.button_box.rejected.connect(self.reject)
-        layout.addWidget(self.button_box)
-        self.setLayout(layout)

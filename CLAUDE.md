@@ -47,7 +47,7 @@ foliarium/
 ├── foliarium/                    # Package principale (servizi + UI estratti)
 │   ├── core/services/            # email.py, license.py, update_checker.py, demo_launcher.py
 │   └── ui/                       # top_bar.py, sidebar.py, command_palette.py, splash.py
-│       ├── dialogs/              # entity.py, admin.py (+ LoginDialog), partita.py, import_.py
+│       ├── dialogs/              # entity.py, admin.py (+ LoginDialog), partita.py, import_.py, export_.py
 │       └── widgets/              # admin.py (GestioneUtenti, Archivio, TipiPossesso)
 │                                 # insertion.py (Comune, Possessore, Localita, Partita)
 │                                 # reporting.py (Documenti, Esportazioni, Reportistica, Statistiche)
