@@ -348,12 +348,11 @@ BEGIN
         'localita'::TEXT,
         l.id,
         l.nome::TEXT,
-        CONCAT(l.tipo, ' ', l.nome, ' - ', c.nome)::TEXT,
+        CONCAT(l.nome, ' - ', c.nome)::TEXT,
         similarity(l.nome, query_text),
         'nome'::TEXT,
         jsonb_build_object(
-            'tipo', l.tipo,
-            'civico', l.civico,
+            'tipologia', l.tipologia_stradale,
             'comune', c.nome
         )
     FROM localita l

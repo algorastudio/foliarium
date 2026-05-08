@@ -40,7 +40,7 @@ VersionInfoCopyright={#MyCopyright}
 ; --- LICENZA D'USO (EULA) ---
 ; Mostra il file di licenza prima dell'installazione.
 ; Assicurarsi che il file si trovi nel percorso specificato.
-LicenseFile=resources\EULA.rtf
+LicenseFile=resources\EULA.txt
 
 [Languages]
 ; Imposta la lingua dell'installer.

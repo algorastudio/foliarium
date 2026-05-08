@@ -9,7 +9,7 @@ Comandi disponibili:
 
 Esempi:
   python generate_license.py generate \\
-      --to "Archivio di Stato di Savona" \\
+      --to "Comune di Firenze" \\
       --type standard \\
       --seats 2 \\
       --expiry 2027-12-31 \\
@@ -135,7 +135,7 @@ def main() -> None:
     # --- generate ---
     p_gen = sub.add_parser("generate", help="Genera un nuovo file .license")
     p_gen.add_argument("--to",       required=True, metavar="NOME",
-                       help="Nome del licenziatario (es. 'Archivio di Stato di Savona')")
+                       help="Nome del licenziatario (es. 'Comune di Firenze')")
     p_gen.add_argument("--type",     default="standard",
                        choices=["demo", "standard", "enterprise"],
                        help="Tipo di licenza (default: standard)")

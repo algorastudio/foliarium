@@ -333,17 +333,18 @@ BEGIN
         -- ============================================================
         v_loc_ids := ARRAY[]::INTEGER[];
 
-        -- 3 VIE
+        -- 3 VIE (civico incorporato nel nome da v1.6.1)
         FOR i_loc IN 1..3 LOOP
             v_loc_nome   := v_vie_nomi[((i_com - 1) * 3 + i_loc - 1) % array_length(v_vie_nomi, 1) + 1];
             v_loc_civico := (i_loc * 7)::TEXT;
+            v_loc_nome := CONCAT(v_loc_nome, ' ', v_loc_civico);
 
             SELECT id INTO v_tmp_id FROM localita
-            WHERE comune_id = v_com_id AND nome = v_loc_nome AND civico = v_loc_civico;
+            WHERE comune_id = v_com_id AND nome = v_loc_nome;
 
             IF v_tmp_id IS NULL THEN
-                INSERT INTO localita (comune_id, nome, tipologia_stradale, tipo_id, civico)
-                VALUES (v_com_id, v_loc_nome, 'Via', tl_via, v_loc_civico)
+                INSERT INTO localita (comune_id, nome, tipologia_stradale)
+                VALUES (v_com_id, v_loc_nome, 'Via')
                 RETURNING id INTO v_tmp_id;
             END IF;
             v_loc_ids := array_append(v_loc_ids, v_tmp_id);
@@ -354,11 +355,11 @@ BEGIN
             v_loc_nome := v_piazze_nomi[((i_com - 1) * 2 + i_loc - 1) % array_length(v_piazze_nomi, 1) + 1];
 
             SELECT id INTO v_tmp_id FROM localita
-            WHERE comune_id = v_com_id AND nome = v_loc_nome AND civico IS NULL;
+            WHERE comune_id = v_com_id AND nome = v_loc_nome;
 
             IF v_tmp_id IS NULL THEN
-                INSERT INTO localita (comune_id, nome, tipologia_stradale, tipo_id, civico)
-                VALUES (v_com_id, v_loc_nome, 'Piazza', tl_pza, NULL)
+                INSERT INTO localita (comune_id, nome, tipologia_stradale)
+                VALUES (v_com_id, v_loc_nome, 'Piazza')
                 RETURNING id INTO v_tmp_id;
             END IF;
             v_loc_ids := array_append(v_loc_ids, v_tmp_id);
@@ -369,11 +370,11 @@ BEGIN
             v_loc_nome := v_regioni_nomi[((i_com - 1) * 2 + i_loc - 1) % array_length(v_regioni_nomi, 1) + 1];
 
             SELECT id INTO v_tmp_id FROM localita
-            WHERE comune_id = v_com_id AND nome = v_loc_nome AND civico IS NULL;
+            WHERE comune_id = v_com_id AND nome = v_loc_nome;
 
             IF v_tmp_id IS NULL THEN
-                INSERT INTO localita (comune_id, nome, tipologia_stradale, tipo_id, civico)
-                VALUES (v_com_id, v_loc_nome, 'Regione', tl_reg, NULL)
+                INSERT INTO localita (comune_id, nome, tipologia_stradale)
+                VALUES (v_com_id, v_loc_nome, 'Regione')
                 RETURNING id INTO v_tmp_id;
             END IF;
             v_loc_ids := array_append(v_loc_ids, v_tmp_id);
@@ -383,11 +384,11 @@ BEGIN
         v_loc_nome := v_borgate_nomi[(i_com - 1) % array_length(v_borgate_nomi, 1) + 1];
 
         SELECT id INTO v_tmp_id FROM localita
-        WHERE comune_id = v_com_id AND nome = v_loc_nome AND civico IS NULL;
+        WHERE comune_id = v_com_id AND nome = v_loc_nome;
 
         IF v_tmp_id IS NULL THEN
-            INSERT INTO localita (comune_id, nome, tipologia_stradale, tipo_id, civico)
-            VALUES (v_com_id, v_loc_nome, 'Borgata', tl_bor, NULL)
+            INSERT INTO localita (comune_id, nome, tipologia_stradale)
+            VALUES (v_com_id, v_loc_nome, 'Borgata')
             RETURNING id INTO v_tmp_id;
         END IF;
         v_loc_ids := array_append(v_loc_ids, v_tmp_id);

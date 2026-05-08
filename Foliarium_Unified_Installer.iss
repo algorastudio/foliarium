@@ -51,7 +51,7 @@ VersionInfoDescription=Installazione di Foliarium con PostgreSQL integrato
 VersionInfoCopyright={#MyCopyright}
 
 ; EULA
-LicenseFile=resources\EULA.rtf
+LicenseFile=resources\EULA.txt
 
 [Languages]
 Name: "italian"; MessagesFile: "compiler:Languages\Italian.isl"

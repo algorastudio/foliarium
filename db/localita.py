@@ -5,12 +5,13 @@ Estratto da catasto_db_manager.py — mixin per CatastoDBManager.
 
 from __future__ import annotations
 import logging
-from typing import Optional, List, Dict, Any, TYPE_CHECKING
+from typing import Optional, List, Dict, Any, Union, TYPE_CHECKING
 
 import psycopg2
 from psycopg2.extras import DictCursor
 
 from catasto_exceptions import DBMError, DBUniqueConstraintError, DBNotFoundError, DBDataError
+from db.base import db_handle_errors
 
 if TYPE_CHECKING:
     from catasto_db_manager import CatastoDBManager
@@ -19,17 +20,24 @@ if TYPE_CHECKING:
 class DBLocalitaMixin:
     """Mixin CRUD per Località e Tipi Località."""
 
+    @db_handle_errors
     def get_tipi_localita(self) -> List[Dict[str, Any]]:
-        """Recupera tutte le tipologie di località disponibili."""
-        query = "SELECT id, nome, descrizione FROM catasto.tipo_localita ORDER BY nome;"
-        try:
+        """Recupera tutte le tipologie di località disponibili.
+
+        TIER 1: @db_handle_errors centralizes exception handling.
+        TIER 3 Phase 4: Cached (immutable reference data).
+        """
+        def _fetch():
+            query = "SELECT id, nome, descrizione FROM catasto.tipo_localita ORDER BY nome;"
             with self._get_connection() as conn:
                 with conn.cursor(cursor_factory=psycopg2.extras.DictCursor) as cur:
                     cur.execute(query)
                     return [dict(row) for row in cur.fetchall()]
+        try:
+            return self._try_with_cache("tipi_localita", _fetch)
         except Exception as e:
-            self.logger.error(f"Errore nel recuperare i tipi di località: {e}", exc_info=True)
-            raise DBMError("Impossibile recuperare le tipologie di località.") from e
+            self.logger.error(f"Errore in get_tipi_localita: {e}", exc_info=True)
+            return []
 
     def gestisci_tipo_localita(self, tipo_id: Optional[int], nome: str, descrizione: Optional[str] = None) -> int:
         """Crea o aggiorna una tipologia di località."""
@@ -75,44 +83,42 @@ class DBLocalitaMixin:
             self.logger.error(f"Errore in elimina_tipo_localita: {e}", exc_info=True)
             raise DBMError("Eliminazione della tipologia fallita.") from e
 
+    @db_handle_errors
     def get_elenco_localita_per_esportazione(self, comune_id: Optional[int] = None) -> List[Dict[str, Any]]:
-        """Recupera un elenco completo di località per l'esportazione."""
+        """Recupera un elenco completo di località per l'esportazione (civico incorporato nel nome da v1.6.1).
+
+        TIER 1: @db_handle_errors centralizes exception handling.
+        """
         query = f"""
-            SELECT l.id, l.nome, tl.nome AS tipo, l.civico, c.nome AS comune_nome
+            SELECT l.id, l.nome, l.tipologia_stradale, c.nome AS comune_nome
             FROM {self.schema}.localita l
             JOIN {self.schema}.comune c ON l.comune_id = c.id
-            LEFT JOIN {self.schema}.tipo_localita tl ON l.tipo_id = tl.id
         """
         params = []
         if comune_id:
-            query += " WHERE l.comune_id = %s"
+            query += " WHERE l.comune_id = %s AND NOT l.archiviato"
             params.append(comune_id)
+        else:
+            query += " WHERE NOT l.archiviato"
         query += " ORDER BY c.nome, l.nome;"
-        try:
-            with self._get_connection() as conn:
-                with conn.cursor(cursor_factory=psycopg2.extras.DictCursor) as cur:
-                    cur.execute(query, params)
-                    return [dict(row) for row in cur.fetchall()]
-        except Exception as e:
-            raise DBMError(f"Impossibile recuperare l'elenco delle località: {e}") from e
+        with self._get_connection() as conn:
+            with conn.cursor(cursor_factory=psycopg2.extras.DictCursor) as cur:
+                cur.execute(query, params)
+                return [dict(row) for row in cur.fetchall()]
 
     def get_localita_by_comune(self, comune_id: int, filter_text: Optional[str] = None) -> List[Dict[str, Any]]:
-        """Recupera località per comune_id, unendo il nome del tipo dalla nuova tabella."""
+        """Recupera località per comune_id (civico incorporato nel nome da v1.6.1)."""
         if not isinstance(comune_id, int) or comune_id <= 0:
             raise DBDataError("ID comune non valido.")
 
-        # --- INIZIO CORREZIONE: Query aggiornata con JOIN ---
         query_base = f"""
-            SELECT 
-                loc.id, 
-                loc.nome, 
-                tl.nome AS tipo,  -- Selezioniamo il nome dalla tabella tipo_localita
-                loc.civico 
+            SELECT
+                loc.id,
+                loc.nome,
+                loc.tipologia_stradale
             FROM {self.schema}.localita loc
-            LEFT JOIN {self.schema}.tipo_localita tl ON loc.tipo_id = tl.id
-            WHERE loc.comune_id = %s
+            WHERE loc.comune_id = %s AND NOT loc.archiviato
         """
-        # --- FINE CORREZIONE ---
 
         params: List[Union[int, str]] = [comune_id]
 
@@ -120,7 +126,7 @@ class DBLocalitaMixin:
             query_base += " AND loc.nome ILIKE %s"
             params.append(f"%{filter_text}%")
 
-        query = query_base + " ORDER BY tl.nome, loc.nome, loc.civico;"
+        query = query_base + " ORDER BY loc.nome;"
 
         try:
             with self._get_connection() as conn:
@@ -133,31 +139,27 @@ class DBLocalitaMixin:
             self.logger.error(f"Errore DB in get_localita_by_comune: {e}", exc_info=True)
             return [] # Restituisce lista vuota in caso di errore
 
-    def insert_localita(self, comune_id: int, nome: str, tipo_id: int, civico: Optional[int] = None) -> int:
+    def insert_localita(self, comune_id: int, nome: str, tipologia_stradale: Optional[str] = None) -> int:
         """
-        Inserisce una nuova località usando tipo_id (FK) e gestisce i conflitti.
+        Inserisce una nuova località. Civico è incorporato nel nome (es. 'Via Roma 10').
         """
-        if not all([isinstance(comune_id, int), comune_id > 0, isinstance(nome, str), nome.strip(), isinstance(tipo_id, int), tipo_id > 0]):
+        if not all([isinstance(comune_id, int), comune_id > 0, isinstance(nome, str), nome.strip()]):
             raise DBDataError("Parametri per l'inserimento della località non validi.")
 
-        actual_civico = civico if civico is not None and civico > 0 else None
-
-        # La colonna ora è 'tipo_id'
-        query_insert = f"INSERT INTO {self.schema}.localita (comune_id, nome, tipo_id, civico) VALUES (%s, %s, %s, %s) ON CONFLICT (comune_id, nome, civico) DO NOTHING RETURNING id;"
-        # Anche la query di select deve usare tipo_id, ma per ora non è strettamente necessaria se il recupero avviene dopo
-        query_select = f"SELECT id FROM {self.schema}.localita WHERE comune_id = %s AND nome = %s AND tipo_id = %s AND ((civico IS NULL AND %s IS NULL) OR (civico = %s));"
+        query_insert = f"INSERT INTO {self.schema}.localita (comune_id, nome, tipologia_stradale) VALUES (%s, %s, %s) ON CONFLICT (comune_id, nome) DO NOTHING RETURNING id;"
+        query_select = f"SELECT id FROM {self.schema}.localita WHERE comune_id = %s AND nome = %s;"
 
         try:
             with self._get_connection() as conn:
                 with conn.cursor(cursor_factory=psycopg2.extras.DictCursor) as cur:
-                    cur.execute(query_insert, (comune_id, nome.strip(), tipo_id, actual_civico))
+                    cur.execute(query_insert, (comune_id, nome.strip(), tipologia_stradale))
                     insert_result = cur.fetchone()
 
                     if insert_result and insert_result['id']:
                         localita_id = insert_result['id']
                         self.logger.info(f"Località '{nome}' inserita con successo. ID: {localita_id}.")
                     else: # Conflitto, recupera l'ID esistente
-                        cur.execute(query_select, (comune_id, nome.strip(), tipo_id, actual_civico, actual_civico))
+                        cur.execute(query_select, (comune_id, nome.strip()))
                         select_result = cur.fetchone()
                         if select_result and select_result['id']:
                             localita_id = select_result['id']
@@ -169,30 +171,40 @@ class DBLocalitaMixin:
             self.logger.error(f"Errore in insert_localita per '{nome}': {e}", exc_info=True)
             raise DBMError(f"Errore database durante l'operazione sulla località: {e}") from e
 
+    @db_handle_errors
     def get_localita_details(self, localita_id: int) -> Optional[Dict[str, Any]]:
-        """Recupera i dettagli di una singola località, incluso il nome del comune."""
-        if not isinstance(localita_id, int) or localita_id <= 0: return None
+        """Recupera i dettagli di una singola località (civico incorporato nel nome da v1.6.1).
+
+        TIER 1: @db_handle_errors centralizes exception handling.
+        """
+        if not isinstance(localita_id, int) or localita_id <= 0:
+            raise DBDataError(f"ID località non valido: {localita_id}")
 
         query = f"""
-            SELECT loc.id, loc.nome, loc.tipo, loc.civico, loc.comune_id, com.nome AS comune_nome
+            SELECT loc.id, loc.nome, loc.tipologia_stradale, loc.comune_id, com.nome AS comune_nome
             FROM {self.schema}.localita loc
             JOIN {self.schema}.comune com ON loc.comune_id = com.id
             WHERE loc.id = %s;
         """
-        try:
-            with self._get_connection() as conn:
-                with conn.cursor(cursor_factory=DictCursor) as cur:
-                    cur.execute(query, (localita_id,))
-                    result = cur.fetchone()
-                    return dict(result) if result else None
-        except Exception as e:
-            self.logger.error(f"Errore DB in get_localita_details per ID {localita_id}: {e}", exc_info=True)
-            return None
+        with self._get_connection() as conn:
+            with conn.cursor(cursor_factory=DictCursor) as cur:
+                cur.execute(query, (localita_id,))
+                result = cur.fetchone()
+                if result:
+                    return dict(result)
+                else:
+                    raise DBNotFoundError(f"Località con ID {localita_id} non trovata.")
 
+    @db_handle_errors
     def update_localita(self, localita_id: int, dati_modificati: Dict[str, Any]):
-        """Aggiorna i dati di una località esistente, usando tipo_id."""
-        if not (isinstance(localita_id, int) and localita_id > 0): raise DBDataError("ID località non valido.")
-        if not isinstance(dati_modificati, dict) or not dati_modificati: raise DBDataError("Dati per aggiornamento non validi.")
+        """Aggiorna i dati di una località esistente (civico incorporato nel nome da v1.6.1).
+
+        TIER 1: @db_handle_errors centralizes exception handling.
+        """
+        if not (isinstance(localita_id, int) and localita_id > 0):
+            raise DBDataError("ID località non valido.")
+        if not isinstance(dati_modificati, dict) or not dati_modificati:
+            raise DBDataError("Dati per aggiornamento non validi.")
 
         set_clauses = []
         params = []
@@ -201,32 +213,20 @@ class DBLocalitaMixin:
             set_clauses.append("nome = %s")
             params.append(dati_modificati["nome"].strip())
 
-        # --- MODIFICA CHIAVE QUI ---
-        if "tipo_id" in dati_modificati and dati_modificati["tipo_id"] is not None:
-            set_clauses.append("tipo_id = %s")
-            params.append(dati_modificati["tipo_id"])
-        # --- FINE MODIFICA ---
-
-        if "civico" in dati_modificati:
-            set_clauses.append("civico = %s")
-            params.append(dati_modificati["civico"] if dati_modificati["civico"] else None)
+        if "tipologia_stradale" in dati_modificati:
+            set_clauses.append("tipologia_stradale = %s")
+            params.append(dati_modificati["tipologia_stradale"] if dati_modificati["tipologia_stradale"] else None)
 
         if not set_clauses:
-            self.logger.info(f"Nessun campo valido fornito per aggiornare località ID {localita_id}.")
             return
 
         set_clauses.append("data_modifica = CURRENT_TIMESTAMP")
         query = f"UPDATE {self.schema}.localita SET {', '.join(set_clauses)} WHERE id = %s;"
         params.append(localita_id)
 
-        try:
-            with self._get_connection() as conn:
-                with conn.cursor() as cur:
-                    cur.execute(query, tuple(params))
-                    if cur.rowcount == 0:
-                        raise DBNotFoundError(f"Nessuna località trovata con ID {localita_id} da aggiornare.")
-            self.logger.info(f"Località ID {localita_id} aggiornata con successo.")
-        except Exception as e:
-            self.logger.error(f"Errore DB aggiornando località ID {localita_id}: {e}", exc_info=True)
-            raise DBMError(f"Impossibile aggiornare la località: {e}") from e
+        with self._get_connection() as conn:
+            with conn.cursor() as cur:
+                cur.execute(query, tuple(params))
+                if cur.rowcount == 0:
+                    raise DBNotFoundError(f"Nessuna località trovata con ID {localita_id} da aggiornare.")
 

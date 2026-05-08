@@ -5,14 +5,16 @@ Estratto da catasto_db_manager.py — mixin per CatastoDBManager.
 
 from __future__ import annotations
 import logging
-from typing import Optional, List, Dict, Any, TYPE_CHECKING
+from typing import Optional, List, Dict, Any, Tuple, TYPE_CHECKING
 
 import os
 from datetime import date, datetime
 import psycopg2
 from psycopg2.extras import DictCursor
+from psycopg2.extensions import ISOLATION_LEVEL_AUTOCOMMIT
 
 from catasto_exceptions import DBMError, DBUniqueConstraintError, DBNotFoundError, DBDataError
+from db.base import db_handle_errors
 
 if TYPE_CHECKING:
     from catasto_db_manager import CatastoDBManager
@@ -21,18 +23,20 @@ if TYPE_CHECKING:
 class DBIOMixin:
     """Mixin per import/export CSV, JSON e SQL."""
 
-    def import_comuni_from_rows(self, rows: List[Dict[str, Any]]) -> Dict[str, list]:
+    @db_handle_errors
+    def import_comuni_from_rows(self, rows: List[Dict[str, Any]]) -> Dict[str, Any]:
         """
         Importa una lista di comuni da una lista di dizionari, gestendo gli errori riga per riga.
         Ogni dict deve avere 'nome', 'provincia', 'regione' (obbligatori).
         Campi opzionali: 'codice_catastale', 'data_istituzione', 'data_soppressione', 'note'.
-        Restituisce {"success": [...], "errors": [(line_num, row, msg), ...]}.
+
+        TIER 1 Improvement:
+        - @db_handle_errors decorator handles all exceptions
+        - Uses bulk_insert_with_savepoint() for per-row fault tolerance
+        - Returns {"success": [...], "errors": [...]} from helper
         """
         if not rows:
             return {"success": [], "errors": []}
-
-        success_rows: list = []
-        error_rows: list = []
 
         def _parse_date(val: Any) -> Optional[date]:
             if not val or not str(val).strip():
@@ -45,128 +49,72 @@ class DBIOMixin:
                     continue
             return None
 
-        try:
-            with self._get_connection() as conn:
-                with conn.cursor() as cur:
-                    for i, record in enumerate(rows):
-                        line_num = i + 2
-                        cur.execute("SAVEPOINT record_savepoint")
-                        try:
-                            nome = str(record.get('nome', '')).strip()
-                            provincia = str(record.get('provincia', '')).strip()
-                            regione = str(record.get('regione', '')).strip()
-                            if not nome or not provincia or not regione:
-                                raise ValueError("I campi 'nome', 'provincia' e 'regione' sono obbligatori.")
+        records_prepared: List[Dict[str, Any]] = []
+        for record in rows:
+            nome = str(record.get('nome', '')).strip()
+            provincia = str(record.get('provincia', '')).strip()
+            regione = str(record.get('regione', '')).strip()
 
-                            codice_catastale = str(record.get('codice_catastale', '')).strip() or None
-                            data_istituzione = _parse_date(record.get('data_istituzione'))
-                            data_soppressione = _parse_date(record.get('data_soppressione'))
-                            note = str(record.get('note', '')).strip() or None
+            if not nome or not provincia or not regione:
+                raise ValueError("I campi 'nome', 'provincia' e 'regione' sono obbligatori.")
 
-                            query = f"""
-                                INSERT INTO {self.schema}.comune
-                                    (nome, provincia, regione, codice_catastale,
-                                     data_istituzione, data_soppressione, note)
-                                VALUES (%s, %s, %s, %s, %s, %s, %s)
-                                RETURNING id;
-                            """
-                            cur.execute(query, (nome, provincia, regione, codice_catastale,
-                                                data_istituzione, data_soppressione, note))
-                            result = cur.fetchone()
-                            if not result:
-                                raise DBMError("Inserimento fallito, nessun ID restituito.")
-                            new_id = result[0]
-                            cur.execute("RELEASE SAVEPOINT record_savepoint")
-                            success_rows.append({'id': new_id, 'nome': nome, 'provincia': provincia, 'regione': regione})
+            codice_catastale = str(record.get('codice_catastale', '')).strip() or None
+            data_istituzione = _parse_date(record.get('data_istituzione'))
+            data_soppressione = _parse_date(record.get('data_soppressione'))
+            note = str(record.get('note', '')).strip() or None
 
-                        except psycopg2.errors.UniqueViolation:
-                            cur.execute("ROLLBACK TO SAVEPOINT record_savepoint")
-                            error_rows.append((line_num, record, f"Il comune '{record.get('nome', '')}' esiste già."))
-                        except (ValueError, psycopg2.Error, DBMError) as error:
-                            cur.execute("ROLLBACK TO SAVEPOINT record_savepoint")
-                            error_rows.append((line_num, record, str(error)))
+            records_prepared.append({
+                'nome': nome,
+                'provincia': provincia,
+                'regione': regione,
+                'codice_catastale': codice_catastale,
+                'data_istituzione': data_istituzione,
+                'data_soppressione': data_soppressione,
+                'note': note,
+            })
 
-            self.logger.info(f"Import comuni completato. Successi: {len(success_rows)}, Errori: {len(error_rows)}")
-            return {"success": success_rows, "errors": error_rows}
+        result = self.bulk_insert_with_savepoint("comune", records_prepared)
 
-        except Exception as e:
-            self.logger.error(f"Errore critico durante import comuni: {e}", exc_info=True)
-            raise DBMError(f"Errore critico di sistema durante l'importazione: {e}") from e
+        self.logger.info(
+            f"Import comuni completato: {len(result['success'])} successi, "
+            f"{len(result['errors'])} errori"
+        )
+        return result
 
+    @db_handle_errors
     def import_localita_from_rows(self, comune_id: int, rows: List[Dict[str, Any]]) -> Dict[str, list]:
-        """
-        Importa una lista di località da una lista di dizionari per un comune dato.
-        Ogni dict deve avere 'nome' (obbligatorio), 'tipo' (stringa, es. 'Via'), 'civico' (opzionale).
-        Restituisce {"success": [...], "errors": [(line_num, row, msg), ...]}.
+        """Importa una lista di località da una lista di dizionari per un comune dato.
+
+        TIER 1: @db_handle_errors decorator handles all exceptions.
         """
         if not rows:
             return {"success": [], "errors": []}
 
-        tipi = self.get_tipi_localita()
-        tipo_map = {t['nome'].lower(): t['id'] for t in tipi}
-        fallback_tipo_id = tipo_map.get('altro')
+        records_prepared: List[Dict[str, Any]] = []
+        for record in rows:
+            nome = str(record.get('nome', '')).strip()
+            if not nome:
+                raise ValueError("Il campo 'nome' è obbligatorio")
 
-        success_rows: list = []
-        error_rows: list = []
+            # Civico incorporato nel nome (v1.6.1)
+            civico_raw = str(record.get('civico', '')).strip()
+            if civico_raw:
+                nome = f"{nome} {civico_raw}".strip()
 
-        try:
-            with self._get_connection() as conn:
-                with conn.cursor() as cur:
-                    for i, record in enumerate(rows):
-                        line_num = i + 2
-                        cur.execute("SAVEPOINT record_savepoint")
-                        try:
-                            nome = str(record.get('nome', '')).strip()
-                            if not nome:
-                                raise ValueError("Il campo 'nome' è obbligatorio.")
+            tipologia_stradale = str(record.get('tipo', '')).strip() or None
 
-                            tipo_str = str(record.get('tipo', '')).strip().lower()
-                            tipo_id = tipo_map.get(tipo_str, fallback_tipo_id)
-                            if tipo_id is None:
-                                raise ValueError(f"Tipo località '{record.get('tipo', '')}' non trovato e nessun fallback 'Altro' disponibile.")
+            records_prepared.append({
+                'comune_id': comune_id,
+                'nome': nome,
+                'tipologia_stradale': tipologia_stradale,
+            })
 
-                            civico_raw = str(record.get('civico', '')).strip()
-                            try:
-                                civico = int(civico_raw) if civico_raw else None
-                            except ValueError:
-                                civico = None
-                            actual_civico = civico if civico is not None and civico > 0 else None
-
-                            query_insert = f"""
-                                INSERT INTO {self.schema}.localita (comune_id, nome, tipo_id, civico)
-                                VALUES (%s, %s, %s, %s)
-                                ON CONFLICT (comune_id, nome, civico) DO NOTHING
-                                RETURNING id;
-                            """
-                            cur.execute(query_insert, (comune_id, nome, tipo_id, actual_civico))
-                            insert_result = cur.fetchone()
-
-                            if insert_result:
-                                new_id = insert_result[0]
-                            else:
-                                cur.execute(
-                                    f"SELECT id FROM {self.schema}.localita WHERE comune_id=%s AND nome=%s AND ((civico IS NULL AND %s IS NULL) OR civico=%s);",
-                                    (comune_id, nome, actual_civico, actual_civico)
-                                )
-                                existing = cur.fetchone()
-                                if existing:
-                                    raise ValueError(f"La località '{nome}' esiste già per questo comune.")
-                                else:
-                                    raise DBMError(f"Impossibile inserire o trovare la località '{nome}'.")
-
-                            cur.execute("RELEASE SAVEPOINT record_savepoint")
-                            success_rows.append({'id': new_id, 'nome': nome, 'tipo': record.get('tipo', ''), 'civico': civico_raw})
-
-                        except (ValueError, psycopg2.Error, DBMError) as error:
-                            cur.execute("ROLLBACK TO SAVEPOINT record_savepoint")
-                            error_rows.append((line_num, record, str(error)))
-
-            self.logger.info(f"Import località completato. Successi: {len(success_rows)}, Errori: {len(error_rows)}")
-            return {"success": success_rows, "errors": error_rows}
-
-        except Exception as e:
-            self.logger.error(f"Errore critico durante import località: {e}", exc_info=True)
-            raise DBMError(f"Errore critico di sistema durante l'importazione: {e}") from e
+        result = self.bulk_insert_with_savepoint("localita", records_prepared)
+        self.logger.info(
+            f"Import località completato: {len(result['success'])} successi, "
+            f"{len(result['errors'])} errori"
+        )
+        return result
 
     def get_comuni_export_csv(self) -> List[Dict[str, Any]]:
         """
@@ -197,15 +145,14 @@ class DBIOMixin:
     def get_localita_export_csv(self, comune_id: int) -> List[Dict[str, Any]]:
         """
         Restituisce le località di un comune con i campi compatibili con il template di import.
-        Colonne: nome;tipo;civico
+        Colonne: nome;tipologia_stradale
+        Nota: civico è incorporato nel nome da v1.6.1
         """
         query = f"""
             SELECT
                 l.nome,
-                COALESCE(tl.nome, '') AS tipo,
-                COALESCE(CAST(l.civico AS TEXT), '') AS civico
+                COALESCE(l.tipologia_stradale, '') AS tipologia_stradale
             FROM {self.schema}.localita l
-            LEFT JOIN {self.schema}.tipo_localita tl ON l.tipo_id = tl.id
             WHERE l.comune_id = %s
             ORDER BY l.nome;
         """
@@ -265,11 +212,14 @@ class DBIOMixin:
             self.logger.error(f"Errore export CSV partite per comune {comune_id}: {e}", exc_info=True)
             raise DBMError(f"Impossibile recuperare le partite per l'export: {e}") from e
 
-    def create_clean_environment(self) -> 'QProcessEnvironment':
-        """Crea un ambiente pulito per QProcess, ereditando le variabili di sistema."""
+    def create_clean_environment(self) -> Any:
+        """Crea un ambiente pulito per QProcess, ereditando le variabili di sistema.
+
+        Lazy-import di QProcessEnvironment così il package db/ resta utilizzabile
+        in ambienti headless dove PyQt6 potrebbe non essere disponibile.
+        """
         from PyQt6.QtCore import QProcessEnvironment
-        env = QProcessEnvironment.systemEnvironment()
-        return env
+        return QProcessEnvironment.systemEnvironment()
 
     def execute_sql_from_file(self, file_path: str) -> Tuple[bool, str]:
         """Esegue uno script SQL da un file in modo sicuro, gestendo l'autocommit."""

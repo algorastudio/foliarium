@@ -5,8 +5,8 @@
 VSVersionInfo(
   ffi=FixedFileInfo(
     # Versione del file e del prodotto (MAJOR, MINOR, PATCH, BUILD)
-    filevers=(1, 5, 0, 0),
-    prodvers=(1, 5, 0, 0),
+    filevers=(1, 6, 1, 0),
+    prodvers=(1, 6, 1, 0),
     # Maschera per indicare quali campi sono validi
     mask=0x3f,
     # Flag vari (es. 0x0 per una build di release)
@@ -27,12 +27,12 @@ VSVersionInfo(
         '041004b0', # Codice lingua: Italiano (Italia), set di caratteri Unicode
         [StringStruct('CompanyName', 'Algora Studio'),
          StringStruct('FileDescription', 'Foliarium - Archivio Catastale Storico'),
-         StringStruct('FileVersion', '1.5.0'),
+         StringStruct('FileVersion', '1.6.1'),
          StringStruct('InternalName', 'Foliarium'),
          StringStruct('LegalCopyright', u'Copyright \xa9 2025 Algora Studio. Tutti i diritti riservati.'),
          StringStruct('OriginalFilename', 'Foliarium.exe'),
          StringStruct('ProductName', 'Foliarium'),
-         StringStruct('ProductVersion', '1.5.0')])
+         StringStruct('ProductVersion', '1.6.1')])
       ]),
     VarFileInfo([VarStruct('Translation', [1040, 1200])]) # 1040 è LCID per Italiano
   ]

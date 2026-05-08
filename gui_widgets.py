@@ -7,9 +7,8 @@ from app_paths import get_icon_path
 import pandas as pd # Importa pandas
 
 # Importazioni PyQt6
-from PyQt6.QtCore import (QDate, QDateTime, QPoint, QProcess, QSettings, 
-                          QSize, QStandardPaths, Qt, QTimer, QUrl, 
-                          pyqtSignal,QModelIndex,QProcessEnvironment,Qt, QSettings, 
+from PyQt6.QtCore import (QDate, QDateTime, QPoint, QProcess, QSize, QStandardPaths, QTimer, QUrl, 
+                          QModelIndex,QProcessEnvironment,Qt, QSettings, 
                           pyqtSlot,pyqtSignal ,QThread)
 
 from PyQt6.QtGui import (QCloseEvent, QColor, QDesktopServices, QFont, 
@@ -33,7 +32,7 @@ from PyQt6.QtWidgets import (QAbstractItemView, QApplication,
                              QPushButton, QScrollArea, QSizePolicy, QSpacerItem,
                              QSpinBox, QStyle, QStyleFactory, QTabWidget,
                              QTableWidget, QTableWidgetItem, QTextEdit,
-                             QVBoxLayout, QWidget,QProgressDialog,QTextBrowser,QSlider, QCompleter,QSplitter)
+                             QVBoxLayout, QWidget,QProgressDialog,QTextBrowser,QSlider, QCompleter,QSplitter,QStackedWidget)
 
 from config import (
     APP_VERSION,
@@ -59,16 +58,13 @@ if TYPE_CHECKING:
     from catasto_db_manager import CatastoDBManager # Se serve anche per type hint
 
 # In gui_widgets.py, dopo le importazioni PyQt e standard:
-from custom_widgets import QPasswordLineEdit, LazyLoadedWidget, StatCard
-from dialogs import (DBConfigDialog,DocumentViewerDialog, ModificaPossessoreDialog, PartiteComuneDialog, ModificaImmobileDialog,
-                    PossessoriComuneDialog, LocalitaSelectionDialog, ModificaComuneDialog,PeriodoStoricoDetailsDialog,
-                    PartitaDetailsDialog,CreateUserDialog)
-from dialogs import (ComuneSelectionDialog, PartitaSearchDialog, PossessoreSelectionDialog, ImmobileDialog,LocalitaSelectionDialog, 
-                    DettagliLegamePossessoreDialog, UserSelectionDialog,qdate_to_datetime, datetime_to_qdate,_hash_password,_verify_password)
+from custom_widgets import QPasswordLineEdit, StatCard
+from dialogs import (DBConfigDialog,DocumentViewerDialog, PeriodoStoricoDetailsDialog)
+from dialogs import (ComuneSelectionDialog, PartitaSearchDialog, PossessoreSelectionDialog, ImmobileDialog,DettagliLegamePossessoreDialog, UserSelectionDialog,qdate_to_datetime, datetime_to_qdate,_hash_password,_verify_password)
 
 from app_utils import (gui_esporta_partita_pdf, gui_esporta_partita_json, gui_esporta_partita_csv,
                        gui_esporta_possessore_pdf, gui_esporta_possessore_json, gui_esporta_possessore_csv,
-                       GenericTextReportPDF,FPDF_AVAILABLE, is_file_locked,get_alternative_filename)
+                       GenericTextReportPDF,is_file_locked,get_alternative_filename)
 # È possibile che alcune utility (es. hashing) siano usate da dialoghi che ora sono in gui_main.py
 # In tal caso, gui_main.py importerà _hash_password da app_utils.py.
 
@@ -106,11 +102,7 @@ def _set_field_error(widget, has_error: bool) -> None:
     widget.setStyleSheet(_FIELD_ERROR_STYLE if has_error else "")
 
 
-def _show_status_message(message: str, timeout_ms: int = 4000) -> None:
-    """Mostra un messaggio nella status bar della finestra principale (non bloccante)."""
-    win = QApplication.activeWindow()
-    if win and hasattr(win, "statusBar"):
-        win.statusBar().showMessage(message, timeout_ms)
+from custom_widgets import show_status_message as _show_status_message
 
 
 # ---------------------------------------------------------------------------
@@ -148,7 +140,15 @@ class ElencoComuniWidget(LazyLoadedWidget):
         self.comuni_table.setSelectionBehavior(QAbstractItemView.SelectionBehavior.SelectRows)
         self.comuni_table.setSelectionMode(QAbstractItemView.SelectionMode.SingleSelection) # Importante per menu contestuale su una riga
         self.comuni_table.setAlternatingRowColors(True)
-        self.comuni_table.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeMode.Stretch)
+        _hdr = self.comuni_table.horizontalHeader()
+        _hdr.setSectionResizeMode(QHeaderView.ResizeMode.Interactive)
+        _hdr.setStretchLastSection(True)
+        self.comuni_table.setColumnWidth(0, 45)   # ID
+        self.comuni_table.setColumnWidth(1, 200)  # Nome Comune
+        self.comuni_table.setColumnWidth(2, 110)  # Cod. Catastale
+        self.comuni_table.setColumnWidth(3, 80)   # Provincia
+        self.comuni_table.setColumnWidth(4, 120)  # Data Istituzione
+        self.comuni_table.setColumnWidth(5, 120)  # Data Soppressione
         self.comuni_table.setSortingEnabled(True)
         # self.comuni_table.itemDoubleClicked.connect(self.mostra_partite_del_comune) # Il doppio click può rimanere
 
@@ -181,8 +181,15 @@ class ElencoComuniWidget(LazyLoadedWidget):
         self.btn_mostra_localita = QPushButton("Mostra Località del Comune Selezionato")
         self.btn_mostra_localita.clicked.connect(self.azione_mostra_localita)
         action_buttons_layout.addWidget(self.btn_mostra_localita)
-        
+
         action_buttons_layout.addStretch()
+
+        self.btn_archivia_comune = QPushButton("Archivia Comune")
+        self.btn_archivia_comune.setObjectName("dangerButton")
+        self.btn_archivia_comune.setEnabled(False)
+        self.btn_archivia_comune.setToolTip("Archivia il comune selezionato (non viene eliminato, solo nascosto)")
+        self.btn_archivia_comune.clicked.connect(self._azione_archivia_comune)
+        action_buttons_layout.addWidget(self.btn_archivia_comune)
         comuni_layout.addLayout(action_buttons_layout)
         layout.addWidget(comuni_group)
         self.setLayout(layout)
@@ -406,14 +413,42 @@ class ElencoComuniWidget(LazyLoadedWidget):
         
         menu.addSeparator()
 
-        # --- NUOVA AZIONE PER MODIFICA COMUNE ---
-         # Azione 4: Modifica Dati Comune (senza icona)
         action_modifica_comune = menu.addAction("Modifica Dati Comune")
         action_modifica_comune.triggered.connect(
             lambda: self._slot_modifica_dati_comune(comune_id_selezionato)
         )
-        
+
+        menu.addSeparator()
+
+        action_archivia = menu.addAction(
+            QApplication.style().standardIcon(QStyle.StandardPixmap.SP_TrashIcon),
+            f"Archivia '{nome_comune_selezionato}'"
+        )
+        action_archivia.triggered.connect(
+            lambda: self._slot_archivia_comune(comune_id_selezionato, nome_comune_selezionato)
+        )
+
         menu.exec(self.comuni_table.viewport().mapToGlobal(position))
+
+    def _slot_archivia_comune(self, comune_id: int, nome: str):
+        from PyQt6.QtWidgets import QMessageBox
+        risposta = QMessageBox.question(
+            self, "Archivia Comune",
+            f"Archiviare il comune '{nome}'?\n\n"
+            "Il comune non verrà eliminato ma nascosto dalle liste.\n"
+            "Le partite e i possessori collegati resteranno visibili.\n"
+            "Puoi ripristinarlo in qualsiasi momento dal pannello Archivio.",
+            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+            QMessageBox.StandardButton.No
+        )
+        if risposta != QMessageBox.StandardButton.Yes:
+            return
+        try:
+            self.db_manager.archivia_comune(comune_id)
+            self.load_data()
+            _show_status_message(f"Comune '{nome}' archiviato con successo.", 4000)
+        except Exception as e:
+            QMessageBox.critical(self, "Errore", f"Impossibile archiviare il comune:\n{e}")
 
    
     def _slot_vedi_partite_comune(self, comune_id: int, nome_comune: str):
@@ -461,288 +496,489 @@ class ElencoComuniWidget(LazyLoadedWidget):
         self.btn_mostra_partite.setEnabled(has_selection)
         self.btn_mostra_possessori.setEnabled(has_selection)
         self.btn_mostra_localita.setEnabled(has_selection)
+        self.btn_archivia_comune.setEnabled(has_selection)
 
+    def _azione_archivia_comune(self):
+        """Archivia il comune selezionato tramite pulsante."""
+        row = self.comuni_table.currentRow()
+        if row < 0:
+            return
+        comune_id = int(self.comuni_table.item(row, 0).text())
+        nome = self.comuni_table.item(row, 1).text() if self.comuni_table.item(row, 1) else "?"
+        self._slot_archivia_comune(comune_id, nome)
+
+
+
+class _PartiteSearchWorker(QThread):
+    """Esegue search_partite in background per non bloccare la UI."""
+    results_ready = pyqtSignal(list)
+    error_occurred = pyqtSignal(str)
+
+    def __init__(self, db_manager, comune_id, numero, possessore, natura, parent=None):
+        super().__init__(parent)
+        self._db = db_manager
+        self._comune_id = comune_id
+        self._numero = numero
+        self._possessore = possessore
+        self._natura = natura
+
+    def run(self):
+        try:
+            partite = self._db.search_partite(
+                comune_id=self._comune_id,
+                numero_partita=self._numero,
+                possessore=self._possessore,
+                immobile_natura=self._natura,
+            )
+            self.results_ready.emit(partite or [])
+        except Exception as e:
+            self.error_occurred.emit(str(e))
+
+
+class PartitaResultCard(QFrame):
+    """Card cliccabile per un risultato di ricerca partite."""
+    card_clicked = pyqtSignal(int)
+    context_menu_requested = pyqtSignal(int, QPoint)
+
+    _STATO_STYLE: dict[str, tuple[str, str]] = {
+        "attiva":   ("#E8F5E9", "#1B5E20"),
+        "inattiva": ("#F5F5F5", "#616161"),
+        "aperta":   ("#E3F2FD", "#0D47A1"),
+        "chiusa":   ("#FFF3E0", "#BF360C"),
+    }
+
+    def __init__(self, partita_data: dict, parent=None):
+        super().__init__(parent)
+        self._partita_id: int = partita_data.get('id', -1)
+        self._partita_data = partita_data
+        self.setObjectName("resultCard")
+        self.setCursor(Qt.CursorShape.PointingHandCursor)
+        self.setFrameShape(QFrame.Shape.StyledPanel)
+        self.setFrameShadow(QFrame.Shadow.Raised)
+        self.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
+        self.customContextMenuRequested.connect(
+            lambda pos: self.context_menu_requested.emit(
+                self._partita_id, self.mapToGlobal(pos)))
+
+        layout = QVBoxLayout(self)
+        layout.setContentsMargins(12, 8, 12, 8)
+        layout.setSpacing(3)
+
+        # Top row: numero partita + chip stato
+        row1 = QHBoxLayout()
+        row1.setSpacing(8)
+
+        numero = partita_data.get('numero_partita', '—')
+        suffisso = (partita_data.get('suffisso_partita') or '').strip()
+        suf_display = f"/{suffisso}" if suffisso else ""
+        numero_lbl = QLabel(f"<b>N. {numero}{suf_display}</b>")
+        numero_lbl.setObjectName("cardTitle")
+        row1.addWidget(numero_lbl)
+        row1.addStretch()
+
+        stato = (partita_data.get('stato') or '').strip()
+        bg, fg = self._STATO_STYLE.get(stato.lower(), ("#F5F5F5", "#424242"))
+        stato_lbl = QLabel(stato or "—")
+        stato_lbl.setStyleSheet(
+            f"background:{bg}; color:{fg}; border-radius:9px; "
+            f"padding:1px 9px; font-size:9pt; font-weight:600;"
+        )
+        row1.addWidget(stato_lbl)
+        layout.addLayout(row1)
+
+        # Comune
+        comune = partita_data.get('comune_nome', '')
+        if comune:
+            comune_lbl = QLabel(comune)
+            comune_lbl.setObjectName("cardSubtitle")
+            layout.addWidget(comune_lbl)
+
+        # Tipo
+        tipo = partita_data.get('tipo', '')
+        if tipo:
+            tipo_lbl = QLabel(tipo)
+            tipo_lbl.setObjectName("cardMeta")
+            layout.addWidget(tipo_lbl)
+
+    def mousePressEvent(self, event):
+        if event.button() == Qt.MouseButton.LeftButton:
+            self.card_clicked.emit(self._partita_id)
+        super().mousePressEvent(event)
+
+    def set_selected(self, selected: bool):
+        self.setProperty("selected", "true" if selected else "false")
+        self.style().unpolish(self)
+        self.style().polish(self)
 
 
 class RicercaPartiteWidget(QWidget):
     def __init__(self, db_manager, parent=None):
-        super(RicercaPartiteWidget, self).__init__(parent)
+        super().__init__(parent)
         self.db_manager = db_manager
+        self._selected_partita_id: Optional[int] = None
+        self._all_partite: list[dict] = []
+        self._comune_id: Optional[int] = None
+        self._search_worker: Optional[_PartiteSearchWorker] = None
 
-        layout = QVBoxLayout()
+        main_layout = QVBoxLayout(self)
 
-        # Criteri di ricerca
-        criteria_group = QGroupBox("Criteri di Ricerca")
-        criteria_layout = QGridLayout()
+        group = QGroupBox("Ricerca Partite")
+        group_layout = QVBoxLayout(group)
 
-        # Comune
-        comune_label = QLabel("Comune:")
-        self.comune_button = QPushButton("Seleziona Comune...")
-        self.comune_button.clicked.connect(self.select_comune)
-        self.comune_id = None
-        self.comune_display = QLabel("Nessun comune selezionato")
-        self.clear_comune_button = QPushButton("Cancella")
-        self.clear_comune_button.clicked.connect(self.clear_comune)
+        # ─────────────────────────────────────────────────────────
+        # Barra ricerca: Comune, N°, Possessore, Natura, Cerca, Pulisci
+        # ─────────────────────────────────────────────────────────
+        search_layout = QHBoxLayout()
+        search_layout.setContentsMargins(0, 0, 0, 0)
+        search_layout.setSpacing(6)
 
-        criteria_layout.addWidget(comune_label, 0, 0)
-        criteria_layout.addWidget(self.comune_button, 0, 1)
-        criteria_layout.addWidget(self.comune_display, 0, 2)
-        criteria_layout.addWidget(self.clear_comune_button, 0, 3)
+        self._comune_btn = QPushButton("Comune...")
+        self._comune_btn.setObjectName("secondaryButton")
+        self._comune_btn.setMaximumWidth(110)
+        self._comune_btn.clicked.connect(self._select_comune)
+        search_layout.addWidget(self._comune_btn)
 
-        # Numero partita
-        numero_label = QLabel("Numero Partita:")
-        self.numero_edit = QSpinBox()
-        self.numero_edit.setMinimum(0)
-        self.numero_edit.setMaximum(9999)
-        self.numero_edit.setSpecialValueText("Qualsiasi")
+        self._numero_edit = QSpinBox()
+        self._numero_edit.setMinimum(0)
+        self._numero_edit.setMaximum(99999)
+        self._numero_edit.setSpecialValueText("N°...")
+        self._numero_edit.setMaximumWidth(80)
+        search_layout.addWidget(self._numero_edit)
 
-        criteria_layout.addWidget(numero_label, 1, 0)
-        criteria_layout.addWidget(self.numero_edit, 1, 1)
+        self._possessore_edit = QLineEdit()
+        self._possessore_edit.setPlaceholderText("Possessore...")
+        self._possessore_edit.returnPressed.connect(self.do_search)
+        search_layout.addWidget(self._possessore_edit, 1)
 
-        # Possessore
-        possessore_label = QLabel("Nome Possessore:")
-        self.possessore_edit = QLineEdit()
-        self.possessore_edit.setPlaceholderText("Qualsiasi possessore")
+        self._natura_edit = QLineEdit()
+        self._natura_edit.setPlaceholderText("Natura immobile...")
+        self._natura_edit.returnPressed.connect(self.do_search)
+        search_layout.addWidget(self._natura_edit, 1)
 
-        criteria_layout.addWidget(possessore_label, 2, 0)
-        criteria_layout.addWidget(self.possessore_edit, 2, 1, 1, 3)
+        self._search_btn = QPushButton("Cerca")
+        self._search_btn.clicked.connect(self.do_search)
+        search_layout.addWidget(self._search_btn)
 
-        # Natura immobile
-        natura_label = QLabel("Natura Immobile:")
-        self.natura_edit = QLineEdit()
-        self.natura_edit.setPlaceholderText("Qualsiasi natura immobile")
+        clear_btn = QPushButton("Pulisci")
+        clear_btn.setObjectName("secondaryButton")
+        clear_btn.clicked.connect(self._clear_search)
+        search_layout.addWidget(clear_btn)
 
-        criteria_layout.addWidget(natura_label, 3, 0)
-        criteria_layout.addWidget(self.natura_edit, 3, 1, 1, 3)
+        group_layout.addLayout(search_layout)
 
-        criteria_group.setLayout(criteria_layout)
-        layout.addWidget(criteria_group)
+        # Loading progress bar (hidden by default)
+        self._loading_bar = QProgressBar()
+        self._loading_bar.setRange(0, 0)
+        self._loading_bar.setFixedHeight(3)
+        self._loading_bar.setVisible(False)
+        self._loading_bar.setTextVisible(False)
+        group_layout.addWidget(self._loading_bar)
 
-        # Pulsante Ricerca
-        search_button = QPushButton("Cerca Partite")
-        search_button.clicked.connect(self.do_search)
-        layout.addWidget(search_button)
+        # ─────────────────────────────────────────────────────────
+        # Filtri stato + conteggio risultati
+        # ─────────────────────────────────────────────────────────
+        filter_layout = QHBoxLayout()
+        filter_layout.setContentsMargins(0, 0, 0, 0)
+        filter_layout.setSpacing(6)
 
-        # Risultati
-        results_group = QGroupBox("Risultati")
-        results_layout = QVBoxLayout()
+        filter_layout.addWidget(QLabel("Stato:"))
+        self._stato_combo = QComboBox()
+        self._stato_combo.addItems(["Tutte", "Attiva", "Inattiva", "Aperta", "Chiusa"])
+        self._stato_combo.currentTextChanged.connect(self._on_stato_combo_changed)
+        filter_layout.addWidget(self._stato_combo)
 
-        self.results_table = QTableWidget()
-        self.results_table.setColumnCount(5)
-        self.results_table.setHorizontalHeaderLabels(
-            ["ID", "Comune", "Numero", "Tipo", "Stato"])
-        self.results_table.setAlternatingRowColors(True)
-        self.results_table.horizontalHeader().setStretchLastSection(True)
-        self.results_table.setSelectionBehavior(QAbstractItemView.SelectionBehavior.SelectRows)
-        self.results_table.setEditTriggers(QAbstractItemView.EditTrigger.NoEditTriggers)
-        self.results_table.setSortingEnabled(True)
-        self.results_table.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
-        self.results_table.customContextMenuRequested.connect(self._apri_menu_contestuale_partita)
+        filter_layout.addStretch()
 
-        self.result_count_label = QLabel("Nessuna ricerca eseguita.")
-        self.result_count_label.setStyleSheet("color: #555; font-style: italic; padding: 2px 0;")
-        results_layout.addWidget(self.result_count_label)
-        results_layout.addWidget(self.results_table)
+        self._count_label = QLabel("Nessuna ricerca eseguita.")
+        self._count_label.setStyleSheet("color:#757575; font-style:italic; font-size:9pt;")
+        filter_layout.addWidget(self._count_label)
 
-        # Dettagli partita selezionata
-        self.detail_button = QPushButton("Mostra Dettagli Partita")
-        self.detail_button.clicked.connect(self.show_details)
-        results_layout.addWidget(self.detail_button)
+        group_layout.addLayout(filter_layout)
 
-        results_group.setLayout(results_layout)
-        layout.addWidget(results_group)
+        # ─────────────────────────────────────────────────────────
+        # Tabella risultati (full-width)
+        # ─────────────────────────────────────────────────────────
+        self._table = QTableWidget()
+        self._table.setColumnCount(5)
+        self._table.setHorizontalHeaderLabels(["N° Partita", "Comune", "Stato", "Tipo", "Data Impianto"])
+        self._table.setEditTriggers(QAbstractItemView.EditTrigger.NoEditTriggers)
+        self._table.setSelectionBehavior(QAbstractItemView.SelectionBehavior.SelectRows)
+        self._table.setSelectionMode(QAbstractItemView.SelectionMode.SingleSelection)
+        self._table.setAlternatingRowColors(True)
+        self._table.setSortingEnabled(True)
+        self._table.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
+        self._table.verticalHeader().setVisible(False)
+        hh = self._table.horizontalHeader()
+        hh.setSectionResizeMode(QHeaderView.ResizeMode.Interactive)
+        hh.setStretchLastSection(True)
+        self._table.setColumnWidth(0, 90)
+        self._table.setColumnWidth(1, 160)
+        self._table.setColumnWidth(2, 80)
+        self._table.setColumnWidth(3, 100)
+        self._table.cellClicked.connect(lambda row, col: self._on_row_selected(row))
+        self._table.doubleClicked.connect(lambda: self.show_details())
+        self._table.customContextMenuRequested.connect(self._on_context_menu)
+        group_layout.addWidget(self._table, 1)
 
-        self.setLayout(layout)
+        # ─────────────────────────────────────────────────────────
+        # Bottoni azione (come ElencoComuniWidget)
+        # ─────────────────────────────────────────────────────────
+        action_layout = QHBoxLayout()
+        action_layout.setContentsMargins(0, 0, 0, 0)
+        action_layout.setSpacing(8)
 
-    def select_comune(self):
-        """Apre il selettore di comuni."""
+        self._btn_open_full = QPushButton("Apri Dettagli Completi")
+        self._btn_open_full.setEnabled(False)
+        self._btn_open_full.clicked.connect(self.show_details)
+        action_layout.addWidget(self._btn_open_full)
+
+        self._btn_albero = QPushButton("Albero Genealogico")
+        self._btn_albero.setObjectName("secondaryButton")
+        self._btn_albero.setEnabled(False)
+        self._btn_albero.clicked.connect(self._apri_albero)
+        action_layout.addWidget(self._btn_albero)
+
+        action_layout.addStretch()
+
+        self._btn_copy_id = QPushButton("Copia ID")
+        self._btn_copy_id.setObjectName("secondaryButton")
+        self._btn_copy_id.setEnabled(False)
+        self._btn_copy_id.clicked.connect(lambda: QApplication.clipboard().setText(
+            str(self._selected_partita_id or "")))
+        action_layout.addWidget(self._btn_copy_id)
+
+        self._btn_archivia = QPushButton("Archivia Partita")
+        self._btn_archivia.setObjectName("dangerButton")
+        self._btn_archivia.setEnabled(False)
+        self._btn_archivia.setToolTip("Archivia la partita selezionata (non viene eliminata, solo nascosta)")
+        self._btn_archivia.clicked.connect(self._azione_archivia_partita)
+        action_layout.addWidget(self._btn_archivia)
+
+        group_layout.addLayout(action_layout)
+
+        main_layout.addWidget(group)
+
+
+    def _select_comune(self):
         dialog = ComuneSelectionDialog(self.db_manager, self)
-        result = dialog.exec()
+        if dialog.exec() == QDialog.DialogCode.Accepted and dialog.selected_comune_id:
+            self._comune_id = dialog.selected_comune_id
+            self._comune_btn.setText(dialog.selected_comune_name or "Comune...")
 
-        if result == QDialog.DialogCode.Accepted and dialog.selected_comune_id:
-            self.comune_id = dialog.selected_comune_id
-            self.comune_display.setText(dialog.selected_comune_name)
+    def _clear_search(self):
+        if self._search_worker and self._search_worker.isRunning():
+            self._search_worker.quit()
+            self._search_worker.wait(500)
+        self._loading_bar.setVisible(False)
+        self._search_btn.setEnabled(True)
+        self._comune_id = None
+        self._comune_btn.setText("Comune...")
+        self._numero_edit.setValue(0)
+        self._possessore_edit.clear()
+        self._natura_edit.clear()
+        self._stato_combo.setCurrentText("Tutte")
+        self._table.setSortingEnabled(False)
+        self._table.setRowCount(0)
+        self._table.setSortingEnabled(True)
+        self._all_partite.clear()
+        self._selected_partita_id = None
+        self._count_label.setText("Nessuna ricerca eseguita.")
+        for btn in (self._btn_open_full, self._btn_albero, self._btn_copy_id, self._btn_archivia):
+            btn.setEnabled(False)
 
-    def clear_comune(self):
-        """Cancella il comune selezionato."""
-        self.comune_id = None
-        self.comune_display.setText("Nessun comune selezionato")
+    def _on_stato_combo_changed(self, text: str):
+        """Quando il combo filtro stato cambia, aggiorna la visibilità righe."""
+        self._update_row_visibility()
+
+    def _update_row_visibility(self):
+        """Filtra la tabella in base al valore del combo stato."""
+        stato_filtro = self._stato_combo.currentText()
+        if stato_filtro == "Tutte":
+            stato_filtro = ""
+
+        visible = 0
+        for row in range(self._table.rowCount()):
+            stato_item = self._table.item(row, 2)
+            partita_stato = (stato_item.text() if stato_item else "").strip()
+            show = (not stato_filtro or
+                    partita_stato.lower() == stato_filtro.lower())
+            self._table.setRowHidden(row, not show)
+            if show:
+                visible += 1
+
+        total = len(self._all_partite)
+        if stato_filtro:
+            self._count_label.setText(f"{visible} di {total} partite mostrate.")
+        else:
+            self._count_label.setText(f"{total} partite trovate.")
 
     def do_search(self):
-        """Esegue la ricerca partite in base ai criteri."""
-        comune_id = self.comune_id
-        numero_partita_val = self.numero_edit.value()
-        numero_partita = numero_partita_val if numero_partita_val > 0 and self.numero_edit.text(
-        ) != self.numero_edit.specialValueText() else None
+        # Cancel any running search
+        if self._search_worker and self._search_worker.isRunning():
+            self._search_worker.quit()
+            self._search_worker.wait(500)
 
-        possessore = self.possessore_edit.text().strip() or None
-        natura = self.natura_edit.text().strip() or None
+        numero_val = self._numero_edit.value()
+        numero = numero_val if numero_val > 0 else None
+        possessore = self._possessore_edit.text().strip() or None
+        natura = self._natura_edit.text().strip() or None
 
-        # --- Stampa di DEBUG dei parametri inviati ---
-        logging.getLogger("CatastoGUI").debug(
-            f"RicercaPartiteWidget.do_search - Parametri inviati al DBManager:")
-        logging.getLogger("CatastoGUI").debug(
-            f"  comune_id: {comune_id} (tipo: {type(comune_id)})")
-        logging.getLogger("CatastoGUI").debug(
-            f"  numero_partita: {numero_partita} (tipo: {type(numero_partita)})")
-        logging.getLogger("CatastoGUI").debug(
-            f"  possessore: '{possessore}' (tipo: {type(possessore)})")
-        logging.getLogger("CatastoGUI").debug(
-            f"  immobile_natura: '{natura}' (tipo: {type(natura)})")
-        # --- Fine Stampa di DEBUG ---
+        self._search_btn.setEnabled(False)
+        self._loading_bar.setVisible(True)
+        self._count_label.setText("Ricerca in corso…")
 
-        try:
-            partite = self.db_manager.search_partite(
-                comune_id=comune_id,
-                numero_partita=numero_partita,
-                possessore=possessore,
-                immobile_natura=natura
-            )
+        self._search_worker = _PartiteSearchWorker(
+            self.db_manager, self._comune_id, numero, possessore, natura, self
+        )
+        self._search_worker.results_ready.connect(self._on_search_results)
+        self._search_worker.error_occurred.connect(self._on_search_error)
+        self._search_worker.start()
 
-            # --- Stampa di DEBUG dei risultati ricevuti ---
-            logging.getLogger("CatastoGUI").debug(
-                f"RicercaPartiteWidget.do_search - Risultati ricevuti dal DBManager (tipo: {type(partite)}):")
-            if partite is not None:  # Controlla se partite è None prima di len()
-                logging.getLogger("CatastoGUI").debug(
-                    f"  Numero di partite ricevute: {len(partite)}")
-                # Se vuoi vedere i primi risultati per debug (attenzione con dati sensibili):
-                # for i, p_item in enumerate(partite[:3]): # Logga al massimo i primi 3
-                #    logging.getLogger("CatastoGUI").debug(f"    Partita {i}: {p_item}")
-            else:
-                logging.getLogger("CatastoGUI").debug(
-                    "  Nessun risultato (variabile 'partite' è None).")
-            # --- Fine Stampa di DEBUG ---
+    def _on_search_results(self, partite: list):
+        self._loading_bar.setVisible(False)
+        self._search_btn.setEnabled(True)
 
-            # Pulisce la tabella prima di popolarla
-            self.results_table.setSortingEnabled(False)
-            self.results_table.setRowCount(0)
+        self._all_partite = partite
+        truncated = bool(self._all_partite and self._all_partite[-1].get('_truncated'))
 
-            if partite:  # Verifica se la lista 'partite' non è vuota
-                self.results_table.setRowCount(len(partite))
-                # Usa nomi variabili chiari
-                for row_idx, partita_data in enumerate(partite):
-                    # Popolamento tabella come da suo codice esistente
-                    self.results_table.setItem(
-                        row_idx, 0, QTableWidgetItem(str(partita_data.get('id', ''))))
-                    self.results_table.setItem(row_idx, 1, QTableWidgetItem(
-                        partita_data.get('comune_nome', '')))
-                    self.results_table.setItem(row_idx, 2, QTableWidgetItem(
-                        str(partita_data.get('numero_partita', ''))))
-                    self.results_table.setItem(
-                        row_idx, 3, QTableWidgetItem(partita_data.get('tipo', '')))
-                    self.results_table.setItem(
-                        row_idx, 4, QTableWidgetItem(partita_data.get('stato', '')))
-                self.results_table.resizeColumnsToContents()  # Adatta le colonne al contenuto
-                self.results_table.setSortingEnabled(True)
-                self.result_count_label.setText(f"{len(partite)} partite trovate.")
-                _show_status_message(f"Ricerca completata: {len(partite)} partite trovate.", 4000)
-            else:
-                self.results_table.setSortingEnabled(True)
-                logging.getLogger("CatastoGUI").info(
-                    "RicercaPartiteWidget.do_search - Nessuna partita trovata o la lista risultati è vuota.")
-                self.result_count_label.setText("Nessuna partita trovata con i criteri specificati.")
+        self._table.setSortingEnabled(False)
+        self._table.setRowCount(0)
+        for p in self._all_partite:
+            row = self._table.rowCount()
+            self._table.insertRow(row)
+            suf = (p.get('suffisso_partita') or '').strip()
+            num_text = f"{p.get('numero_partita')}{f'/{suf}' if suf else ''}"
+            data_imp = str(p.get('data_impianto') or '—')
+            for col, val in enumerate([
+                num_text,
+                p.get('comune_nome', ''),
+                p.get('stato', ''),
+                p.get('tipo', ''),
+                data_imp,
+            ]):
+                item = QTableWidgetItem(str(val))
+                item.setFlags(item.flags() & ~Qt.ItemFlag.ItemIsEditable)
+                if col == 0:
+                    item.setData(Qt.ItemDataRole.UserRole, p.get('id'))
+                self._table.setItem(row, col, item)
+        self._table.setSortingEnabled(True)
 
-        except Exception as e:
-            logging.getLogger("CatastoGUI").error(
-                f"Errore imprevisto durante RicercaPartiteWidget.do_search: {e}", exc_info=True)
-            QMessageBox.critical(
-                self, "Errore di Ricerca", f"Si è verificato un errore imprevisto durante la ricerca: {e}")
+        self._selected_partita_id = None
+        for btn in (self._btn_open_full, self._btn_albero, self._btn_copy_id, self._btn_archivia):
+            btn.setEnabled(False)
+
+        self._update_row_visibility()
+
+        if truncated:
+            self._count_label.setText(
+                f"Visualizzate le prime {len(self._all_partite)} partite. "
+                f"Affina la ricerca per risultati più precisi.")
+
+    def _on_search_error(self, error_msg: str):
+        self._loading_bar.setVisible(False)
+        self._search_btn.setEnabled(True)
+        self._count_label.setText("Errore durante la ricerca.")
+        logging.getLogger("CatastoGUI").error(f"Errore ricerca partite: {error_msg}")
+        QMessageBox.critical(self, "Errore di Ricerca",
+                             f"Si è verificato un errore durante la ricerca:\n\n{error_msg}"
+                             "\n\nSe l'errore riguarda la colonna 'archiviato', eseguire "
+                             "la migrazione del database: sql_scripts/07_soft_delete_archiviazione.sql")
+
+    def _on_row_selected(self, current_row: int):
+        if current_row < 0:
+            self._selected_partita_id = None
+            for btn in (self._btn_open_full, self._btn_albero, self._btn_copy_id, self._btn_archivia):
+                btn.setEnabled(False)
+            return
+
+        id_item = self._table.item(current_row, 0)
+        if id_item is None:
+            return
+        partita_id = id_item.data(Qt.ItemDataRole.UserRole)
+        if not partita_id:
+            return
+
+        self._selected_partita_id = partita_id
+        for btn in (self._btn_open_full, self._btn_albero, self._btn_copy_id, self._btn_archivia):
+            btn.setEnabled(True)
 
     def show_details(self):
-        """Mostra i dettagli della partita selezionata."""
-        # Ottiene l'ID della partita selezionata
-        selected_items = self.results_table.selectedItems()
-        if not selected_items:
-            QMessageBox.warning(self, "Attenzione",
-                                "Seleziona una partita dalla lista.")
+        if not self._selected_partita_id:
+            QMessageBox.warning(self, "Attenzione", "Seleziona una partita dalla lista.")
             return
-
-        # Ottiene l'ID dalla prima colonna della riga selezionata
-        row = selected_items[0].row()
-        partita_id_item = self.results_table.item(row, 0)
-
-        if partita_id_item and partita_id_item.text().isdigit():
-            partita_id = int(partita_id_item.text())
-
-            # Ottiene i dettagli della partita
-            partita = self.db_manager.get_partita_details(partita_id)
-
+        try:
+            partita = self.db_manager.get_partita_details(self._selected_partita_id)
             if partita:
-                # Crea e mostra una finestra di dialogo per i dettagli
-                details_dialog = PartitaDetailsDialog(partita, self)
-                details_dialog.exec()
-            else:
-                QMessageBox.warning(
-                    self, "Errore", f"Non è stato possibile recuperare i dettagli della partita ID {partita_id}.")
-        else:
-            QMessageBox.warning(self, "Errore", "ID partita non valido.")
+                from dialogs_partita import PartitaDetailsDialog
+                dlg = PartitaDetailsDialog(partita, self)
+                dlg.exec()
+        except Exception as e:
+            QMessageBox.critical(self, "Errore", f"Impossibile caricare i dettagli: {e}")
 
-    def _apri_menu_contestuale_partita(self, position: QPoint):
-        """Context menu sul risultato di ricerca partite."""
-        index = self.results_table.indexAt(position)
-        if not index.isValid():
+    def _apri_albero(self):
+        if not self._selected_partita_id:
             return
-        row = index.row()
-        id_item = self.results_table.item(row, 0)
-        numero_item = self.results_table.item(row, 2)
-        partita_id_text = id_item.text() if id_item else ""
-        numero_text = numero_item.text() if numero_item else ""
+        try:
+            from dialogs_partita import AlberoGeneralogicoDialog
+            dlg = AlberoGeneralogicoDialog(self.db_manager, self._selected_partita_id, self)
+            dlg.exec()
+        except Exception as e:
+            QMessageBox.critical(self, "Errore", str(e))
 
-        menu = QMenu(self.results_table)
+    def _on_context_menu(self, pos: QPoint):
+        row = self._table.rowAt(pos.y())
+        if row < 0:
+            return
+        id_item = self._table.item(row, 0)
+        if id_item is None:
+            return
+        partita_id = id_item.data(Qt.ItemDataRole.UserRole)
+        numero_text = id_item.text()
+
+        self._table.selectRow(row)
+
+        menu = QMenu(self)
         menu.addAction(
             QApplication.style().standardIcon(QStyle.StandardPixmap.SP_FileDialogContentsView),
-            "Apri Dettagli"
+            "Apri Dettagli Completi"
         ).triggered.connect(self.show_details)
         menu.addSeparator()
         menu.addAction(f"Copia Numero Partita ({numero_text})").triggered.connect(
             lambda: QApplication.clipboard().setText(numero_text))
-        menu.addAction(f"Copia ID ({partita_id_text})").triggered.connect(
-            lambda: QApplication.clipboard().setText(partita_id_text))
-        menu.exec(self.results_table.viewport().mapToGlobal(position))
+        menu.addAction(f"Copia ID ({partita_id})").triggered.connect(
+            lambda: QApplication.clipboard().setText(str(partita_id)))
+        menu.addSeparator()
+        menu.addAction(
+            QApplication.style().standardIcon(QStyle.StandardPixmap.SP_TrashIcon),
+            f"Archivia Partita N. {numero_text}"
+        ).triggered.connect(lambda: self._archivia_partita(partita_id, numero_text))
+        menu.exec(self._table.viewport().mapToGlobal(pos))
 
-    # ======================================================================
-    # ECCO LO SLOT CHE STAI CERCANDO DI POSIZIONARE
-    # È un metodo della stessa classe che contiene il pulsante e la tabella.
-    # ======================================================================
-    @pyqtSlot()
-    def apri_dialog_modifica_immobile(self):
-        """
-        Slot che viene eseguito quando si clicca il pulsante "Modifica".
-        Apre il dialogo di modifica per l'immobile selezionato.
-        """
-        selected_rows = self.tabella_immobili.selectionModel().selectedRows()
-        if not selected_rows:
-            QMessageBox.warning(self, "Nessuna Selezione", "Per favore, seleziona un immobile dalla tabella da modificare.")
-            return
-
-        # Prendi la riga selezionata (anche se sono multiple, consideriamo solo la prima)
-        riga_selezionata = selected_rows[0].row()
-        
-        # Recupera l'ID dell'immobile che abbiamo salvato in precedenza
-        primo_item_nella_riga = self.tabella_immobili.item(riga_selezionata, 0)
-        if not primo_item_nella_riga:
-            QMessageBox.critical(self, "Errore", "Impossibile recuperare i dati dalla riga selezionata.")
-            return
-            
-        immobile_id = primo_item_nella_riga.data(Qt.ItemDataRole.UserRole)
-
-        # Crea e lancia il dialogo, passando tutti i parametri necessari
-        dialog = ModificaImmobileDialog(
-            db_manager=self.db_manager,
-            immobile_id=immobile_id,
-            comune_id_partita=self.comune_id_attuale, # Usa l'ID del comune di questo widget
-            parent=self  # Il parent è questo widget stesso
+    def _archivia_partita(self, partita_id: int, numero_text: str):
+        risposta = QMessageBox.question(
+            self, "Archivia Partita",
+            f"Archiviare la partita N. {numero_text}?\n\n"
+            "La partita non verrà eliminata ma nascosta dalle ricerche.\n"
+            "Puoi ripristinarla in qualsiasi momento dal pannello Archivio.",
+            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+            QMessageBox.StandardButton.No
         )
+        if risposta != QMessageBox.StandardButton.Yes:
+            return
+        try:
+            self.db_manager.archivia_partita(partita_id)
+            self.do_search()
+            _show_status_message(f"Partita N. {numero_text} archiviata con successo.", 4000)
+        except Exception as e:
+            QMessageBox.critical(self, "Errore", f"Impossibile archiviare la partita:\n{e}")
 
-        # Esegui il dialogo. Il codice si ferma qui finché il dialogo non viene chiuso.
-        # Usiamo exec_() per compatibilità con tutti i nomi
-        if dialog.exec() == QDialog.DialogCode.Accepted:
-            # Se l'utente ha premuto "Salva" e le modifiche sono state salvate,
-            # aggiorna la tabella per mostrare i nuovi dati.
-            self.logger.debug("Modifiche salvate. Aggiornamento della vista in corso...")
-            self.carica_dati_immobili()
-        else:
-            self.logger.debug("Operazione di modifica annullata dall'utente.")
+    def _azione_archivia_partita(self):
+        """Archivia la partita selezionata tramite pulsante."""
+        if not self._selected_partita_id:
+            return
+        row = self._table.currentRow()
+        numero_text = self._table.item(row, 0).text() if row >= 0 and self._table.item(row, 0) else str(self._selected_partita_id)
+        self._archivia_partita(self._selected_partita_id, numero_text)
 
 
 class RicercaAvanzataImmobiliWidget(QWidget):
@@ -863,9 +1099,8 @@ class RicercaAvanzataImmobiliWidget(QWidget):
             QAbstractItemView.SelectionBehavior.SelectRows)
         self.risultati_immobili_table.setAlternatingRowColors(True)
         self.risultati_immobili_table.horizontalHeader().setSectionResizeMode(
-            QHeaderView.ResizeMode.ResizeToContents)  # ResizeToContents
-        self.risultati_immobili_table.horizontalHeader(
-        ).setStretchLastSection(True)  # Ultima colonna stretch
+            QHeaderView.ResizeMode.Interactive)
+        self.risultati_immobili_table.horizontalHeader().setStretchLastSection(True)
         self.risultati_immobili_table.setSortingEnabled(True)
         self.risultati_immobili_table.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
         self.risultati_immobili_table.customContextMenuRequested.connect(self._apri_menu_immobile)
@@ -1110,7 +1345,7 @@ class RegistrazioneProprietaWidget(LazyLoadedWidget):
         possessori_group = QGroupBox("2. Possessori Associati")
         possessori_layout = QVBoxLayout(possessori_group)
         self.possessori_table = QTableWidget(); self.possessori_table.setColumnCount(4); self.possessori_table.setHorizontalHeaderLabels(["ID", "Nome Completo", "Titolo", "Quota"])
-        self.possessori_table.horizontalHeader().setSectionResizeMode(1, QHeaderView.ResizeMode.Stretch); self.possessori_table.setMinimumHeight(120)
+        self.possessori_table.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeMode.Interactive); self.possessori_table.horizontalHeader().setStretchLastSection(True); self.possessori_table.setMinimumHeight(120)
         self.btn_rem_poss = QPushButton("Rimuovi Selezionato"); self.btn_rem_poss.clicked.connect(self.remove_possessore)
         possessori_layout.addWidget(self.possessori_table); possessori_layout.addWidget(self.btn_rem_poss, 0, Qt.AlignmentFlag.AlignRight)
         
@@ -1126,7 +1361,7 @@ class RegistrazioneProprietaWidget(LazyLoadedWidget):
         # --- 3. IMMOBILI (FLUSSO MIGLIORATO) ---
         immobili_group = QGroupBox("3. Immobili Associati"); immobili_layout = QVBoxLayout(immobili_group)
         self.immobili_table = QTableWidget(); self.immobili_table.setColumnCount(5); self.immobili_table.setHorizontalHeaderLabels(["Natura", "Località", "Classificazione", "Consistenza", "Piani/Vani"])
-        self.immobili_table.horizontalHeader().setSectionResizeMode(0, QHeaderView.ResizeMode.Stretch); self.immobili_table.setMinimumHeight(120)
+        self.immobili_table.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeMode.Interactive); self.immobili_table.horizontalHeader().setStretchLastSection(True); self.immobili_table.setMinimumHeight(120)
         self.btn_rem_imm = QPushButton("Rimuovi Selezionato"); self.btn_rem_imm.clicked.connect(self.remove_immobile)
         immobili_layout.addWidget(self.immobili_table); immobili_layout.addWidget(self.btn_rem_imm, 0, Qt.AlignmentFlag.AlignRight)
         add_imm_tabs = QTabWidget(); add_imm_tabs.addTab(self._create_add_immobile_esistente_tab(), "Aggiungi Esistente"); add_imm_tabs.addTab(self._create_add_immobile_nuovo_tab(), "Crea Nuovo")
@@ -1530,7 +1765,408 @@ class RegistrazioneProprietaWidget(LazyLoadedWidget):
 
         logging.getLogger("CatastoGUI").info(
             "Campi form Registrazione Proprietà puliti.")
-   
+
+
+class NuovaPartitaWizardWidget(QWidget):
+    """Wizard a 4 step per la creazione guidata di una nuova partita."""
+
+    def __init__(self, db_manager, utente_info=None, parent=None):
+        super().__init__(parent)
+        self.db_manager = db_manager
+        self.utente_info = utente_info or {}
+        self._step = 0
+        self._comune_id: Optional[int] = None
+        self._comune_nome: str = ""
+        self._build_ui()
+
+    def _build_ui(self):
+        main_layout = QVBoxLayout(self)
+        main_layout.setContentsMargins(0, 0, 0, 0)
+        main_layout.setSpacing(0)
+
+        # Step indicator
+        step_bar = QFrame()
+        step_bar.setObjectName("wizardStepBar")
+        step_bar.setFixedHeight(56)
+        step_layout = QHBoxLayout(step_bar)
+        step_layout.setContentsMargins(32, 0, 32, 0)
+        step_layout.setSpacing(12)
+
+        self._step_widgets: list[QWidget] = []
+        for i, label in enumerate(["Dati Partita", "Possessori", "Immobili", "Riepilogo"]):
+            w = QLabel(f"{i+1}. {label}")
+            w.setAlignment(Qt.AlignmentFlag.AlignCenter)
+            step_layout.addWidget(w)
+
+        step_layout.addStretch()
+        main_layout.addWidget(step_bar)
+
+        # Content area
+        self._stack = QStackedWidget()
+        self._stack.addWidget(self._build_step1())
+        self._stack.addWidget(self._build_step2())
+        self._stack.addWidget(self._build_step3())
+        self._stack.addWidget(self._build_step4())
+        main_layout.addWidget(self._stack, 1)
+
+        # Navigation
+        nav_bar = QFrame()
+        nav_layout = QHBoxLayout(nav_bar)
+        nav_layout.setContentsMargins(20, 12, 20, 12)
+        nav_layout.setSpacing(8)
+
+        self._btn_back = QPushButton("← Indietro")
+        self._btn_back.setObjectName("secondaryButton")
+        self._btn_back.setEnabled(False)
+        self._btn_back.clicked.connect(self._go_back)
+        nav_layout.addWidget(self._btn_back)
+
+        nav_layout.addStretch()
+
+        self._btn_reset = QPushButton("Ricomincia")
+        self._btn_reset.setObjectName("secondaryButton")
+        self._btn_reset.clicked.connect(self._reset_wizard)
+        nav_layout.addWidget(self._btn_reset)
+
+        self._btn_next = QPushButton("Avanti →")
+        self._btn_next.clicked.connect(self._go_next)
+        nav_layout.addWidget(self._btn_next)
+
+        main_layout.addWidget(nav_bar)
+
+    def _build_step1(self) -> QWidget:
+        w = QWidget()
+        layout = QVBoxLayout(w)
+        layout.setContentsMargins(32, 24, 32, 24)
+        layout.setSpacing(12)
+
+        title = QLabel("Dati della Partita")
+        title.setStyleSheet("font-size:14pt; font-weight:600; color:#3F51B5;")
+        layout.addWidget(title)
+
+        form_group = QGroupBox("Informazioni Generali")
+        form_layout = QFormLayout(form_group)
+        form_layout.setSpacing(10)
+
+        self._s1_comune_label = QLabel("Nessun comune selezionato")
+        self._s1_comune_label.setStyleSheet("color:#757575; font-style:italic;")
+        comune_btn = QPushButton("Seleziona...")
+        comune_btn.setObjectName("secondaryButton")
+        comune_btn.clicked.connect(self._s1_select_comune)
+        comune_row = QHBoxLayout()
+        comune_row.addWidget(self._s1_comune_label, 1)
+        comune_row.addWidget(comune_btn)
+        form_layout.addRow("Comune: *", comune_row)
+
+        self._s1_numero = QSpinBox()
+        self._s1_numero.setMinimum(1)
+        self._s1_numero.setMaximum(99999)
+        self._s1_numero.setValue(1)
+        form_layout.addRow("Numero Partita: *", self._s1_numero)
+
+        self._s1_suffisso = QLineEdit()
+        self._s1_suffisso.setPlaceholderText("Es. A, B, bis (opzionale)")
+        form_layout.addRow("Suffisso:", self._s1_suffisso)
+
+        self._s1_data_imp = QDateEdit()
+        self._s1_data_imp.setCalendarPopup(True)
+        self._s1_data_imp.setDate(QDate.currentDate())
+        self._s1_data_imp.setDisplayFormat("dd/MM/yyyy")
+        form_layout.addRow("Data Impianto: *", self._s1_data_imp)
+
+        self._s1_tipo = QComboBox()
+        self._s1_tipo.addItems(["Principale", "Secondaria", "Enfiteusi", "Usufrutto"])
+        form_layout.addRow("Tipo:", self._s1_tipo)
+
+        self._s1_stato = QComboBox()
+        self._s1_stato.addItems(["Attiva", "Inattiva"])
+        form_layout.addRow("Stato:", self._s1_stato)
+
+        layout.addWidget(form_group)
+        layout.addStretch()
+
+        return w
+
+    def _s1_select_comune(self):
+        dialog = ComuneSelectionDialog(self.db_manager, self)
+        if dialog.exec() == QDialog.DialogCode.Accepted and dialog.selected_comune_id:
+            self._comune_id = dialog.selected_comune_id
+            self._comune_nome = dialog.selected_comune_name
+            self._s1_comune_label.setText(self._comune_nome)
+            self._s1_comune_label.setStyleSheet("color:#212121;")
+
+    def _build_step2(self) -> QWidget:
+        w = QWidget()
+        layout = QVBoxLayout(w)
+        layout.setContentsMargins(32, 24, 32, 24)
+        layout.setSpacing(12)
+
+        title = QLabel("Aggiungi Possessori (Opzionale)")
+        title.setStyleSheet("font-size:14pt; font-weight:600; color:#3F51B5;")
+        layout.addWidget(title)
+
+        search_row = QHBoxLayout()
+        self._s2_search = QLineEdit()
+        self._s2_search.setPlaceholderText("Cerca possessore...")
+        search_row.addWidget(self._s2_search, 1)
+
+        search_btn = QPushButton("Cerca")
+        search_btn.clicked.connect(self._s2_search_possessore)
+        search_row.addWidget(search_btn)
+
+        layout.addLayout(search_row)
+
+        layout.addWidget(QLabel("Risultati:"))
+        self._s2_results = QListWidget()
+        self._s2_results.setMaximumHeight(140)
+        self._s2_results.itemDoubleClicked.connect(self._s2_add_from_list)
+        layout.addWidget(self._s2_results)
+
+        layout.addWidget(QLabel("Selezionati:"))
+        self._s2_table = QTableWidget()
+        self._s2_table.setColumnCount(3)
+        self._s2_table.setHorizontalHeaderLabels(["Nome", "Titolo", ""])
+        self._s2_table.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeMode.Interactive)
+        self._s2_table.horizontalHeader().setStretchLastSection(True)
+        layout.addWidget(self._s2_table, 1)
+
+        return w
+
+    def _s2_search_possessore(self):
+        testo = self._s2_search.text().strip()
+        if not testo:
+            return
+        try:
+            results = self.db_manager.search_possessori_by_term_globally(testo, limit=20)
+            self._s2_results.clear()
+            for p in (results or []):
+                item = QListWidgetItem(f"{p.get('nome_completo','')} — {p.get('paternita','')}")
+                item.setData(Qt.ItemDataRole.UserRole, p.get('id'))
+                self._s2_results.addItem(item)
+        except Exception as e:
+            logging.getLogger("CatastoGUI").error(f"Errore ricerca possessori: {e}")
+
+    def _s2_add_from_list(self, item: QListWidgetItem):
+        poss_id = item.data(Qt.ItemDataRole.UserRole)
+        if not poss_id:
+            return
+
+        row = self._s2_table.rowCount()
+        self._s2_table.insertRow(row)
+        self._s2_table.setItem(row, 0, QTableWidgetItem(item.text().split(" — ")[0]))
+        self._s2_table.setItem(row, 1, QTableWidgetItem("Proprietario"))
+        self._s2_table.item(row, 0).setData(Qt.ItemDataRole.UserRole, poss_id)
+
+        del_btn = QPushButton("✕")
+        del_btn.clicked.connect(lambda: self._s2_table.removeRow(row))
+        self._s2_table.setCellWidget(row, 2, del_btn)
+
+    def _build_step3(self) -> QWidget:
+        w = QWidget()
+        layout = QVBoxLayout(w)
+        layout.setContentsMargins(32, 24, 32, 24)
+        layout.setSpacing(12)
+
+        title = QLabel("Aggiungi Immobili (Opzionale)")
+        title.setStyleSheet("font-size:14pt; font-weight:600; color:#3F51B5;")
+        layout.addWidget(title)
+
+        add_group = QGroupBox("Nuovo Immobile")
+        add_layout = QFormLayout(add_group)
+
+        self._s3_natura = QLineEdit()
+        self._s3_natura.setPlaceholderText("Es. Casa, Terreno")
+        add_layout.addRow("Natura:", self._s3_natura)
+
+        self._s3_classif = QLineEdit()
+        self._s3_classif.setPlaceholderText("Es. A/1, A/2")
+        add_layout.addRow("Classificazione:", self._s3_classif)
+
+        add_btn = QPushButton("+ Aggiungi")
+        add_btn.clicked.connect(self._s3_add_immobile)
+        add_layout.addRow("", add_btn)
+
+        layout.addWidget(add_group)
+
+        layout.addWidget(QLabel("Immobili:"))
+        self._s3_table = QTableWidget()
+        self._s3_table.setColumnCount(3)
+        self._s3_table.setHorizontalHeaderLabels(["Natura", "Classificazione", ""])
+        self._s3_table.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeMode.Interactive)
+        self._s3_table.horizontalHeader().setStretchLastSection(True)
+        layout.addWidget(self._s3_table, 1)
+
+        return w
+
+    def _s3_add_immobile(self):
+        natura = self._s3_natura.text().strip()
+        if not natura:
+            QMessageBox.warning(self, "Attenzione", "Natura obbligatoria.")
+            return
+
+        row = self._s3_table.rowCount()
+        self._s3_table.insertRow(row)
+        self._s3_table.setItem(row, 0, QTableWidgetItem(natura))
+        self._s3_table.setItem(row, 1, QTableWidgetItem(self._s3_classif.text().strip()))
+
+        del_btn = QPushButton("✕")
+        del_btn.clicked.connect(lambda: self._s3_table.removeRow(row))
+        self._s3_table.setCellWidget(row, 2, del_btn)
+
+        self._s3_natura.clear()
+        self._s3_classif.clear()
+
+    def _build_step4(self) -> QWidget:
+        w = QWidget()
+        layout = QVBoxLayout(w)
+        layout.setContentsMargins(32, 24, 32, 24)
+        layout.setSpacing(12)
+
+        title = QLabel("Riepilogo e Conferma")
+        title.setStyleSheet("font-size:14pt; font-weight:600; color:#3F51B5;")
+        layout.addWidget(title)
+
+        self._s4_browser = QTextBrowser()
+        self._s4_browser.setMinimumHeight(300)
+        layout.addWidget(self._s4_browser, 1)
+
+        self._s4_register_btn = QPushButton("✓ Registra Partita")
+        self._s4_register_btn.setMinimumHeight(40)
+        self._s4_register_btn.clicked.connect(self._registra_tutto)
+        layout.addWidget(self._s4_register_btn)
+
+        return w
+
+    def _render_riepilogo(self):
+        numero = self._s1_numero.value()
+        suffisso = self._s1_suffisso.text().strip()
+        suf_disp = f"/{suffisso}" if suffisso else ""
+        data_imp = self._s1_data_imp.date().toString("dd/MM/yyyy")
+        tipo = self._s1_tipo.currentText()
+        stato = self._s1_stato.currentText()
+        comune = self._comune_nome or "Non selezionato"
+
+        n_poss = self._s2_table.rowCount()
+        n_imm = self._s3_table.rowCount()
+
+        html = f"""
+<style>
+body {{ font-family: Segoe UI, Arial; font-size:10pt; }}
+h3 {{ color:#3F51B5; margin:12px 0 4px 0; }}
+table {{ width:100%; border-collapse:collapse; }}
+th {{ background:#E8EAF6; color:#3F51B5; padding:5px 8px; text-align:left; }}
+td {{ padding:4px 8px; border-bottom:1px solid #EEE; }}
+.ok {{ color:#2E7D32; }}
+.warn {{ color:#E65100; }}
+</style>
+<h3>Partita</h3>
+<table>
+  <tr><td>Comune</td><td>{comune}</td></tr>
+  <tr><td>Numero</td><td>{numero}{suf_disp}</td></tr>
+  <tr><td>Data Impianto</td><td>{data_imp}</td></tr>
+  <tr><td>Tipo</td><td>{tipo}</td></tr>
+  <tr><td>Stato</td><td>{stato}</td></tr>
+</table>
+
+<h3>Possessori <span class="{'ok' if n_poss > 0 else 'warn'}">[{n_poss}]</span></h3>
+"""
+        if n_poss > 0:
+            html += '<table><tr><th>Nome</th><th>Titolo</th></tr>'
+            for row in range(n_poss):
+                nome = self._s2_table.item(row, 0).text() if self._s2_table.item(row, 0) else ""
+                titolo = self._s2_table.item(row, 1).text() if self._s2_table.item(row, 1) else ""
+                html += f'<tr><td>{nome}</td><td>{titolo}</td></tr>'
+            html += '</table>'
+
+        css_class = 'ok' if n_imm > 0 else 'warn'
+        html += f'<h3>Immobili <span class="{css_class}">[{n_imm}]</span></h3>'
+        if n_imm > 0:
+            html += '<table><tr><th>Natura</th><th>Classificazione</th></tr>'
+            for row in range(n_imm):
+                natura = self._s3_table.item(row, 0).text() if self._s3_table.item(row, 0) else ""
+                classif = self._s3_table.item(row, 1).text() if self._s3_table.item(row, 1) else ""
+                html += f'<tr><td>{natura}</td><td>{classif}</td></tr>'
+            html += '</table>'
+
+        self._s4_browser.setHtml(html)
+
+    def _go_next(self):
+        if self._step == 0:
+            if not self._comune_id:
+                QMessageBox.warning(self, "Attenzione", "Seleziona un comune.")
+                return
+
+        self._step = min(self._step + 1, 3)
+        self._stack.setCurrentIndex(self._step)
+        if self._step == 3:
+            self._render_riepilogo()
+        self._btn_back.setEnabled(self._step > 0)
+
+    def _go_back(self):
+        self._step = max(self._step - 1, 0)
+        self._stack.setCurrentIndex(self._step)
+        self._btn_back.setEnabled(self._step > 0)
+
+    def _reset_wizard(self):
+        reply = QMessageBox.question(
+            self, "Ricomincia", "Ricominciare il wizard?",
+            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No)
+        if reply == QMessageBox.StandardButton.Yes:
+            self._step = 0
+            self._comune_id = None
+            self._s1_numero.setValue(1)
+            self._s1_suffisso.clear()
+            self._s1_data_imp.setDate(QDate.currentDate())
+            self._s2_table.setRowCount(0)
+            self._s3_table.setRowCount(0)
+            self._stack.setCurrentIndex(0)
+            self._btn_back.setEnabled(False)
+
+    def _registra_tutto(self):
+        if not self._comune_id:
+            QMessageBox.warning(self, "Errore", "Comune non selezionato.")
+            return
+
+        try:
+            numero = self._s1_numero.value()
+            suffisso = self._s1_suffisso.text().strip() or None
+            data_date = self._s1_data_imp.date()
+            data_imp = date(data_date.year(), data_date.month(), data_date.day())
+            tipo = self._s1_tipo.currentText()
+            stato = self._s1_stato.currentText().lower()
+
+            partita_id = self.db_manager.create_partita(
+                comune_id=self._comune_id,
+                numero_partita=numero,
+                suffisso_partita=suffisso,
+                data_impianto=data_imp,
+                tipo=tipo,
+                stato=stato,
+                numero_provenienza=None
+            )
+
+            for row in range(self._s2_table.rowCount()):
+                poss_id = self._s2_table.item(row, 0).data(Qt.ItemDataRole.UserRole) if self._s2_table.item(row, 0) else None
+                titolo = self._s2_table.item(row, 1).text() if self._s2_table.item(row, 1) else ""
+                if poss_id:
+                    try:
+                        self.db_manager.aggiungi_possessore_a_partita(
+                            partita_id=partita_id,
+                            possessore_id=poss_id,
+                            tipo_partita_rel="proprietario",
+                            titolo=titolo,
+                            quota="1/1"
+                        )
+                    except Exception as e:
+                        logging.getLogger("CatastoGUI").warning(f"Errore aggiunta possessore: {e}")
+
+            _show_status_message(f"Partita N.{numero} registrata con successo (ID: {partita_id}).", 5000)
+            self._reset_wizard()
+
+        except Exception as e:
+            logging.getLogger("CatastoGUI").error(f"Errore registrazione partita: {e}", exc_info=True)
+            QMessageBox.critical(self, "Errore", str(e))
+
 
 class OperazioniPartitaWidget(QWidget):
     # Aggiungi questo __init__ se non c'è
@@ -2169,9 +2805,9 @@ class OperazioniPartitaWidget(QWidget):
             
             if success:
                 suffisso_display = f" (suffisso: {nuovo_suffisso})" if nuovo_suffisso else ""
-                QMessageBox.information(self, "Successo",
-                                        f"Partita ID {self.selected_partita_id_source} duplicata con successo "
-                                        f"in una nuova partita N. {nuovo_numero}{suffisso_display}.")
+                _show_status_message(
+                    f"Partita ID {self.selected_partita_id_source} duplicata in nuova partita "
+                    f"N. {nuovo_numero}{suffisso_display}.", 5000)
                 self.nuovo_numero_partita_spinbox.setValue(1)
                 self.duplica_suffisso_partita_edit.clear()
             else:
@@ -2267,9 +2903,9 @@ class OperazioniPartitaWidget(QWidget):
                 self.selected_immobile_id_transfer, id_partita_dest, registra_var
             )
             if success:
-                QMessageBox.information(self, "Successo",
-                                        f"Immobile ID {self.selected_immobile_id_transfer} trasferito "
-                                        f"alla partita ID {id_partita_dest} con successo.")
+                _show_status_message(
+                    f"Immobile ID {self.selected_immobile_id_transfer} trasferito "
+                    f"alla partita ID {id_partita_dest}.", 5000)
                 self._aggiorna_info_partita_sorgente()  # Ricarica immobili sorgente
                 self.dest_partita_id_spinbox.setValue(
                     self.dest_partita_id_spinbox.minimum())
@@ -2329,9 +2965,9 @@ class OperazioniPartitaWidget(QWidget):
             table.setColumnWidth(0, 35)
             table.horizontalHeader().setSectionResizeMode(
                 1, QHeaderView.ResizeMode.ResizeToContents)  # ID
-            table.horizontalHeader().setSectionResizeMode(2, QHeaderView.ResizeMode.Stretch)  # Natura
-            table.horizontalHeader().setSectionResizeMode(
-                3, QHeaderView.ResizeMode.Stretch)  # Località
+            table.horizontalHeader().setSectionResizeMode(2, QHeaderView.ResizeMode.Interactive)  # Natura
+            table.horizontalHeader().setSectionResizeMode(3, QHeaderView.ResizeMode.Interactive)  # Località
+            table.horizontalHeader().setStretchLastSection(True)
         else:
             table.setRowCount(1)
             msg_item = QTableWidgetItem(
@@ -2596,8 +3232,8 @@ class OperazioniPartitaWidget(QWidget):
 
             # --- 7. Gestione del Successo o Fallimento ---
             if success:
-                QMessageBox.information(
-                    self, "Successo", "Passaggio di proprietà registrato con successo. La nuova partita è stata creata e gli immobili trasferiti.")
+                _show_status_message(
+                    "Passaggio di proprietà registrato: nuova partita creata e immobili trasferiti.", 5000)
                 self.logger.info("Passaggio di proprietà eseguito con successo.")
                 self._pulisci_campi_passaggio_proprieta() # Chiama un metodo per pulire i campi
                 # Ricarica i dati della partita sorgente per riflettere i cambiamenti (es. immobili rimossi)
@@ -2641,349 +3277,6 @@ class OperazioniPartitaWidget(QWidget):
         self._load_partita_sorgente_from_spinbox()
 
 
-class StatisticheWidget(LazyLoadedWidget):
-    def __init__(self, db_manager, parent=None):
-        super().__init__(parent)  # Chiama il costruttore della classe base
-        self.db_manager = db_manager
-        self.comune_filter_id = None
-        # Il self.logger e self._data_loaded sono già gestiti da LazyLoadedWidget
-
-        self._initUI()
-
-    def _initUI(self):
-        """Crea l'interfaccia utente, riorganizzata per maggiore chiarezza."""
-        main_layout = QVBoxLayout(self)
-        
-        # Tab principale per separare Statistiche da Manutenzione
-        self.main_tabs = QTabWidget()
-        main_layout.addWidget(self.main_tabs)
-
-        # --- Contenitore per il tab Statistiche ---
-        stats_container_widget = QWidget()
-        stats_container_layout = QVBoxLayout(stats_container_widget)
-        
-        # Sotto-tab per i diversi tipi di statistiche
-        stats_sub_tabs = QTabWidget()
-        stats_container_layout.addWidget(stats_sub_tabs)
-        
-        # --- Aggiunta dei tab statistici al sotto-tab ---
-        stats_comune_tab = self._create_stats_comune_tab()
-        stats_sub_tabs.addTab(stats_comune_tab, "Statistiche per Comune")
-        
-        immobili_tab = self._create_immobili_tipologia_tab()
-        stats_sub_tabs.addTab(immobili_tab, "Immobili per Tipologia")
-
-        grafici_tab = self._create_grafici_tab()
-        stats_sub_tabs.addTab(grafici_tab, "Grafici")
-
-        # --- Contenitore per il tab Manutenzione ---
-        maintenance_tab = self._create_maintenance_tab()
-
-        # Aggiunta dei tab principali
-        self.main_tabs.addTab(stats_container_widget, QIcon(str(get_icon_path("bar-chart"))), "Statistiche")
-        self.main_tabs.addTab(maintenance_tab, QIcon(str(get_icon_path("settings"))), "Manutenzione Database")
-        
-    def _create_stats_comune_tab(self):
-        """Crea il widget per il tab 'Statistiche per Comune'."""
-        widget = QWidget()
-        layout = QVBoxLayout(widget)
-        refresh_button = QPushButton("Aggiorna Statistiche Comuni")
-        refresh_button.clicked.connect(self.refresh_stats_comune)
-        self.stats_comune_table = QTableWidget()
-        self.stats_comune_table.setColumnCount(7)
-        self.stats_comune_table.setHorizontalHeaderLabels(["Comune", "Provincia", "Totale Partite", "Partite Attive", "Partite Inattive", "Totale Possessori", "Totale Immobili"])
-        self.stats_comune_table.setAlternatingRowColors(True)
-        self.stats_comune_table.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeMode.Stretch)
-        self.stats_comune_table.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
-        self.stats_comune_table.customContextMenuRequested.connect(self._apri_menu_stats_comune)
-        layout.addWidget(refresh_button)
-        layout.addWidget(self.stats_comune_table)
-        return widget
-
-    def _create_immobili_tipologia_tab(self):
-        """Crea il widget per il tab 'Immobili per Tipologia'."""
-        widget = QWidget()
-        layout = QVBoxLayout(widget)
-        filter_layout = QHBoxLayout()
-        self.comune_filter_button = QPushButton("Filtra per Comune...")
-        self.comune_filter_button.clicked.connect(self.filter_immobili_per_comune)
-        self.comune_filter_display = QLabel("Visualizzando tutti i comuni")
-        self.clear_filter_button = QPushButton("Rimuovi Filtro")
-        self.clear_filter_button.clicked.connect(self.clear_immobili_filter)
-        filter_layout.addWidget(self.comune_filter_button)
-        filter_layout.addWidget(self.comune_filter_display)
-        filter_layout.addWidget(self.clear_filter_button)
-        layout.addLayout(filter_layout)
-        refresh_button = QPushButton("Aggiorna Statistiche Immobili")
-        refresh_button.clicked.connect(self.refresh_immobili_tipologia)
-        layout.addWidget(refresh_button)
-        self.immobili_table = QTableWidget()
-        self.immobili_table.setColumnCount(6)
-        self.immobili_table.setHorizontalHeaderLabels(["Comune", "Classificazione", "Numero Immobili", "Totale Piani", "Totale Vani", "Media Vani/Immobile"])
-        self.immobili_table.setAlternatingRowColors(True)
-        self.immobili_table.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeMode.Stretch)
-        self.immobili_table.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
-        self.immobili_table.customContextMenuRequested.connect(self._apri_menu_immobili_stats)
-        layout.addWidget(self.immobili_table)
-        return widget
-
-    def _create_grafici_tab(self):
-        """Crea il tab con grafici statistici via matplotlib."""
-        widget = QWidget()
-        layout = QVBoxLayout(widget)
-
-        try:
-            from matplotlib.backends.backend_qtagg import FigureCanvasQTAgg as FigureCanvas
-            from matplotlib.figure import Figure
-            import matplotlib
-            matplotlib.use('QtAgg')
-
-            btn_aggiorna = QPushButton("Aggiorna Grafici")
-            btn_aggiorna.clicked.connect(self._aggiorna_grafici)
-            layout.addWidget(btn_aggiorna)
-
-            # Figura matplotlib con 3 assi
-            self._fig = Figure(figsize=(10, 8), tight_layout=True)
-            self._ax_partite = self._fig.add_subplot(2, 2, 1)
-            self._ax_stato   = self._fig.add_subplot(2, 2, 2)
-            self._ax_variaz  = self._fig.add_subplot(2, 1, 2)
-            self._canvas = FigureCanvas(self._fig)
-            layout.addWidget(self._canvas, 1)
-            self._matplotlib_ok = True
-        except Exception as e:
-            self._matplotlib_ok = False
-            lbl = QLabel(f"Grafici non disponibili: {e}\n\nInstalla matplotlib: pip install matplotlib")
-            lbl.setWordWrap(True)
-            layout.addWidget(lbl)
-
-        return widget
-
-    def _aggiorna_grafici(self):
-        if not getattr(self, '_matplotlib_ok', False):
-            return
-        try:
-            stats = self.db_manager.get_statistiche_comune() or []
-
-            # --- Grafico 1: Partite per comune (bar orizzontale, top 10) ---
-            ax = self._ax_partite
-            ax.clear()
-            dati = sorted(stats, key=lambda r: r.get('totale_partite', 0), reverse=True)[:10]
-            comuni = [r.get('comune', '') for r in dati]
-            totali = [r.get('totale_partite', 0) for r in dati]
-            ax.barh(comuni[::-1], totali[::-1], color='steelblue')
-            ax.set_title('Partite per comune (top 10)')
-            ax.set_xlabel('Totale partite')
-
-            # --- Grafico 2: Stato partite (torta attive/inattive) ---
-            ax2 = self._ax_stato
-            ax2.clear()
-            tot_attive  = sum(r.get('partite_attive', 0)   for r in stats)
-            tot_inattive = sum(r.get('partite_inattive', 0) for r in stats)
-            if tot_attive + tot_inattive > 0:
-                ax2.pie([tot_attive, tot_inattive],
-                        labels=['Attive', 'Inattive'],
-                        colors=['#4CAF50', '#F44336'],
-                        autopct='%1.1f%%', startangle=90)
-            ax2.set_title('Stato partite (totale)')
-
-            # --- Grafico 3: Variazioni per anno ---
-            ax3 = self._ax_variaz
-            ax3.clear()
-            try:
-                variaz = self.db_manager.get_elenco_variazioni_per_esportazione(None) or []
-                anni: dict = {}
-                for v in variaz:
-                    data = v.get('data_variazione') or ''
-                    anno = str(data)[:4]
-                    if anno.isdigit():
-                        anni[anno] = anni.get(anno, 0) + 1
-                if anni:
-                    anni_ord = sorted(anni.keys())
-                    ax3.bar(anni_ord, [anni[a] for a in anni_ord], color='darkorange')
-                    ax3.set_title('Variazioni per anno')
-                    ax3.set_xlabel('Anno')
-                    ax3.set_ylabel('N. variazioni')
-                    ax3.tick_params(axis='x', rotation=45)
-            except Exception:
-                ax3.set_title('Variazioni per anno (dati non disponibili)')
-
-            self._canvas.draw()
-        except Exception as e:
-            self.logger.error(f"Errore aggiornamento grafici: {e}", exc_info=True)
-
-    def _create_maintenance_tab(self):
-        """Crea il widget per il tab 'Manutenzione'."""
-        widget = QWidget()
-        layout = QVBoxLayout(widget)
-        group = QGroupBox("Operazioni di Manutenzione")
-        group_layout = QVBoxLayout(group)
-        
-        # Sezione Viste
-        viste_label = QLabel("Le viste materializzate migliorano le performance delle statistiche. Aggiornale periodicamente.")
-        viste_label.setWordWrap(True)
-        self.update_views_button = QPushButton("Aggiorna Tutte le Viste Materializzate")
-        self.update_views_button.clicked.connect(self.update_all_views)
-        group_layout.addWidget(viste_label)
-        group_layout.addWidget(self.update_views_button)
-        
-        group_layout.addWidget(QFrame(self, frameShape=QFrame.Shape.HLine))
-
-        
-        layout.addWidget(group)
-
-        self.status_text = QTextEdit()
-        self.status_text.setReadOnly(True)
-        self.status_text.setPlaceholderText("L'esito delle operazioni di manutenzione apparirà qui...")
-        layout.addWidget(self.status_text, 1) # Dà più spazio al log
-        return widget
-
-    def _load_data_on_first_show(self):
-        """Carica i dati iniziali la prima volta che il tab viene mostrato."""
-        self.logger.info("StatisticheWidget: Esecuzione lazy loading...")
-        self.refresh_stats_comune()
-        self.refresh_immobili_tipologia()
-        self._aggiorna_grafici()
-
-    def refresh_stats_comune(self):
-        self.logger.info("Aggiornamento statistiche comuni...")
-        self.stats_comune_table.setRowCount(0)
-        try:
-            stats = self.db_manager.get_statistiche_comune()
-            if stats:
-                self.stats_comune_table.setRowCount(len(stats))
-                for i, s in enumerate(stats):
-                    self.stats_comune_table.setItem(i, 0, QTableWidgetItem(s.get('comune', '')))
-                    self.stats_comune_table.setItem(i, 1, QTableWidgetItem(s.get('provincia', '')))
-                    self.stats_comune_table.setItem(i, 2, QTableWidgetItem(str(s.get('totale_partite', 0))))
-                    self.stats_comune_table.setItem(i, 3, QTableWidgetItem(str(s.get('partite_attive', 0))))
-                    self.stats_comune_table.setItem(i, 4, QTableWidgetItem(str(s.get('partite_inattive', 0))))
-                    self.stats_comune_table.setItem(i, 5, QTableWidgetItem(str(s.get('totale_possessori', 0))))
-                    self.stats_comune_table.setItem(i, 6, QTableWidgetItem(str(s.get('totale_immobili', 0))))
-                self.stats_comune_table.resizeColumnsToContents()
-            self.log_status("Statistiche comuni aggiornate con successo.")
-        except DBMError as e:
-            self.log_status(f"Errore DB durante l'aggiornamento delle statistiche comuni: {e}", error=True)
-            QMessageBox.critical(self, "Errore", f"Impossibile caricare le statistiche:\n{e}")
-
-    def filter_immobili_per_comune(self):
-        dialog = ComuneSelectionDialog(self.db_manager, self)
-        if dialog.exec() == QDialog.DialogCode.Accepted and dialog.selected_comune_id:
-            self.comune_filter_id = dialog.selected_comune_id
-            self.comune_filter_display.setText(f"Comune: {dialog.selected_comune_name}")
-            self.refresh_immobili_tipologia()
-
-    def clear_immobili_filter(self):
-        self.comune_filter_id = None
-        self.comune_filter_display.setText("Visualizzando tutti i comuni")
-        self.refresh_immobili_tipologia()
-
-    def refresh_immobili_tipologia(self):
-        self.logger.info("Aggiornamento statistiche immobili per tipologia...")
-        self.immobili_table.setRowCount(0)
-        try:
-            stats = self.db_manager.get_immobili_per_tipologia(self.comune_filter_id)
-            if stats:
-                self.immobili_table.setRowCount(len(stats))
-                for i, s in enumerate(stats):
-                    self.immobili_table.setItem(i, 0, QTableWidgetItem(s.get('comune_nome', '')))
-                    self.immobili_table.setItem(i, 1, QTableWidgetItem(s.get('classificazione', 'N/D')))
-                    num_immobili = s.get('numero_immobili', 0)
-                    self.immobili_table.setItem(i, 2, QTableWidgetItem(str(num_immobili)))
-                    self.immobili_table.setItem(i, 3, QTableWidgetItem(str(s.get('totale_piani', 0))))
-                    totale_vani = s.get('totale_vani', 0)
-                    self.immobili_table.setItem(i, 4, QTableWidgetItem(str(totale_vani)))
-                    media_vani = round(totale_vani / num_immobili, 2) if num_immobili > 0 else 0
-                    self.immobili_table.setItem(i, 5, QTableWidgetItem(str(media_vani)))
-                self.immobili_table.resizeColumnsToContents()
-            status_text = "Statistiche immobili aggiornate"
-            if self.comune_filter_id:
-                status_text += f" (filtrate per {self.comune_filter_display.text()})"
-            self.log_status(status_text + ".")
-        except DBMError as e:
-            self.log_status(f"Errore DB durante l'aggiornamento delle statistiche immobili: {e}", error=True)
-            QMessageBox.critical(self, "Errore", f"Impossibile caricare le statistiche:\n{e}")
-
-    def update_all_views(self):
-        self.log_status("Avvio aggiornamento di tutte le viste materializzate...")
-        QApplication.setOverrideCursor(Qt.CursorShape.WaitCursor)
-        try:
-            if self.db_manager.refresh_materialized_views():
-                self.log_status("Aggiornamento viste completato con successo.")
-                self.refresh_stats_comune()
-                self.refresh_immobili_tipologia()
-            else:
-                self.log_status("ERRORE: Aggiornamento viste non riuscito. Controllare i log.", error=True)
-        finally:
-            QApplication.restoreOverrideCursor()
-
-    
-
-    def log_status(self, message, error=False):
-        timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-        formatted_message = f"[{timestamp}] {message}"
-        if error:
-            self.status_text.append(f"<font color='red'>{formatted_message}</font>")
-        else:
-            self.status_text.append(formatted_message)
-        self.status_text.verticalScrollBar().setValue(self.status_text.verticalScrollBar().maximum())
-        QApplication.processEvents()
-
-    def _apri_menu_stats_comune(self, position: QPoint):
-        """Context menu sulla tabella statistiche per comune."""
-        index = self.stats_comune_table.indexAt(position)
-        if not index.isValid():
-            return
-        row = index.row()
-        comune_item = self.stats_comune_table.item(row, 0)
-        prov_item = self.stats_comune_table.item(row, 1)
-        comune = comune_item.text() if comune_item else ""
-        prov = prov_item.text() if prov_item else ""
-
-        menu = QMenu(self.stats_comune_table)
-        if comune:
-            menu.addAction(f"Copia comune  ({comune})").triggered.connect(
-                lambda: QApplication.clipboard().setText(comune))
-        if prov:
-            menu.addAction(f"Copia provincia  ({prov})").triggered.connect(
-                lambda: QApplication.clipboard().setText(prov))
-        menu.addSeparator()
-        def _copia_riga():
-            parts = []
-            for col in range(self.stats_comune_table.columnCount()):
-                item = self.stats_comune_table.item(row, col)
-                parts.append(item.text() if item else "")
-            QApplication.clipboard().setText("\t".join(parts))
-        menu.addAction("Copia riga intera").triggered.connect(_copia_riga)
-        menu.exec(self.stats_comune_table.viewport().mapToGlobal(position))
-
-    def _apri_menu_immobili_stats(self, position: QPoint):
-        """Context menu sulla tabella statistiche immobili per tipologia."""
-        index = self.immobili_table.indexAt(position)
-        if not index.isValid():
-            return
-        row = index.row()
-        comune_item = self.immobili_table.item(row, 0)
-        class_item = self.immobili_table.item(row, 1)
-        comune = comune_item.text() if comune_item else ""
-        classificazione = class_item.text() if class_item else ""
-
-        menu = QMenu(self.immobili_table)
-        if comune:
-            menu.addAction(f"Copia comune  ({comune})").triggered.connect(
-                lambda: QApplication.clipboard().setText(comune))
-        if classificazione:
-            menu.addAction(f"Copia classificazione  ({classificazione})").triggered.connect(
-                lambda: QApplication.clipboard().setText(classificazione))
-        menu.addSeparator()
-        def _copia_riga():
-            parts = []
-            for col in range(self.immobili_table.columnCount()):
-                item = self.immobili_table.item(row, col)
-                parts.append(item.text() if item else "")
-            QApplication.clipboard().setText("\t".join(parts))
-        menu.addAction("Copia riga intera").triggered.connect(_copia_riga)
-        menu.exec(self.immobili_table.viewport().mapToGlobal(position))
-
 # Estratto in admin_widgets.py — backward compat re-export
 # Estratto in reporting_widgets.py — backward compat re-export
 from reporting_widgets import (
@@ -2991,7 +3284,7 @@ from reporting_widgets import (
     StatisticheWidget, RegistraConsultazioneWidget,
 )
 
-from admin_widgets import GestioneUtentiWidget, AuditLogViewerWidget, BackupWidget
+from admin_widgets import GestioneUtentiWidget, AuditLogViewerWidget, BackupWidget, ArchivioWidget, TipiPossessoWidget
 
 class UnifiedFuzzySearchThread(QThread):
     """Thread unificato per eseguire ricerche fuzzy in background."""
@@ -3011,7 +3304,6 @@ class UnifiedFuzzySearchThread(QThread):
             self.progress_updated.emit(10)
             
             threshold = self.options.get('threshold', 0.3)
-            max_results = self.options.get('max_results', 100)
 
             # --- MODIFICA: Logica di ricerca semplificata ---
             # Questo thread ora chiama un metodo unificato che a sua volta
@@ -3228,11 +3520,8 @@ class UnifiedFuzzySearchWidget(QWidget):
         table.setSelectionBehavior(QAbstractItemView.SelectionBehavior.SelectRows)
         table.setEditTriggers(QAbstractItemView.EditTrigger.NoEditTriggers)
         header = table.horizontalHeader()
-        for i in range(len(headers)):
-            if i in stretch_columns:
-                header.setSectionResizeMode(i, QHeaderView.ResizeMode.Stretch)
-            else:
-                header.setSectionResizeMode(i, QHeaderView.ResizeMode.ResizeToContents)
+        header.setSectionResizeMode(QHeaderView.ResizeMode.Interactive)
+        header.setStretchLastSection(True)
         
         # Salva l'indice della colonna di similarità per usi futuri (es. colorazione)
         table.setProperty("similarity_col", similarity_col_index)
@@ -3791,7 +4080,8 @@ class DashboardWidget(QWidget):
 
         self.tab_possessori_recenti = QTableWidget(0, 2)
         self.tab_possessori_recenti.setHorizontalHeaderLabels(["Cognome/Nome", "Nome Completo"])
-        self.tab_possessori_recenti.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeMode.Stretch)
+        self.tab_possessori_recenti.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeMode.Interactive)
+        self.tab_possessori_recenti.horizontalHeader().setStretchLastSection(True)
         self.tab_possessori_recenti.setEditTriggers(QAbstractItemView.EditTrigger.NoEditTriggers)
         self.tab_possessori_recenti.verticalHeader().setVisible(False)
         self.recenti_tabs.addTab(self.tab_possessori_recenti, "Possessori")
@@ -3813,7 +4103,8 @@ class DashboardWidget(QWidget):
         # --- FINE MODIFICA ---
 
         self.audit_table.setEditTriggers(QAbstractItemView.EditTrigger.NoEditTriggers)
-        self.audit_table.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeMode.Stretch)
+        self.audit_table.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeMode.Interactive)
+        self.audit_table.horizontalHeader().setStretchLastSection(True)
         self.audit_table.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
         self.audit_table.customContextMenuRequested.connect(self._apri_menu_audit_dashboard)
         recent_activity_layout.addWidget(self.audit_table)

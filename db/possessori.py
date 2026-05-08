@@ -5,7 +5,7 @@ Estratto da catasto_db_manager.py — mixin per CatastoDBManager.
 
 from __future__ import annotations
 import logging
-from typing import Optional, List, Dict, Any, TYPE_CHECKING
+from typing import Optional, List, Dict, Any, Union, TYPE_CHECKING
 
 import csv
 import json
@@ -13,6 +13,7 @@ import psycopg2
 from psycopg2.extras import DictCursor
 
 from catasto_exceptions import DBMError, DBUniqueConstraintError, DBNotFoundError, DBDataError
+from db.base import db_handle_errors
 
 if TYPE_CHECKING:
     from catasto_db_manager import CatastoDBManager
@@ -120,24 +121,24 @@ class DBPossessoriMixin:
             # Rilancia come DBMError per informare il chiamante
             raise DBMError(f"Errore critico di sistema durante l'importazione: {e}") from e
 
+    @db_handle_errors
     def check_possessore_exists(self, nome_completo: str, comune_id: Optional[int] = None) -> Optional[int]:
-        """Verifica se un possessore esiste e ritorna il suo ID, usando il pattern corretto."""
-        try:
-            if comune_id is not None:
-                query = f"SELECT id FROM {self.schema}.possessore WHERE nome_completo = %s AND comune_id = %s AND attivo = TRUE"
-                params = (nome_completo, comune_id)
-            else:
-                query = f"SELECT id FROM {self.schema}.possessore WHERE nome_completo = %s AND attivo = TRUE"
-                params = (nome_completo,)
-            
-            with self._get_connection() as conn:
-                with conn.cursor(cursor_factory=DictCursor) as cur:
-                    cur.execute(query, params)
-                    result = cur.fetchone()
-                    return result['id'] if result else None
-        except Exception as e:
-            self.logger.error(f"Errore in check_possessore_exists: {e}", exc_info=True)
-            return None
+        """Verifica se un possessore esiste e ritorna il suo ID.
+
+        TIER 1: @db_handle_errors centralizes exception handling.
+        """
+        if comune_id is not None:
+            query = f"SELECT id FROM {self.schema}.possessore WHERE nome_completo = %s AND comune_id = %s AND attivo = TRUE"
+            params = (nome_completo, comune_id)
+        else:
+            query = f"SELECT id FROM {self.schema}.possessore WHERE nome_completo = %s AND attivo = TRUE"
+            params = (nome_completo,)
+
+        with self._get_connection() as conn:
+            with conn.cursor(cursor_factory=DictCursor) as cur:
+                cur.execute(query, params)
+                result = cur.fetchone()
+                return result['id'] if result else None
 
     def create_possessore(self, nome_completo: str, comune_riferimento_id: int, paternita: Optional[str] = None, attivo: bool = True, cognome_nome: Optional[str] = None) -> int:
             query = f"INSERT INTO {self.schema}.possessore (nome_completo, paternita, comune_id, attivo, cognome_nome) VALUES (%s, %s, %s, %s, %s) RETURNING id;"
@@ -156,98 +157,103 @@ class DBPossessoriMixin:
                 self.logger.error(f"Errore in create_possessore: {e}", exc_info=True)
                 raise DBMError(f"Errore database: {e}") from e
 
+    @db_handle_errors
     def get_partite_per_possessore(self, possessore_id: int) -> List[Dict[str, Any]]:
-            if not possessore_id > 0: raise DBDataError("ID possessore non valido.")
-            query = f"""
-                SELECT p.id, p.numero_partita, p.suffisso_partita, p.tipo, p.stato, 
-                    c.id as comune_id, c.nome as comune_nome, pp.titolo, pp.quota
-                FROM {self.schema}.partita p
-                JOIN {self.schema}.comune c ON p.comune_id = c.id
-                JOIN {self.schema}.partita_possessore pp ON p.id = pp.partita_id
-                WHERE pp.possessore_id = %s ORDER BY c.nome, p.numero_partita;
-            """
-            try:
-                with self._get_connection() as conn:
-                    with conn.cursor(cursor_factory=DictCursor) as cur:
-                        cur.execute(query, (possessore_id,))
-                        return [dict(row) for row in cur.fetchall()]
-            except Exception as e:
-                self.logger.error(f"Errore in get_partite_per_possessore: {e}", exc_info=True)
-                raise DBMError("Impossibile recuperare le partite per il possessore.") from e
+        """Recupera tutte le partite per un possessore.
 
-    def search_possessori_by_term_globally(self, search_term: Optional[str], limit: int = 200) -> List[Dict[str, Any]]:
+        TIER 1: @db_handle_errors centralizes exception handling.
         """
-        Ricerca possessori globalmente, usando il nuovo pattern di connessione.
+        if not possessore_id > 0:
+            raise DBDataError("ID possessore non valido")
+
+        query = f"""
+            SELECT p.id, p.numero_partita, p.suffisso_partita, p.tipo, p.stato,
+                c.id as comune_id, c.nome as comune_nome, pp.titolo, pp.quota
+            FROM {self.schema}.partita p
+            JOIN {self.schema}.comune c ON p.comune_id = c.id
+            JOIN {self.schema}.partita_possessore pp ON p.id = pp.partita_id
+            WHERE pp.possessore_id = %s ORDER BY c.nome, p.numero_partita;
+        """
+        with self._get_connection() as conn:
+            with conn.cursor(cursor_factory=DictCursor) as cur:
+                cur.execute(query, (possessore_id,))
+                return [dict(row) for row in cur.fetchall()]
+
+    @db_handle_errors
+    def search_possessori_by_term_globally(self, search_term: Optional[str], limit: int = 200,
+                                            solo_attivi: bool = True) -> List[Dict[str, Any]]:
+        """Ricerca possessori globalmente.
+
+        Args:
+            search_term: termine di ricerca (None = tutti)
+            limit: numero massimo di risultati
+            solo_attivi: se True (default), filtra i possessori archiviati (attivo=FALSE)
+
+        TIER 1: @db_handle_errors centralizes exception handling.
         """
         query_base = f"""
             SELECT p.id, p.nome_completo, p.cognome_nome, p.paternita, p.attivo,
-                c.nome AS comune_riferimento_nome 
+                c.nome AS comune_riferimento_nome
             FROM {self.schema}.possessore p
-            LEFT JOIN {self.schema}.comune c ON p.comune_id = c.id 
+            LEFT JOIN {self.schema}.comune c ON p.comune_id = c.id
         """
-        
+
         params: List[Union[str, int]] = []
         where_clauses = []
+
+        if solo_attivi:
+            where_clauses.append("p.attivo = TRUE")
 
         if search_term and search_term.strip():
             like_term = f"%{search_term.strip()}%"
             where_clauses.append("(p.nome_completo ILIKE %s OR p.cognome_nome ILIKE %s OR p.paternita ILIKE %s)")
             params.extend([like_term, like_term, like_term])
-        
+
         query = query_base
         if where_clauses:
             query += " WHERE " + " AND ".join(where_clauses)
-        
-        query += " ORDER BY p.nome_completo LIMIT %s;"
-        params.append(limit)
-        
-        try:
-            with self._get_connection() as conn:
-                with conn.cursor(cursor_factory=DictCursor) as cur:
-                    cur.execute(query, tuple(params))
-                    rows = cur.fetchall()
-                    data_list = [dict(row) for row in rows]
-                    self.logger.info(f"search_possessori_by_term_globally ha trovato {len(data_list)} possessori.")
-                    return data_list
-        except Exception as e:
-            self.logger.error(f"Errore DB in search_possessori_by_term_globally: {e}", exc_info=True)
-            return []
 
+        query += " ORDER BY p.nome_completo LIMIT %s"
+        params.append(limit)
+
+        with self._get_connection() as conn:
+            with conn.cursor(cursor_factory=DictCursor) as cur:
+                cur.execute(query, tuple(params))
+                rows = cur.fetchall()
+                data_list = [dict(row) for row in rows]
+                self.logger.info(f"search_possessori_by_term_globally ha trovato {len(data_list)} possessori")
+                return data_list
+
+    @db_handle_errors
     def get_possessori_per_partita(self, partita_id: int) -> List[Dict[str, Any]]:
-        """
-        Recupera tutti i possessori associati a una data partita, inclusi i dettagli
-        del legame dalla tabella partita_possessore.
+        """Recupera tutti i possessori associati a una data partita.
+
+        TIER 1: @db_handle_errors centralizes exception handling.
         """
         if not isinstance(partita_id, int) or partita_id <= 0:
-            self.logger.error("get_possessori_per_partita: partita_id non valido.")
-            return []
+            raise DBDataError(f"ID partita non valido: {partita_id}")
 
         query = f"""
             SELECT
                 pp.id AS id_relazione_partita_possessore,
                 pos.id AS possessore_id,
                 pos.nome_completo AS nome_completo_possessore,
-                pos.paternita AS paternita_possessore, 
+                pos.paternita AS paternita_possessore,
                 pp.titolo AS titolo_possesso,
                 pp.quota AS quota_possesso,
-                pp.tipo_partita AS tipo_partita_rel 
+                pp.tipo_partita AS tipo_partita_rel
             FROM {self.schema}.partita_possessore pp
             JOIN {self.schema}.possessore pos ON pp.possessore_id = pos.id
             WHERE pp.partita_id = %s
             ORDER BY pos.nome_completo;
         """
-        
-        try:
-            with self._get_connection() as conn:
-                with conn.cursor(cursor_factory=DictCursor) as cur:
-                    cur.execute(query, (partita_id,))
-                    results = [dict(row) for row in cur.fetchall()]
-                    self.logger.info(f"Trovati {len(results)} possessori per la partita ID {partita_id}.")
-                    return results
-        except Exception as e:
-            self.logger.error(f"Errore DB durante il recupero dei possessori per la partita ID {partita_id}: {e}", exc_info=True)
-            # In caso di errore, restituisce una lista vuota per stabilità
-            return []
+
+        with self._get_connection() as conn:
+            with conn.cursor(cursor_factory=DictCursor) as cur:
+                cur.execute(query, (partita_id,))
+                results = [dict(row) for row in cur.fetchall()]
+                self.logger.info(f"Trovati {len(results)} possessori per la partita ID {partita_id}")
+                return results
 
     def get_possessori_by_comune(self, comune_id: int, filter_text: Optional[str] = None, solo_con_partite: bool = False) -> List[Dict[str, Any]]:
         """

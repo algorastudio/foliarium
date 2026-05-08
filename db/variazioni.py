@@ -5,12 +5,14 @@ Estratto da catasto_db_manager.py — mixin per CatastoDBManager.
 
 from __future__ import annotations
 import logging
+from datetime import date
 from typing import Optional, List, Dict, Any, TYPE_CHECKING
 
 import psycopg2
 from psycopg2.extras import DictCursor
 
 from catasto_exceptions import DBMError, DBUniqueConstraintError, DBNotFoundError, DBDataError
+from db.base import db_handle_errors
 
 if TYPE_CHECKING:
     from catasto_db_manager import CatastoDBManager
@@ -19,55 +21,44 @@ if TYPE_CHECKING:
 class DBVariazioniMixin:
     """Mixin CRUD per Variazioni e Contratti."""
 
+    @db_handle_errors
     def get_elenco_variazioni_per_esportazione(self, comune_id: Optional[int] = None) -> List[Dict[str, Any]]:
-        """Recupera un elenco completo di variazioni, usando la vista aggiornata."""
+        """Recupera un elenco completo di variazioni, usando la vista aggiornata.
+
+        TIER 1: @db_handle_errors centralizes exception handling.
+        """
         query = f"SELECT * FROM {self.schema}.v_variazioni_complete"
         params = []
-        
+
         if comune_id:
-            # Recupera il nome del comune dall'ID per filtrare sulla vista
-            # Questa è una chiamata aggiuntiva al DB.
-            # Se la vista potesse includere direttamente l'ID, sarebbe più efficiente.
-            comune_info = self.get_comune_by_id(comune_id) # Presumo esista o lo creiamo
-            if comune_info and comune_info.get('nome_comune'): # Usa 'nome_comune' come chiave
-                comune_nome = comune_info['nome_comune']
-                # --- INIZIO CORREZIONE: Filtra sulla colonna 'partita_origine_comune' ---
+            comune_info = self.get_comune_by_id(comune_id)
+            if comune_info and comune_info.get('nome_comune'):
                 query += " WHERE partita_origine_comune = %s"
-                params.append(comune_nome)
-                # --- FINE CORREZIONE ---
+                params.append(comune_info['nome_comune'])
             else:
-                self.logger.warning(f"Nome comune non trovato per ID {comune_id}. Impossibile filtrare le variazioni.")
-                # Se il comune ID non è valido o non trova il nome, non aggiunge il filtro.
-                # Questo potrebbe portare a un elenco completo anziché filtrato.
-                # Decidi se vuoi sollevare un'eccezione o restituire una lista vuota in questo caso.
-                # Per ora, non filtra e procede con l'elenco completo.
+                raise DBNotFoundError(f"Comune con ID {comune_id} non trovato.")
 
         query += " ORDER BY data_variazione DESC;"
 
-        try:
-            with self._get_connection() as conn:
-                with conn.cursor(cursor_factory=psycopg2.extras.DictCursor) as cur:
-                    cur.execute(query, params)
-                    return [dict(row) for row in cur.fetchall()]
-        except Exception as e:
-            # Incapsula l'errore per dare più contesto al chiamante GUI
-            raise DBMError(f"Impossibile recuperare l'elenco delle variazioni: {e}") from e
+        with self._get_connection() as conn:
+            with conn.cursor(cursor_factory=psycopg2.extras.DictCursor) as cur:
+                cur.execute(query, params)
+                return [dict(row) for row in cur.fetchall()]
 
+    @db_handle_errors
     def search_variazioni(self, tipo: Optional[str] = None, data_inizio: Optional[date] = None,
                           data_fine: Optional[date] = None, partita_origine_id: Optional[int] = None,
                           partita_destinazione_id: Optional[int] = None, comune_id: Optional[int] = None) -> List[Dict]:
-        """Chiama la funzione SQL cerca_variazioni con tutti i filtri opzionali."""
-        try:
-            query = "SELECT * FROM cerca_variazioni(%s, %s, %s, %s, %s, %s)"
-            params = (tipo, data_inizio, data_fine, partita_origine_id, partita_destinazione_id, comune_id)
-            # Usa il context manager per una connessione sicura dal pool
-            with self._get_connection() as conn:
-                with conn.cursor(cursor_factory=DictCursor) as cur:
-                    cur.execute(query, params)
-                    return [dict(row) for row in cur.fetchall()]
-        except psycopg2.Error as db_err: self.logger.error(f"Errore DB in search_variazioni: {db_err}")
-        except Exception as e: self.logger.error(f"Errore Python in search_variazioni: {e}")
-        return []
+        """Chiama la funzione SQL cerca_variazioni con tutti i filtri opzionali.
+
+        TIER 1: @db_handle_errors centralizes exception handling.
+        """
+        query = "SELECT * FROM cerca_variazioni(%s, %s, %s, %s, %s, %s)"
+        params = (tipo, data_inizio, data_fine, partita_origine_id, partita_destinazione_id, comune_id)
+        with self._get_connection() as conn:
+            with conn.cursor(cursor_factory=DictCursor) as cur:
+                cur.execute(query, params)
+                return [dict(row) for row in cur.fetchall()]
 
     def update_variazione(self, variazione_id: int, **kwargs) -> bool:
         """Chiama la procedura SQL aggiorna_variazione. Il commit è automatico."""

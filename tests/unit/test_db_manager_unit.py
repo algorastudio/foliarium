@@ -122,17 +122,19 @@ class TestImportPartiteCSV:
 @pytest.mark.unit
 class TestGetGenealogia:
 
-    def test_invalid_id_returns_none(self, mgr):
-        """get_genealogia_partita deve restituire None per ID non validi."""
-        assert mgr.get_genealogia_partita(0) is None
-        assert mgr.get_genealogia_partita(-1) is None
-        assert mgr.get_genealogia_partita("abc") is None  # type: ignore
+    def test_invalid_id_raises(self, mgr):
+        """get_genealogia_partita deve sollevare ValueError per ID non validi."""
+        with pytest.raises(ValueError):
+            mgr.get_genealogia_partita(0)
+        with pytest.raises(ValueError):
+            mgr.get_genealogia_partita(-1)
+        with pytest.raises(ValueError):
+            mgr.get_genealogia_partita("abc")  # type: ignore
 
-    def test_no_pool_returns_none(self, mgr):
-        """Con pool=None get_genealogia_partita deve restituire None (errore DB)."""
-        # pool è None → _get_connection solleva PoolError → except cattura → None
-        result = mgr.get_genealogia_partita(1)
-        assert result is None
+    def test_no_pool_raises(self, mgr):
+        """Con pool=None get_genealogia_partita deve sollevare eccezione (DB non disponibile)."""
+        with pytest.raises(Exception):  # PoolError or similar
+            mgr.get_genealogia_partita(1)
 
 
 # ---------------------------------------------------------------------------

@@ -51,7 +51,16 @@ sudo apt-get install -y -q \
     libqt6gui6 libqt6widgets6 libqt6svg6
 
 # ── 3. Dipendenze Python ──────────────────────────────────────────────────────
-step "[3/5] Installazione dipendenze Python"
+step "[3/6] Installazione Node.js e dipendenze frontend"
+if ! command -v node &>/dev/null; then
+    curl -fsSL https://deb.nodesource.com/setup_22.x | sudo -E bash -
+    sudo apt-get install -y -q nodejs
+fi
+echo "  Node: $(node --version)  npm: $(npm --version)"
+(cd frontend && npm install --silent)
+echo "  Dipendenze frontend installate"
+
+step "[4/6] Installazione dipendenze Python"
 
 # Rileva venv creato da VS Code / Codespaces, altrimenti usa il Python globale
 if [[ -n "${VIRTUAL_ENV:-}" ]]; then
@@ -99,20 +108,23 @@ run_sql sql_scripts/07_user-management.sql
 run_sql sql_scripts/07a_bootstrap_admin.sql
 
 # ── Completato ─────────────────────────────────────────────────────────────────
-step "[5/5] Setup completato"
+step "[6/6] Setup completato"
 cat <<'EOF'
 
-  ┌─────────────────────────────────────────────────┐
-  │  Meridiana – Catasto Storico è pronto!          │
-  │                                                 │
-  │  Avvia l'app GUI:                               │
-  │    python gui_main.py                           │
-  │                                                 │
-  │  Esegui i test:                                 │
-  │    python -m pytest tests/                      │
-  │                                                 │
-  │  Desktop nel browser (porta 6080):              │
-  │    password: meridiana                          │
-  └─────────────────────────────────────────────────┘
+  ┌──────────────────────────────────────────────────────────┐
+  │  Foliarium – Catasto Storico è pronto!                   │
+  │                                                          │
+  │  Modalità React (browser):                               │
+  │    Terminale 1: cd frontend && npm run dev               │
+  │    Terminale 2: python -m uvicorn api.main:create_app \  │
+  │                   --factory --host 127.0.0.1 --port 8765 │
+  │    → apri la porta 5173 nel browser                      │
+  │                                                          │
+  │  Modalità PyQt (desktop noVNC):                          │
+  │    python gui_main.py                                    │
+  │    → Desktop nella porta 6080 (password: meridiana)      │
+  │                                                          │
+  │  Test:  python -m pytest tests/                          │
+  └──────────────────────────────────────────────────────────┘
 
 EOF

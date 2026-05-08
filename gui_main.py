@@ -26,7 +26,8 @@ from PyQt6.QtWidgets import QGraphicsOpacityEffect
 from PyQt6.QtWidgets import (QApplication,
                              QDialog, QFileDialog, QFrame, QGridLayout,
                              QHBoxLayout, QInputDialog,
-                             QLabel, QLineEdit, QMainWindow, QMessageBox, QPushButton,
+                             QLabel, QLineEdit, QListWidget, QListWidgetItem,
+                             QMainWindow, QMessageBox, QPushButton,
                              QScrollArea, QSizePolicy, QSplashScreen, QStackedWidget,
                              QStyle, QStyleFactory, QTabWidget,
                              QVBoxLayout, QWidget)
@@ -48,10 +49,11 @@ from gui_widgets import (
     RicercaAvanzataImmobiliWidget, InserimentoComuneWidget,
     InserimentoPossessoreWidget, InserimentoLocalitaWidget, RegistrazioneProprietaWidget,
     OperazioniPartitaWidget, EsportazioniWidget, ReportisticaWidget, StatisticheWidget,
-    GestioneUtentiWidget, AuditLogViewerWidget, BackupWidget,
+    GestioneUtentiWidget, AuditLogViewerWidget, BackupWidget, ArchivioWidget,
     RegistraConsultazioneWidget, WelcomeScreen, GestionePeriodiStoriciWidget,
-    GestioneTipiLocalitaWidget,
+    GestioneTipiLocalitaWidget, TipiPossessoWidget, NuovaPartitaWizardWidget,
     DBConfigDialog, InserimentoPartitaWidget, RicercaDocumentiWidget)
+from admin_widgets import TabelleDiSistemaWidget
 
 from custom_widgets import QPasswordLineEdit
 import update_checker
@@ -173,7 +175,7 @@ class FoliariumSplashScreen(QSplashScreen):
     """Splash screen mostrata all'avvio prima del login."""
 
     def __init__(self):
-        logo_path = str(get_resource_path("Logo_foliarium_1.png"))
+        logo_path = str(get_resource_path("Logo_foliarium.png"))
         if os.path.exists(logo_path):
             from PyQt6.QtGui import QPixmap
             pixmap = QPixmap(logo_path).scaled(
@@ -339,242 +341,24 @@ class LoginDialog(QDialog):
 try:
     from gui_widgets import UnifiedFuzzySearchWidget,UnifiedFuzzySearchThread
     FUZZY_SEARCH_AVAILABLE = True
-except ImportError as e:
+except ImportError:
     logging.warning("[INIT] Ricerca fuzzy non disponibile")
     FUZZY_SEARCH_AVAILABLE = False
 
 
-# ---------------------------------------------------------------------------
-# TopBarWidget — barra superiore fissa con logo, info utente e logout
-# ---------------------------------------------------------------------------
-
-class TopBarWidget(QFrame):
-    logout_requested = pyqtSignal()
-
-    def __init__(self, parent=None):
-        super().__init__(parent)
-        self.setObjectName("topBar")
-        self.setFixedHeight(48)
-        self.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
-
-        layout = QHBoxLayout(self)
-        layout.setContentsMargins(12, 0, 12, 0)
-        layout.setSpacing(8)
-
-        # Logo + titolo
-        try:
-            from PyQt6.QtSvgWidgets import QSvgWidget
-            logo_path = get_logo_svg_path(dark=False)
-            if logo_path:
-                logo = QSvgWidget(logo_path)
-                logo.setFixedSize(28, 28)
-                layout.addWidget(logo)
-        except Exception:
-            pass
-
-        title_label = QLabel("Foliarium")
-        title_label.setObjectName("appTitle")
-        layout.addWidget(title_label)
-
-        # Badge visibile solo in modalità demo
-        if IS_DEMO_MODE:
-            demo_badge = QLabel("  DEMO  ")
-            demo_badge.setObjectName("demoBadge")
-            demo_badge.setStyleSheet(
-                "background: #FF6D00; color: white; font-weight: bold; "
-                "font-size: 10px; border-radius: 4px; padding: 2px 6px;"
-            )
-            layout.addWidget(demo_badge)
-
-        layout.addStretch()
-
-        # Indicatore DB
-        self._db_indicator = QLabel("● DB: —")
-        self._db_indicator.setObjectName("dbIndicator")
-        layout.addWidget(self._db_indicator)
-
-        layout.addSpacing(16)
-
-        # Nome utente
-        self._user_label = QLabel("—")
-        self._user_label.setObjectName("userLabel")
-        layout.addWidget(self._user_label)
-
-        # Chip ruolo
-        self._role_chip = QLabel("")
-        self._role_chip.setObjectName("roleChip")
-        layout.addWidget(self._role_chip)
-
-        layout.addSpacing(8)
-
-        # Pulsante Logout
-        self._logout_btn = QPushButton("Logout")
-        self._logout_btn.setObjectName("logoutButton")
-        self._logout_btn.setEnabled(False)
-        self._logout_btn.clicked.connect(self.logout_requested)
-        layout.addWidget(self._logout_btn)
-
-    def update_user_info(self, nome: str, ruolo: str, db_connected: bool, db_name: str = ""):
-        """Aggiorna label utente, ruolo e stato DB."""
-        if db_connected:
-            db_text = f"● DB: {db_name}" if db_name else "● DB: connesso"
-            self._db_indicator.setStyleSheet("color: #2E7D32; font-size: 11px;")
-        else:
-            db_text = "● DB: offline"
-            self._db_indicator.setStyleSheet("color: #B71C1C; font-size: 11px;")
-        self._db_indicator.setText(db_text)
-
-        if nome:
-            self._user_label.setText(nome)
-            self._role_chip.setText(ruolo or "")
-            self._role_chip.setProperty("role", (ruolo or "").lower())
-            # Forza il restyle del chip
-            self._role_chip.style().unpolish(self._role_chip)
-            self._role_chip.style().polish(self._role_chip)
-            self._logout_btn.setEnabled(True)
-        else:
-            self._user_label.setText("—")
-            self._role_chip.setText("")
-            self._logout_btn.setEnabled(False)
-
-    def set_logout_enabled(self, enabled: bool):
-        self._logout_btn.setEnabled(enabled)
-
 
 # ---------------------------------------------------------------------------
-# SidebarWidget — navigazione verticale stile VS Code
+# TopBarWidget, CommandPaletteDialog, SidebarWidget — estratti in foliarium.ui
 # ---------------------------------------------------------------------------
 
-class SidebarWidget(QWidget):
-    page_requested = pyqtSignal(str)
+from foliarium.ui.top_bar import TopBarWidget
+from foliarium.ui.command_palette import CommandPaletteDialog
+from foliarium.ui.sidebar import SidebarWidget
 
-    def __init__(self, parent=None):
-        super().__init__(parent)
-        self.setObjectName("sidebar")
-        self.setFixedWidth(220)
-        self.setSizePolicy(QSizePolicy.Policy.Fixed, QSizePolicy.Policy.Expanding)
-
-        outer = QVBoxLayout(self)
-        outer.setContentsMargins(0, 0, 0, 0)
-        outer.setSpacing(0)
-
-        scroll = QScrollArea()
-        scroll.setWidgetResizable(True)
-        scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
-        scroll.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAsNeeded)
-        scroll.setFrameShape(QFrame.Shape.NoFrame)
-
-        self._container = QWidget()
-        self._nav_layout = QVBoxLayout(self._container)
-        self._nav_layout.setContentsMargins(0, 8, 0, 8)
-        self._nav_layout.setSpacing(0)
-        self._nav_layout.addStretch()
-
-        scroll.setWidget(self._container)
-        outer.addWidget(scroll)
-
-        # Dict page_name -> QPushButton
-        self._buttons: dict[str, QPushButton] = {}
-
-    def build_nav(self, is_admin: bool, fuzzy_available: bool = False):
-        """Costruisce i bottoni di navigazione in base al ruolo."""
-        # Rimuove widget esistenti (tranne lo stretch finale)
-        while self._nav_layout.count() > 1:
-            item = self._nav_layout.takeAt(0)
-            if item.widget():
-                item.widget().deleteLater()
-        self._buttons.clear()
-
-        layout = self._nav_layout
-        stretch = layout.takeAt(0)  # rimuovi stretch temporaneamente
-
-        def insert(lbl, page, icon=""):
-            self._add_nav_button(layout, lbl, page, icon)
-
-        # Home
-        insert("Home", "home", "home")
-
-        # ARCHIVIO
-        self._add_section(layout, "ARCHIVIO")
-        insert("Comuni", "comuni", "building")
-        insert("Ricerca Partite", "partite", "search")
-        insert("Ricerca Immobili", "immobili", "search")
-        insert("Ricerca Documenti", "documenti", "file-text")
-        if fuzzy_available:
-            insert("Ricerca Globale", "fuzzy", "globe")
-
-        # INSERIMENTO
-        self._add_section(layout, "INSERIMENTO")
-        insert("Comune", "ins_comune", "building")
-        insert("Possessore", "ins_possessore", "user")
-        insert("Partita", "ins_partita", "file-text")
-        insert("Località", "ins_localita", "map-pin")
-        insert("Reg. Proprietà", "reg_proprieta", "key")
-        insert("Operazioni", "operazioni", "settings")
-        insert("Reg. Consultazione", "reg_consult", "book")
-        if is_admin:
-            insert("Tipi Località", "tipi_localita", "map-pin")
-            insert("Periodi Storici", "periodi", "clock")
-
-        # ANALISI
-        self._add_section(layout, "ANALISI")
-        insert("Esportazioni", "esportazioni", "download")
-        insert("Report", "report", "report")
-        insert("Statistiche", "statistiche", "bar-chart")
-
-        # SISTEMA (admin only)
-        if is_admin:
-            self._add_section(layout, "SISTEMA")
-            insert("Utenti", "utenti", "users")
-            insert("Audit Log", "audit", "shield")
-            insert("Backup", "backup", "database")
-
-        layout.addStretch()
-
-    def _add_section(self, layout: QVBoxLayout, label: str):
-        lbl = QLabel(label)
-        lbl.setObjectName("sectionLabel")
-        lbl.setEnabled(False)
-        layout.addWidget(lbl)
-
-    def _add_nav_button(self, layout: QVBoxLayout, label: str, page_name: str,
-                        icon_name: str = ""):
-        btn = QPushButton(label)
-        btn.setObjectName("navButton")
-        btn.setFlat(True)
-        btn.setCheckable(False)
-        btn.setProperty("active", "false")
-        btn.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
-        btn.setMinimumHeight(36)
-        if icon_name:
-            icon_path = get_icon_path(icon_name)
-            if icon_path.exists():
-                from PyQt6.QtGui import QIcon
-                btn.setIcon(QIcon(str(icon_path)))
-                btn.setIconSize(QSize(18, 18))
-        btn.clicked.connect(lambda _, p=page_name: self.page_requested.emit(p))
-        self._buttons[page_name] = btn
-        layout.addWidget(btn)
-
-    def set_active(self, page_name: str):
-        """Imposta il bottone attivo e rimuove lo stile dagli altri."""
-        for name, btn in self._buttons.items():
-            active = (name == page_name)
-            btn.setProperty("active", "true" if active else "false")
-            btn.style().unpolish(btn)
-            btn.style().polish(btn)
-
-    def set_button_visible(self, page_name: str, visible: bool):
-        if page_name in self._buttons:
-            self._buttons[page_name].setVisible(visible)
-
-    def get_page_names(self) -> list:
-        """Restituisce la lista ordinata dei nomi pagina (per shortcut Ctrl+N)."""
-        return list(self._buttons.keys())
 
 
 class CatastoMainWindow(QMainWindow):
-    
+
     def __init__(self, client_ip_address_gui: str):
         super(CatastoMainWindow, self).__init__()
         self.logger = logging.getLogger("CatastoGUI")
@@ -612,6 +396,7 @@ class CatastoMainWindow(QMainWindow):
         self.inserimento_comune_widget_ref: Optional[InserimentoComuneWidget] = None
         self.inserimento_possessore_widget_ref: Optional[InserimentoPossessoreWidget] = None
         self.inserimento_localita_widget_ref: Optional[InserimentoLocalitaWidget] = None
+        self.nuova_partita_wizard_ref: Optional[NuovaPartitaWizardWidget] = None
         self.registrazione_proprieta_widget_ref: Optional[RegistrazioneProprietaWidget] = None
         self.operazioni_partita_widget_ref: Optional[OperazioniPartitaWidget] = None
         self.registra_consultazione_widget_ref: Optional[RegistraConsultazioneWidget] = None
@@ -623,6 +408,7 @@ class CatastoMainWindow(QMainWindow):
         self.backup_restore_widget_ref: Optional[BackupWidget] = None
         self.gestione_periodi_storici_widget_ref: Optional[GestionePeriodiStoriciWidget] = None
         self.gestione_tipi_localita_widget_ref: Optional[GestioneTipiLocalitaWidget] = None
+        self.gestione_tipi_possesso_widget_ref: Optional[TipiPossessoWidget] = None
 
         # Indice pagine sidebar: page_name -> QStackedWidget index
         self._page_index: dict = {}
@@ -639,7 +425,7 @@ class CatastoMainWindow(QMainWindow):
         self.top_bar.logout_requested.connect(self.handle_logout)
         self.main_layout.addWidget(self.top_bar)
 
-        # --- Area centrale: sidebar + stack ---
+        # --- Contenuto: sidebar sinistra + stack destra ---
         content_widget = QWidget()
         content_layout = QHBoxLayout(content_widget)
         content_layout.setContentsMargins(0, 0, 0, 0)
@@ -648,10 +434,11 @@ class CatastoMainWindow(QMainWindow):
         self.sidebar = SidebarWidget(self)
         self.sidebar.page_requested.connect(self.navigate_to)
         content_layout.addWidget(self.sidebar)
+        self.sidebar.hide()
 
         self.stack = QStackedWidget(self)
         self.stack.currentChanged.connect(self._on_stack_changed)
-        content_layout.addWidget(self.stack)
+        content_layout.addWidget(self.stack, 1)
 
         self.main_layout.addWidget(content_widget, 1)
 
@@ -768,6 +555,9 @@ class CatastoMainWindow(QMainWindow):
                 self.top_bar.update_user_info("", "", db_connected, db_name_configured)
                 self.statusBar().showMessage("Pronto.")
 
+        # Chip scadenza licenza — mostra avviso se <30 giorni alla scadenza
+        self._update_license_expiry_chip()
+
         logging.getLogger("CatastoGUI").info(
             ">>> CatastoMainWindow: Chiamata a setup_pages")
         self.setup_pages()
@@ -787,6 +577,7 @@ class CatastoMainWindow(QMainWindow):
 
         self.check_mv_refresh_status()
         self._check_offline_mode()
+        QTimer.singleShot(800, self._check_db_schema_migrations)
 
         # --- Refresh periodico del seat di rete (ogni 60 secondi) ---
         if hasattr(self, '_license_manager') and self._license_manager:
@@ -1019,6 +810,29 @@ class CatastoMainWindow(QMainWindow):
         self.auto_theme_action.setChecked(False)
         self.logger.info("Stile nativo Windows 11 attivato.")
 
+    def _update_license_expiry_chip(self) -> None:
+        """Aggiorna il chip di scadenza licenza nella top bar.
+
+        Usa il LicenseManager già inizializzato se disponibile, altrimenti
+        crea un'istanza temporanea di sola lettura (best-effort, non bloccante).
+        """
+        try:
+            from license_manager import LicenseManager
+            from config import IS_TEST_ENV, IS_DEMO_MODE
+            if IS_TEST_ENV or IS_DEMO_MODE:
+                return
+            mgr = getattr(self, '_license_manager', None) or LicenseManager()
+            info = mgr.validate()
+            if info and info.expiry_date:
+                from datetime import date
+                days_left = (info.expiry_date - date.today()).days
+                self.top_bar.set_license_expiry(days_left)
+            else:
+                self.top_bar.set_license_expiry(None)
+        except Exception as e:
+            self.logger.debug(f"_update_license_expiry_chip: {e}")
+            self.top_bar.set_license_expiry(None)
+
     def _apri_gestione_licenza(self):
         """Apre il dialogo di gestione licenza."""
         from dialogs import LicenseDialog
@@ -1103,6 +917,10 @@ class CatastoMainWindow(QMainWindow):
         self.inserimento_localita_widget_ref.scarica_csv_requested.connect(self._scarica_csv_localita)
         _add_page("ins_localita", self.inserimento_localita_widget_ref)
 
+        self.nuova_partita_wizard_ref = NuovaPartitaWizardWidget(
+            self.db_manager, self.logged_in_user_info, self.stack)
+        _add_page("ins_wizard", self.nuova_partita_wizard_ref)
+
         self.registrazione_proprieta_widget_ref = RegistrazioneProprietaWidget(self.db_manager)
         _add_page("reg_proprieta", self.registrazione_proprieta_widget_ref)
 
@@ -1113,13 +931,15 @@ class CatastoMainWindow(QMainWindow):
             self.db_manager, self.logged_in_user_info)
         _add_page("reg_consult", self.registra_consultazione_widget_ref)
 
-        # Admin — voci inserimento
+        # Admin — configurazione lookup tables (unificate in un'unica pagina con sub-tab)
         if is_admin:
-            self.gestione_tipi_localita_widget_ref = GestioneTipiLocalitaWidget(self.db_manager)
-            _add_page("tipi_localita", self.gestione_tipi_localita_widget_ref)
-
-            self.gestione_periodi_storici_widget_ref = GestionePeriodiStoriciWidget(self.db_manager)
-            _add_page("periodi", self.gestione_periodi_storici_widget_ref)
+            self.tabelle_sistema_widget_ref = TabelleDiSistemaWidget(self.db_manager)
+            _add_page("tabelle_sistema", self.tabelle_sistema_widget_ref)
+            # Riferimenti diretti ai sub-widget per compatibilità con codice esistente
+            # (es. refresh dopo CRUD da altre parti dell'app).
+            self.gestione_tipi_localita_widget_ref = self.tabelle_sistema_widget_ref.tipi_localita_tab
+            self.gestione_periodi_storici_widget_ref = self.tabelle_sistema_widget_ref.periodi_tab
+            self.gestione_tipi_possesso_widget_ref = self.tabelle_sistema_widget_ref.tipi_possesso_tab
 
         # Analisi
         self.esportazioni_widget_ref = EsportazioniWidget(self.db_manager)
@@ -1142,22 +962,29 @@ class CatastoMainWindow(QMainWindow):
             self.backup_restore_widget_ref = BackupWidget(self.db_manager)
             _add_page("backup", self.backup_restore_widget_ref)
 
-        # Costruisce la sidebar
-        self.sidebar.build_nav(is_admin=is_admin, fuzzy_available=FUZZY_SEARCH_AVAILABLE)
+            self.archivio_widget_ref = ArchivioWidget(self.db_manager)
+            _add_page("archivio", self.archivio_widget_ref)
 
-        # Shortcut Ctrl+1..N (lista flat pagine sidebar)
-        for i, page_name in enumerate(self.sidebar.get_page_names()):
-            if i >= 9:
-                break
-            sc = QShortcut(QKeySequence(f"Ctrl+{i + 1}"), self)
-            sc.activated.connect(lambda p=page_name: self.navigate_to(p))
+        # Costruisce la sidebar verticale
+        self.sidebar.build_nav(is_admin=is_admin, fuzzy_available=FUZZY_SEARCH_AVAILABLE)
+        self.sidebar.show()
 
         self._f5_shortcut = QShortcut(QKeySequence("F5"), self)
         self._f5_shortcut.activated.connect(self._handle_f5_refresh)
 
+        self._cmd_palette_shortcut = QShortcut(QKeySequence("Ctrl+K"), self)
+        self._cmd_palette_shortcut.activated.connect(self._open_command_palette)
+
         # Vai alla home
         self.navigate_to("home")
         self.logger.info("Setup pagine completato (layout sidebar).")
+
+    def _open_command_palette(self):
+        """Ctrl+K: apre la command palette per navigazione rapida."""
+        available = list(self._page_index.keys())
+        dlg = CommandPaletteDialog(available, parent=self)
+        dlg.page_selected.connect(self.navigate_to)
+        dlg.exec()
 
     def _handle_f5_refresh(self):
         """F5: ricarica i dati della pagina corrente."""
@@ -1187,8 +1014,8 @@ class CatastoMainWindow(QMainWindow):
             ("Inserimento", "Reg. Proprietà"):      "reg_proprieta",
             ("Inserimento", "Operazioni"):          "operazioni",
             ("Inserimento", "Reg. Consultazione"):  "reg_consult",
-            ("Inserimento", "Tipi Località"):       "tipi_localita",
-            ("Inserimento", "Periodi"):             "periodi",
+            ("Inserimento", "Tipi Località"):       "tabelle_sistema",
+            ("Inserimento", "Periodi"):             "tabelle_sistema",
             ("Esportazioni", ""):                   "esportazioni",
             ("Report", ""):                         "report",
             ("Statistiche", ""):                    "statistiche",
@@ -1306,7 +1133,7 @@ class CatastoMainWindow(QMainWindow):
         self._anim_out = anim_out
 
     def update_ui_based_on_role(self):
-        """Controlla la visibilità dei bottoni sidebar in base al ruolo utente."""
+        """Controlla la visibilità dei bottoni nav in base al ruolo utente."""
         self.logger.info(">>> CatastoMainWindow: update_ui_based_on_role")
 
         ruolo = None
@@ -1325,19 +1152,21 @@ class CatastoMainWindow(QMainWindow):
         is_consultatore = (ruolo == 'consultatore')
         db_ready = self.pool_initialized_successful and not is_admin_offline_mode
 
-        # Visibilità bottoni sidebar per sezioni/pagine non-admin
         inserimento_ok = db_ready and (is_admin or is_archivista)
         analisi_ok = db_ready and (is_admin or is_archivista or is_consultatore)
 
-        # I bottoni admin sono già assenti dalla sidebar se non admin (build_nav è role-aware).
-        # Qui gestiamo solo la visibilità di bottoni presenti per tutti.
+        # Visibilità bottoni sidebar — i bottoni admin non esistono se non admin (build_nav role-aware)
         for page in ("comuni", "partite", "immobili", "documenti", "fuzzy"):
             self.sidebar.set_button_visible(page, db_ready)
         for page in ("ins_comune", "ins_possessore", "ins_partita", "ins_localita",
-                     "reg_proprieta", "operazioni", "reg_consult"):
+                     "ins_wizard", "reg_proprieta", "reg_consult"):
             self.sidebar.set_button_visible(page, inserimento_ok)
         for page in ("esportazioni", "report", "statistiche"):
             self.sidebar.set_button_visible(page, analisi_ok)
+        # Pagine sezione AMMINISTRAZIONE + Archiviati (esistono solo se is_admin)
+        for page in ("operazioni", "utenti", "backup", "audit",
+                     "tabelle_sistema", "archivio"):
+            self.sidebar.set_button_visible(page, db_ready and is_admin)
 
         # Pulsante logout nella topbar
         self.top_bar.set_logout_enabled(
@@ -1627,8 +1456,9 @@ class CatastoMainWindow(QMainWindow):
             self.current_session_id = None
             self.session.logout()  # Sincronizza il SessionManager centralizzato
 
-            # Aggiorna la top bar
+            # Aggiorna la top bar e nasconde la sidebar
             self.top_bar.update_user_info("", "", False)
+            self.sidebar.hide()
 
             # Svuota lo stack
             while self.stack.count():
@@ -1901,6 +1731,62 @@ class CatastoMainWindow(QMainWindow):
         else:
             self.offline_bar.hide()
 
+    def _check_db_schema_migrations(self):
+        """Controlla se mancano migrazioni DB critiche e avvisa l'utente."""
+        if not self.db_manager:
+            return
+        from config import IS_TEST_ENV, IS_DEMO_MODE
+        if IS_TEST_ENV or IS_DEMO_MODE:
+            return
+
+        missing = self.db_manager.check_missing_migrations()
+        if not missing:
+            return
+
+        descriptions = {
+            "soft_delete": (
+                "Colonne di archiviazione (soft-delete) mancanti",
+                "Le tabelle comune, località, partita e possessore non hanno le colonne\n"
+                "archiviato / archiviato_il. Alcune funzioni (ricerca, archiviazione) potrebbero\n"
+                "non funzionare correttamente.\n\n"
+                "Script: sql_scripts/07_soft_delete_archiviazione.sql"
+            ),
+            "tipo_possesso": (
+                "Tabella tipo_possesso mancante",
+                "La tabella di lookup 'tipo_possesso' non è presente.\n"
+                "Il dropdown dei tipi di possesso nei legami proprietà sarà vuoto.\n\n"
+                "Script: sql_scripts/07_create_tipo_possesso_table.sql"
+            ),
+        }
+
+        lines = []
+        scripts = []
+        for key in missing:
+            title, detail = descriptions.get(key, (key, ""))
+            lines.append(f"• {title}")
+            if detail:
+                lines.append(f"  {detail.splitlines()[0]}")
+            # extract script path from detail
+            for row in detail.splitlines():
+                if row.strip().startswith("Script:"):
+                    scripts.append(row.strip().replace("Script: ", ""))
+
+        msg = QMessageBox(self)
+        msg.setWindowTitle("Migrazioni database necessarie")
+        msg.setIcon(QMessageBox.Icon.Warning)
+        msg.setText(
+            "<b>Alcune migrazioni dello schema del database non sono state applicate.</b><br><br>"
+            + "<br>".join(l.replace("\n", "<br>") for l in lines)
+        )
+        msg.setInformativeText(
+            "Per applicare le migrazioni, eseguire gli script SQL indicati con:\n"
+            "  psql -U postgres -d catasto_storico -f <script>\n\n"
+            "L'applicazione continuerà, ma alcune funzioni potrebbero non funzionare."
+        )
+        msg.setStandardButtons(QMessageBox.StandardButton.Ok)
+        msg.setDefaultButton(QMessageBox.StandardButton.Ok)
+        msg.exec()
+
     def _apri_dialogo_impostazioni_aggiornamento(self):
         """
         Apre un dialogo per permettere all'utente di impostare la soglia (in ore)
@@ -2013,6 +1899,87 @@ def setup_global_logging():
     )
     
     logging.info(f"Logging configurato. I log verranno salvati in: {log_file_path}")
+
+class WebViewWindow(QMainWindow):
+    """Finestra principale modalità React: sidebar nativa minima + QWebEngineView."""
+
+    def __init__(self, port: int, db_manager, parent=None):
+        super().__init__(parent)
+        self.setWindowTitle("Foliarium — Archivio Catastale Storico")
+        self.resize(1280, 800)
+        self.setMinimumSize(900, 600)
+        self._api_port = port
+        self._db_manager = db_manager
+
+        try:
+            from PyQt6.QtWebEngineWidgets import QWebEngineView
+            from PyQt6.QtCore import QUrl
+            view = QWebEngineView()
+            view.load(QUrl(f"http://127.0.0.1:{port}"))
+            self.setCentralWidget(view)
+        except ImportError:
+            # WebEngine non installato: apre il browser di sistema
+            import webbrowser
+            webbrowser.open(f"http://127.0.0.1:{port}")
+            label = QLabel(
+                f"<h2>Foliarium Web</h2>"
+                f"<p>Apri il browser su: <a href='http://127.0.0.1:{port}'>"
+                f"http://127.0.0.1:{port}</a></p>"
+            )
+            label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+            label.setOpenExternalLinks(True)
+            self.setCentralWidget(label)
+
+
+def run_web_app():
+    """Avvia la modalità React (FastAPI + WebView/browser)."""
+    import time
+    from api.server_thread import APIServerThread
+
+    app = QApplication(sys.argv)
+    app.setApplicationName("Foliarium")
+    app.setOrganizationName("Algora Studio")
+
+    from config import setup_global_logging
+    setup_global_logging()
+
+    # Connessione DB tramite config standard
+    from config import DB_HOST, DB_USER, DB_PASS, DB_NAME, DB_PORT, DB_SCHEMA
+    from catasto_db_manager import CatastoDBManager
+    db = CatastoDBManager(
+        dbname=DB_NAME, user=DB_USER, password=DB_PASS,
+        host=DB_HOST, port=DB_PORT, schema=DB_SCHEMA,
+    )
+
+    # Dialog di attesa
+    splash = QMessageBox()
+    splash.setWindowTitle("Foliarium")
+    splash.setText("Avvio server API React…")
+    splash.setStandardButtons(QMessageBox.StandardButton.NoButton)
+
+    _win = [None]
+
+    def on_started(port: int):
+        splash.accept()
+        win = WebViewWindow(port, db)
+        _win[0] = win
+        win.show()
+
+    def on_error(msg: str):
+        splash.accept()
+        QMessageBox.critical(None, "Errore API", f"Impossibile avviare il server:\n{msg}")
+        sys.exit(1)
+
+    thread = APIServerThread(db)
+    thread.started_ok.connect(on_started)
+    thread.start_error.connect(on_error)
+    thread.start()
+
+    # Mostra splash solo se il server non parte entro 200ms
+    QTimer.singleShot(200, lambda: splash.exec() if _win[0] is None else None)
+
+    sys.exit(app.exec())
+
 
 def run_gui_app():
     try:
@@ -2313,14 +2280,8 @@ def run_gui_app():
 
             while True: # Loop per riprovare la configurazione manuale
                 config_dialog = DBConfigDialog(parent=None)
-                # --- INIZIO MODIFICA: Leggiamo le impostazioni AD OGNI ciclo ---
-                db_type = settings.value("Database/Type", "local", type=str)
                 db_host = settings.value("Database/Host", "localhost", type=str)
-                db_port = settings.value("Database/Port", 5432, type=int)
-                db_name = settings.value("Database/DBName", "catasto_storico", type=str)
                 db_user = settings.value("Database/User", "postgres", type=str)
-                db_password = get_password_from_keyring(db_host, db_user)
-                # --- FINE MODIFICA ---
 
                 if config_dialog.exec() != QDialog.DialogCode.Accepted:
                     gui_logger.info("Configurazione manuale annullata. Uscita.")
@@ -2398,14 +2359,13 @@ def run_gui_app():
 
 
 if __name__ == "__main__":
-    
-    
-    
-    # Importa qui per evitare importazioni circolari (se necessario)
     import traceback
-    
+
     try:
-        run_gui_app()
+        if "--web" in sys.argv:
+            run_web_app()
+        else:
+            run_gui_app()
     except Exception as e:
         # Log dell'errore critico
         logging.getLogger("CatastoGUI").critical(f"Errore critico all'avvio dell'applicazione: {e}", exc_info=True)

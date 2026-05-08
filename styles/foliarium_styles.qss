@@ -82,6 +82,20 @@ QPushButton#secondaryButton:hover {
     border-color: #9FA8DA;
 }
 
+QPushButton#dangerButton {
+    background-color: transparent;
+    color: #C62828;
+    border: 1.5px solid #EF9A9A;
+}
+QPushButton#dangerButton:hover {
+    background-color: #FFEBEE;
+    border-color: #EF5350;
+}
+QPushButton#dangerButton:disabled {
+    color: #BDBDBD;
+    border-color: #E0E0E0;
+}
+
 /* ── Tabs ── */
 QTabWidget::pane {
     border-top: 2px solid #C5CAE9;
@@ -278,6 +292,13 @@ QDoubleSpinBox::up-button, QDoubleSpinBox::down-button {
 #roleChip[role="archivista"]   { background: #E8EAF6; color: #3F51B5; }
 #roleChip[role="consultatore"] { background: #F3F4F4; color: #263238; } /* era #546E7A: grigio-blu medio su grigio quasi bianco (4.3:1 → 11:1) */
 
+#licenseExpiryChip {
+    border-radius: 4px;
+    font-size: 11px;
+    font-weight: bold;
+    padding: 2px 8px;
+}
+
 #logoutButton {
     background: transparent;
     border: 1.5px solid #C5CAE9;
@@ -295,8 +316,88 @@ QDoubleSpinBox::up-button, QDoubleSpinBox::down-button {
     color: #3F51B5;
 }
 
+/* Command Palette (Ctrl+K) */
+#cmdPaletteSearch {
+    border: none;
+    border-bottom: 2px solid #3F51B5;
+    border-radius: 0;
+    font-size: 14px;
+    padding: 6px 8px;
+    background: #FAFAFA;
+    color: #212121;
+}
+#cmdPaletteSearch:focus { border-bottom-color: #1A237E; }
+#cmdPaletteList {
+    background: #FAFAFA;
+    color: #212121;
+    font-size: 13px;
+    outline: none;
+}
+#cmdPaletteList::item { padding: 6px 12px; }
+#cmdPaletteList::item:selected { background: #E8EAF6; color: #1A237E; }
+
 /* ============================================================
-   SIDEBAR
+   TOP NAV (sezioni orizzontali)
+   ============================================================ */
+#topNav {
+    background: #FFFFFF;
+    border-bottom: 1px solid #E8EAF6;
+    min-height: 44px;
+    max-height: 44px;
+}
+QPushButton#topNavButton {
+    background: transparent;
+    border: none;
+    border-bottom: 2px solid transparent;
+    border-radius: 0;
+    color: #546E7A;
+    font-size: 13px;
+    font-weight: 500;
+    padding: 0 16px;
+    min-width: 0;
+    min-height: 44px;
+    margin: 0;
+}
+QPushButton#topNavButton:hover { color: #212121; }
+QPushButton#topNavButton[active="true"] {
+    color: #212121;
+    font-weight: 600;
+    border-bottom: 2px solid #3F51B5;
+}
+
+/* ============================================================
+   SUB NAV (pagine per sezione)
+   ============================================================ */
+#subNav {
+    background: #F8F9FA;
+    border-bottom: 1px solid #E8EAF6;
+    min-height: 36px;
+    max-height: 36px;
+}
+QPushButton#subNavButton {
+    background: transparent;
+    border: none;
+    border-radius: 6px;
+    color: #757575;
+    font-size: 12px;
+    font-weight: 400;
+    padding: 4px 12px;
+    min-width: 0;
+    min-height: 28px;
+    margin: 4px 2px;
+}
+QPushButton#subNavButton:hover {
+    background: #E8EAF6;
+    color: #3F51B5;
+}
+QPushButton#subNavButton[active="true"] {
+    background: #E8EAF6;
+    color: #3F51B5;
+    font-weight: 600;
+}
+
+/* ============================================================
+   SIDEBAR (legacy — non più usata nel layout principale)
    ============================================================ */
 #sidebar {
     background: #FFFFFF;

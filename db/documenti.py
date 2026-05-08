@@ -12,6 +12,7 @@ import psycopg2
 from psycopg2.extras import DictCursor
 
 from catasto_exceptions import DBMError, DBUniqueConstraintError, DBNotFoundError, DBDataError
+from db.base import db_handle_errors
 
 if TYPE_CHECKING:
     from catasto_db_manager import CatastoDBManager
@@ -20,35 +21,30 @@ if TYPE_CHECKING:
 class DBDocumentiMixin:
     """Mixin per documenti storici e periodi storici."""
 
+    @db_handle_errors
     def aggiungi_documento_storico(self, titolo: str, tipo_documento: str, percorso_file: str,
                               descrizione: Optional[str] = None, anno: Optional[int] = None,
-                              periodo_id: Optional[int] = None, 
+                              periodo_id: Optional[int] = None,
                               metadati_json: Optional[str] = None) -> int:
-        """Inserisce un nuovo record nella tabella documento_storico in modo sicuro."""
+        """Inserisce un nuovo record nella tabella documento_storico in modo sicuro.
+
+        TIER 1: @db_handle_errors centralizes exception handling.
+        """
         query = f"""
-            INSERT INTO {self.schema}.documento_storico 
+            INSERT INTO {self.schema}.documento_storico
                 (titolo, tipo_documento, percorso_file, descrizione, anno, periodo_id, metadati)
             VALUES (%s, %s, %s, %s, %s, %s, %s::jsonb)
             RETURNING id;
         """
         params = (titolo, tipo_documento, percorso_file, descrizione, anno, periodo_id, metadati_json)
-        
-        try:
-            with self._get_connection() as conn:
-                with conn.cursor(cursor_factory=DictCursor) as cur:
-                    self.logger.info(f"Aggiunta documento: {titolo}")
-                    cur.execute(query, params)
-                    result = cur.fetchone()
-                    if not result:
-                        raise DBMError("Creazione del documento fallita, nessun ID restituito.")
-                    doc_id = result['id']
-            
-            self.logger.info(f"Documento storico ID {doc_id} aggiunto con successo.")
-            return doc_id
-            
-        except Exception as e:
-            self.logger.error(f"Errore DB aggiungendo documento storico '{titolo}': {e}", exc_info=True)
-            raise DBMError(f"Impossibile aggiungere il documento: {e}") from e
+
+        with self._get_connection() as conn:
+            with conn.cursor(cursor_factory=DictCursor) as cur:
+                cur.execute(query, params)
+                result = cur.fetchone()
+                if not result:
+                    raise DBMError("Creazione del documento fallita, nessun ID restituito.")
+                return result['id']
 
     def collega_documento_a_partita(self, documento_id: int, partita_id: int, 
                                rilevanza: str, note: Optional[str] = None) -> bool:
@@ -78,14 +74,17 @@ class DBDocumentiMixin:
             self.logger.error(f"Errore DB collegando doc {documento_id} a partita {partita_id}: {e}", exc_info=True)
             raise DBMError(f"Impossibile collegare il documento: {e}") from e
 
+    @db_handle_errors
     def get_documenti_per_partita(self, partita_id: int) -> List[Dict[str, Any]]:
-        """Recupera l'elenco dei documenti associati a una partita in modo sicuro."""
-        # --- INIZIO CORREZIONE: Aggiunti dp.documento_id e dp.partita_id alla SELECT ---
+        """Recupera l'elenco dei documenti associati a una partita in modo sicuro.
+
+        TIER 1: @db_handle_errors centralizes exception handling.
+        """
         query = f"""
             SELECT
                 ds.id as documento_id, ds.titolo, ds.tipo_documento, ds.percorso_file, ds.anno,
                 dp.rilevanza, dp.note as note_legame, ps.nome as nome_periodo,
-                dp.documento_id AS rel_documento_id, 
+                dp.documento_id AS rel_documento_id,
                 dp.partita_id AS rel_partita_id
             FROM {self.schema}.documento_storico ds
             JOIN {self.schema}.documento_partita dp ON ds.id = dp.documento_id
@@ -93,17 +92,10 @@ class DBDocumentiMixin:
             WHERE dp.partita_id = %s
             ORDER BY ds.anno DESC, ds.titolo;
         """
-        # --- FINE CORREZIONE ---
-        try:
-            with self._get_connection() as conn:
-                with conn.cursor(cursor_factory=psycopg2.extras.DictCursor) as cur:
-                    cur.execute(query, (partita_id,))
-                    documenti = [dict(row) for row in cur.fetchall()]
-                    self.logger.info(f"Recuperati {len(documenti)} documenti per partita ID {partita_id}.")
-                    return documenti
-        except Exception as e:
-            self.logger.error(f"Errore DB recuperando documenti per partita ID {partita_id}: {e}", exc_info=True)
-            return []
+        with self._get_connection() as conn:
+            with conn.cursor(cursor_factory=psycopg2.extras.DictCursor) as cur:
+                cur.execute(query, (partita_id,))
+                return [dict(row) for row in cur.fetchall()]
 
     def scollega_documento_da_partita(self, documento_id: int, partita_id: int) -> bool:
         """Rimuove un legame documento-partita in modo transazionale e sicuro."""
@@ -130,10 +122,14 @@ class DBDocumentiMixin:
             self.logger.error(f"Errore DB scollegando doc {documento_id} da partita {partita_id}: {e}", exc_info=True)
             raise DBMError(f"Impossibile scollegare il documento: {e}") from e
 
+    @db_handle_errors
     def search_historical_documents(self, title: Optional[str] = None, doc_type: Optional[str] = None,
                                     period_id: Optional[int] = None, year_start: Optional[int] = None,
                                     year_end: Optional[int] = None, partita_id: Optional[int] = None) -> List[Dict]:
-        """Ricerca documenti storici con query diretta (la SP aveva p.comune_nome inesistente)."""
+        """Ricerca documenti storici con query diretta (la SP aveva p.comune_nome inesistente).
+
+        TIER 1: @db_handle_errors centralizes exception handling.
+        """
         conditions = []
         params: list = []
 
@@ -160,11 +156,7 @@ class DBDocumentiMixin:
 
         query = f"""
             SELECT
-                d.id AS documento_id,
-                d.titolo,
-                d.descrizione,
-                d.anno,
-                ps.nome AS periodo_nome,
+                d.id AS documento_id, d.titolo, d.descrizione, d.anno, ps.nome AS periodo_nome,
                 d.tipo_documento,
                 string_agg(DISTINCT c.nome || ' - ' || p.numero_partita::TEXT, ', ') AS partite_correlate
             FROM documento_storico d
@@ -176,17 +168,10 @@ class DBDocumentiMixin:
             GROUP BY d.id, d.titolo, d.descrizione, d.anno, ps.nome, d.tipo_documento
             ORDER BY d.anno DESC, d.titolo
         """
-        try:
-            with self._get_connection() as conn:
-                with conn.cursor(cursor_factory=DictCursor) as cur:
-                    cur.execute(query, params)
-                    return [dict(r) for r in cur.fetchall()]
-        except psycopg2.Error as db_err:
-            self.logger.error(f"Errore DB search_historical_documents: {db_err}")
-            return []
-        except Exception as e:
-            self.logger.error(f"Errore Python search_historical_documents: {e}")
-            return []
+        with self._get_connection() as conn:
+            with conn.cursor(cursor_factory=DictCursor) as cur:
+                cur.execute(query, params)
+                return [dict(r) for r in cur.fetchall()]
 
     def link_document_to_partita(self, document_id: int, partita_id: int,
                                  relevance: str = 'correlata', notes: Optional[str] = None) -> bool:
@@ -213,20 +198,23 @@ class DBDocumentiMixin:
         except psycopg2.Error as db_err: self.logger.error(f"Errore DB link doc-partita: {db_err}"); return False
         except Exception as e: self.logger.error(f"Errore Python link doc-partita: {e}"); return False
 
+    @db_handle_errors
     def get_historical_periods(self) -> List[Dict[str, Any]]:
+        """Recupera i periodi storici definiti dalla tabella 'periodo_storico' in modo sicuro.
+
+        TIER 1: @db_handle_errors centralizes exception handling.
+        TIER 3 Phase 4: Cached (immutable reference data).
         """
-        Recupera i periodi storici definiti dalla tabella 'periodo_storico' in modo sicuro.
-        """
-        query = f"SELECT id, nome, anno_inizio, anno_fine, descrizione FROM {self.schema}.periodo_storico ORDER BY anno_inizio;"
-        try:
+        def _fetch():
+            query = f"SELECT id, nome, anno_inizio, anno_fine, descrizione FROM {self.schema}.periodo_storico ORDER BY anno_inizio;"
             with self._get_connection() as conn:
                 with conn.cursor(cursor_factory=DictCursor) as cur:
                     cur.execute(query)
-                    results = [dict(row) for row in cur.fetchall()]
-                    self.logger.info(f"Recuperati {len(results)} periodi storici.")
-                    return results
+                    return [dict(row) for row in cur.fetchall()]
+        try:
+            return self._try_with_cache("periodi_storici", _fetch)
         except Exception as e:
-            self.logger.error(f"Errore DB in get_historical_periods: {e}", exc_info=True)
+            self.logger.error(f"Errore in get_historical_periods: {e}", exc_info=True)
             return []
 
     def get_historical_name(self, entity_type: str, entity_id: int, year: Optional[int] = None) -> Optional[Dict]:
@@ -259,22 +247,24 @@ class DBDocumentiMixin:
             self.logger.error(f"Errore DB in register_historical_name: {e}", exc_info=True)
             raise DBMError(f"Impossibile registrare il nome storico: {e}") from e
 
+    @db_handle_errors
     def get_periodo_storico_details(self, periodo_id: int) -> Optional[Dict[str, Any]]:
-        """Recupera i dettagli di un singolo periodo storico in modo sicuro."""
+        """Recupera i dettagli di un singolo periodo storico in modo sicuro.
+
+        TIER 1: @db_handle_errors centralizes exception handling.
+        """
         if not isinstance(periodo_id, int) or periodo_id <= 0:
-            self.logger.error(f"ID periodo storico non valido: {periodo_id}")
-            return None
+            raise DBDataError(f"ID periodo storico non valido: {periodo_id}")
 
         query = f"SELECT * FROM {self.schema}.periodo_storico WHERE id = %s;"
-        try:
-            with self._get_connection() as conn:
-                with conn.cursor(cursor_factory=DictCursor) as cur:
-                    cur.execute(query, (periodo_id,))
-                    result = cur.fetchone()
-                    return dict(result) if result else None
-        except Exception as e:
-            self.logger.error(f"Errore DB in get_periodo_storico_details (ID: {periodo_id}): {e}", exc_info=True)
-            return None
+        with self._get_connection() as conn:
+            with conn.cursor(cursor_factory=DictCursor) as cur:
+                cur.execute(query, (periodo_id,))
+                result = cur.fetchone()
+                if result:
+                    return dict(result)
+                else:
+                    raise DBNotFoundError(f"Periodo storico con ID {periodo_id} non trovato.")
 
     def update_periodo_storico(self, periodo_id: int, dati_modificati: Dict[str, Any]) -> bool:
         """Aggiorna i dati di un periodo storico esistente in modo transazionale e sicuro."""

@@ -1,0 +1,59 @@
+# docker-compose.yml — Foliarium full stack (PostgreSQL 14 + FastAPI + React)
+#
+# Uso rapido:
+#   docker compose up -d --build           # primo avvio: build + run
+#   docker compose logs -f app             # tail dei log
+#   docker compose down                    # stop (i dati restano nel volume)
+#   docker compose down -v                 # stop + reset DB (volume eliminato!)
+#
+# Login di default: admin / admin123 (cambia dopo il primo accesso).
+
+services:
+  db:
+    build:
+      context: .
+      dockerfile: docker/postgres/Dockerfile
+    image: foliarium-db:latest
+    container_name: foliarium-db
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB:       ${DB_NAME:-catasto_storico}
+      POSTGRES_USER:     ${DB_USER:-postgres}
+      POSTGRES_PASSWORD: ${DB_PASS:-postgres}
+      LANG:    it_IT.UTF-8
+      LC_ALL:  it_IT.UTF-8
+    volumes:
+      - foliarium_db_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+    # Espone la porta solo se serve accedere al DB dall'host (es. con psql/pgAdmin)
+    ports:
+      - "${DB_HOST_PORT:-5433}:5432"
+
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: foliarium-app:latest
+    container_name: foliarium-app
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      DB_HOST: db
+      DB_PORT: 5432
+      DB_NAME: ${DB_NAME:-catasto_storico}
+      DB_USER: ${DB_USER:-postgres}
+      DB_PASS: ${DB_PASS:-postgres}
+      FOLIARIUM_DB_SCHEMA: ${DB_SCHEMA:-catasto}
+      QT_QPA_PLATFORM: offscreen
+    ports:
+      - "${APP_PORT:-8765}:8765"
+
+volumes:
+  foliarium_db_data:
+    name: foliarium_db_data

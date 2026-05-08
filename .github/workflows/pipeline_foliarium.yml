@@ -2,10 +2,10 @@ name: CI/CD Foliarium (Test & Build)
 
 on:
   push:
-    branches: [ "main", "master", "foliarium/enterprise", "claude/summarize-dev-status-vDVnI", "claude/create-demo-version-qUbik", "claude/analyze-dev-progress-sPWUb" ]
+    branches: [ "main", "master", "foliarium/enterprise", "claude/summarize-dev-status-vDVnI", "claude/create-demo-version-qUbik", "claude/analyze-dev-progress-sPWUb", "claude/release-1.0.0-testing-wbblE" ]
     tags:
-      - '*.*.*'        # es. 1.6.0
-      - 'v*.*.*'       # es. v1.6.0
+      - '*.*.*'        # es. 1.0.0
+      - 'v*.*.*'       # es. v1.0.0
   workflow_dispatch: # Permette di avviare l'azione manualmente da GitHub
 
 permissions:
@@ -52,6 +52,15 @@ jobs:
         python -m pip install --upgrade pip
         pip install -r requirements.txt
         pip install -r tests/requirements-test.txt
+        pip install ruff
+
+    - name: Lint (ruff) — gate sui bug reali (F821 / E9)
+      # F821 = nomi non definiti, E9 = errori di sintassi.
+      # Le altre regole sono solo informative (continue-on-error)
+      # finché il codebase non viene formattato.
+      run: |
+        ruff check --select=F821,E9 --exclude=tests
+        ruff check --statistics --exclude=tests || true
 
     - name: Inizializzazione Database di Test
       env:

@@ -11,12 +11,14 @@ from psycopg2 import sql, extras, pool
 import sys, csv
 import logging
 from datetime import date, datetime
-from typing import List, Dict, Any, Optional, Tuple, Union
+from typing import List, Dict, Any, Optional, Tuple, Union, Callable
 import json
 import uuid
 import os
 import shutil
 from contextlib import contextmanager
+import time
+from functools import wraps
 
 
 
@@ -25,7 +27,6 @@ from contextlib import contextmanager
 COLONNE_POSSESSORI_DETTAGLI_NUM = 6 # Esempio: ID, Nome Compl, Cognome/Nome, Paternità, Quota, Titolo
 COLONNE_POSSESSORI_DETTAGLI_LABELS = ["ID Poss.", "Nome Completo", "Cognome Nome", "Paternità", "Quota", "Titolo"]
 
-import logging
 logger = logging.getLogger(__name__)
 # ------------ ECCEZIONI PERSONALIZZATE ------------
 # Definite in catasto_exceptions.py; re-esportate qui per backward compatibility.
@@ -36,6 +37,40 @@ from catasto_exceptions import (
     DBNotFoundError,
     DBDataError,
 )
+# -------------------------------------------------
+
+# ------------ ERROR HANDLER DECORATOR ------------
+def db_handle_errors(method: Callable) -> Callable:
+    """
+    Decorator: catch common DB errors, log, and translate to custom exceptions.
+
+    Usage:
+        @db_handle_errors
+        def get_partita(self, partita_id: int) -> Optional[Dict]:
+            with self._get_connection() as conn:
+                ...
+    """
+    @wraps(method)
+    def wrapper(self, *args, **kwargs):
+        try:
+            return method(self, *args, **kwargs)
+        except psycopg2.errors.UniqueViolation as e:
+            self.logger.error(f"{method.__name__}: unique constraint violation: {e}")
+            raise DBUniqueConstraintError(str(e)) from e
+        except psycopg2.errors.OperationalError as e:
+            self.logger.error(f"{method.__name__}: DB unreachable: {e}")
+            self.last_connection_error = str(e)
+            raise DBMError("Database unreachable") from e
+        except psycopg2.errors.DataError as e:
+            self.logger.error(f"{method.__name__}: data type mismatch: {e}")
+            raise DBDataError(str(e)) from e
+        except psycopg2.errors.ForeignKeyViolation as e:
+            self.logger.error(f"{method.__name__}: foreign key constraint violation: {e}")
+            raise DBMError(f"Foreign key constraint violated: {e}") from e
+        except Exception as e:
+            self.logger.error(f"{method.__name__}: unexpected error: {e}", exc_info=True)
+            raise
+    return wrapper
 # -------------------------------------------------
 
 class DBConnectionBase:
@@ -63,6 +98,15 @@ class DBConnectionBase:
         # ... (resto della configurazione del logger come prima) ...
         self.logger.info(f"Inizializzato gestore DB (parametri memorizzati) per {dbname}@{host}")
         self.pool = None # Il pool viene inizializzato esplicitamente dopo
+
+        # --- TIER 3 Phase 2: Pool health metrics ---
+        self._pool_metrics = {
+            "total_getconn": 0,
+            "total_putconn": 0,
+            "connection_errors": 0,
+            "peak_active": 0,
+            "last_error_time": None,
+        }
 
         # --- Modalità offline / cache locale ---
         self.offline_mode: bool = False
@@ -99,6 +143,7 @@ class DBConnectionBase:
             self.pool.putconn(conn_test)
             
             self.logger.info(f"Pool di connessioni per DB '{target_dbname}' inizializzato e testato con successo.")
+            self._apply_pending_schema_migrations()
             return True
 
         except (psycopg2.pool.PoolError, psycopg2.Error) as e_init:
@@ -136,6 +181,98 @@ class DBConnectionBase:
             self.pool = None
             return False
 
+    def check_missing_migrations(self) -> list[str]:
+        """Verifica se mancano migrazioni critiche nello schema del DB.
+
+        Restituisce una lista di descrizioni delle migrazioni mancanti.
+        Lista vuota → schema aggiornato.  Errori di connessione → lista vuota
+        (non bloccante: il DB potrebbe essere offline).
+        """
+        missing = []
+        try:
+            with self._get_connection() as conn:
+                with conn.cursor() as cur:
+                    # Soft-delete (archiviazione) — script 07_soft_delete_archiviazione.sql
+                    cur.execute(
+                        "SELECT 1 FROM information_schema.columns "
+                        "WHERE table_schema = %s AND table_name = 'comune' "
+                        "  AND column_name = 'archiviato'",
+                        (self.schema,)
+                    )
+                    if not cur.fetchone():
+                        missing.append("soft_delete")
+
+                    # Tipo possesso — script 07_create_tipo_possesso_table.sql
+                    cur.execute(
+                        "SELECT 1 FROM information_schema.tables "
+                        "WHERE table_schema = %s AND table_name = 'tipo_possesso'",
+                        (self.schema,)
+                    )
+                    if not cur.fetchone():
+                        missing.append("tipo_possesso")
+
+        except Exception as e:
+            self.logger.debug(f"check_missing_migrations: impossibile verificare ({e})")
+        return missing
+
+    def _apply_pending_schema_migrations(self):
+        """Applica migrazioni schema idempotenti all'avvio (silent best-effort)."""
+        try:
+            with self._get_connection() as conn:
+                with conn.cursor() as cur:
+                    cur.execute(
+                        "SELECT 1 FROM information_schema.columns "
+                        "WHERE table_schema = %s AND table_name = 'localita' AND column_name = 'tipo_id'",
+                        (self.schema,)
+                    )
+                    if not cur.fetchone():
+                        return  # schema già aggiornato
+
+                    self.logger.info("Schema pre-v1.6.1 rilevato (tipo_id presente). Applico migrazione automatica...")
+
+                    # Popola tipologia_stradale dove mancante
+                    cur.execute(
+                        f"UPDATE {self.schema}.localita l "
+                        f"SET tipologia_stradale = tl.nome "
+                        f"FROM {self.schema}.tipo_localita tl "
+                        f"WHERE l.tipo_id = tl.id "
+                        f"  AND (l.tipologia_stradale IS NULL OR l.tipologia_stradale = '')"
+                    )
+
+                    # Rimuovi FK constraint su tipo_id
+                    cur.execute(
+                        "SELECT con.conname FROM pg_constraint con "
+                        "JOIN pg_class rel ON rel.oid = con.conrelid "
+                        "JOIN pg_namespace ns ON ns.oid = rel.relnamespace "
+                        "WHERE rel.relname = 'localita' AND ns.nspname = %s "
+                        "  AND con.contype = 'f' AND con.conname ILIKE '%%tipo%%'",
+                        (self.schema,)
+                    )
+                    fk_row = cur.fetchone()
+                    if fk_row:
+                        cur.execute(f"ALTER TABLE {self.schema}.localita DROP CONSTRAINT IF EXISTS {fk_row[0]}")
+
+                    # Rimuovi colonna tipo_id
+                    cur.execute(f"ALTER TABLE {self.schema}.localita DROP COLUMN IF EXISTS tipo_id")
+
+                    # Rimuovi colonna civico se ancora presente
+                    cur.execute(
+                        "SELECT 1 FROM information_schema.columns "
+                        "WHERE table_schema = %s AND table_name = 'localita' AND column_name = 'civico'",
+                        (self.schema,)
+                    )
+                    if cur.fetchone():
+                        cur.execute(
+                            f"UPDATE {self.schema}.localita "
+                            f"SET nome = CONCAT(nome, ' ', civico) "
+                            f"WHERE civico IS NOT NULL AND civico != ''"
+                        )
+                        cur.execute(f"ALTER TABLE {self.schema}.localita DROP COLUMN IF EXISTS civico")
+
+                    self.logger.info("Migrazione automatica schema v1.6.1 completata con successo.")
+        except Exception as e:
+            self.logger.warning(f"Migrazione schema automatica saltata (non bloccante): {e}")
+
     def close_pool(self):
         """
         Chiude tutte le connessioni nel pool e imposta self.pool a None.
@@ -155,6 +292,36 @@ class DBConnectionBase:
                 self.pool = None # Assicura che il pool sia None dopo il tentativo di chiusura, anche in caso di errore.
         else:
             self.logger.info("close_pool chiamato, ma il pool non era attivo o già None.")
+
+    def get_pool_metrics(self) -> Dict[str, Any]:
+        """
+        TIER 3 Phase 2: Restituisce metriche di salute del pool.
+        Utile per monitoraggio e diagnostica.
+        """
+        metrics = self._pool_metrics.copy()
+        if self.pool:
+            metrics.update({
+                "pool_size": self.pool.getconn.__self__.minconn if hasattr(self.pool, 'minconn') else 'N/A',
+                "pool_max": self._max_conn_pool,
+                "closed_connections": getattr(self.pool, '_closed', 0),
+            })
+        return metrics
+
+    def get_pool_health_status(self) -> str:
+        """
+        TIER 3 Phase 2: Ritorna stato salute pool (OK, DEGRADED, CRITICAL).
+        """
+        if not self.pool:
+            return "OFFLINE"
+        errors = self._pool_metrics.get("connection_errors", 0)
+        total = max(self._pool_metrics.get("total_getconn", 1), 1)
+        error_rate = errors / total if total > 0 else 0
+
+        if error_rate > 0.1:  # >10% error rate
+            return "CRITICAL"
+        elif error_rate > 0.05:  # >5% error rate
+            return "DEGRADED"
+        return "OK"
 
     def _get_maintenance_connection(self, db_user_admin: str, db_password_admin: str, maintenance_dbname: str = "postgres"):
         """Ottiene una connessione singola a un database di manutenzione (es. postgres)."""
@@ -233,39 +400,35 @@ class DBConnectionBase:
         """
         Context manager per ottenere e rilasciare in sicurezza una connessione dal pool.
         Garantisce che putconn() sia sempre chiamato.
+        TIER 3 Phase 2: Tracked metrics su salute pool.
         """
         conn = None
         try:
             if not self.pool:
                 raise psycopg2.pool.PoolError("Il pool di connessioni non è inizializzato.")
             conn = self.pool.getconn()
+            self._pool_metrics["total_getconn"] += 1
             yield conn
-            # Il commit qui è implicito all'uscita del blocco 'with' senza eccezioni
-            # Non chiamare conn.commit() se le transazioni sono gestite dall'esterno
-            # (es. se autocommit è True per qualche operazione, o se il client gestisce i commit)
-            # Per transazioni implicite, `commit()` qui è appropriato.
-            # Se la connessione è stata usata per CALL PROCEDURE, spesso il commit è automatico.
-            # Se si tratta di DML classiche, serve un commit esplicito.
-            conn.commit() # Manteniamo questo per operazioni DML standard
+            conn.commit()
         except psycopg2.pool.PoolError as pe:
+            self._pool_metrics["connection_errors"] += 1
+            self._pool_metrics["last_error_time"] = datetime.now()
             self.logger.error(f"Errore critico nell'ottenere una connessione dal pool: {pe}")
             raise psycopg2.OperationalError(f"Impossibile ottenere una connessione valida dal pool: {pe}")
         except Exception as e:
             if conn:
                 try:
-                    conn.rollback() # Annulla la transazione in caso di altri errori
+                    conn.rollback()
                 except psycopg2.Error as rollback_err:
-                    self.logger.error(f"Errore durante il rollback della connessione (potrebbe essere già chiusa): {rollback_err}", exc_info=True)
-                    # Se il rollback fallisce perché la connessione è già chiusa,
-                    # e l'errore originale era OperationalError (connessione persa),
-                    # è un segnale che il pool potrebbe essere corrotto.
+                    self.logger.error(f"Errore durante il rollback della connessione: {rollback_err}", exc_info=True)
                     if isinstance(e, psycopg2.OperationalError):
-                        self.logger.critical("Errore operativo critico: il server ha chiuso la connessione. Il pool potrebbe essere invalido.", exc_info=True)
-                        self.close_pool() # Forziamo la chiusura del pool in questo caso critico
+                        self.logger.critical("Errore operativo critico: il server ha chiuso la connessione.")
+                        self.close_pool()
             self.logger.error(f"Errore durante l'uso della connessione: {e}", exc_info=True)
-            raise # Rilancia l'eccezione originale
+            raise
         finally:
             if conn:
+                self._pool_metrics["total_putconn"] += 1
                 self.pool.putconn(conn)
     
     # ------------------------------------------------------------------ #
@@ -420,8 +583,7 @@ class DBConnectionBase:
             try:
                 # CORREZIONE: Usa 'with' per ottenere e rilasciare automaticamente la connessione.
                 # Se questo blocco viene eseguito senza errori, significa che il pool funziona.
-                with self._get_connection() as conn_test:
-                    # La connessione è valida se siamo arrivati qui. Non dobbiamo fare altro.
+                with self._get_connection():
                     self.logger.info("Pool ricreato/verificato e testato con successo dopo riconnessione.")
                 return True
             except (DBMError, psycopg2.pool.PoolError) as e:
@@ -495,3 +657,167 @@ class DBConnectionBase:
         else:
             self.logger.warning("Tentativo di fetchone senza un cursore valido.")
             return None
+
+    # ------------------------------------------------------------------ #
+    #  Helper Methods (TIER 1 improvements)                              #
+    # ------------------------------------------------------------------ #
+
+    def _tag_query(self, query: str, method_name: str, action: str = "read") -> str:
+        """
+        Prepend SQL comment with method name and action for debugging.
+        Useful with pg_stat_statements to trace query source.
+
+        Example:
+            query = self._tag_query(
+                "SELECT * FROM partita WHERE id = %s",
+                method_name="get_partita",
+                action="read"
+            )
+            cur.execute(query, (partita_id,))
+        """
+        return f"/* {method_name}:{action} */ {query}"
+
+    def bulk_insert_with_savepoint(
+        self,
+        table: str,
+        records: List[Dict[str, Any]],
+        check_unique: Optional[Tuple[str, ...]] = None
+    ) -> Dict[str, Any]:
+        """
+        Insert lista di record con SAVEPOINT per riga (fault-tolerant).
+        Se un record fallisce, usa ROLLBACK TO SAVEPOINT per isolarlo.
+
+        Args:
+            table: Nome tabella (non-qualified, schema aggiunto automaticamente)
+            records: Lista di dict {colonna: valore}
+            check_unique: Tuple colonne uniche da loggare (info only, es. ('numero_partita',))
+
+        Returns:
+            {
+                "success": [record, ...],  # Records inseriti
+                "errors": [
+                    {"row": line_number, "error": "msg", "data": record},
+                    ...
+                ]
+            }
+
+        Example:
+            result = db.bulk_insert_with_savepoint("partita", [
+                {"numero_partita": 1, "stato": "Attiva"},
+                {"numero_partita": 2, "stato": "Inattiva"},
+            ])
+        """
+        if not records:
+            return {"success": [], "errors": []}
+
+        success = []
+        errors = []
+
+        try:
+            with self._get_connection() as conn:
+                with conn.cursor(cursor_factory=DictCursor) as cur:
+                    first_record = records[0]
+                    columns = list(first_record.keys())
+                    placeholders = ", ".join(["%s"] * len(columns))
+
+                    for i, record in enumerate(records):
+                        line_num = i + 2  # Riga CSV (header è riga 1)
+                        cur.execute("SAVEPOINT record_sp")
+
+                        try:
+                            values = tuple(record.get(col) for col in columns)
+                            insert_sql = (
+                                f"INSERT INTO {self.schema}.{table} ({', '.join(columns)}) "
+                                f"VALUES ({placeholders})"
+                            )
+                            cur.execute(insert_sql, values)
+                            success.append(record)
+                            self.logger.debug(f"bulk_insert({table}): riga {line_num} inserita")
+
+                        except Exception as e:
+                            cur.execute("ROLLBACK TO SAVEPOINT record_sp")
+                            error_msg = str(e)
+                            errors.append({
+                                "row": line_num,
+                                "error": error_msg,
+                                "data": record
+                            })
+                            self.logger.warning(
+                                f"bulk_insert({table}): riga {line_num} skipped: {error_msg}"
+                            )
+
+                    conn.commit()
+
+        except Exception as e:
+            self.logger.error(
+                f"bulk_insert_with_savepoint({table}): errore fatale: {e}",
+                exc_info=True
+            )
+            raise
+
+        self.logger.info(
+            f"bulk_insert({table}): {len(success)} success, {len(errors)} errors"
+        )
+        return {"success": success, "errors": errors}
+
+    # ---- TIER 3 Phase 3: Safe Query Binding Helpers ----
+
+    def build_select_query(self, table: str, columns: List[str], where_clause: Optional[str] = None,
+                          order_by: Optional[str] = None) -> str:
+        """
+        TIER 3 Phase 3: Costruisce una SELECT query sicura con binding.
+        Usa psycopg2.sql per table/column identification.
+
+        Esempio:
+            query = db.build_select_query("possessore", ["id", "nome_completo"],
+                                         where_clause="id = %s", order_by="nome_completo")
+        """
+        safe_table = sql.Identifier(self.schema, table)
+        safe_columns = sql.SQL(", ").join([sql.Identifier(col) for col in columns])
+
+        query = sql.SQL("SELECT {} FROM {}").format(safe_columns, safe_table)
+
+        if where_clause:
+            query += sql.SQL(" WHERE {}").format(sql.SQL(where_clause))
+        if order_by:
+            query += sql.SQL(" ORDER BY {}").format(sql.SQL(order_by))
+
+        return query.as_string(self.pool.getconn() if self.pool else None)
+
+    def build_insert_query(self, table: str, columns: Dict[str, Any]) -> Tuple[str, List[Any]]:
+        """
+        TIER 3 Phase 3: Costruisce una INSERT query sicura.
+        columns: dict {column_name: value}
+        Restituisce (query, params) pronto per execute.
+
+        Esempio:
+            query, params = db.build_insert_query("possessore",
+                                                 {"nome_completo": "Mario Rossi", "cognome_nome": "Rossi Mario"})
+        """
+        safe_table = sql.Identifier(self.schema, table)
+        col_names = list(columns.keys())
+        safe_columns = sql.SQL(", ").join([sql.Identifier(col) for col in col_names])
+        placeholders = sql.SQL(", ").join([sql.Placeholder()] * len(col_names))
+
+        query = sql.SQL("INSERT INTO {} ({}) VALUES ({})").format(
+            safe_table, safe_columns, placeholders
+        )
+
+        return query.as_string(self.pool.getconn() if self.pool else None), list(columns.values())
+
+    def clear_immutable_caches(self, cache_keys: Optional[List[str]] = None) -> None:
+        """
+        TIER 3 Phase 4: Invalida i cache di dati immutabili dopo modifiche.
+        cache_keys: lista di chiavi di cache da invalidare (default: tutte le lookup tables)
+        """
+        if cache_keys is None:
+            cache_keys = ["tipi_localita", "periodi_storici", "comuni_semplice", "statistiche_comune"]
+
+        for key in cache_keys:
+            cf = self._cache_file(key)
+            if cf and cf.exists():
+                try:
+                    cf.unlink()
+                    self.logger.info(f"Cache invalidato: {key}")
+                except Exception as e:
+                    self.logger.warning(f"Impossibile invalidare cache {key}: {e}")

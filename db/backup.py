@@ -5,7 +5,7 @@ Estratto da catasto_db_manager.py — mixin per CatastoDBManager.
 
 from __future__ import annotations
 import logging
-from typing import Optional, List, Dict, Any, TYPE_CHECKING
+from typing import Optional, List, Dict, Any, Tuple, TYPE_CHECKING
 
 import os
 import shutil
@@ -215,6 +215,9 @@ class DBBackupMixin:
         # Imposta la variabile d'ambiente per la password
         env = os.environ.copy()
         env['PGPASSWORD'] = db_password
+
+        # Lazy-import Qt per mantenere il package db/ utilizzabile in ambienti headless
+        from PyQt6.QtCore import QProcess, QProcessEnvironment
 
         for description, command in commands:
             self.logger.info(f"Esecuzione emergenza: {description}...")
