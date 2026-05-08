@@ -45,7 +45,7 @@ from dialogs import ( ModificaPossessoreDialog, PartiteComuneDialog, ModificaImm
                      PossessoriComuneDialog, LocalitaSelectionDialog, ModificaComuneDialog,
                      PartitaDetailsDialog, CreateUserDialog, ModificaLocalitaDialog, PeriodoStoricoEditDialog,
                      CreatePossessoreDialog, AlberoGeneralogicoDialog, ConfrontoPartiteDialog)
-from custom_widgets import LazyLoadedWidget
+from foliarium.ui.widgets.custom import LazyLoadedWidget
 
 # Ottieni un logger specifico per questo modulo.
 logger = logging.getLogger("CatastoGUI.gui_widgets")
@@ -58,7 +58,7 @@ if TYPE_CHECKING:
     from catasto_db_manager import CatastoDBManager # Se serve anche per type hint
 
 # In gui_widgets.py, dopo le importazioni PyQt e standard:
-from custom_widgets import QPasswordLineEdit, StatCard
+from foliarium.ui.widgets.custom import QPasswordLineEdit, StatCard
 from dialogs import (DBConfigDialog,DocumentViewerDialog, PeriodoStoricoDetailsDialog)
 from dialogs import (ComuneSelectionDialog, PartitaSearchDialog, PossessoreSelectionDialog, ImmobileDialog,DettagliLegamePossessoreDialog, UserSelectionDialog,qdate_to_datetime, datetime_to_qdate,_hash_password,_verify_password)
 
@@ -102,7 +102,7 @@ def _set_field_error(widget, has_error: bool) -> None:
     widget.setStyleSheet(_FIELD_ERROR_STYLE if has_error else "")
 
 
-from custom_widgets import show_status_message as _show_status_message
+from foliarium.ui.widgets.custom import show_status_message as _show_status_message
 
 
 # ---------------------------------------------------------------------------
@@ -909,7 +909,7 @@ class RicercaPartiteWidget(QWidget):
         try:
             partita = self.db_manager.get_partita_details(self._selected_partita_id)
             if partita:
-                from dialogs_partita import PartitaDetailsDialog
+                from foliarium.ui.dialogs.partita import PartitaDetailsDialog
                 dlg = PartitaDetailsDialog(partita, self)
                 dlg.exec()
         except Exception as e:
@@ -919,7 +919,7 @@ class RicercaPartiteWidget(QWidget):
         if not self._selected_partita_id:
             return
         try:
-            from dialogs_partita import AlberoGeneralogicoDialog
+            from foliarium.ui.dialogs.partita import AlberoGeneralogicoDialog
             dlg = AlberoGeneralogicoDialog(self.db_manager, self._selected_partita_id, self)
             dlg.exec()
         except Exception as e:
@@ -1289,11 +1289,11 @@ class RicercaAvanzataImmobiliWidget(QWidget):
         menu.exec(self.risultati_immobili_table.viewport().mapToGlobal(position))
 
 # Estratto in insertion_widgets.py — backward compat re-export
-from insertion_widgets import (
+from foliarium.ui.widgets.insertion import (
     InserimentoComuneWidget, InserimentoPossessoreWidget,
     InserimentoLocalitaWidget, InserimentoPartitaWidget,
 )
-from admin_widgets import GestioneTipiLocalitaWidget, GestionePeriodiStoriciWidget
+from foliarium.ui.widgets.admin import GestioneTipiLocalitaWidget, GestionePeriodiStoriciWidget
 
 
 class RegistrazioneProprietaWidget(LazyLoadedWidget):
@@ -3279,12 +3279,12 @@ class OperazioniPartitaWidget(QWidget):
 
 # Estratto in admin_widgets.py — backward compat re-export
 # Estratto in reporting_widgets.py — backward compat re-export
-from reporting_widgets import (
+from foliarium.ui.widgets.reporting import (
     RicercaDocumentiWidget, EsportazioniWidget, ReportisticaWidget,
     StatisticheWidget, RegistraConsultazioneWidget,
 )
 
-from admin_widgets import GestioneUtentiWidget, AuditLogViewerWidget, BackupWidget, ArchivioWidget, TipiPossessoWidget
+from foliarium.ui.widgets.admin import GestioneUtentiWidget, AuditLogViewerWidget, BackupWidget, ArchivioWidget, TipiPossessoWidget
 
 class UnifiedFuzzySearchThread(QThread):
     """Thread unificato per eseguire ricerche fuzzy in background."""

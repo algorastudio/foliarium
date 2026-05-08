@@ -54,7 +54,7 @@ from dialogs import (
     AlberoGeneralogicoDialog, ConfrontoPartiteDialog,
     ComuneSelectionDialog, PartitaSearchDialog, PossessoreSelectionDialog,
 )
-from custom_widgets import LazyLoadedWidget
+from foliarium.ui.widgets.custom import LazyLoadedWidget
 
 if TYPE_CHECKING:
     from catasto_db_manager import CatastoDBManager

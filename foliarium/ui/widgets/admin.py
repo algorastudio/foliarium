@@ -41,7 +41,7 @@ from PyQt6.QtWidgets import (
 from catasto_exceptions import (
     DBMError, DBUniqueConstraintError, DBNotFoundError, DBDataError,
 )
-from custom_widgets import LazyLoadedWidget, QPasswordLineEdit
+from foliarium.ui.widgets.custom import LazyLoadedWidget, QPasswordLineEdit
 from dialogs import (
     CreateUserDialog, PeriodoStoricoEditDialog,
     _hash_password, _validate_password_strength,
@@ -53,7 +53,7 @@ if TYPE_CHECKING:
 logger = logging.getLogger("CatastoGUI.admin_widgets")
 
 
-from custom_widgets import show_status_message as _show_status_message
+from foliarium.ui.widgets.custom import show_status_message as _show_status_message
 
 class GestioneTipiLocalitaWidget(LazyLoadedWidget):
     def __init__(self, db_manager: 'CatastoDBManager', parent=None):
@@ -385,7 +385,7 @@ class GestioneUtentiWidget(LazyLoadedWidget):
             _show_status_message("Nuovo utente creato.", 4000)
             # --- Notifica email creazione account ---
             try:
-                from email_service import EmailService, EmailWorker
+                from foliarium.core.services.email import EmailService, EmailWorker
                 from config import SETTINGS_EMAIL_ON_CREATE
                 _svc = EmailService(QSettings())
                 if _svc.is_configured() and QSettings().value(SETTINGS_EMAIL_ON_CREATE, True, type=bool):
@@ -464,7 +464,7 @@ class GestioneUtentiWidget(LazyLoadedWidget):
                 # --- Notifica email cambio ruolo ---
                 if 'ruolo' in update_params:
                     try:
-                        from email_service import EmailService, EmailWorker
+                        from foliarium.core.services.email import EmailService, EmailWorker
                         from config import SETTINGS_EMAIL_ON_ROLE
                         _svc = EmailService(QSettings())
                         if _svc.is_configured() and QSettings().value(SETTINGS_EMAIL_ON_ROLE, True, type=bool):
@@ -518,7 +518,7 @@ class GestioneUtentiWidget(LazyLoadedWidget):
                             self, "Successo", f"Password per utente ID {user_id} resettata.")
                         # --- Notifica email cambio password ---
                         try:
-                            from email_service import EmailService, EmailWorker
+                            from foliarium.core.services.email import EmailService, EmailWorker
                             from config import SETTINGS_EMAIL_ON_PASSWD
                             _svc = EmailService(QSettings())
                             if _svc.is_configured() and QSettings().value(SETTINGS_EMAIL_ON_PASSWD, True, type=bool):

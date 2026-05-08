@@ -40,13 +40,13 @@ from config import (
     SETTINGS_DB_NAME, SETTINGS_DB_USER,
 )
 from catasto_db_manager import CatastoDBManager
-from custom_widgets import QPasswordLineEdit, ImmobiliTableWidget
+from foliarium.ui.widgets.custom import QPasswordLineEdit, ImmobiliTableWidget
 
 from app_utils import (gui_esporta_partita_pdf, gui_esporta_partita_json, gui_esporta_partita_csv,
                        gui_esporta_possessore_pdf, gui_esporta_possessore_json, gui_esporta_possessore_csv,
                        GenericTextReportPDF, FPDF_AVAILABLE, prompt_to_open_file, PDFApreviewDialog)
 
-from dialogs_admin import datetime_to_qdate, qdate_to_datetime
+from foliarium.ui.dialogs.admin import datetime_to_qdate, qdate_to_datetime
 
 try:
     from catasto_db_manager import DBMError, DBUniqueConstraintError, DBNotFoundError, DBDataError
@@ -1184,7 +1184,7 @@ class ModificaPartitaDialog(QDialog):
 
         self.logger.info(f"Possessore selezionato/creato: ID {selected_possessore_id}, Nome: {selected_possessore_nome}")
         tipo_partita_corrente = self.partita_data_originale.get('tipo', 'principale')
-        from dialogs_entity import DettagliLegamePossessoreDialog
+        from foliarium.ui.dialogs.entity import DettagliLegamePossessoreDialog
         dettagli_legame = DettagliLegamePossessoreDialog.get_details_for_new_legame(selected_possessore_nome, tipo_partita_corrente, self)
 
         if not dettagli_legame:
@@ -1214,7 +1214,7 @@ class ModificaPartitaDialog(QDialog):
             QMessageBox.critical(self, "Errore Imprevisto", f"Si è verificato un errore: {e}")
 
     def _modifica_legame_possessore(self):
-        from dialogs_entity import DettagliLegamePossessoreDialog
+        from foliarium.ui.dialogs.entity import DettagliLegamePossessoreDialog
 
         selected_items = self.possessori_table.selectedItems()
         if not selected_items:
@@ -2233,7 +2233,7 @@ class ImmobileDialog(QDialog):
             return
 
         # Lazy import per evitare dipendenza circolare con dialogs_entity
-        from dialogs_entity import LocalitaSelectionDialog
+        from foliarium.ui.dialogs.entity import LocalitaSelectionDialog
 
         dialog = LocalitaSelectionDialog(self.db_manager,
                                          self.comune_id,
@@ -2435,7 +2435,7 @@ class AggiungiDocumentoDialog(QDialog):
         
 
 # Estratto in import_dialogs.py — backward compat re-export
-from import_dialogs import CSVImportResultDialog
+from foliarium.ui.dialogs.import_ import CSVImportResultDialog
 
 # ---------------------------------------------------------------------------
 # Import comuni e località da CSV / ISTAT
@@ -2443,7 +2443,7 @@ from import_dialogs import CSVImportResultDialog
 
 
 # Estratto in import_dialogs.py — backward compat re-export
-from import_dialogs import (
+from foliarium.ui.dialogs.import_ import (
     ISTATDownloadWorker, OSMLocalitaWorker,
     ImportComuniDialog, ImportLocalitaDialog,
     _mostra_risultati_import, _popola_preview_tabella,

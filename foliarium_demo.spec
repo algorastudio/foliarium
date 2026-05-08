@@ -59,7 +59,22 @@ a = Analysis(
         *_extra_datas,
     ],
     hiddenimports=[
-        'demo_launcher',   # import esplicito — usato solo in modalità demo
+        # Submodules del package foliarium/ importati lazy in gui_main.py
+        'foliarium.core.services.demo_launcher',
+        'foliarium.core.services.license',
+        'foliarium.core.services.update_checker',
+        'foliarium.core.services.email',
+        'foliarium.ui.widgets.custom',
+        'foliarium.ui.widgets.insertion',
+        'foliarium.ui.widgets.admin',
+        'foliarium.ui.widgets.reporting',
+        'foliarium.ui.dialogs.entity',
+        'foliarium.ui.dialogs.admin',
+        'foliarium.ui.dialogs.partita',
+        'foliarium.ui.dialogs.import_',
+        'foliarium.ui.top_bar',
+        'foliarium.ui.sidebar',
+        'foliarium.ui.command_palette',
     ],
     hookspath=[],
     hooksconfig={},

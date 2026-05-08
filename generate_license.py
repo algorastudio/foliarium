@@ -35,7 +35,7 @@ from pathlib import Path
 
 
 def cmd_generate(args: argparse.Namespace) -> None:
-    from license_manager import generate_license, get_hardware_fingerprint
+    from foliarium.core.services.license import generate_license, get_hardware_fingerprint
 
     hw_id = args.hardware
     if args.bind_local:
@@ -61,7 +61,7 @@ def cmd_generate(args: argparse.Namespace) -> None:
 
 
 def cmd_inspect(args: argparse.Namespace) -> None:
-    from license_manager import _validate_file, get_hardware_fingerprint
+    from foliarium.core.services.license import _validate_file, get_hardware_fingerprint
 
     path = args.file
     if not Path(path).exists():
@@ -94,7 +94,7 @@ def cmd_inspect(args: argparse.Namespace) -> None:
 
 
 def cmd_fingerprint(_args: argparse.Namespace) -> None:
-    from license_manager import get_hardware_fingerprint
+    from foliarium.core.services.license import get_hardware_fingerprint
     import socket
     import uuid
 

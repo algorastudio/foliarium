@@ -16,7 +16,7 @@ import pytest
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.dirname(__file__))))
 
-from license_manager import (
+from foliarium.core.services.license import (
     LicenseInfo,
     _count_active_seats,
     _seat_file_path,

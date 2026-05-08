@@ -48,7 +48,7 @@ from config import (
 )
 from catasto_db_manager import CatastoDBManager
 from catasto_exceptions import DBMError, DBUniqueConstraintError, DBNotFoundError, DBDataError  # noqa: F401
-from custom_widgets import QPasswordLineEdit, show_status_message as _show_status_message
+from foliarium.ui.widgets.custom import QPasswordLineEdit, show_status_message as _show_status_message
 
 try:
     import keyring
@@ -963,7 +963,7 @@ def _verify_password(stored_hash: str, provided_password: str) -> bool:
 
 
 # Estratto in import_dialogs.py — backward compat re-export
-from import_dialogs import (
+from foliarium.ui.dialogs.import_ import (
     ISTATDownloadWorker, OSMLocalitaWorker,
     ImportComuniDialog, ImportLocalitaDialog,
     _mostra_risultati_import, _popola_preview_tabella,
@@ -1109,7 +1109,7 @@ class SMTPSettingsDialog(QDialog):
 
     def _test_connection(self):
         """Salva temporaneamente i valori e invia un'email di test al mittente."""
-        from email_service import EmailService, EmailWorker
+        from foliarium.core.services.email import EmailService, EmailWorker
         # Costruisce un service "live" con i valori attuali del form
         s = QSettings()
         s.setValue(SETTINGS_SMTP_ENABLED, True)
@@ -1632,16 +1632,16 @@ class LicenseDialog(QDialog):
         self._edit_share.setText(s.value(SETTINGS_LICENSE_NETWORK_SHARE, "", type=str))
 
     def _refresh_status(self):
-        from license_manager import LicenseManager, get_hardware_fingerprint
+        from foliarium.core.services.license import LicenseManager, get_hardware_fingerprint
         # Aggiorna il percorso nell'oggetto manager prima di validare
         lm = LicenseManager.__new__(LicenseManager)
         lm.license_path  = self._edit_license_path.text().strip() or lm.__class__.__init__.__code__.co_filename
         # Usa direttamente la funzione di validazione
-        from license_manager import _validate_file
+        from foliarium.core.services.license import _validate_file
         from config import IS_DEMO_MODE
         if IS_DEMO_MODE:
             from datetime import date
-            from license_manager import LicenseInfo
+            from foliarium.core.services.license import LicenseInfo
             info = LicenseInfo("Versione Demo", "demo", 1, None, None, date.today(), True)
         else:
             path = self._edit_license_path.text().strip()
@@ -1694,7 +1694,7 @@ class LicenseDialog(QDialog):
             self._edit_share.setText(folder)
 
     def _copy_hardware_id(self):
-        from license_manager import get_hardware_fingerprint
+        from foliarium.core.services.license import get_hardware_fingerprint
         from PyQt6.QtWidgets import QApplication
         fp = get_hardware_fingerprint()
         QApplication.clipboard().setText(fp)
