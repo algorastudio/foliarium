@@ -137,8 +137,9 @@ pgsql/
 demo_data/
 pg_portable.zip
 
-# File di licenza cliente (generati localmente, non versionare)
+# File di licenza e chiave di firma (mai in repository)
 *.license
+foliarium.key
 frontend/dist/
 frontend/node_modules/
 
