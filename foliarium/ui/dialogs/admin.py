@@ -49,6 +49,10 @@ from config import (
 from catasto_db_manager import CatastoDBManager
 from catasto_exceptions import DBMError, DBUniqueConstraintError, DBNotFoundError, DBDataError  # noqa: F401
 from foliarium.ui.widgets.custom import QPasswordLineEdit, show_status_message as _show_status_message
+from core.auth_manager import AuthManager as _AuthManager
+
+def _verify_password(stored_hash: str, provided_password: str) -> bool:
+    return _AuthManager._verify_password(stored_hash, provided_password)
 
 try:
     import keyring
@@ -1714,4 +1718,136 @@ class LicenseDialog(QDialog):
                                 "Impostazioni di licenza salvate.\n"
                                 "Riavvia l'applicazione per applicarle.")
         self.accept()
+
+
+# ---------------------------------------------------------------------------
+# LoginDialog
+# ---------------------------------------------------------------------------
+
+class LoginDialog(QDialog):
+    """Dialog di autenticazione utente."""
+
+    def __init__(self, db_manager: CatastoDBManager, client_ip: str, parent=None):
+        super().__init__(parent)
+        self.db_manager = db_manager
+        self.client_ip = client_ip
+        self.logged_in_user_id: Optional[int] = None
+        self.logged_in_user_info: Optional[Dict] = None
+        self.current_session_id_from_dialog: Optional[str] = None
+
+        self.setWindowTitle("Login - Foliarium")
+        self.setMinimumWidth(350)
+        self.setModal(True)
+
+        layout = QVBoxLayout(self)
+
+        form_layout = QGridLayout()
+        form_layout.addWidget(QLabel("Username:"), 0, 0)
+        self.username_edit = QLineEdit()
+        self.username_edit.setPlaceholderText("Inserisci username")
+        form_layout.addWidget(self.username_edit, 0, 1)
+
+        form_layout.addWidget(QLabel("Password:"), 1, 0)
+        self.password_edit = QPasswordLineEdit()
+        form_layout.addWidget(self.password_edit, 1, 1)
+
+        layout.addLayout(form_layout)
+
+        buttons_layout = QHBoxLayout()
+        self.login_button = QPushButton("Login")
+        self.login_button.setDefault(True)
+        self.login_button.clicked.connect(self.handle_login)
+
+        self.cancel_button = QPushButton("Esci")
+        self.cancel_button.clicked.connect(self.reject)
+
+        buttons_layout.addStretch()
+        buttons_layout.addWidget(self.login_button)
+        buttons_layout.addWidget(self.cancel_button)
+        layout.addLayout(buttons_layout)
+
+        self.username_edit.setFocus()
+
+    def handle_login(self):
+        username = self.username_edit.text().strip()
+        password = self.password_edit.text()
+
+        if not username or not password:
+            QMessageBox.warning(self, "Login Fallito", "Username e password sono obbligatori.")
+            return
+
+        credentials = self.db_manager.get_user_credentials(username)
+        login_success = False
+        user_id_app = None
+
+        if credentials:
+            user_id_app = credentials.get('id')
+            stored_hash = credentials.get('password_hash')
+            is_active = credentials.get('attivo', False)
+
+            if not is_active:
+                QMessageBox.warning(self, "Login Fallito", "Utente non attivo.")
+                logging.getLogger("CatastoGUI").warning(
+                    f"Login fallito (utente '{username}' non attivo).")
+                return
+
+            if stored_hash and _verify_password(stored_hash, password):
+                login_success = True
+            else:
+                QMessageBox.warning(self, "Login Fallito", "Username o Password errati.")
+                logging.getLogger("CatastoGUI").warning(
+                    f"Login fallito (pwd errata) per '{username}'.")
+                self.password_edit.selectAll()
+                self.password_edit.setFocus()
+                return
+        else:
+            QMessageBox.warning(self, "Login Fallito", "Username o Password errati.")
+            logging.getLogger("CatastoGUI").warning(
+                f"Login fallito (utente '{username}' non trovato).")
+            self.username_edit.selectAll()
+            self.username_edit.setFocus()
+            return
+
+        if login_success and user_id_app is not None:
+            try:
+                session_uuid = self.db_manager.register_access(
+                    user_id=user_id_app,
+                    action='login',
+                    esito=True,
+                    indirizzo_ip=self.client_ip,
+                    application_name='CatastoAppGUI',
+                )
+
+                if session_uuid:
+                    self.logged_in_user_id = user_id_app
+                    self.logged_in_user_info = credentials
+                    self.current_session_id_from_dialog = session_uuid
+
+                    if not self.db_manager.set_audit_session_variables(user_id_app, session_uuid):
+                        QMessageBox.critical(
+                            self, "Errore Audit",
+                            "Impossibile impostare le informazioni di sessione per l'audit. "
+                            "Il login non può procedere.")
+                        return
+
+                    QMessageBox.information(
+                        self, "Login Riuscito",
+                        f"Benvenuto {self.logged_in_user_info.get('nome_completo', username)}!")
+                    self.accept()
+                else:
+                    QMessageBox.critical(
+                        self, "Login Fallito",
+                        "Errore critico: impossibile registrare la sessione di accesso.")
+                    logging.getLogger("CatastoGUI").error(
+                        f"Login OK per '{username}' ma sessione non registrata.")
+
+            except DBMError as e:
+                QMessageBox.critical(self, "Errore di Login (DB)",
+                                     f"Errore durante il login:\n{e}")
+                logging.getLogger("CatastoGUI").error(f"DBMError login per {username}: {e}")
+            except Exception as e:
+                QMessageBox.critical(self, "Errore Imprevisto",
+                                     f"Errore di sistema durante il login:\n{e}")
+                logging.getLogger("CatastoGUI").error(
+                    f"Errore imprevisto login per {username}: {e}", exc_info=True)
 
