@@ -33,9 +33,11 @@
 
 ```
 foliarium/
-├── gui_main.py                   # Entry point — QMainWindow, app init
-├── gui_widgets.py                # Widget UI principali (monolite, candidato a refactor futuro)
-├── dialogs.py                    # Dialog windows secondari
+├── gui_main.py                   # Entry point — QMainWindow, app init, TopBarWidget, SidebarWidget
+├── gui_widgets.py                # Facade UI — ElencoComuniWidget, DashboardWidget, WelcomeScreen + re-export hub
+├── search_widgets.py             # Widget ricerca — RicercaPartiteWidget, RicercaAvanzataImmobiliWidget, UnifiedFuzzySearchWidget
+├── partita_workflow_widgets.py   # Widget workflow — RegistrazioneProprietaWidget, NuovaPartitaWizardWidget, OperazioniPartitaWidget
+├── dialogs.py                    # Facade di re-export dialogs (implementati in foliarium/ui/dialogs/)
 ├── catasto_db_manager.py         # Facade DB — delega al package db/
 ├── app_utils.py                  # PDF/report utilities
 ├── app_paths.py                  # Path resolution & resource loading
@@ -46,7 +48,10 @@ foliarium/
 │   ├── core/services/            # email.py, license.py, update_checker.py, demo_launcher.py
 │   └── ui/                       # top_bar.py, sidebar.py, command_palette.py
 │       ├── dialogs/              # entity.py, admin.py, partita.py, import_.py
-│       └── widgets/              # admin.py, insertion.py, reporting.py, custom.py
+│       └── widgets/              # admin.py (GestioneUtenti, Archivio, TipiPossesso)
+│                                 # insertion.py (Comune, Possessore, Localita, Partita)
+│                                 # reporting.py (Documenti, Esportazioni, Reportistica, Statistiche)
+│                                 # custom.py (widget condivisi, show_status_message)
 │
 ├── db/                           # Database layer — 14 mixin via ereditarietà multipla
 │   ├── base.py                   # DBConnectionBase: pool, _get_connection(), bulk_insert
@@ -136,10 +141,16 @@ export QT_QPA_PLATFORM=offscreen
 
 ## Architecture
 
-- **Entry point:** `gui_main.py` creates the `QApplication` and `QMainWindow`, initialises logging (`config.setup_global_logging`), and loads the main window with panels from `gui_widgets.py`.
+- **Entry point:** `gui_main.py` creates the `QApplication` and `QMainWindow`, initialises logging (`config.setup_global_logging`), builds `TopBarWidget` + `SidebarWidget` + `QStackedWidget`, navigates with `navigate_to(page_name)`.
 - **DB layer:** `catasto_db_manager.py` — `CatastoDBManager` class wraps all psycopg2 calls. Credentials are read from env vars (`DB_HOST`, `DB_USER`, `DB_PASS`, `DB_NAME`, `DB_PORT`) with fallback to defaults defined in `config.py`.
 - **CI detection:** `config.IS_TEST_ENV` is `True` when `CI=true` or `GITHUB_ACTIONS=true`. Used to skip interactive prompts and adjust logging.
-- **UI panels** (all in `gui_widgets.py`): DashboardWidget, RicercaPartiteWidget, RicercaAvanzataImmobiliWidget, InserimentoPossessoreWidget, EsportazioniWidget, ReportisticaWidget, GestioneUtentiWidget, AuditLogViewerWidget, BackupWidget.
+- **UI widget distribution** (post-refactor v1.0.0):
+  - `gui_widgets.py` — facade + `ElencoComuniWidget`, `DashboardWidget`, `WelcomeScreen`
+  - `search_widgets.py` — `RicercaPartiteWidget`, `RicercaAvanzataImmobiliWidget`, `UnifiedFuzzySearchWidget`
+  - `partita_workflow_widgets.py` — `RegistrazioneProprietaWidget`, `NuovaPartitaWizardWidget`, `OperazioniPartitaWidget`
+  - `foliarium/ui/widgets/insertion.py` — form inserimento (Comune, Possessore, Località, Partita)
+  - `foliarium/ui/widgets/admin.py` — `GestioneUtentiWidget`, `AuditLogViewerWidget`, `BackupWidget`, `TipiPossessoWidget`, `ArchivioWidget`
+  - `foliarium/ui/widgets/reporting.py` — `RicercaDocumentiWidget`, `EsportazioniWidget`, `ReportisticaWidget`, `StatisticheWidget`
 - **Themes:** QSS stylesheets in `styles/`. Loaded at runtime; 16 themes available (dark, light, business, ocean, nature, etc.).
 
 ---
@@ -1465,3 +1476,53 @@ Branch: `claude/analyze-program-improvements-WHIQS` (PR #23).
 ### Sezioni rimandate
 
 - **C** (package restructuring) — esplicitamente esclusa dall'utente, da affrontare in sessione separata
+
+---
+
+## Changelog sessione corrente (v1.0.1 — consolidamento SQL + refactor gui_widgets)
+
+Branch: `claude/product-delivery-prep-ujTLi`.
+
+### SQL: Consolidamento fresh install (4 micro-script assorbiti)
+
+I 4 script autonomi presenti nella root di `sql_scripts/` che aggiungevano colonne o tabelle su DB già esistenti sono stati:
+- **Assorbiti** negli script base per il percorso fresh install
+- **Spostati** in `sql_scripts/migrations/` con nome descrittivo per il percorso di upgrade
+
+| Confluito in (fresh install) | Migrazione (DB esistenti) | Contenuto |
+|------------------------------|---------------------------|-----------|
+| `02_creazione-schema-tabelle.sql` | `migrations/add_soft_delete.sql` | Colonne `archiviato`/`archiviato_il` + indici su comune, partita, localita, possessore |
+| `02_creazione-schema-tabelle.sql` | `migrations/add_tipo_possesso.sql` | Lookup `tipo_possesso` + 8 valori di default |
+| `07_user-management.sql` | `migrations/add_sessioni_accesso.sql` | Tabella `sessioni_accesso` (FK su `utente`) |
+| `02_creazione-schema-tabelle.sql` | `migrations/add_tipo_localita.sql` | Lookup `tipo_localita` + 4 valori di default |
+
+**Fix critico — bootstrap admin race condition:** rimosso da `07_user-management.sql` il blocco `DO $$ ... $$` che creava l'utente `admin` con hash bcrypt hardcoded (`admin123`). Quel blocco si eseguiva prima di `07a_bootstrap_admin.sql` impedendo all'installer di iniettare la password generata casualmente. L'utente admin è ora creato **esclusivamente** da `07a_bootstrap_admin.sql`.
+
+`setup_database.bat`, `setup_database.py`, `prepare_demo_db.py` aggiornati: lista `SQL_SCRIPTS` ridotta da 21 a 17 script.
+
+`apply_migration.bat`/`.sh` aggiornati al nuovo percorso `migrations/add_soft_delete.sql`.
+
+`db/base.py` (`check_missing_migrations`) e `gui_main.py` (messaggio errore) aggiornati ai nuovi percorsi migration.
+
+`sql_scripts/README.md` riscritto con tabella install aggiornata e sezione "Cosa è stato consolidato in v1.0.0".
+
+### GUI: Refactor `gui_widgets.py` — estrazione in moduli dedicati
+
+`gui_widgets.py` ridotto da **4 471 a 1 022 righe** (−77%) estraendo due nuovi moduli radice:
+
+| Modulo | Contenuto | Righe |
+|--------|-----------|-------|
+| `search_widgets.py` | `_PartiteSearchWorker`, `PartitaResultCard`, `RicercaPartiteWidget`, `RicercaAvanzataImmobiliWidget`, `UnifiedFuzzySearchThread`, `UnifiedFuzzySearchWidget` | 1 529 |
+| `partita_workflow_widgets.py` | `RegistrazioneProprietaWidget`, `NuovaPartitaWizardWidget`, `OperazioniPartitaWidget` | 2 053 |
+
+`gui_widgets.py` mantiene i re-export da entrambi i moduli per backward compatibility:
+```python
+from search_widgets import (RicercaPartiteWidget, RicercaAvanzataImmobiliWidget, ...)
+from partita_workflow_widgets import (RegistrazioneProprietaWidget, ...)
+```
+
+**Verifica:** `ruff check --select=F821,F811,E9 .` → **0 errori** su tutti i moduli estratti.
+
+### Documentazione
+
+- `CLAUDE.md`: sezione "Project structure" aggiornata con `search_widgets.py`, `partita_workflow_widgets.py`; sezione "Architecture → UI widget distribution" riscritta con mappa modulo→widget; voce `gui_widgets.py` aggiornata da "monolite" a "facade".
