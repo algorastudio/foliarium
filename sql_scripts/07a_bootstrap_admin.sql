@@ -1,28 +1,57 @@
--- Inserimento utente amministratore di default
--- ATTENZIONE: Il seguente hash è per la password 'admin123'. 
--- CAMBIARE QUESTA PASSWORD E RIGENERARE L'HASH IN UN AMBIENTE DI PRODUZIONE!
--- Per generare l'hash, puoi usare uno script Python temporaneo:
--- import bcrypt
--- password = b'admin123' # O la password desiderata
--- salt = bcrypt.gensalt()
--- hashed = bcrypt.hashpw(password, salt)
--- print(hashed.decode('utf-8'))
+-- =============================================================================
+-- 07a_bootstrap_admin.sql
+-- Crea l'utente amministratore iniziale dell'applicazione (NON il superuser DB).
+--
+-- Uso:
+--   psql -v admin_password='<password>' -v admin_email='<email>' -f 07a_bootstrap_admin.sql
+--
+-- Se admin_password non è passata, viene usato il default 'admin123' (solo dev).
+-- L'hash bcrypt viene generato dinamicamente via pgcrypto (compatibile con
+-- la libreria Python `bcrypt` usata dall'app: prefisso $2a accettato da bcrypt).
+--
+-- Idempotente: se l'utente 'admin' esiste già, non viene toccato.
+-- =============================================================================
+
+CREATE EXTENSION IF NOT EXISTS pgcrypto;
+
+\set ON_ERROR_STOP on
+
+-- Default per le variabili psql non passate da -v
+\if :{?admin_password}
+\else
+  \set admin_password '\'admin123\''
+\endif
+
+\if :{?admin_email}
+\else
+  \set admin_email '\'admin@archivio.local\''
+\endif
 
 DO $$
 DECLARE
-    admin_username TEXT := 'admin';
-    admin_email TEXT := 'admin@archivio.savona.it'; -- Modificare se necessario
-    -- Esempio di hash bcrypt per 'admin123' (QUESTO È SOLO UN ESEMPIO, GENERANE UNO TUO!)
-    admin_password_hash TEXT := '$2b$12$r0aa.7569LtbyofetxSRtOWZzWAQDbD9XTC1SQ4bHVXDURlQwXszy'; -- SOSTITUIRE CON UN HASH REALE
-    user_exists BOOLEAN;
+    v_admin_username TEXT := 'admin';
+    v_admin_password TEXT := :'admin_password';
+    v_admin_email    TEXT := :'admin_email';
+    v_admin_hash     TEXT;
+    v_user_exists    BOOLEAN;
 BEGIN
-    SELECT EXISTS(SELECT 1 FROM catasto.utente WHERE username = admin_username) INTO user_exists;
+    SELECT EXISTS(
+        SELECT 1 FROM catasto.utente WHERE username = v_admin_username
+    ) INTO v_user_exists;
 
-    IF NOT user_exists THEN
-        INSERT INTO catasto.utente (username, password_hash, nome_completo, email, ruolo, attivo)
-        VALUES (admin_username, admin_password_hash, 'Amministratore Sistema', admin_email, 'admin', TRUE);
-        RAISE NOTICE 'Utente amministratore di default "%" creato.', admin_username;
+    IF v_user_exists THEN
+        RAISE NOTICE 'Utente "%" già esistente, password non modificata.', v_admin_username;
     ELSE
-        RAISE NOTICE 'Utente amministratore di default "%" già esistente.', admin_username;
+        v_admin_hash := crypt(v_admin_password, gen_salt('bf', 12));
+
+        INSERT INTO catasto.utente (
+            username, password_hash, nome_completo, email, ruolo, attivo
+        ) VALUES (
+            v_admin_username, v_admin_hash, 'Amministratore Sistema',
+            v_admin_email, 'admin', TRUE
+        );
+
+        RAISE NOTICE 'Utente amministratore "%" creato con email %.',
+            v_admin_username, v_admin_email;
     END IF;
 END $$;
