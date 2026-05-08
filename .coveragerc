@@ -2,12 +2,19 @@
 source =
     gui_main
     gui_widgets
+    search_widgets
+    partita_workflow_widgets
     dialogs
     catasto_db_manager
     app_utils
     app_paths
     config
-    custom_widgets
+    validators
+    db
+    core
+    api
+    utils
+    foliarium
 
 omit =
     tests/*
@@ -15,15 +22,21 @@ omit =
     resources/*
     */site-packages/*
     */__pycache__/*
+    generate_license.py
+    setup_database.py
+    setup_db.py
+    prepare_demo_db.py
+    migrate_database.py
 
 [report]
 show_missing = True
 precision = 2
 skip_empty = True
+fail_under = 70
 
 [html]
 directory = coverage_html
-title = Meridiana - Coverage Report
+title = Foliarium - Coverage Report
 
 [xml]
 output = coverage.xml
