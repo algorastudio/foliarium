@@ -26,6 +26,15 @@ Release di manutenzione che consolida bug fix, igiene del codice e miglioramenti
 - Rimossi residui di stampe diagnostiche (`print()`) in `db/base.py` e `db/models.py`.
 - Installer Inno Setup (`Foliarium_Installer.iss`, `Foliarium_Unified_Installer.iss`) aggiornati per puntare al singolo file EULA `.txt`.
 
+### Refactoring interno
+
+- **Consolidamento script SQL per fresh install**: 4 micro-script separati (`07_soft_delete_archiviazione.sql`, `07_create_tipo_possesso_table.sql`, `19_creazione_tabella_sessioni.sql`, `20_feature_tipi_localita.sql`) assorbiti negli script base `02_creazione-schema-tabelle.sql` e `07_user-management.sql`. Il numero di script eseguiti durante l'installazione scende da 21 a 17. I 4 script originali sono ora in `sql_scripts/migrations/` con nome descrittivo per aggiornare database esistenti (v ≤ 1.0.0).
+- **Fix critico bootstrap admin**: rimosso da `07_user-management.sql` il blocco che creava l'utente admin con password hardcoded (`admin123`). Questo blocco causava una race condition con `07a_bootstrap_admin.sql`, impedendo all'installer di iniettare la password generata casualmente. L'utente admin viene ora creato esclusivamente da `07a_bootstrap_admin.sql`.
+- **Suddivisione `gui_widgets.py`**: il file monolitico (4 471 righe) è stato ridotto del 77% (→ 1 022 righe) estraendo due nuovi moduli:
+  - `search_widgets.py` (1 529 righe) — `RicercaPartiteWidget`, `RicercaAvanzataImmobiliWidget`, `UnifiedFuzzySearchWidget`
+  - `partita_workflow_widgets.py` (2 053 righe) — `RegistrazioneProprietaWidget`, `NuovaPartitaWizardWidget`, `OperazioniPartitaWidget`
+  - `gui_widgets.py` mantiene i re-export per backward compatibility di tutti gli import esistenti.
+
 ### Procedura di aggiornamento
 
 L'aggiornamento da v1.0.0 a v1.0.1 è automatico tramite l'aggiornatore integrato (menu *Help → Verifica aggiornamenti…*) oppure manuale sostituendo il contenuto della cartella di installazione.

@@ -2,7 +2,7 @@ name: CI/CD Foliarium (Test & Build)
 
 on:
   push:
-    branches: [ "main", "master", "foliarium/enterprise", "claude/summarize-dev-status-vDVnI", "claude/create-demo-version-qUbik", "claude/analyze-dev-progress-sPWUb", "claude/release-1.0.0-testing-wbblE" ]
+    branches: [ "main", "master", "foliarium/enterprise", "claude/summarize-dev-status-vDVnI", "claude/create-demo-version-qUbik", "claude/analyze-dev-progress-sPWUb", "claude/release-1.0.0-testing-wbblE", "claude/product-delivery-prep-ujTLi" ]
     tags:
       - '*.*.*'        # es. 1.0.0
       - 'v*.*.*'       # es. v1.0.0
@@ -67,8 +67,29 @@ jobs:
         PGPASSWORD: testpassword
       run: |
         sudo apt-get install -y postgresql-client
+        # Schema base + lookup + soft-delete (v1.0.0 fresh install order)
         psql -h localhost -U postgres -d catasto_storico -f sql_scripts/02_creazione-schema-tabelle.sql
         psql -h localhost -U postgres -d catasto_storico -f sql_scripts/03_funzioni-procedure.sql
+        psql -h localhost -U postgres -d catasto_storico -f sql_scripts/03b_expand_fuzzy_search.sql
+        psql -h localhost -U postgres -d catasto_storico -f sql_scripts/07_user-management.sql
+        psql -h localhost -U postgres -d catasto_storico -f sql_scripts/08_advanced-reporting.sql
+        psql -h localhost -U postgres -d catasto_storico -f sql_scripts/09_backup-system.sql
+        psql -h localhost -U postgres -d catasto_storico -f sql_scripts/10_performance-optimization.sql
+        psql -h localhost -U postgres -d catasto_storico -f sql_scripts/11_advanced-cadastral-features.sql
+        psql -h localhost -U postgres -d catasto_storico -f sql_scripts/12_procedure_crud.sql
+        psql -h localhost -U postgres -d catasto_storico -f sql_scripts/13_workflow_integrati.sql
+        psql -h localhost -U postgres -d catasto_storico -f sql_scripts/14_report_functions.sql
+        psql -h localhost -U postgres -d catasto_storico -f sql_scripts/15_integration_audit_users.sql
+        psql -h localhost -U postgres -d catasto_storico -f sql_scripts/16_advanced_search.sql
+        psql -h localhost -U postgres -d catasto_storico -f sql_scripts/17_funzione_ricerca_immobili.sql
+        psql -h localhost -U postgres -d catasto_storico -f sql_scripts/18_funzioni_trigger_audit.sql
+        # CREATE INDEX CONCURRENTLY non può stare in una transazione — va per ultimo
+        psql -h localhost -U postgres -d catasto_storico -f sql_scripts/07_create_trigram_indexes.sql
+        # Bootstrap admin con password di test
+        psql -h localhost -U postgres -d catasto_storico \
+          -v admin_password="'testpassword'" \
+          -v admin_email="'admin@test.local'" \
+          -f sql_scripts/07a_bootstrap_admin.sql
 
     - name: Esecuzione Test Automatici (Pytest + Coverage)
       env:
