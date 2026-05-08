@@ -32,6 +32,27 @@ from PyQt6.QtWidgets import (QAbstractItemView, QApplication,
                              QVBoxLayout, QWidget)
 # Importazione commentata (da abilitare se necessario)
 # from PyQt6.QtSvgWidgets import QSvgWidget
+
+
+def show_status_message(message: str, timeout_ms: int = 4000) -> None:
+    """Mostra un messaggio nella status bar della finestra principale (non bloccante).
+
+    Funziona da qualsiasi contesto (widget, dialog, thread UI) cercando la
+    prima QMainWindow visibile tramite topLevelWidgets().
+    """
+    win = QApplication.activeWindow()
+    if win is None or not hasattr(win, "statusBar"):
+        for w in QApplication.topLevelWidgets():
+            if hasattr(w, "statusBar") and w.isVisible():
+                win = w
+                break
+    if win and hasattr(win, "statusBar"):
+        try:
+            win.statusBar().showMessage(message, timeout_ms)
+        except Exception:
+            pass
+
+
 class ImmobiliTableWidget(QTableWidget):
     def __init__(self, parent=None):
         super(ImmobiliTableWidget, self).__init__(parent)

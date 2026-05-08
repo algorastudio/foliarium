@@ -102,19 +102,7 @@ def _set_field_error(widget, has_error: bool) -> None:
     widget.setStyleSheet(_FIELD_ERROR_STYLE if has_error else "")
 
 
-def _show_status_message(message: str, timeout_ms: int = 4000) -> None:
-    """Mostra un messaggio nella status bar della finestra principale (non bloccante)."""
-    win = QApplication.activeWindow()
-    if win is None or not hasattr(win, "statusBar"):
-        for w in QApplication.topLevelWidgets():
-            if hasattr(w, "statusBar") and w.isVisible():
-                win = w
-                break
-    if win and hasattr(win, "statusBar"):
-        try:
-            win.statusBar().showMessage(message, timeout_ms)
-        except Exception:
-            pass
+from custom_widgets import show_status_message as _show_status_message
 
 
 # ---------------------------------------------------------------------------

@@ -138,3 +138,8 @@ pg_portable.zip
 *.license
 frontend/dist/
 frontend/node_modules/
+
+# Backup database — non versionare dump/backup locali
+*.dump
+*.backup
+*.sql.gz

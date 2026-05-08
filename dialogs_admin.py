@@ -48,7 +48,7 @@ from config import (
 )
 from catasto_db_manager import CatastoDBManager
 from catasto_exceptions import DBMError, DBUniqueConstraintError, DBNotFoundError, DBDataError  # noqa: F401
-from custom_widgets import QPasswordLineEdit
+from custom_widgets import QPasswordLineEdit, show_status_message as _show_status_message
 
 try:
     import keyring
@@ -833,7 +833,7 @@ class BackupReminderSettingsDialog(QDialog):
         self.settings.setValue("Backup/ReminderDays", self.days_spinbox.value())
         # Rimuoviamo la vecchia impostazione per pulizia
         self.settings.remove("Backup/ReminderInserts")
-        QMessageBox.information(self, "Impostazioni Salve", "Le impostazioni per il promemoria di backup sono state salvate.")
+        _show_status_message("Impostazioni promemoria backup salvate.", 4000)
         super().accept()
 
 class EulaDialog(QDialog):
