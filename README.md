@@ -100,8 +100,6 @@ foliarium/
 │   ├── 16_advanced_search.sql         # Ricerca avanzata
 │   ├── 17_funzione_ricerca_immobili.sql # Ricerca immobili
 │   ├── 18_funzioni_trigger_audit.sql  # Trigger per audit log
-│   ├── 19_creazione_tabella_sessioni.sql # Tabella sessioni utente
-│   ├── 20_feature_tipi_localita.sql   # Tipologie località
 │   ├── crea_admin_interattivo.sql     # Script interattivo creazione admin
 │   ├── demo_data.sql                  # Dati dimostrativi (località liguri)
 │   ├── drop_db.sql                    # Eliminazione database

@@ -54,12 +54,12 @@ EXE = ".exe" if IS_WIN else ""
 
 # Ordine di applicazione su DB fresco. Il bootstrap admin (07a) e' gestito
 # a parte perche' richiede la variabile psql admin_password (vedi codice).
+# Da v1.0.0: lookup tipo_possesso/tipo_localita, soft-delete e tabella sessioni
+# sono integrati in 02 e 07_user-management (vedi sql_scripts/README.md).
 SQL_SCRIPTS = [
     "02_creazione-schema-tabelle.sql",
     "03_funzioni-procedure.sql",
     "03b_expand_fuzzy_search.sql",
-    "07_create_tipo_possesso_table.sql",
-    "07_soft_delete_archiviazione.sql",
     "07_user-management.sql",
     "08_advanced-reporting.sql",
     "09_backup-system.sql",
@@ -72,8 +72,6 @@ SQL_SCRIPTS = [
     "16_advanced_search.sql",
     "17_funzione_ricerca_immobili.sql",
     "18_funzioni_trigger_audit.sql",
-    "19_creazione_tabella_sessioni.sql",
-    "20_feature_tipi_localita.sql",
     "07_create_trigram_indexes.sql",  # CONCURRENTLY: deve stare fuori transazione
 ]
 

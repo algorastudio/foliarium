@@ -159,26 +159,39 @@ INSERT INTO catasto.permesso (nome, descrizione) VALUES
 ON CONFLICT (nome) DO NOTHING; -- IL PUNTO E VIRGOLA VA QUI, ALLA FINE DELL'INTERA ISTRUZIONE INSERT
 
 
--- Inserimento utente amministratore di default
-DO $$
-DECLARE
-    v_admin_username      TEXT := 'admin';
-    v_admin_email         TEXT := 'admin@archivio.savona.it';
-    v_admin_password_hash TEXT := '$2b$12$r0aa.7569LtbyofetxSRtOWZzWAQDbD9XTC1SQ4bHVXDURlQwXszy'; -- USARE HASH SICURO!
-    v_user_exists         BOOLEAN;
-BEGIN
-    SELECT EXISTS(SELECT 1 FROM catasto.utente WHERE username = v_admin_username) INTO v_user_exists;
-
-    IF NOT v_user_exists THEN
-        INSERT INTO catasto.utente (username, password_hash, nome_completo, email, ruolo, attivo)
-        VALUES (v_admin_username, v_admin_password_hash, 'Amministratore Sistema', v_admin_email, 'admin', TRUE);
-        RAISE NOTICE 'Utente amministratore di default "%" creato.', v_admin_username;
-    ELSE
-        RAISE NOTICE 'Utente amministratore di default "%" già esistente.', v_admin_username;
-    END IF;
-END $$; -- NESSUN COMMENTO DOPO QUESTO TERMINATORE SU QUESTA RIGA
+-- NOTA: la creazione dell'utente amministratore iniziale è gestita da
+-- 07a_bootstrap_admin.sql, che riceve la password generata dall'installer
+-- via psql -v admin_password=... e produce un hash bcrypt dinamico.
+-- Eseguire questo script SENZA bootstrap_admin lascia il sistema senza admin.
 
 -- Applicazione del trigger (corretto)
 CREATE TRIGGER update_utente_modifica
 BEFORE UPDATE ON catasto.utente
 FOR EACH ROW EXECUTE FUNCTION catasto.update_modified_column();
+
+-- =====================================================================
+-- TABELLA SESSIONI ACCESSO
+-- (era 19_creazione_tabella_sessioni.sql, integrata qui dalla v1.0.0)
+-- Deve stare nello stesso file di catasto.utente perché è referenziata
+-- dalle procedure registra_evento_sessione e logout_utente_sessione qui sopra.
+-- =====================================================================
+CREATE TABLE IF NOT EXISTS catasto.sessioni_accesso (
+    id SERIAL PRIMARY KEY,
+    utente_id INTEGER NOT NULL REFERENCES catasto.utente(id) ON DELETE CASCADE,
+    id_sessione VARCHAR(100) NOT NULL UNIQUE,
+    data_login  TIMESTAMP(0) WITHOUT TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    data_logout TIMESTAMP(0) WITHOUT TIME ZONE,
+    indirizzo_ip VARCHAR(45),
+    applicazione VARCHAR(100),
+    azione VARCHAR(50) NOT NULL DEFAULT 'login',
+    esito  BOOLEAN NOT NULL DEFAULT FALSE,
+    dettagli TEXT,
+    attiva   BOOLEAN DEFAULT TRUE
+);
+
+CREATE INDEX IF NOT EXISTS idx_sessioni_accesso_utente_id   ON catasto.sessioni_accesso(utente_id);
+CREATE INDEX IF NOT EXISTS idx_sessioni_accesso_id_sessione ON catasto.sessioni_accesso(id_sessione);
+CREATE INDEX IF NOT EXISTS idx_sessioni_accesso_data_login  ON catasto.sessioni_accesso(data_login);
+
+COMMENT ON TABLE catasto.sessioni_accesso IS 'Registra le sessioni di accesso degli utenti alle applicazioni.';
+COMMENT ON COLUMN catasto.sessioni_accesso.attiva IS 'True se la sessione è considerata attiva, False se è stato effettuato il logout o è scaduta.';

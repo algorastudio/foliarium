@@ -882,7 +882,7 @@ class RicercaPartiteWidget(QWidget):
         QMessageBox.critical(self, "Errore di Ricerca",
                              f"Si è verificato un errore durante la ricerca:\n\n{error_msg}"
                              "\n\nSe l'errore riguarda la colonna 'archiviato', eseguire "
-                             "la migrazione del database: sql_scripts/07_soft_delete_archiviazione.sql")
+                             "la migrazione del database: sql_scripts/migrations/add_soft_delete.sql")
 
     def _on_row_selected(self, current_row: int):
         if current_row < 0:

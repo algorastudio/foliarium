@@ -1749,13 +1749,13 @@ class CatastoMainWindow(QMainWindow):
                 "Le tabelle comune, località, partita e possessore non hanno le colonne\n"
                 "archiviato / archiviato_il. Alcune funzioni (ricerca, archiviazione) potrebbero\n"
                 "non funzionare correttamente.\n\n"
-                "Script: sql_scripts/07_soft_delete_archiviazione.sql"
+                "Reinstallare via sql_scripts/02_creazione-schema-tabelle.sql"
             ),
             "tipo_possesso": (
                 "Tabella tipo_possesso mancante",
                 "La tabella di lookup 'tipo_possesso' non è presente.\n"
                 "Il dropdown dei tipi di possesso nei legami proprietà sarà vuoto.\n\n"
-                "Script: sql_scripts/07_create_tipo_possesso_table.sql"
+                "Reinstallare via sql_scripts/02_creazione-schema-tabelle.sql"
             ),
         }
 

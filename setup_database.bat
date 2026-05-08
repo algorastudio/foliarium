@@ -212,13 +212,13 @@ REM           -> indici trigram (ultima, no-transaction) -> bootstrap admin
 REM ============================================================================
 echo [7/8] Inizializzazione schema, procedure e feature... >> "%LOGFILE%"
 
-REM Script in ordine di applicazione (escluso bootstrap admin, gestito a parte)
+REM Script in ordine di applicazione (escluso bootstrap admin, gestito a parte).
+REM Da v1.0.0: lookup tipo_possesso/tipo_localita, soft-delete e tabella sessioni
+REM sono integrati in 02 e 07_user-management (vedi sql_scripts/README.md).
 for %%F in (
     "%SQL_DIR%\02_creazione-schema-tabelle.sql"
     "%SQL_DIR%\03_funzioni-procedure.sql"
     "%SQL_DIR%\03b_expand_fuzzy_search.sql"
-    "%SQL_DIR%\07_create_tipo_possesso_table.sql"
-    "%SQL_DIR%\07_soft_delete_archiviazione.sql"
     "%SQL_DIR%\07_user-management.sql"
     "%SQL_DIR%\08_advanced-reporting.sql"
     "%SQL_DIR%\09_backup-system.sql"
@@ -231,8 +231,6 @@ for %%F in (
     "%SQL_DIR%\16_advanced_search.sql"
     "%SQL_DIR%\17_funzione_ricerca_immobili.sql"
     "%SQL_DIR%\18_funzioni_trigger_audit.sql"
-    "%SQL_DIR%\19_creazione_tabella_sessioni.sql"
-    "%SQL_DIR%\20_feature_tipi_localita.sql"
     "%SQL_DIR%\07_create_trigram_indexes.sql"
 ) do (
     if exist "%%~F" (
