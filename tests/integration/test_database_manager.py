@@ -3,10 +3,9 @@
 """
 Test per CatastoDBManager
 ========================
-Test completi per le operazioni del database manager
+Test completi per le operazioni del database manager.
+Migrato da tests/catasto-test-database.py (v1.0.1).
 """
-
-# tests/test_database_manager.py
 
 import pytest
 import psycopg2
