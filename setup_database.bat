@@ -206,16 +206,32 @@ REM Grant permessi
 "%PG_BIN%\psql.exe" -h 127.0.0.1 -p %DB_PORT% -U postgres -d %DB_NAME% -c "GRANT CONNECT ON DATABASE %DB_NAME% TO %DB_USER%;" >> "%LOGFILE%" 2>&1
 
 REM ============================================================================
-REM 7. Esecuzione script SQL (schema, procedure, user management)
+REM 7. Esecuzione script SQL
+REM    Ordine: schema base -> funzioni -> feature aggiuntive -> user mgmt
+REM           -> indici trigram (ultima, no-transaction) -> bootstrap admin
 REM ============================================================================
-echo [7/8] Inizializzazione schema e procedure... >> "%LOGFILE%"
+echo [7/8] Inizializzazione schema, procedure e feature... >> "%LOGFILE%"
 
-REM Script in ordine: schema -> procedure -> user management -> bootstrap admin
+REM Script in ordine di applicazione (escluso bootstrap admin, gestito a parte).
+REM Da v1.0.0: lookup tipo_possesso/tipo_localita, soft-delete e tabella sessioni
+REM sono integrati in 02 e 07_user-management (vedi sql_scripts/README.md).
 for %%F in (
     "%SQL_DIR%\02_creazione-schema-tabelle.sql"
     "%SQL_DIR%\03_funzioni-procedure.sql"
+    "%SQL_DIR%\03b_expand_fuzzy_search.sql"
     "%SQL_DIR%\07_user-management.sql"
-    "%SQL_DIR%\07a_bootstrap_admin.sql"
+    "%SQL_DIR%\08_advanced-reporting.sql"
+    "%SQL_DIR%\09_backup-system.sql"
+    "%SQL_DIR%\10_performance-optimization.sql"
+    "%SQL_DIR%\11_advanced-cadastral-features.sql"
+    "%SQL_DIR%\12_procedure_crud.sql"
+    "%SQL_DIR%\13_workflow_integrati.sql"
+    "%SQL_DIR%\14_report_functions.sql"
+    "%SQL_DIR%\15_integration_audit_users.sql"
+    "%SQL_DIR%\16_advanced_search.sql"
+    "%SQL_DIR%\17_funzione_ricerca_immobili.sql"
+    "%SQL_DIR%\18_funzioni_trigger_audit.sql"
+    "%SQL_DIR%\07_create_trigram_indexes.sql"
 ) do (
     if exist "%%~F" (
         echo   Esecuzione %%~nxF... >> "%LOGFILE%"
@@ -224,6 +240,14 @@ for %%F in (
         echo   ATTENZIONE: %%~nxF non trovato, saltato. >> "%LOGFILE%"
     )
 )
+
+REM Bootstrap admin: passa la password generata dall'installer come variabile psql
+REM CRITICO: senza questo step l'utente non può accedere al primo avvio.
+echo   Esecuzione 07a_bootstrap_admin.sql con password dinamica... >> "%LOGFILE%"
+"%PG_BIN%\psql.exe" -h 127.0.0.1 -p %DB_PORT% -U postgres -d %DB_NAME% ^
+    -v admin_password="'%ADMIN_PASSWORD%'" ^
+    -v admin_email="'admin@archivio.local'" ^
+    -f "%SQL_DIR%\07a_bootstrap_admin.sql" >> "%LOGFILE%" 2>&1
 
 REM Grant su tutte le tabelle create
 "%PG_BIN%\psql.exe" -h 127.0.0.1 -p %DB_PORT% -U postgres -d %DB_NAME% -c "GRANT USAGE ON SCHEMA catasto TO %DB_USER%; GRANT USAGE ON SCHEMA public TO %DB_USER%; GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA catasto TO %DB_USER%; GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA public TO %DB_USER%; GRANT USAGE ON ALL SEQUENCES IN SCHEMA catasto TO %DB_USER%; GRANT USAGE ON ALL SEQUENCES IN SCHEMA public TO %DB_USER%; ALTER DEFAULT PRIVILEGES IN SCHEMA catasto GRANT SELECT, INSERT, UPDATE, DELETE ON TABLES TO %DB_USER%; ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT SELECT, INSERT, UPDATE, DELETE ON TABLES TO %DB_USER%;" >> "%LOGFILE%" 2>&1

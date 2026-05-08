@@ -51,10 +51,28 @@ DEMO_APP_USER = "demo"
 DEMO_APP_PWD  = os.environ.get("DEMO_LOGIN_PASS", DEMO_ROLE_PWD)
 DATA_DIR      = HERE / "demo_data"
 
+# Ordine di applicazione per il DB demo. Il dataset demo va in fondo,
+# dopo schema, funzioni e feature aggiuntive. L'utente applicativo 'demo'
+# viene creato a parte da create_app_demo_user() (vedi piu' giu').
+# Da v1.0.0: lookup tipo_possesso/tipo_localita, soft-delete e tabella sessioni
+# sono integrati in 02 e 07_user-management (vedi sql_scripts/README.md).
 SQL_SCRIPTS = [
     HERE / "sql_scripts" / "02_creazione-schema-tabelle.sql",
     HERE / "sql_scripts" / "03_funzioni-procedure.sql",
+    HERE / "sql_scripts" / "03b_expand_fuzzy_search.sql",
     HERE / "sql_scripts" / "07_user-management.sql",
+    HERE / "sql_scripts" / "08_advanced-reporting.sql",
+    HERE / "sql_scripts" / "09_backup-system.sql",
+    HERE / "sql_scripts" / "10_performance-optimization.sql",
+    HERE / "sql_scripts" / "11_advanced-cadastral-features.sql",
+    HERE / "sql_scripts" / "12_procedure_crud.sql",
+    HERE / "sql_scripts" / "13_workflow_integrati.sql",
+    HERE / "sql_scripts" / "14_report_functions.sql",
+    HERE / "sql_scripts" / "15_integration_audit_users.sql",
+    HERE / "sql_scripts" / "16_advanced_search.sql",
+    HERE / "sql_scripts" / "17_funzione_ricerca_immobili.sql",
+    HERE / "sql_scripts" / "18_funzioni_trigger_audit.sql",
+    HERE / "sql_scripts" / "07_create_trigram_indexes.sql",  # CONCURRENTLY: fuori transazione
     HERE / "sql_scripts" / "05_demo_dataset.sql",
 ]
 

@@ -52,12 +52,30 @@ IS_MAC = SYSTEM == "Darwin"
 IS_LINUX = SYSTEM == "Linux"
 EXE = ".exe" if IS_WIN else ""
 
+# Ordine di applicazione su DB fresco. Il bootstrap admin (07a) e' gestito
+# a parte perche' richiede la variabile psql admin_password (vedi codice).
+# Da v1.0.0: lookup tipo_possesso/tipo_localita, soft-delete e tabella sessioni
+# sono integrati in 02 e 07_user-management (vedi sql_scripts/README.md).
 SQL_SCRIPTS = [
     "02_creazione-schema-tabelle.sql",
     "03_funzioni-procedure.sql",
+    "03b_expand_fuzzy_search.sql",
     "07_user-management.sql",
-    "07a_bootstrap_admin.sql",
+    "08_advanced-reporting.sql",
+    "09_backup-system.sql",
+    "10_performance-optimization.sql",
+    "11_advanced-cadastral-features.sql",
+    "12_procedure_crud.sql",
+    "13_workflow_integrati.sql",
+    "14_report_functions.sql",
+    "15_integration_audit_users.sql",
+    "16_advanced_search.sql",
+    "17_funzione_ricerca_immobili.sql",
+    "18_funzioni_trigger_audit.sql",
+    "07_create_trigram_indexes.sql",  # CONCURRENTLY: deve stare fuori transazione
 ]
+
+BOOTSTRAP_ADMIN_SCRIPT = "07a_bootstrap_admin.sql"
 
 
 # ============================================================================
@@ -129,15 +147,18 @@ def run_psql(pg_bin: Path, port: int, sql: str,
 
 
 def run_psql_file(pg_bin: Path, port: int, sql_file: Path,
-                  dbname: str = "postgres", password: str = "") -> None:
-    """Esegue un file SQL tramite psql."""
+                  dbname: str = "postgres", password: str = "",
+                  variables: dict | None = None) -> None:
+    """Esegue un file SQL tramite psql, opzionalmente con variabili -v."""
     env = os.environ.copy()
     env["PGPASSWORD"] = password
-    run(
-        [exe(pg_bin, "psql"), "-h", "127.0.0.1", "-p", str(port),
-         "-U", "postgres", "-d", dbname, "-f", str(sql_file)],
-        env=env, capture_output=True,
-    )
+    cmd = [exe(pg_bin, "psql"), "-h", "127.0.0.1", "-p", str(port),
+           "-U", "postgres", "-d", dbname]
+    for k, v in (variables or {}).items():
+        # psql -v admin_password='valore'  → diventa :'admin_password' nel file
+        cmd += ["-v", f"{k}={v!r}"]
+    cmd += ["-f", str(sql_file)]
+    run(cmd, env=env, capture_output=True)
 
 
 # ============================================================================
@@ -344,6 +365,7 @@ def setup(
     db_password: str | None = None,
     skip_service: bool = False,
     logfile: Path | None = None,
+    admin_password: str | None = None,
 ) -> bool:
     """
     Esegue l'intera sequenza di setup del database.
@@ -508,7 +530,7 @@ def setup(
                  dbname=DB_NAME, password=db_password)
 
         # --- 7. Script SQL ---
-        print(f"\n[6/8] Esecuzione script SQL...")
+        print(f"\n[6/8] Esecuzione script SQL (schema, funzioni, feature)...")
         for script_name in SQL_SCRIPTS:
             sql_file = sql_dir / script_name
             if sql_file.exists():
@@ -517,6 +539,23 @@ def setup(
                               dbname=DB_NAME, password=db_password)
             else:
                 log(f"ATTENZIONE: {script_name} non trovato, saltato.")
+
+        # Bootstrap admin: passa admin_password come variabile psql.
+        # CRITICO per fresh install: senza questo non si puo' accedere al primo avvio.
+        bootstrap_file = sql_dir / BOOTSTRAP_ADMIN_SCRIPT
+        if bootstrap_file.exists():
+            effective_admin_pwd = admin_password or "admin123"
+            log(f"→ {BOOTSTRAP_ADMIN_SCRIPT} (password admin dinamica)")
+            run_psql_file(
+                pg_bin, port, bootstrap_file,
+                dbname=DB_NAME, password=db_password,
+                variables={
+                    "admin_password": effective_admin_pwd,
+                    "admin_email": "admin@archivio.local",
+                },
+            )
+        else:
+            log(f"ATTENZIONE: {BOOTSTRAP_ADMIN_SCRIPT} non trovato — admin non creato!")
 
         # Grant permessi su tutte le tabelle create
         run_psql(pg_bin, port,
@@ -659,6 +698,9 @@ def main() -> None:
                         help="Directory di installazione (default: auto-detect)")
     parser.add_argument("--db-password", default=None,
                         help="Password per il database (default: generata casualmente)")
+    parser.add_argument("--admin-password", default=None,
+                        help="Password per l'utente admin applicativo "
+                             "(default: 'admin123' — CAMBIARLA al primo accesso)")
     parser.add_argument("--skip-service", action="store_true",
                         help="Non registrare come servizio di sistema")
     parser.add_argument("--uninstall", action="store_true",
@@ -671,7 +713,8 @@ def main() -> None:
     if args.uninstall:
         uninstall(install_dir)
     else:
-        ok = setup(install_dir, args.db_password, args.skip_service)
+        ok = setup(install_dir, args.db_password, args.skip_service,
+                   admin_password=args.admin_password)
         sys.exit(0 if ok else 1)
 
 

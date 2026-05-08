@@ -18,7 +18,7 @@ echo Target: %DB_USER%@%DB_HOST%:%DB_PORT%/%DB_NAME%
 echo.
 
 REM Execute migration script
-psql -h %DB_HOST% -p %DB_PORT% -U %DB_USER% -d %DB_NAME% -f sql_scripts\07_soft_delete_archiviazione.sql
+psql -h %DB_HOST% -p %DB_PORT% -U %DB_USER% -d %DB_NAME% -f sql_scripts\migrations\add_soft_delete.sql
 
 if %ERRORLEVEL% equ 0 (
     echo.

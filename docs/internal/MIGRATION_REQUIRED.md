@@ -38,7 +38,7 @@ Execute the migration script on your PostgreSQL database:
 
 Or manually:
    ```cmd
-   psql -U postgres -d catasto_storico -f sql_scripts\07_soft_delete_archiviazione.sql
+   psql -U postgres -d catasto_storico -f sql_scripts\migrations\add_soft_delete.sql
    ```
 
 ### Linux/macOS Users
@@ -52,7 +52,7 @@ Or manually:
 
 Or manually:
    ```bash
-   psql -U postgres -d catasto_storico -f sql_scripts/07_soft_delete_archiviazione.sql
+   psql -U postgres -d catasto_storico -f sql_scripts/migrations/add_soft_delete.sql
    ```
 
 ### If PostgreSQL Credentials Are Different
@@ -79,7 +79,7 @@ bash apply_migration.sh
 
 ## What the Migration Does
 
-The script `07_soft_delete_archiviazione.sql` adds the following to your database:
+The script `migrations/add_soft_delete.sql` adds the following to your database:
 
 1. **New columns for Comuni, Partite, Località:**
    - `archiviato` (BOOLEAN, default FALSE)
@@ -126,7 +126,7 @@ This means the migration was already applied. Just restart Foliarium.
 Your PostgreSQL user doesn't have ALTER TABLE permission. Ask your database administrator, or connect as a superuser:
 
 ```cmd
-psql -U postgres -d catasto_storico -f sql_scripts\07_soft_delete_archiviazione.sql
+psql -U postgres -d catasto_storico -f sql_scripts\migrations\add_soft_delete.sql
 ```
 
 ### Error: "could not connect to server"

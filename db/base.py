@@ -192,7 +192,7 @@ class DBConnectionBase:
         try:
             with self._get_connection() as conn:
                 with conn.cursor() as cur:
-                    # Soft-delete (archiviazione) — script 07_soft_delete_archiviazione.sql
+                    # Soft-delete (archiviazione) — migrations/add_soft_delete.sql
                     cur.execute(
                         "SELECT 1 FROM information_schema.columns "
                         "WHERE table_schema = %s AND table_name = 'comune' "
@@ -202,7 +202,7 @@ class DBConnectionBase:
                     if not cur.fetchone():
                         missing.append("soft_delete")
 
-                    # Tipo possesso — script 07_create_tipo_possesso_table.sql
+                    # Tipo possesso — migrations/add_tipo_possesso.sql
                     cur.execute(
                         "SELECT 1 FROM information_schema.tables "
                         "WHERE table_schema = %s AND table_name = 'tipo_possesso'",
