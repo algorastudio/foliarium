@@ -1,6 +1,8 @@
 import logging
 import socket
 import json
+
+_log = logging.getLogger("CatastoGUI.app_utils")
 import csv
 import os
 from datetime import date, datetime
@@ -63,8 +65,8 @@ if FPDF_AVAILABLE:
                 lp = get_logo_path()
                 if lp and lp.exists():
                     self._logo_path = str(lp)
-            except Exception:
-                pass
+            except Exception as _e:
+                _log.debug("Logo PDF non caricato: %s", _e)
             self.set_auto_page_break(auto=True, margin=18)
             self.set_left_margin(15)
             self.set_right_margin(15)
@@ -79,8 +81,8 @@ if FPDF_AVAILABLE:
                 try:
                     self.image(self._logo_path, x=logo_x, y=2, h=14)
                     logo_x = 22
-                except Exception:
-                    pass
+                except Exception as _e:
+                    _log.debug("Impossibile incorporare logo nell'header PDF: %s", _e)
             # Nome applicazione
             self.set_xy(logo_x, 3)
             self.set_font('Helvetica', 'B', 10)

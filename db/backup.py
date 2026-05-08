@@ -5,6 +5,7 @@ Estratto da catasto_db_manager.py — mixin per CatastoDBManager.
 
 from __future__ import annotations
 import logging
+from pathlib import Path
 from typing import Optional, List, Dict, Any, Tuple, TYPE_CHECKING
 
 import os
@@ -73,8 +74,10 @@ class DBBackupMixin:
             self.logger.error("Parametri di connessione mancanti per il backup (da _main_db_conn_params).")
             return None
 
+        backup_file_path = str(Path(backup_file_path).resolve())
+
         command = [actual_pg_dump_path, "-U", db_user, "-h", db_host, "-p", db_port]
-        
+
         if format_type == "custom": command.append("-Fc")
         elif format_type == "plain": command.append("-Fp")
         else:
@@ -98,6 +101,8 @@ class DBBackupMixin:
         if not all([db_user, db_host, db_port, db_name]):
             self.logger.error("Parametri di connessione mancanti per il ripristino (da _main_db_conn_params).")
             return None
+
+        backup_file_path = str(Path(backup_file_path).resolve())
 
         command: List[str] = []
         _, file_extension = os.path.splitext(backup_file_path)

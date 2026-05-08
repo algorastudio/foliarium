@@ -32,6 +32,10 @@ from utils.error_handlers import AuthenticationError, AuthorizationError
 
 logger = logging.getLogger(__name__)
 
+# Hash precomputato (bcrypt cost 12) usato come dummy per normalizzare i tempi
+# di risposta del login e impedire user enumeration tramite timing.
+_DUMMY_HASH = "$2b$12$GKuBBTnSGLRF1LRjMZWoLuiQF5kVXq7Jl9VFhJxcN8tAe2gOQUhy"
+
 
 class AuthManager:
     """
@@ -82,6 +86,9 @@ class AuthManager:
 
         if user is None:
             logger.warning("Tentativo login utente inesistente: '%s'", username)
+            # Esegue un check bcrypt dummy per normalizzare i tempi di risposta
+            # e impedire user enumeration tramite timing.
+            self._verify_password(_DUMMY_HASH, password)
             return False
 
         # Verifica account attivo

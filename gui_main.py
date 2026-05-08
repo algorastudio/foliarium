@@ -186,7 +186,7 @@ class CatastoMainWindow(QMainWindow):
         self._page_index: dict = {}
 
         self.setWindowTitle("Foliarium — Archivio Catastale Storico")
-        self.setMinimumSize(1280, 720)
+        self.setMinimumSize(1024, 600)
         self.central_widget = QWidget()
         self.main_layout = QVBoxLayout(self.central_widget)
         self.main_layout.setContentsMargins(0, 0, 0, 0)
@@ -1666,6 +1666,7 @@ class WebViewWindow(QMainWindow):
         self.setMinimumSize(900, 600)
         self._api_port = port
         self._db_manager = db_manager
+        self._api_thread = None  # impostato da run_web_app dopo l'avvio
 
         try:
             from PyQt6.QtWebEngineWidgets import QWebEngineView
@@ -1685,6 +1686,15 @@ class WebViewWindow(QMainWindow):
             label.setAlignment(Qt.AlignmentFlag.AlignCenter)
             label.setOpenExternalLinks(True)
             self.setCentralWidget(label)
+
+    def closeEvent(self, event):
+        if self._api_thread is not None:
+            self._api_thread.stop()
+            if not self._api_thread.wait(5000):
+                logging.getLogger("FoliariumWeb").warning(
+                    "Il thread API non ha terminato entro 5 secondi."
+                )
+        event.accept()
 
 
 def run_web_app():
@@ -1718,6 +1728,7 @@ def run_web_app():
     def on_started(port: int):
         splash.accept()
         win = WebViewWindow(port, db)
+        win._api_thread = thread
         _win[0] = win
         win.show()
 
