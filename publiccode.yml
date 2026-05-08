@@ -3,7 +3,7 @@ publiccodeYmlVersion: "0.4"
 name: Foliarium
 url: "https://github.com/algorastudio/foliarium"
 softwareVersion: "1.0.0"
-releaseDate: "2026-03-16"
+releaseDate: "2026-05-08"
 
 platforms:
   - windows
