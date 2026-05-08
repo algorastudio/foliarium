@@ -86,7 +86,7 @@ class DettagliLegamePossessoreDialog(QDialog):
         buttons_layout.addWidget(self.cancel_button)
         layout.addRow(buttons_layout)
         self.setLayout(layout)
-        self.titolo_edit.setFocus()
+        self.titolo_combo.setFocus()
 
     def _load_tipi_possesso(self, titolo_attuale: Optional[str] = None):
         """Carica i tipi di possesso dal database."""
