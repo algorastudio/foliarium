@@ -910,7 +910,6 @@ class UnifiedFuzzySearchWidget(QWidget):
         self._check_gin_status()
 
   
-
     def _init_ui(self):
         """Configura l'interfaccia utente unificata con un layout robusto."""
         # Layout principale dell'intero widget
@@ -1020,7 +1019,6 @@ class UnifiedFuzzySearchWidget(QWidget):
             [2, 6],  # Indici delle colonne da espandere (Possessori e Comune)
             7        # L'indice della colonna 'Similitud.' ora è 7
         )
-        # --- FINE MODIFICA --- 
         self.results_tabs.addTab(self.partite_table, QIcon(str(get_icon_path("bar-chart"))), "Partite")
 
         content_layout.addWidget(self.results_tabs) # AGGIUNTO AL CONTENT_LAYOUT
@@ -1077,7 +1075,6 @@ class UnifiedFuzzySearchWidget(QWidget):
         # Rimuoviamo la vecchia riga: self.export_btn.clicked.connect(self._export_results)
         self.btn_export_csv.clicked.connect(self._handle_export_csv)
         self.btn_export_pdf.clicked.connect(self._handle_export_pdf)
-        # --- FINE MODIFICA ---
 
         # Checkbox
         for cb in [self.search_possessori_cb, self.search_localita_cb, self.search_immobili_cb,
@@ -1094,7 +1091,6 @@ class UnifiedFuzzySearchWidget(QWidget):
         self.variazioni_table.doubleClicked.connect(self._on_variazioni_double_click)
         self.contratti_table.doubleClicked.connect(self._on_contratti_double_click)
         self.partite_table.doubleClicked.connect(self._on_partite_double_click)
-        # --- FINE MODIFICA ---
 
     def _check_gin_status(self):
         """Verifica lo stato degli indici GIN."""
@@ -1159,7 +1155,6 @@ class UnifiedFuzzySearchWidget(QWidget):
         }
 
         
-
         self.search_btn.setEnabled(False)
         self.stats_label.setText("Ricerca in corso...")
         
@@ -1184,7 +1179,6 @@ class UnifiedFuzzySearchWidget(QWidget):
         self.btn_export_csv.setEnabled(total > 0)
         if FPDF_AVAILABLE:
             self.btn_export_pdf.setEnabled(total > 0)
-        # --- FINE MODIFICA ---
     
     def _populate_table(self, table: QTableWidget, data: List[Dict], row_mapper_func):
         """Funzione helper per popolare una QTableWidget."""
@@ -1254,7 +1248,6 @@ class UnifiedFuzzySearchWidget(QWidget):
                 f"{l.get('similarity_score', 0):.3f}"
             ]
         )
-        # --- FINE MODIFICA ---
         # --- MODIFICA QUESTA CHIAMATA ---
         self._populate_table(self.immobili_table, results_by_type.get('immobile', []), 
             lambda i: [
@@ -1266,7 +1259,6 @@ class UnifiedFuzzySearchWidget(QWidget):
                 f"{i.get('similarity_score', 0):.3f}"
             ]
         )
-        # --- FINE MODIFICA ---
 
         self._populate_table(self.variazioni_table, results_by_type.get('variazione', []),
             lambda v: [
@@ -1316,7 +1308,6 @@ class UnifiedFuzzySearchWidget(QWidget):
         # --- MODIFICA QUI: Disabilita i nuovi pulsanti invece del vecchio ---
         self.btn_export_csv.setEnabled(False)
         self.btn_export_pdf.setEnabled(False)
-        # --- FINE MODIFICA ---
         
         self.current_results = {}
 
@@ -1332,7 +1323,6 @@ class UnifiedFuzzySearchWidget(QWidget):
         self.search_edit.clear()
         self._clear_results()
         self.stats_label.setText("Pronto")
-
 
 
     def _on_unified_double_click(self, index):

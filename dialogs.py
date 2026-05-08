@@ -6,6 +6,7 @@ I dialog sono implementati in:
   - foliarium/ui/dialogs/partita.py  (partite catastali)
   - foliarium/ui/dialogs/entity.py   (possessori, comuni, località, periodi storici)
   - foliarium/ui/dialogs/import_.py  (import CSV / ISTAT / OSM)
+  - foliarium/ui/dialogs/export_.py  (anteprima esportazioni PDF/CSV)
 
 Questo modulo re-esporta tutte le classi e le funzioni helper
 affinché gli import esistenti (`from dialogs import ...`) continuino
@@ -69,4 +70,10 @@ from foliarium.ui.dialogs.import_ import (                      # noqa: F401
     OSMLocalitaWorker,
     _mostra_risultati_import,
     _popola_preview_tabella,
+)
+
+# --- foliarium/ui/dialogs/export_.py ---
+from foliarium.ui.dialogs.export_ import (                      # noqa: F401
+    PDFApreviewDialog,
+    CSVApreviewDialog,
 )

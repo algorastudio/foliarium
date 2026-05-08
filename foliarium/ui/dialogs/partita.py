@@ -44,7 +44,8 @@ from foliarium.ui.widgets.custom import QPasswordLineEdit, ImmobiliTableWidget
 
 from app_utils import (gui_esporta_partita_pdf, gui_esporta_partita_json, gui_esporta_partita_csv,
                        gui_esporta_possessore_pdf, gui_esporta_possessore_json, gui_esporta_possessore_csv,
-                       GenericTextReportPDF, FPDF_AVAILABLE, prompt_to_open_file, PDFApreviewDialog)
+                       GenericTextReportPDF, FPDF_AVAILABLE, prompt_to_open_file)
+from foliarium.ui.dialogs.export_ import PDFApreviewDialog
 
 from foliarium.ui.dialogs.admin import datetime_to_qdate, qdate_to_datetime
 
@@ -74,8 +75,6 @@ class PartitaDetailsDialog(QDialog):
         
     def _init_ui(self):
         layout = QVBoxLayout(self)
-        
-
         
 
         # Sostituisci questa riga:
@@ -133,7 +132,6 @@ class PartitaDetailsDialog(QDialog):
         possessori_table.setColumnCount(4)
         possessori_table.setHorizontalHeaderLabels(["ID", "Nome Completo", "Titolo", "Quota"])
         possessori_table.setAlternatingRowColors(True)
-        # --- INIZIO MODIFICA ---
         # Aggiungi queste righe per gestire il ridimensionamento delle colonne
         header_possessori = possessori_table.horizontalHeader()
         # La colonna "ID" (indice 0) si adatta al contenuto
@@ -143,7 +141,6 @@ class PartitaDetailsDialog(QDialog):
         # Le colonne "Titolo" e "Quota" (indici 2 e 3) si adattano al contenuto
         header_possessori.setSectionResizeMode(2, QHeaderView.ResizeMode.ResizeToContents)
         header_possessori.setSectionResizeMode(3, QHeaderView.ResizeMode.ResizeToContents)
-# --- FINE MODIFICA ---
         if self.partita.get('possessori'):
             possessori_table.setRowCount(len(self.partita['possessori']))
             for i, possessore in enumerate(self.partita['possessori']):
@@ -382,7 +379,6 @@ class PartitaDetailsDialog(QDialog):
         text_content = self._generate_partita_text_report()
 
         # Usa la classe generica per l'esportazione PDF (che include l'anteprima)
-        # Nota: PDFApreviewDialog e GenericTextReportPDF sono in app_utils
         preview_dialog = PDFApreviewDialog(text_content, self, title=f"Anteprima: {pdf_report_title}")
         if preview_dialog.exec() != QDialog.DialogCode.Accepted:
             self.logger.info(f"Esportazione PDF per '{pdf_report_title}' annullata dall'utente dopo anteprima.")
@@ -1081,7 +1077,6 @@ class ModificaPartitaDialog(QDialog):
             if documenti:
                 self.documents_table.setRowCount(len(documenti))
                 for row, doc in enumerate(documenti):
-                    # --- INIZIO CORREZIONE: Salvataggio dati robusto ---
             # Salviamo un dizionario con gli ID di relazione nell'UserRole
                     rel_data = {
                         'doc_id': doc.get('rel_documento_id'),
@@ -1092,7 +1087,6 @@ class ModificaPartitaDialog(QDialog):
                     item_doc_id = QTableWidgetItem(str(doc.get('documento_id', '')))
                     item_doc_id.setData(Qt.ItemDataRole.UserRole, rel_data)
                     self.documents_table.setItem(row, 0, item_doc_id)
-            # --- FINE CORREZIONE ---
                     # Salviamo l'ID del documento storico e l'ID della partita per la rimozione del legame
                     item_doc_id.setData(Qt.ItemDataRole.UserRole + 1, doc.get("dp_documento_id")) # ID del documento storico nella relazione
                     item_doc_id.setData(Qt.ItemDataRole.UserRole + 2, doc.get("dp_partita_id")) # ID della partita nella relazione (che è self.partita_id)
@@ -1423,12 +1417,10 @@ class ModificaPartitaDialog(QDialog):
             return
 
         row = self.variazioni_table.currentRow()
-        # --- INIZIO MODIFICA ---
         # Controlla se la riga selezionata è una riga di placeholder
         if self.variazioni_table.rowCount() == 1 and self.variazioni_table.item(0, 0) and "Nessuna variazione" in self.variazioni_table.item(0, 0).text():
             QMessageBox.warning(self, "Nessuna Variazione", "Non ci sono variazioni valide selezionate per la modifica.")
             return
-        # --- FINE MODIFICA ---
 
         variazione_id = int(self.variazioni_table.item(row, 0).text())
 
@@ -1668,7 +1660,6 @@ class ModificaPartitaDialog(QDialog):
         if not id_doc_item:
             QMessageBox.critical(self, "Errore Interno", "Impossibile recuperare i dati del documento selezionato.")
             return
-        # --- INIZIO CORREZIONE: Recupero dati robusto ---
         rel_data = id_doc_item.data(Qt.ItemDataRole.UserRole)
         if not isinstance(rel_data, dict) or not rel_data.get('doc_id') or not rel_data.get('partita_id'):
             self.logger.error(f"Dati di relazione mancanti o corrotti per la riga {row}: {rel_data}")
@@ -1677,8 +1668,7 @@ class ModificaPartitaDialog(QDialog):
 
         documento_id_da_scollegare = rel_data['doc_id']
         partita_id_da_cui_scollegare = rel_data['partita_id']
-        # --- FINE CORREZIONE --
-        
+
 
         if not documento_id_da_scollegare or not partita_id_da_cui_scollegare:
             self.logger.error(f"Dati di relazione mancanti per la riga {row} (DocID: {documento_id_da_scollegare}, PartitaID: {partita_id_da_cui_scollegare})")
@@ -2040,7 +2030,6 @@ class PossessoreSelectionDialog(QDialog):
         # --- MODIFICA CHIAVE: Combo per selezionare il comune del NUOVO possessore ---
         self.new_poss_comune_combo = QComboBox()
         create_layout.addRow("Comune di Riferimento (*):", self.new_poss_comune_combo)
-        # --- FINE MODIFICA ---
 
         self.attivo_checkbox = QCheckBox("Attivo")
         self.attivo_checkbox.setChecked(True)
@@ -2650,7 +2639,6 @@ class AlberoGeneralogicoDialog(QDialog):
         hl = QHBoxLayout(); hl.addStretch(); hl.addWidget(btn)
         v.addLayout(hl)
         dlg.exec()
-
 
 
 class ConfrontoPartiteDialog(QDialog):

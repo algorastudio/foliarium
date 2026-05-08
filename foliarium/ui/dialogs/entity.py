@@ -428,7 +428,6 @@ class ModificaComuneDialog(QDialog):
         # --- MODIFICA CHIAVE: Sostituzione SpinBox con ComboBox ---
         self.periodo_combo = QComboBox()
         form_layout.addRow("Periodo Storico:", self.periodo_combo)
-        # --- FINE MODIFICA ---
 
         self.data_istituzione_edit = QDateEdit(calendarPopup=True)
         self.data_istituzione_edit.setDisplayFormat("yyyy-MM-dd")
@@ -504,7 +503,6 @@ class ModificaComuneDialog(QDialog):
                 self.periodo_combo.setCurrentIndex(index)
         else:
             self.periodo_combo.setCurrentIndex(0) # Seleziona "--- Nessuno ---"
-        # --- FINE MODIFICA ---
 
         # Gestione date
         di_str = self.comune_data_originale.get('data_istituzione'); self.data_istituzione_edit.setDate(QDate.fromString(str(di_str), "yyyy-MM-dd") if di_str else QDate())
@@ -513,7 +511,6 @@ class ModificaComuneDialog(QDialog):
     def _save_changes(self):
         # --- MODIFICA CHIAVE: Lettura dati dal ComboBox ---
         periodo_id_selezionato = self.periodo_combo.currentData()
-        # --- FINE MODIFICA ---
 
         dati_modificati = {
             "nome": self.nome_edit.text().strip(),
@@ -736,7 +733,6 @@ class PossessoriComuneDialog(QDialog):
             self._aggiorna_stato_pulsanti_azione()
 
 
-
 class PartiteComuneDialog(QDialog):
     def __init__(self, db_manager: CatastoDBManager, comune_id: int, nome_comune: str, parent=None):
         super().__init__(parent)
@@ -917,7 +913,6 @@ class PartiteComuneDialog(QDialog):
                 QMessageBox.warning(self, "Errore Dati", f"Impossibile recuperare i dettagli per la partita ID {partita_id}.")
 
 
-
 class ModificaLocalitaDialog(QDialog):
     def __init__(self, db_manager: CatastoDBManager, localita_id: int, comune_id_parent: int, parent=None):
         super().__init__(parent)
@@ -1008,7 +1003,6 @@ class ModificaLocalitaDialog(QDialog):
             self.reject()
         except Exception as e:
             QMessageBox.critical(self, "Errore", f"Impossibile archiviare la località:\n{e}")
-
 
 
 class PeriodoStoricoDetailsDialog(QDialog):
@@ -1813,7 +1807,6 @@ class LocalitaSelectionDialog(QDialog):
     # --- FINE METODO MANCANTE/DA RIPRISTINARE ---
 
 
-
 class PeriodoStoricoEditDialog(QDialog):
     def __init__(self, db_manager, periodo_data: Optional[Dict] = None, parent=None):
         super().__init__(parent)
@@ -1832,12 +1825,10 @@ class PeriodoStoricoEditDialog(QDialog):
     def _initUI(self):
         layout = QFormLayout(self)
 
-        # --- INIZIO CORREZIONE: Gestione del caso in cui periodo_data è None ---
         nome_default = self.periodo_data.get('nome', '') if self.periodo_data else ''
         anno_inizio_default = self.periodo_data.get('anno_inizio', 1900) if self.periodo_data else 1900
         anno_fine_default = self.periodo_data.get('anno_fine') if self.periodo_data and self.periodo_data.get('anno_fine') is not None else 0
         descrizione_default = self.periodo_data.get('descrizione', '') if self.periodo_data else ''
-        # --- FINE CORREZIONE ---
 
         self.nome_edit = QLineEdit(nome_default)
         self.anno_inizio_spin = QSpinBox()
