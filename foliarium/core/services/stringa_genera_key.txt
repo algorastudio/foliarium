@@ -1,0 +1,12 @@
+# Genera la chiave e la scrive in foliarium.key (senza newline)
+$key = & .venv\Scripts\python.exe -c "import secrets; print(secrets.token_hex(32))"
+[System.IO.File]::WriteAllText("$PWD\foliarium.key", $key)
+
+Write-Host "Chiave generata e salvata in foliarium.key"
+
+$key = [System.IO.File]::ReadAllText("$PWD\foliarium.key")
+
+
+Get-Content foliarium.key
+# Output: una stringa di 64 caratteri esadecimali, es:
+# 9f3c2a1b7e4d8f0a5c6b...
