@@ -113,7 +113,7 @@ CREATE TABLE catasto.partita (
     data_chiusura DATE,
     numero_provenienza VARCHAR(50), -- O INTEGER, a seconda del formato previsto
     stato VARCHAR(20) NOT NULL CHECK (stato IN ('attiva', 'inattiva')),
-    tipo VARCHAR(20) NOT NULL CHECK (tipo IN ('principale', 'secondaria')),
+    tipo VARCHAR(20) NOT NULL CHECK (tipo IN ('principale', 'secondaria', 'enfiteusi', 'usufrutto')),
     archiviato   BOOLEAN NOT NULL DEFAULT FALSE,
     archiviato_il TIMESTAMP WITHOUT TIME ZONE DEFAULT NULL,
     data_creazione TIMESTAMP(0) DEFAULT CURRENT_TIMESTAMP,

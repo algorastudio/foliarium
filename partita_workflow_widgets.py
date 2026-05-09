@@ -899,7 +899,7 @@ td {{ padding:4px 8px; border-bottom:1px solid #EEE; }}
             suffisso = self._s1_suffisso.text().strip() or None
             data_date = self._s1_data_imp.date()
             data_imp = date(data_date.year(), data_date.month(), data_date.day())
-            tipo = self._s1_tipo.currentText()
+            tipo = self._s1_tipo.currentText().lower()
             stato = self._s1_stato.currentText().lower()
 
             partita_id = self.db_manager.create_partita(
