@@ -1286,9 +1286,6 @@ class OperazioniPartitaWidget(QWidget):
             QApplication.style().standardIcon(QStyle.StandardPixmap.SP_TrashIcon),
             " Rimuovi Selezionato"
         )
-        self.pp_btn_rimuovi_nuovo_possessore = QPushButton(QApplication.style(
-            # Esempio Icona
-        ).standardIcon(QStyle.StandardPixmap.SP_TrashIcon), " Rimuovi Selezionato")
         self.pp_btn_rimuovi_nuovo_possessore.clicked.connect(
             self._pp_rimuovi_nuovo_possessore_selezionato)
         nuovi_poss_buttons_layout.addWidget(
@@ -1881,6 +1878,19 @@ class OperazioniPartitaWidget(QWidget):
                                         f"nel comune '{self.selected_partita_comune_nome_source}'. Scegliere un numero/suffisso diverso.")
                     self.pp_nuova_partita_numero_spinbox.setFocus()
                     return
+            # La ricerca di esistenza deve ora usare anche il suffisso
+            existing_partita_check = self.db_manager.search_partite(
+                comune_id=self.selected_partita_comune_id_source,
+                numero_partita=nuova_part_num,
+                suffisso_partita=suffisso_nuova_partita # PASSA IL SUFFISSO ALLA RICERCA
+            )
+            if existing_partita_check:
+                QMessageBox.warning(self, "Errore Creazione Partita",
+                                    f"Esiste già una partita con il numero {nuova_part_num} "
+                                    f"{('('+suffisso_nuova_partita+')' if suffisso_nuova_partita else '')} "
+                                    f"nel comune '{self.selected_partita_comune_nome_source}'. Scegliere un numero/suffisso diverso.")
+                self.pp_nuova_partita_numero_spinbox.setFocus()
+                return
         except DBMError as e:
             self.logger.error(f"Errore DB durante la verifica di esistenza della nuova partita: {e}", exc_info=True)
             QMessageBox.critical(self, "Errore Verifica Partita",
@@ -1924,7 +1934,6 @@ class OperazioniPartitaWidget(QWidget):
         notaio = self.pp_notaio_edit.text().strip() or None
         repertorio = self.pp_repertorio_edit.text().strip() or None
         note_v = self.pp_note_variazione_edit.toPlainText().strip() or None
-        suffisso_nuova_partita=suffisso_nuova_partita # AGGIUNTO
 
         # --- 4. Validazione Nuovi Possessori ---
         if not self._pp_temp_nuovi_possessori:
@@ -2041,5 +2050,3 @@ class OperazioniPartitaWidget(QWidget):
         self.source_partita_id_spinbox.setValue(partita_id)
         # Usa il metodo esistente per caricare i dati
         self._load_partita_sorgente_from_spinbox()
-
-

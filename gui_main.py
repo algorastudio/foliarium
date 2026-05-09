@@ -6,8 +6,7 @@ Foliarium — Archivio Catastale Storico
 Autore: Marco Santoro
 Data: 18/05/2025
 """
-import sys,bcrypt
-from gui_widgets import UnifiedFuzzySearchWidget
+import sys, bcrypt
 import os
 import logging
 from datetime import datetime
@@ -285,7 +284,6 @@ class CatastoMainWindow(QMainWindow):
 
         # --- Aggiornamento etichetta stato DB ---
         db_name_configured = "N/Config"  # Default
-        db_name_configured = "N/Config"
         if self.db_manager:
             db_name_configured = self.db_manager.get_current_dbname() or "N/Config(None)"
 
