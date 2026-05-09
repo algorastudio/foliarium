@@ -8,12 +8,7 @@ Comandi disponibili:
   fingerprint  Mostra il fingerprint hardware del computer corrente
 
 Esempi:
-  python generate_license.py generate \\
-      --to "Comune di Firenze" \\
-      --type standard \\
-      --seats 2 \\
-      --expiry 2027-12-31 \\
-      --out savona.license
+  python generate_license.py generate --to "Comune di Firenze" --type standard --seats 2 --expiry 2027-12-31 --out savona.license
 
   python generate_license.py generate \\
       --to "Comune di Albenga" \\
