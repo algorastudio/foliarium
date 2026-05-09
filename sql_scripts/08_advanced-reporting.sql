@@ -48,6 +48,7 @@ JOIN comune c ON p.comune_id = c.id -- Join con comune su ID
 WHERE p.stato = 'attiva'
 GROUP BY c.nome, COALESCE(i.classificazione, 'Non Classificati'); -- Raggruppa per nome comune e classificazione
 
+CREATE UNIQUE INDEX IF NOT EXISTS idx_mv_immobili_tipologia_unique ON mv_immobili_per_tipologia(comune_nome, classificazione);
 CREATE INDEX IF NOT EXISTS idx_mv_immobili_tipologia_comune ON mv_immobili_per_tipologia(comune_nome);
 CREATE INDEX IF NOT EXISTS idx_mv_immobili_tipologia_class ON mv_immobili_per_tipologia(classificazione);
 
@@ -73,7 +74,7 @@ LEFT JOIN immobile i ON p.id = i.partita_id
 LEFT JOIN localita l ON i.localita_id = l.id
 GROUP BY p.id, c.nome, p.numero_partita, p.tipo, p.data_impianto, p.stato; -- Raggruppa per nome comune
 
-CREATE INDEX IF NOT EXISTS idx_mv_partite_complete_partita_id ON mv_partite_complete(partita_id); -- Aggiunto indice su ID
+CREATE UNIQUE INDEX IF NOT EXISTS idx_mv_partite_complete_partita_id ON mv_partite_complete(partita_id);
 CREATE INDEX IF NOT EXISTS idx_mv_partite_complete_comune ON mv_partite_complete(comune_nome);
 CREATE INDEX IF NOT EXISTS idx_mv_partite_complete_numero ON mv_partite_complete(numero_partita);
 CREATE INDEX IF NOT EXISTS idx_mv_partite_complete_stato ON mv_partite_complete(stato);
@@ -108,7 +109,7 @@ GROUP BY v.id, v.tipo, v.data_variazione, p_orig.numero_partita, c_orig.nome, --
          p_dest.numero_partita, c_dest.nome, -- Raggruppa per nome comune destinazione
          con.tipo, con.notaio, con.data_contratto;
 
-CREATE INDEX IF NOT EXISTS idx_mv_variazioni_var_id ON mv_cronologia_variazioni(variazione_id); -- Aggiunto indice su ID
+CREATE UNIQUE INDEX IF NOT EXISTS idx_mv_variazioni_var_id ON mv_cronologia_variazioni(variazione_id);
 CREATE INDEX IF NOT EXISTS idx_mv_variazioni_data ON mv_cronologia_variazioni(data_variazione);
 CREATE INDEX IF NOT EXISTS idx_mv_variazioni_tipo ON mv_cronologia_variazioni(tipo_variazione);
 CREATE INDEX IF NOT EXISTS idx_mv_variazioni_comune_orig ON mv_cronologia_variazioni(comune_origine);
