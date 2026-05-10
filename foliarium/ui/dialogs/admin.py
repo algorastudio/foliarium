@@ -1718,36 +1718,119 @@ class LoginDialog(QDialog):
         self.logged_in_user_info: Optional[Dict] = None
         self.current_session_id_from_dialog: Optional[str] = None
 
-        self.setWindowTitle("Login - Foliarium")
-        self.setMinimumWidth(350)
+        self.setWindowTitle("Login — Foliarium")
+        self.setMinimumWidth(420)
         self.setModal(True)
+        self.setObjectName("loginDialog")
 
-        layout = QVBoxLayout(self)
+        outer = QVBoxLayout(self)
+        outer.setContentsMargins(0, 0, 0, 0)
+        outer.setSpacing(0)
+
+        # ── Banner indigo con logo + titolo ──────────────────────────────
+        from app_paths import get_logo_svg_path
+        banner = QFrame()
+        banner.setObjectName("loginBanner")
+        banner.setMinimumHeight(120)
+        banner_layout = QVBoxLayout(banner)
+        banner_layout.setContentsMargins(28, 22, 28, 22)
+        banner_layout.setSpacing(6)
+        banner_layout.setAlignment(Qt.AlignmentFlag.AlignCenter)
+
+        try:
+            from PyQt6.QtSvgWidgets import QSvgWidget
+            logo_path = get_logo_svg_path(dark=True)
+            if logo_path:
+                logo = QSvgWidget(str(logo_path))
+                logo.setFixedSize(48, 48)
+                logo_row = QHBoxLayout()
+                logo_row.addStretch()
+                logo_row.addWidget(logo)
+                logo_row.addStretch()
+                banner_layout.addLayout(logo_row)
+        except Exception:
+            pass
+
+        title = QLabel("Foliarium")
+        title.setObjectName("loginTitle")
+        title.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        banner_layout.addWidget(title)
+
+        subtitle = QLabel("Archivio Catastale Storico")
+        subtitle.setObjectName("loginSubtitle")
+        subtitle.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        banner_layout.addWidget(subtitle)
+
+        outer.addWidget(banner)
+
+        # ── Form ─────────────────────────────────────────────────────────
+        body = QWidget()
+        body.setObjectName("loginBody")
+        layout = QVBoxLayout(body)
+        layout.setContentsMargins(32, 28, 32, 24)
+        layout.setSpacing(14)
+
+        prompt = QLabel("Accedi al tuo account")
+        prompt.setObjectName("loginPrompt")
+        layout.addWidget(prompt)
 
         form_layout = QGridLayout()
-        form_layout.addWidget(QLabel("Username:"), 0, 0)
+        form_layout.setHorizontalSpacing(10)
+        form_layout.setVerticalSpacing(10)
+        form_layout.setColumnStretch(1, 1)
+
+        _lbl_user = QLabel("Username:")
+        _lbl_user.setAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
+        form_layout.addWidget(_lbl_user, 0, 0)
         self.username_edit = QLineEdit()
-        self.username_edit.setPlaceholderText("Inserisci username")
+        self.username_edit.setPlaceholderText("Il tuo username")
+        self.username_edit.setMinimumHeight(34)
         form_layout.addWidget(self.username_edit, 0, 1)
 
-        form_layout.addWidget(QLabel("Password:"), 1, 0)
+        _lbl_pwd = QLabel("Password:")
+        _lbl_pwd.setAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
+        form_layout.addWidget(_lbl_pwd, 1, 0)
         self.password_edit = QPasswordLineEdit()
+        self.password_edit.setPlaceholderText("La tua password")
+        self.password_edit.setMinimumHeight(34)
         form_layout.addWidget(self.password_edit, 1, 1)
 
         layout.addLayout(form_layout)
+        layout.addSpacing(6)
 
         buttons_layout = QHBoxLayout()
-        self.login_button = QPushButton("Login")
-        self.login_button.setDefault(True)
-        self.login_button.clicked.connect(self.handle_login)
-
+        buttons_layout.setSpacing(10)
         self.cancel_button = QPushButton("Esci")
+        self.cancel_button.setObjectName("secondaryButton")
+        self.cancel_button.setMinimumHeight(36)
+        self.cancel_button.setAutoDefault(False)
         self.cancel_button.clicked.connect(self.reject)
+        buttons_layout.addWidget(self.cancel_button)
 
         buttons_layout.addStretch()
+
+        self.login_button = QPushButton("Accedi")
+        self.login_button.setDefault(True)
+        self.login_button.setAutoDefault(True)
+        self.login_button.setMinimumHeight(36)
+        self.login_button.setMinimumWidth(120)
+        self.login_button.clicked.connect(self.handle_login)
         buttons_layout.addWidget(self.login_button)
-        buttons_layout.addWidget(self.cancel_button)
+
+        self.username_edit.returnPressed.connect(lambda: self.password_edit.setFocus())
+        self.password_edit.returnPressed.connect(self.handle_login)
+
         layout.addLayout(buttons_layout)
+        outer.addWidget(body, 1)
+
+        # Ombra modale (richiede flag finestra senza titolo per essere
+        # visibile; con titolo standard Qt rende comunque la finestra
+        # decorata dal window manager — l'ombra resta interna al dialog).
+        try:
+            from foliarium.ui.effects import apply_elevated_shadow
+            apply_elevated_shadow(body)
+        except Exception:
+            pass
 
         self.username_edit.setFocus()
 
