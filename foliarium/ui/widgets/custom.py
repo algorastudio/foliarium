@@ -144,7 +144,12 @@ from PyQt6.QtGui import QPainter, QPen, QBrush, QFontMetrics, QLinearGradient
 from PyQt6.QtCore import QRect, QRectF
 
 class StatCard(QFrame):
-    """Stat card pittata con QPainter: bordo arrotondato, accent bar, ombra leggera."""
+    """Stat card pittata con QPainter: bordo arrotondato, accent bar, ombra leggera.
+
+    Theme-aware: il colore di sfondo della card e del testo titolo
+    viene letto dalla palette del widget, quindi si adatta automaticamente
+    a tema chiaro/scuro.
+    """
 
     def __init__(self, title: str, accent_color: str = "#3F51B5", parent=None):
         super().__init__(parent)
@@ -159,23 +164,44 @@ class StatCard(QFrame):
         self._value = str(value)
         self.update()
 
+    def _is_dark_theme(self) -> bool:
+        """Determina se il tema corrente è scuro dalla luminanza del background."""
+        from PyQt6.QtGui import QPalette
+        bg = self.palette().color(QPalette.ColorRole.Window)
+        # luminanza percepita (formula standard ITU BT.709)
+        luminance = 0.2126 * bg.red() + 0.7152 * bg.green() + 0.0722 * bg.blue()
+        return luminance < 128
+
     def paintEvent(self, event):
         painter = QPainter(self)
         painter.setRenderHint(QPainter.RenderHint.Antialiasing)
 
         w, h = self.width(), self.height()
+        dark = self._is_dark_theme()
+
+        # Palette tema-aware
+        if dark:
+            card_bg = QColor("#1E2030")
+            shadow_alpha = 80
+            title_color = QColor("#A0A8BC")
+            border_alpha = 100
+        else:
+            card_bg = QColor("#FFFFFF")
+            shadow_alpha = 22
+            title_color = QColor("#5A6478")
+            border_alpha = 50
 
         # Ombra leggera (offset sotto/destra)
         shadow_rect = QRectF(3, 4, w - 4, h - 4)
-        painter.setBrush(QBrush(QColor(0, 0, 0, 18)))
+        painter.setBrush(QBrush(QColor(0, 0, 0, shadow_alpha)))
         painter.setPen(Qt.PenStyle.NoPen)
         painter.drawRoundedRect(shadow_rect, 10, 10)
 
         # Card background
         card_rect = QRectF(0, 0, w - 3, h - 3)
-        painter.setBrush(QBrush(QColor("#FFFFFF")))
+        painter.setBrush(QBrush(card_bg))
         painter.setPen(QPen(QColor(self._accent.red(), self._accent.green(),
-                                   self._accent.blue(), 60), 1))
+                                   self._accent.blue(), border_alpha), 1))
         painter.drawRoundedRect(card_rect, 10, 10)
 
         # Accent bar sinistra (4px)
@@ -188,19 +214,25 @@ class StatCard(QFrame):
 
         # Titolo
         title_font = QFont("Segoe UI", 9)
-        title_font.setWeight(QFont.Weight.Medium)
+        title_font.setWeight(QFont.Weight.DemiBold)
+        title_font.setLetterSpacing(QFont.SpacingType.AbsoluteSpacing, 0.5)
         painter.setFont(title_font)
-        painter.setPen(QPen(QColor("#757575")))
+        painter.setPen(QPen(title_color))
         title_rect = QRect(18, 14, w - 22, 20)
         painter.drawText(title_rect, Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter,
                          self._title.upper())
 
         # Valore
-        value_font = QFont("Segoe UI", 22)
+        value_font = QFont("Segoe UI", 24)
         value_font.setWeight(QFont.Weight.Bold)
         painter.setFont(value_font)
-        painter.setPen(QPen(self._accent))
-        value_rect = QRect(14, 36, w - 18, 50)
+        # Nel tema scuro alziamo la luminosità dell'accent per migliore contrasto
+        if dark:
+            accent_render = self._accent.lighter(140)
+        else:
+            accent_render = self._accent
+        painter.setPen(QPen(accent_render))
+        value_rect = QRect(14, 36, w - 18, 56)
         painter.drawText(value_rect, Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter,
                          self._value)
 

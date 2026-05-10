@@ -273,7 +273,7 @@ class RicercaPartiteWidget(QWidget):
         count_layout = QHBoxLayout()
         count_layout.setContentsMargins(0, 0, 0, 0)
         self._count_label = QLabel("Nessuna ricerca eseguita.")
-        self._count_label.setStyleSheet("color:#757575; font-style:italic; font-size:9pt;")
+        self._count_label.setObjectName("resultCountLabel")
         count_layout.addStretch()
         count_layout.addWidget(self._count_label)
         group_layout.addLayout(count_layout)
@@ -582,62 +582,84 @@ class RicercaAvanzataImmobiliWidget(QWidget):
         self.selected_localita_id: Optional[int] = None
 
         main_layout = QVBoxLayout(self)
+        main_layout.setContentsMargins(0, 0, 0, 0)
+        main_layout.setSpacing(12)
 
-        criteria_group = QGroupBox("Criteri di Ricerca Avanzata Immobili")
+        # Header pagina
+        _title = QLabel("Ricerca Avanzata Immobili")
+        _title.setObjectName("pageTitle")
+        main_layout.addWidget(_title)
+        _subtitle = QLabel("Filtra per natura, classificazione, dimensioni, possessore o ubicazione. Lascia vuoti i campi per non filtrare.")
+        _subtitle.setObjectName("pageSubtitle")
+        main_layout.addWidget(_subtitle)
+
+        criteria_group = QGroupBox("Criteri di Ricerca")
         criteria_layout = QGridLayout(criteria_group)
+        criteria_layout.setHorizontalSpacing(12)
+        criteria_layout.setVerticalSpacing(10)
+        criteria_layout.setColumnStretch(1, 1)
+
+        def _label(text: str) -> QLabel:
+            lbl = QLabel(text)
+            lbl.setAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
+            return lbl
 
         # Riga 0: Comune
-        criteria_layout.addWidget(QLabel("Comune:"), 0, 0)
+        criteria_layout.addWidget(_label("Comune:"), 0, 0)
         self.comune_display_label = QLabel("Qualsiasi comune")
+        self.comune_display_label.setProperty("muted", "true")
         criteria_layout.addWidget(self.comune_display_label, 0, 1)
-        self.btn_seleziona_comune = QPushButton("Seleziona...")
-        self.btn_seleziona_comune.clicked.connect(
-            self._seleziona_comune_per_ricerca)
+        self.btn_seleziona_comune = QPushButton("Seleziona…")
+        self.btn_seleziona_comune.setObjectName("secondaryButton")
+        self.btn_seleziona_comune.clicked.connect(self._seleziona_comune_per_ricerca)
         criteria_layout.addWidget(self.btn_seleziona_comune, 0, 2)
         self.btn_reset_comune = QPushButton("Reset")
+        self.btn_reset_comune.setObjectName("ghostButton")
         self.btn_reset_comune.clicked.connect(self._reset_comune_ricerca)
         criteria_layout.addWidget(self.btn_reset_comune, 0, 3)
 
         # Riga 1: Località
-        criteria_layout.addWidget(QLabel("Località:"), 1, 0)
+        criteria_layout.addWidget(_label("Località:"), 1, 0)
         self.localita_display_label = QLabel("Qualsiasi località")
+        self.localita_display_label.setProperty("muted", "true")
         criteria_layout.addWidget(self.localita_display_label, 1, 1)
-        self.btn_seleziona_localita = QPushButton("Seleziona...")
-        self.btn_seleziona_localita.clicked.connect(
-            self._seleziona_localita_per_ricerca)
+        self.btn_seleziona_localita = QPushButton("Seleziona…")
+        self.btn_seleziona_localita.setObjectName("secondaryButton")
+        self.btn_seleziona_localita.clicked.connect(self._seleziona_localita_per_ricerca)
         self.btn_seleziona_localita.setEnabled(False)
         criteria_layout.addWidget(self.btn_seleziona_localita, 1, 2)
         self.btn_reset_localita = QPushButton("Reset")
+        self.btn_reset_localita.setObjectName("ghostButton")
         self.btn_reset_localita.clicked.connect(self._reset_localita_ricerca)
         criteria_layout.addWidget(self.btn_reset_localita, 1, 3)
 
-        # Riga 2: Natura e Classificazione
-        criteria_layout.addWidget(QLabel("Natura Immobile:"), 2, 0)
+        # Riga 2: Natura
+        criteria_layout.addWidget(_label("Natura immobile:"), 2, 0)
         self.natura_edit = QLineEdit()
-        self.natura_edit.setPlaceholderText(
-            "Es. Casa, Terreno (lascia vuoto per qualsiasi)")
+        self.natura_edit.setPlaceholderText("Es. Casa, Terreno…")
         criteria_layout.addWidget(self.natura_edit, 2, 1, 1, 3)
 
-        criteria_layout.addWidget(QLabel("Classificazione:"), 3, 0)
+        # Riga 3: Classificazione
+        criteria_layout.addWidget(_label("Classificazione:"), 3, 0)
         self.classificazione_edit = QLineEdit()
-        self.classificazione_edit.setPlaceholderText(
-            "Es. Abitazione civile, Oliveto (lascia vuoto per qualsiasi)")
+        self.classificazione_edit.setPlaceholderText("Es. Abitazione civile, Oliveto…")
         criteria_layout.addWidget(self.classificazione_edit, 3, 1, 1, 3)
 
-        # Riga 4: Consistenza (come testo per ricerca parziale)
-        criteria_layout.addWidget(QLabel("Testo Consistenza:"), 4, 0)
+        # Riga 4: Consistenza
+        criteria_layout.addWidget(_label("Consistenza (testo):"), 4, 0)
         self.consistenza_search_edit = QLineEdit()
-        self.consistenza_search_edit.setPlaceholderText(
-            "Es. 120, are, vani (ricerca parziale)")
+        self.consistenza_search_edit.setPlaceholderText("Es. 120, are, vani — ricerca parziale")
         criteria_layout.addWidget(self.consistenza_search_edit, 4, 1, 1, 3)
 
         # Riga 5: Numero Piani
-        criteria_layout.addWidget(QLabel("Piani Min:"), 5, 0)
+        criteria_layout.addWidget(_label("Piani min:"), 5, 0)
         self.piani_min_spinbox = QSpinBox()
         self.piani_min_spinbox.setMinimum(0)
         self.piani_min_spinbox.setValue(0)
         criteria_layout.addWidget(self.piani_min_spinbox, 5, 1)
-        criteria_layout.addWidget(QLabel("Piani Max:"), 5, 2)
+        _lbl_pmax = QLabel("Piani max:")
+        _lbl_pmax.setAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
+        criteria_layout.addWidget(_lbl_pmax, 5, 2)
         self.piani_max_spinbox = QSpinBox()
         self.piani_max_spinbox.setMinimum(0)
         self.piani_max_spinbox.setMaximum(99)
@@ -646,12 +668,14 @@ class RicercaAvanzataImmobiliWidget(QWidget):
         criteria_layout.addWidget(self.piani_max_spinbox, 5, 3)
 
         # Riga 6: Numero Vani
-        criteria_layout.addWidget(QLabel("Vani Min:"), 6, 0)
+        criteria_layout.addWidget(_label("Vani min:"), 6, 0)
         self.vani_min_spinbox = QSpinBox()
         self.vani_min_spinbox.setMinimum(0)
         self.vani_min_spinbox.setValue(0)
         criteria_layout.addWidget(self.vani_min_spinbox, 6, 1)
-        criteria_layout.addWidget(QLabel("Vani Max:"), 6, 2)
+        _lbl_vmax = QLabel("Vani max:")
+        _lbl_vmax.setAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
+        criteria_layout.addWidget(_lbl_vmax, 6, 2)
         self.vani_max_spinbox = QSpinBox()
         self.vani_max_spinbox.setMinimum(0)
         self.vani_max_spinbox.setMaximum(999)
@@ -659,22 +683,25 @@ class RicercaAvanzataImmobiliWidget(QWidget):
         self.vani_max_spinbox.setSpecialValueText("Qualsiasi")
         criteria_layout.addWidget(self.vani_max_spinbox, 6, 3)
 
-        # Riga 7: Nome Possessore (NUOVO CAMPO)
-        criteria_layout.addWidget(QLabel("Nome Possessore:"), 7, 0)
+        # Riga 7: Nome Possessore
+        criteria_layout.addWidget(_label("Possessore:"), 7, 0)
         self.nome_possessore_edit = QLineEdit()
-        self.nome_possessore_edit.setPlaceholderText(
-            "Ricerca parziale nome possessore (lascia vuoto per qualsiasi)")
+        self.nome_possessore_edit.setPlaceholderText("Parte del nome del possessore — ricerca parziale")
         criteria_layout.addWidget(self.nome_possessore_edit, 7, 1, 1, 3)
 
         main_layout.addWidget(criteria_group)
 
-        self.btn_esegui_ricerca_immobili = QPushButton(
-            "Esegui Ricerca Immobili")
+        # Bottoni — primario a destra, allineati come negli altri form
+        btn_row = QHBoxLayout()
+        btn_row.setSpacing(8)
+        btn_row.addStretch()
+        self.btn_esegui_ricerca_immobili = QPushButton("Esegui Ricerca")
+        self.btn_esegui_ricerca_immobili.setDefault(True)
         self.btn_esegui_ricerca_immobili.setIcon(
             QApplication.style().standardIcon(QStyle.StandardPixmap.SP_DialogApplyButton))
-        self.btn_esegui_ricerca_immobili.clicked.connect(
-            self._esegui_ricerca_effettiva)
-        main_layout.addWidget(self.btn_esegui_ricerca_immobili)
+        self.btn_esegui_ricerca_immobili.clicked.connect(self._esegui_ricerca_effettiva)
+        btn_row.addWidget(self.btn_esegui_ricerca_immobili)
+        main_layout.addLayout(btn_row)
 
         results_group = QGroupBox("Risultati Ricerca")
         results_layout = QVBoxLayout(results_group)
@@ -697,7 +724,7 @@ class RicercaAvanzataImmobiliWidget(QWidget):
         self.risultati_immobili_table.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
         self.risultati_immobili_table.customContextMenuRequested.connect(self._apri_menu_immobile)
         self.result_count_label = QLabel("Nessuna ricerca eseguita.")
-        self.result_count_label.setStyleSheet("color: #555; font-style: italic; padding: 2px 0;")
+        self.result_count_label.setObjectName("resultCountLabel")
         results_layout.addWidget(self.result_count_label)
         results_layout.addWidget(self.risultati_immobili_table)
         main_layout.addWidget(results_group)
@@ -970,76 +997,96 @@ class UnifiedFuzzySearchWidget(QWidget):
   
     def _init_ui(self):
         """Configura l'interfaccia utente unificata con un layout robusto."""
-        # Layout principale dell'intero widget
         main_layout = QVBoxLayout(self)
-        main_layout.setContentsMargins(10, 10, 10, 10)
-        main_layout.setSpacing(10)
+        main_layout.setContentsMargins(0, 0, 0, 0)
+        main_layout.setSpacing(12)
 
-        # --- INIZIO NUOVA STRUTTURA ---
-        # 1. Creiamo un widget contenitore per tutti i contenuti tranne la status bar
+        # Titolo e sottotitolo pagina
+        _title = QLabel("Ricerca Globale")
+        _title.setObjectName("pageTitle")
+        main_layout.addWidget(_title)
+        _subtitle = QLabel("Ricerca fuzzy in possessori, località, immobili, variazioni, contratti e partite. Usa la soglia per ampliare o restringere i match.")
+        _subtitle.setObjectName("pageSubtitle")
+        main_layout.addWidget(_subtitle)
+
+        # Contenitore principale con stretch
         content_container_widget = QWidget()
         content_layout = QVBoxLayout(content_container_widget)
         content_layout.setContentsMargins(0, 0, 0, 0)
         content_layout.setSpacing(10)
-        # --- FINE NUOVA STRUTTURA ---
 
-        # === AREA RICERCA (da aggiungere al content_layout) ===
+        # === AREA RICERCA — card bianca ===
         search_frame = QFrame()
-        search_frame.setFrameStyle(QFrame.Shape.StyledPanel)
-        search_frame.setMaximumHeight(120)
+        search_frame.setObjectName("card")
+        search_frame.setMaximumHeight(130)
         search_layout = QVBoxLayout(search_frame)
-        search_layout.setContentsMargins(10, 8, 10, 8)
-        # ... (il codice interno di search_frame, search_row, controls_row rimane identico)
+        search_layout.setContentsMargins(14, 12, 14, 12)
+        search_layout.setSpacing(10)
+
+        # Riga 1: search box prominente
         search_row = QHBoxLayout()
+        search_row.setSpacing(8)
         _lbl_search = QLabel()
-        _lbl_search.setPixmap(QIcon(str(get_icon_path("search"))).pixmap(QSize(16, 16)))
+        _lbl_search.setPixmap(QIcon(str(get_icon_path("search"))).pixmap(QSize(18, 18)))
         search_row.addWidget(_lbl_search)
         self.search_edit = QLineEdit()
-        self.search_edit.setPlaceholderText("Cerca in possessori, località, immobili, variazioni, contratti, partite...")
+        self.search_edit.setPlaceholderText("Cerca in possessori, località, immobili, variazioni, contratti, partite…")
+        self.search_edit.setMinimumHeight(36)
         search_row.addWidget(self.search_edit, 1)
-        self.search_btn = QPushButton("Cerca")
-        search_row.addWidget(self.search_btn)
         self.clear_btn = QPushButton()
+        self.clear_btn.setObjectName("secondaryButton")
         self.clear_btn.setIcon(self.style().standardIcon(QStyle.StandardPixmap.SP_LineEditClearButton))
         self.clear_btn.setToolTip("Pulisci ricerca")
-        self.clear_btn.setMaximumWidth(30)
+        self.clear_btn.setMaximumWidth(36)
+        self.clear_btn.setMinimumWidth(36)
         search_row.addWidget(self.clear_btn)
+        self.search_btn = QPushButton("Cerca")
+        self.search_btn.setDefault(True)
+        self.search_btn.setMinimumWidth(110)
+        search_row.addWidget(self.search_btn)
         search_layout.addLayout(search_row)
-        # --- BLOCCO "CONTROLLI AVANZATI" DA SOSTITUIRE ---
+
+        # Riga 2: controlli avanzati (soglia, max risultati, export)
         controls_row = QHBoxLayout()
-        controls_row.addWidget(QLabel("Soglia:"))
+        controls_row.setSpacing(10)
+        _lbl_soglia = QLabel("Soglia:")
+        _lbl_soglia.setProperty("muted", "true")
+        controls_row.addWidget(_lbl_soglia)
         self.precision_slider = QSlider(Qt.Orientation.Horizontal)
         self.precision_slider.setRange(10, 90)
         self.precision_slider.setValue(30)
-        self.precision_slider.setMaximumWidth(100)
+        self.precision_slider.setMaximumWidth(130)
         controls_row.addWidget(self.precision_slider)
 
         self.precision_label = QLabel("0.30")
-        self.precision_label.setMinimumWidth(30)
+        self.precision_label.setMinimumWidth(36)
         controls_row.addWidget(self.precision_label)
 
-        controls_row.addWidget(QLabel("Max Risultati:"))
+        controls_row.addSpacing(12)
+
+        _lbl_max = QLabel("Max risultati:")
+        _lbl_max.setProperty("muted", "true")
+        controls_row.addWidget(_lbl_max)
         self.max_results_combo = QComboBox()
         self.max_results_combo.addItems(["50", "100", "200", "500"])
         self.max_results_combo.setCurrentText("100")
-        self.max_results_combo.setMaximumWidth(70)
+        self.max_results_combo.setMaximumWidth(80)
         controls_row.addWidget(self.max_results_combo)
 
         controls_row.addStretch()
 
-        # Creiamo i nuovi pulsanti specifici
         self.btn_export_csv = QPushButton("Esporta CSV")
+        self.btn_export_csv.setObjectName("secondaryButton")
         self.btn_export_csv.setEnabled(False)
         controls_row.addWidget(self.btn_export_csv)
 
         self.btn_export_pdf = QPushButton("Esporta PDF")
+        self.btn_export_pdf.setObjectName("secondaryButton")
         self.btn_export_pdf.setEnabled(False)
         if not FPDF_AVAILABLE:
             self.btn_export_pdf.setToolTip("Libreria FPDF2 non trovata. Funzione non disponibile.")
         controls_row.addWidget(self.btn_export_pdf)
-        
-        # La riga errata "controls_row.addWidget(self.export_btn)" è stata rimossa.
-        
+
         search_layout.addLayout(controls_row)
         # --- FINE BLOCCO DA SOSTITUIRE ---
         
@@ -1085,20 +1132,20 @@ class UnifiedFuzzySearchWidget(QWidget):
         # Diamo a tutto il blocco dei contenuti un fattore di stretch > 0
         main_layout.addWidget(content_container_widget, 1)
 
-        # === STATUS BAR (ora separata e sicura) ===
+        # === STATUS BAR ===
         status_frame = QFrame()
-        status_frame.setFrameShape(QFrame.Shape.StyledPanel)
-        status_frame.setFrameShadow(QFrame.Shadow.Sunken)
-        status_frame.setMaximumHeight(30)
+        status_frame.setObjectName("fuzzyStatusBar")
+        status_frame.setMaximumHeight(32)
         status_layout = QHBoxLayout(status_frame)
-        status_layout.setContentsMargins(5, 2, 5, 2)
+        status_layout.setContentsMargins(10, 4, 10, 4)
         self.stats_label = QLabel("Inserire almeno 3 caratteri per iniziare")
+        self.stats_label.setProperty("muted", "true")
         status_layout.addWidget(self.stats_label)
         status_layout.addStretch()
-        self.indices_status_label = QLabel("Verifica indici...")
+        self.indices_status_label = QLabel("Verifica indici…")
+        self.indices_status_label.setProperty("muted", "true")
         status_layout.addWidget(self.indices_status_label)
-        
-        # Aggiungiamo la status bar al layout principale senza stretch
+
         main_layout.addWidget(status_frame)
 
         self.search_edit.setFocus()

@@ -658,6 +658,54 @@ QFrame#card, QWidget#card {
     border-radius: 10px;
 }
 
+/* RESULT COUNT LABELS */
+QLabel#resultCountLabel {
+    color: #6A7186;
+    font-style: italic;
+    font-size: 9pt;
+    padding: 2px 0;
+}
+
+/* FUZZY SEARCH STATUS */
+#fuzzyStatusBar {
+    background: #1A1C28;
+    border: 1px solid #2A2E40;
+    border-radius: 6px;
+}
+#fuzzyStatusBar QLabel {
+    background: transparent;
+    font-size: 9pt;
+}
+
+/* DASHBOARD */
+#backupStatusCard {
+    background: #1A1C28;
+    border: 1px solid #3D4256;
+    border-radius: 8px;
+    padding: 8px 12px;
+    font-size: 11px;
+    color: #A0A8BC;
+    font-weight: 500;
+}
+#backupStatusCard[status="ok"] {
+    background: #1B2E1F;
+    border-color: #66BB6A;
+    color: #A5D6A7;
+    font-weight: 600;
+}
+#backupStatusCard[status="warn"] {
+    background: #3D2A0F;
+    border-color: #FFB74D;
+    color: #FFE0B2;
+    font-weight: 600;
+}
+#backupStatusCard[status="alert"] {
+    background: #3D1F1F;
+    border-color: #EF5350;
+    color: #FFCDD2;
+    font-weight: 700;
+}
+
 /* LOGIN DIALOG */
 #loginDialog { background: #15171F; }
 #loginBanner {

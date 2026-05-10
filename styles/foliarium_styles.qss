@@ -702,6 +702,60 @@ QFrame#card, QWidget#card {
 }
 
 /* ============================================================
+   RESULT COUNT LABELS (sotto i risultati di ricerca)
+   ============================================================ */
+QLabel#resultCountLabel {
+    color: #8590A6;
+    font-style: italic;
+    font-size: 9pt;
+    padding: 2px 0;
+}
+
+/* ============================================================
+   FUZZY SEARCH STATUS
+   ============================================================ */
+#fuzzyStatusBar {
+    background: #F4F5FA;
+    border: 1px solid #E3E5F0;
+    border-radius: 6px;
+}
+#fuzzyStatusBar QLabel {
+    background: transparent;
+    font-size: 9pt;
+}
+
+/* ============================================================
+   DASHBOARD
+   ============================================================ */
+#backupStatusCard {
+    background: #F4F5FA;
+    border: 1px solid #D5D9EA;
+    border-radius: 8px;
+    padding: 8px 12px;
+    font-size: 11px;
+    color: #5A6478;
+    font-weight: 500;
+}
+#backupStatusCard[status="ok"] {
+    background: #E8F5E9;
+    border-color: #66BB6A;
+    color: #1B5E20;
+    font-weight: 600;
+}
+#backupStatusCard[status="warn"] {
+    background: #FFF8E1;
+    border-color: #FFB74D;
+    color: #E65100;
+    font-weight: 600;
+}
+#backupStatusCard[status="alert"] {
+    background: #FFEBEE;
+    border-color: #EF5350;
+    color: #B71C1C;
+    font-weight: 700;
+}
+
+/* ============================================================
    LOGIN DIALOG
    ============================================================ */
 #loginDialog {

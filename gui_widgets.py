@@ -592,32 +592,46 @@ class DashboardWidget(QWidget):
 
     def _initUI(self):
         main_layout = QVBoxLayout(self)
-        main_layout.setContentsMargins(20, 20, 20, 20)
-        main_layout.setSpacing(25)
+        main_layout.setContentsMargins(0, 0, 0, 0)
+        main_layout.setSpacing(18)
 
-        # 1. Intestazione
+        # 1. Intestazione — titolo + sottotitolo con ruolo/data
         nome_utente = self.current_user_info.get('nome_completo', 'Utente') if self.current_user_info else 'Utente'
         ruolo_utente = self.current_user_info.get('ruolo', '') if self.current_user_info else ''
-        header_label = QLabel(f"<h2>Benvenuto in Foliarium {APP_VERSION}, {nome_utente}</h2>")
-        header_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        main_layout.addWidget(header_label)
         from datetime import datetime as _dt
-        sub_label = QLabel(
-            f'<span style="color:#888;font-size:12px;">'
-            f'Ruolo: <b>{ruolo_utente}</b> &nbsp;·&nbsp; {_dt.now().strftime("%A %d %B %Y, %H:%M")}'
-            f'</span>'
-        )
-        sub_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        # Usa locale italiano se possibile, fallback su date semplice
+        try:
+            import locale
+            try:
+                locale.setlocale(locale.LC_TIME, "it_IT.UTF-8")
+            except locale.Error:
+                pass
+            data_str = _dt.now().strftime("%A %d %B %Y, %H:%M")
+        except Exception:
+            data_str = _dt.now().strftime("%d/%m/%Y, %H:%M")
+
+        header_label = QLabel(f"Benvenuto, {nome_utente}")
+        header_label.setObjectName("pageTitle")
+        main_layout.addWidget(header_label)
+
+        sub_label = QLabel(f"Ruolo: <b>{ruolo_utente}</b>  ·  {data_str}  ·  v{APP_VERSION}")
+        sub_label.setObjectName("pageSubtitle")
+        sub_label.setTextFormat(Qt.TextFormat.RichText)
         main_layout.addWidget(sub_label)
 
         # 2. Ricerca Globale
         search_group = QGroupBox("Ricerca Rapida")
         search_layout = QHBoxLayout(search_group)
-        self.search_edit = QLineEdit(); self.search_edit.setPlaceholderText("Cerca qualsiasi cosa nel catasto...")
-        self.search_edit.setMinimumHeight(35)
-        self.search_button = QPushButton("Cerca"); self.search_button.clicked.connect(self._avvia_ricerca_globale)
+        search_layout.setSpacing(10)
+        self.search_edit = QLineEdit()
+        self.search_edit.setPlaceholderText("Cerca qualsiasi cosa nel catasto — comune, possessore, partita, immobile…")
+        self.search_edit.setMinimumHeight(36)
+        self.search_button = QPushButton("Cerca")
+        self.search_button.setMinimumWidth(110)
+        self.search_button.clicked.connect(self._avvia_ricerca_globale)
         self.search_edit.returnPressed.connect(self._avvia_ricerca_globale)
-        search_layout.addWidget(self.search_edit); search_layout.addWidget(self.search_button)
+        search_layout.addWidget(self.search_edit, 1)
+        search_layout.addWidget(self.search_button)
         main_layout.addWidget(search_group)
 
         # 3. Statistiche Rapide — StatCard pittate
@@ -709,13 +723,10 @@ class DashboardWidget(QWidget):
         actions_layout.addWidget(btn_new_prop); actions_layout.addWidget(btn_new_partita); actions_layout.addWidget(btn_new_consult) ; actions_layout.addWidget(btn_reports)
         actions_layout.addStretch()
 
-        # Mini-card stato backup
+        # Mini-card stato backup — stilizzata via #backupStatusCard nel QSS
         self.backup_status_label = QLabel("Backup: nessun dato")
+        self.backup_status_label.setObjectName("backupStatusCard")
         self.backup_status_label.setWordWrap(True)
-        self.backup_status_label.setStyleSheet(
-            "QLabel { background: #F0F4F8; border: 1px solid #D0D8E4; border-radius: 6px; "
-            "padding: 6px 10px; font-size: 11px; color: #555; }"
-        )
         actions_layout.addWidget(self.backup_status_label)
 
         bottom_layout.addWidget(actions_group, 1)
@@ -789,16 +800,15 @@ class DashboardWidget(QWidget):
                     backup_dt = _dt2.fromisoformat(last_backup)
                     days_ago = (_dt2.now() - backup_dt).days
                     if days_ago == 0:
-                        color, testo = "#27AE60", f"Backup: oggi ({backup_dt.strftime('%H:%M')})"
+                        status, testo = "ok", f"Backup: oggi ({backup_dt.strftime('%H:%M')})"
                     elif days_ago <= 7:
-                        color, testo = "#E67E22", f"Backup: {days_ago} giorni fa"
+                        status, testo = "warn", f"Backup: {days_ago} giorni fa"
                     else:
-                        color, testo = "#E74C3C", f"Backup: {days_ago} giorni fa — consigliato!"
+                        status, testo = "alert", f"Backup: {days_ago} giorni fa — consigliato!"
                     self.backup_status_label.setText(testo)
-                    self.backup_status_label.setStyleSheet(
-                        f"QLabel {{ background: #F0F4F8; border: 1px solid {color}; border-radius: 6px; "
-                        f"padding: 6px 10px; font-size: 11px; color: {color}; font-weight: bold; }}"
-                    )
+                    self.backup_status_label.setProperty("status", status)
+                    self.backup_status_label.style().unpolish(self.backup_status_label)
+                    self.backup_status_label.style().polish(self.backup_status_label)
                 except Exception as _e:
                     logger.debug("Impossibile aggiornare stato backup dalla data '%s': %s", last_backup, _e)
         except Exception as _e:
