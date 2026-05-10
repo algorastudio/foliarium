@@ -1803,6 +1803,7 @@ class LoginDialog(QDialog):
         self.cancel_button = QPushButton("Esci")
         self.cancel_button.setObjectName("secondaryButton")
         self.cancel_button.setMinimumHeight(36)
+        self.cancel_button.setAutoDefault(False)
         self.cancel_button.clicked.connect(self.reject)
         buttons_layout.addWidget(self.cancel_button)
 
@@ -1810,10 +1811,14 @@ class LoginDialog(QDialog):
 
         self.login_button = QPushButton("Accedi")
         self.login_button.setDefault(True)
+        self.login_button.setAutoDefault(True)
         self.login_button.setMinimumHeight(36)
         self.login_button.setMinimumWidth(120)
         self.login_button.clicked.connect(self.handle_login)
         buttons_layout.addWidget(self.login_button)
+
+        self.username_edit.returnPressed.connect(lambda: self.password_edit.setFocus())
+        self.password_edit.returnPressed.connect(self.handle_login)
 
         layout.addLayout(buttons_layout)
         outer.addWidget(body, 1)
