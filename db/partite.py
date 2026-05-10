@@ -313,6 +313,7 @@ class DBPartiteMixin:
     def search_partite(self, comune_id: Optional[int] = None, numero_partita: Optional[int] = None,
                     possessore: Optional[str] = None, immobile_natura: Optional[str] = None,
                     suffisso_partita: Optional[str] = None,
+                    partita_id: Optional[int] = None,
                     max_results: int = 500) -> List[Dict[str, Any]]:
         """
         Ricerca partite con filtri multipli.
@@ -344,6 +345,9 @@ class DBPartiteMixin:
             else:
                 conditions.append("p.suffisso_partita ILIKE %s")
                 params.append(f"%{suffisso_partita.strip()}%")
+        if partita_id is not None:
+            conditions.append("p.id = %s")
+            params.append(partita_id)
 
         conditions.append("NOT p.archiviato")
         query = query_base + joins
