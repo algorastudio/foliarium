@@ -273,6 +273,58 @@ class DBConnectionBase:
         except Exception as e:
             self.logger.warning(f"Migrazione schema automatica saltata (non bloccante): {e}")
 
+        # Indici UNIQUE sulle MV — richiesti per REFRESH ... CONCURRENTLY.
+        # Idempotente: ogni CREATE è IF NOT EXISTS, l'esistenza della MV
+        # è verificata prima per evitare errori se la MV non è stata creata.
+        self._ensure_mv_unique_indexes()
+
+    def _ensure_mv_unique_indexes(self):
+        """Crea gli indici UNIQUE mancanti sulle viste materializzate.
+
+        Prerequisito per `REFRESH MATERIALIZED VIEW CONCURRENTLY`: PostgreSQL
+        richiede almeno un indice UNIQUE senza clausola WHERE sulla MV.
+        Equivale alla migrazione `migrations/add_unique_indexes_mv.sql` ma
+        applicata automaticamente all'avvio (best-effort, non bloccante).
+        """
+        # MV → (nome_indice, lista colonne)
+        mv_indexes = {
+            "mv_immobili_per_tipologia": ("idx_mv_immobili_tipologia_unique",
+                                          "comune_nome, classificazione"),
+            "mv_partite_complete":       ("idx_mv_partite_complete_partita_id",
+                                          "partita_id"),
+            "mv_cronologia_variazioni":  ("idx_mv_variazioni_var_id",
+                                          "variazione_id"),
+            "mv_statistiche_comune":     ("idx_mv_statistiche_comune", "comune"),
+        }
+        try:
+            with self._get_connection() as conn:
+                with conn.cursor() as cur:
+                    cur.execute(
+                        "SELECT matviewname FROM pg_matviews WHERE schemaname = %s",
+                        (self.schema,)
+                    )
+                    existing_mvs = {row[0] for row in cur.fetchall()}
+
+                    for mv_name, (idx_name, cols) in mv_indexes.items():
+                        if mv_name not in existing_mvs:
+                            continue
+                        try:
+                            cur.execute(
+                                f"CREATE UNIQUE INDEX IF NOT EXISTS {idx_name} "
+                                f"ON {self.schema}.{mv_name} ({cols})"
+                            )
+                            self.logger.debug(
+                                f"Indice UNIQUE garantito su {self.schema}.{mv_name} ({cols})"
+                            )
+                        except psycopg2.Error as e:
+                            # Es. duplicati nella MV — non blocchiamo l'avvio.
+                            self.logger.warning(
+                                f"Impossibile creare {idx_name} su {mv_name}: {e}"
+                            )
+                            conn.rollback()
+        except Exception as e:
+            self.logger.debug(f"_ensure_mv_unique_indexes: {e}")
+
     def close_pool(self):
         """
         Chiude tutte le connessioni nel pool e imposta self.pool a None.
