@@ -48,13 +48,15 @@ class _PartiteSearchWorker(QThread):
     results_ready = pyqtSignal(list)
     error_occurred = pyqtSignal(str)
 
-    def __init__(self, db_manager, comune_id, numero, possessore, natura, parent=None):
+    def __init__(self, db_manager, comune_id, numero, possessore, natura,
+                 partita_id=None, parent=None):
         super().__init__(parent)
         self._db = db_manager
         self._comune_id = comune_id
         self._numero = numero
         self._possessore = possessore
         self._natura = natura
+        self._partita_id = partita_id
 
     def run(self):
         try:
@@ -63,6 +65,7 @@ class _PartiteSearchWorker(QThread):
                 numero_partita=self._numero,
                 possessore=self._possessore,
                 immobile_natura=self._natura,
+                partita_id=self._partita_id,
             )
             self.results_ready.emit(partite or [])
         except Exception as e:
@@ -155,50 +158,108 @@ class RicercaPartiteWidget(QWidget):
         self._search_worker: Optional[_PartiteSearchWorker] = None
 
         main_layout = QVBoxLayout(self)
+        main_layout.setContentsMargins(0, 0, 0, 0)
+        main_layout.setSpacing(12)
 
-        group = QGroupBox("Ricerca Partite")
+        # Titolo pagina
+        title = QLabel("Ricerca Partite")
+        title.setObjectName("pageTitle")
+        main_layout.addWidget(title)
+        subtitle = QLabel("Cerca per comune, numero, ID, possessore o natura dell'immobile. Lascia vuoti i campi per elencare tutto.")
+        subtitle.setObjectName("pageSubtitle")
+        main_layout.addWidget(subtitle)
+
+        group = QGroupBox("Filtri di ricerca")
         group_layout = QVBoxLayout(group)
+        group_layout.setSpacing(10)
 
         # ─────────────────────────────────────────────────────────
-        # Barra ricerca: Comune, N°, Possessore, Natura, Cerca, Pulisci
+        # Riga 1: Comune | N° Partita | ID Partita | Stato
         # ─────────────────────────────────────────────────────────
-        search_layout = QHBoxLayout()
-        search_layout.setContentsMargins(0, 0, 0, 0)
-        search_layout.setSpacing(6)
+        row1 = QGridLayout()
+        row1.setHorizontalSpacing(12)
+        row1.setVerticalSpacing(4)
+        row1.setColumnStretch(1, 2)  # comune si espande
+        row1.setColumnStretch(3, 1)  # n° si espande un po'
+        row1.setColumnStretch(5, 1)  # id si espande un po'
+        row1.setColumnStretch(7, 1)  # stato si espande un po'
 
-        self._comune_btn = QPushButton("Comune...")
+        _lbl_comune = QLabel("Comune:")
+        _lbl_comune.setAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
+        row1.addWidget(_lbl_comune, 0, 0)
+        self._comune_btn = QPushButton("Tutti i comuni")
         self._comune_btn.setObjectName("secondaryButton")
-        self._comune_btn.setMaximumWidth(110)
         self._comune_btn.clicked.connect(self._select_comune)
-        search_layout.addWidget(self._comune_btn)
+        row1.addWidget(self._comune_btn, 0, 1)
 
+        _lbl_num = QLabel("N° Partita:")
+        _lbl_num.setAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
+        row1.addWidget(_lbl_num, 0, 2)
         self._numero_edit = QSpinBox()
         self._numero_edit.setMinimum(0)
-        self._numero_edit.setMaximum(99999)
-        self._numero_edit.setSpecialValueText("N°...")
-        self._numero_edit.setMaximumWidth(80)
-        search_layout.addWidget(self._numero_edit)
+        self._numero_edit.setMaximum(999999)
+        self._numero_edit.setSpecialValueText("—")
+        self._numero_edit.setToolTip("Numero della partita catastale (0 = qualsiasi)")
+        row1.addWidget(self._numero_edit, 0, 3)
 
+        _lbl_id = QLabel("ID:")
+        _lbl_id.setAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
+        _lbl_id.setToolTip("Identificativo univoco interno della partita nel database")
+        row1.addWidget(_lbl_id, 0, 4)
+        self._id_edit = QSpinBox()
+        self._id_edit.setMinimum(0)
+        self._id_edit.setMaximum(9999999)
+        self._id_edit.setSpecialValueText("—")
+        self._id_edit.setToolTip("ID interno partita (0 = qualsiasi)")
+        row1.addWidget(self._id_edit, 0, 5)
+
+        _lbl_stato = QLabel("Stato:")
+        _lbl_stato.setAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
+        row1.addWidget(_lbl_stato, 0, 6)
+        self._stato_combo = QComboBox()
+        self._stato_combo.addItems(["Tutte", "Attiva", "Inattiva", "Aperta", "Chiusa"])
+        self._stato_combo.currentTextChanged.connect(self._on_stato_combo_changed)
+        row1.addWidget(self._stato_combo, 0, 7)
+
+        group_layout.addLayout(row1)
+
+        # ─────────────────────────────────────────────────────────
+        # Riga 2: Possessore | Natura immobile | [Cerca] [Pulisci]
+        # ─────────────────────────────────────────────────────────
+        row2 = QGridLayout()
+        row2.setHorizontalSpacing(12)
+        row2.setVerticalSpacing(4)
+        row2.setColumnStretch(1, 3)
+        row2.setColumnStretch(3, 3)
+
+        _lbl_poss = QLabel("Possessore:")
+        _lbl_poss.setAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
+        row2.addWidget(_lbl_poss, 0, 0)
         self._possessore_edit = QLineEdit()
-        self._possessore_edit.setPlaceholderText("Possessore...")
+        self._possessore_edit.setPlaceholderText("Nome o parte del nome del possessore…")
         self._possessore_edit.returnPressed.connect(self.do_search)
-        search_layout.addWidget(self._possessore_edit, 1)
+        row2.addWidget(self._possessore_edit, 0, 1)
 
+        _lbl_nat = QLabel("Natura immobile:")
+        _lbl_nat.setAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
+        row2.addWidget(_lbl_nat, 0, 2)
         self._natura_edit = QLineEdit()
-        self._natura_edit.setPlaceholderText("Natura immobile...")
+        self._natura_edit.setPlaceholderText("Es. casa, prato, bosco…")
         self._natura_edit.returnPressed.connect(self.do_search)
-        search_layout.addWidget(self._natura_edit, 1)
+        row2.addWidget(self._natura_edit, 0, 3)
 
+        _btn_row = QHBoxLayout()
+        _btn_row.setSpacing(8)
+        _clear_btn = QPushButton("Pulisci")
+        _clear_btn.setObjectName("secondaryButton")
+        _clear_btn.clicked.connect(self._clear_search)
         self._search_btn = QPushButton("Cerca")
         self._search_btn.clicked.connect(self.do_search)
-        search_layout.addWidget(self._search_btn)
+        _btn_row.addWidget(_clear_btn)
+        _btn_row.addWidget(self._search_btn)
+        row2.addLayout(_btn_row, 0, 4)
 
-        clear_btn = QPushButton("Pulisci")
-        clear_btn.setObjectName("secondaryButton")
-        clear_btn.clicked.connect(self._clear_search)
-        search_layout.addWidget(clear_btn)
-
-        group_layout.addLayout(search_layout)
+        group_layout.addLayout(row2)
 
         # Loading progress bar (hidden by default)
         self._loading_bar = QProgressBar()
@@ -208,33 +269,22 @@ class RicercaPartiteWidget(QWidget):
         self._loading_bar.setTextVisible(False)
         group_layout.addWidget(self._loading_bar)
 
-        # ─────────────────────────────────────────────────────────
-        # Filtri stato + conteggio risultati
-        # ─────────────────────────────────────────────────────────
-        filter_layout = QHBoxLayout()
-        filter_layout.setContentsMargins(0, 0, 0, 0)
-        filter_layout.setSpacing(6)
-
-        filter_layout.addWidget(QLabel("Stato:"))
-        self._stato_combo = QComboBox()
-        self._stato_combo.addItems(["Tutte", "Attiva", "Inattiva", "Aperta", "Chiusa"])
-        self._stato_combo.currentTextChanged.connect(self._on_stato_combo_changed)
-        filter_layout.addWidget(self._stato_combo)
-
-        filter_layout.addStretch()
-
+        # Conteggio risultati
+        count_layout = QHBoxLayout()
+        count_layout.setContentsMargins(0, 0, 0, 0)
         self._count_label = QLabel("Nessuna ricerca eseguita.")
         self._count_label.setStyleSheet("color:#757575; font-style:italic; font-size:9pt;")
-        filter_layout.addWidget(self._count_label)
-
-        group_layout.addLayout(filter_layout)
+        count_layout.addStretch()
+        count_layout.addWidget(self._count_label)
+        group_layout.addLayout(count_layout)
 
         # ─────────────────────────────────────────────────────────
         # Tabella risultati (full-width)
+        # Colonne: ID | N° Partita | Comune | Stato | Tipo | Data Impianto
         # ─────────────────────────────────────────────────────────
         self._table = QTableWidget()
-        self._table.setColumnCount(5)
-        self._table.setHorizontalHeaderLabels(["N° Partita", "Comune", "Stato", "Tipo", "Data Impianto"])
+        self._table.setColumnCount(6)
+        self._table.setHorizontalHeaderLabels(["ID", "N° Partita", "Comune", "Stato", "Tipo", "Data Impianto"])
         self._table.setEditTriggers(QAbstractItemView.EditTrigger.NoEditTriggers)
         self._table.setSelectionBehavior(QAbstractItemView.SelectionBehavior.SelectRows)
         self._table.setSelectionMode(QAbstractItemView.SelectionMode.SingleSelection)
@@ -245,10 +295,11 @@ class RicercaPartiteWidget(QWidget):
         hh = self._table.horizontalHeader()
         hh.setSectionResizeMode(QHeaderView.ResizeMode.Interactive)
         hh.setStretchLastSection(True)
-        self._table.setColumnWidth(0, 90)
-        self._table.setColumnWidth(1, 160)
-        self._table.setColumnWidth(2, 80)
-        self._table.setColumnWidth(3, 100)
+        self._table.setColumnWidth(0, 60)   # ID
+        self._table.setColumnWidth(1, 90)   # N° Partita
+        self._table.setColumnWidth(2, 170)  # Comune
+        self._table.setColumnWidth(3, 80)   # Stato
+        self._table.setColumnWidth(4, 100)  # Tipo
         self._table.cellClicked.connect(lambda row, col: self._on_row_selected(row))
         self._table.doubleClicked.connect(lambda: self.show_details())
         self._table.customContextMenuRequested.connect(self._on_context_menu)
@@ -306,8 +357,9 @@ class RicercaPartiteWidget(QWidget):
         self._loading_bar.setVisible(False)
         self._search_btn.setEnabled(True)
         self._comune_id = None
-        self._comune_btn.setText("Comune...")
+        self._comune_btn.setText("Tutti i comuni")
         self._numero_edit.setValue(0)
+        self._id_edit.setValue(0)
         self._possessore_edit.clear()
         self._natura_edit.clear()
         self._stato_combo.setCurrentText("Tutte")
@@ -332,7 +384,7 @@ class RicercaPartiteWidget(QWidget):
 
         visible = 0
         for row in range(self._table.rowCount()):
-            stato_item = self._table.item(row, 2)
+            stato_item = self._table.item(row, 3)  # col 3 = Stato (dopo aggiunta colonna ID)
             partita_stato = (stato_item.text() if stato_item else "").strip()
             show = (not stato_filtro or
                     partita_stato.lower() == stato_filtro.lower())
@@ -354,6 +406,8 @@ class RicercaPartiteWidget(QWidget):
 
         numero_val = self._numero_edit.value()
         numero = numero_val if numero_val > 0 else None
+        id_val = self._id_edit.value()
+        partita_id = id_val if id_val > 0 else None
         possessore = self._possessore_edit.text().strip() or None
         natura = self._natura_edit.text().strip() or None
 
@@ -362,7 +416,8 @@ class RicercaPartiteWidget(QWidget):
         self._count_label.setText("Ricerca in corso…")
 
         self._search_worker = _PartiteSearchWorker(
-            self.db_manager, self._comune_id, numero, possessore, natura, self
+            self.db_manager, self._comune_id, numero, possessore, natura,
+            partita_id=partita_id, parent=self
         )
         self._search_worker.results_ready.connect(self._on_search_results)
         self._search_worker.error_occurred.connect(self._on_search_error)
@@ -383,7 +438,9 @@ class RicercaPartiteWidget(QWidget):
             suf = (p.get('suffisso_partita') or '').strip()
             num_text = f"{p.get('numero_partita')}{f'/{suf}' if suf else ''}"
             data_imp = str(p.get('data_impianto') or '—')
+            partita_id = p.get('id')
             for col, val in enumerate([
+                str(partita_id) if partita_id is not None else '—',
                 num_text,
                 p.get('comune_nome', ''),
                 p.get('stato', ''),
@@ -393,7 +450,8 @@ class RicercaPartiteWidget(QWidget):
                 item = QTableWidgetItem(str(val))
                 item.setFlags(item.flags() & ~Qt.ItemFlag.ItemIsEditable)
                 if col == 0:
-                    item.setData(Qt.ItemDataRole.UserRole, p.get('id'))
+                    # Memorizza l'ID anche come UserRole per recupero affidabile
+                    item.setData(Qt.ItemDataRole.UserRole, partita_id)
                 self._table.setItem(row, col, item)
         self._table.setSortingEnabled(True)
 
