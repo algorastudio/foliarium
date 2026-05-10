@@ -26,8 +26,8 @@ class TopBarWidget(QFrame):
         self.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
 
         layout = QHBoxLayout(self)
-        layout.setContentsMargins(16, 0, 16, 0)
-        layout.setSpacing(6)
+        layout.setContentsMargins(20, 0, 20, 0)
+        layout.setSpacing(8)
 
         # Logo SVG
         try:
@@ -35,7 +35,7 @@ class TopBarWidget(QFrame):
             logo_path = get_logo_svg_path(dark=False)
             if logo_path:
                 logo = QSvgWidget(str(logo_path))
-                logo.setFixedSize(28, 28)
+                logo.setFixedSize(30, 30)
                 layout.addWidget(logo)
         except Exception:
             pass
@@ -71,7 +71,7 @@ class TopBarWidget(QFrame):
         self._avatar_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
         layout.addWidget(self._avatar_label)
 
-        layout.addSpacing(4)
+        layout.addSpacing(6)
 
         # Nome utente
         self._user_label = QLabel("—")
@@ -110,10 +110,16 @@ class TopBarWidget(QFrame):
         """Aggiorna label utente, ruolo, avatar e stato DB."""
         if db_connected:
             db_text = f"● DB: {db_name}" if db_name else "● DB: connesso"
-            self._db_indicator.setStyleSheet("color: #2E7D32; font-size: 11px;")
+            self._db_indicator.setStyleSheet(
+                "color: #2E7D32; font-size: 11px; background: #E8F5E9; "
+                "border-radius: 10px; padding: 2px 8px; font-weight: 600;"
+            )
         else:
             db_text = "● DB: offline"
-            self._db_indicator.setStyleSheet("color: #B71C1C; font-size: 11px;")
+            self._db_indicator.setStyleSheet(
+                "color: #B71C1C; font-size: 11px; background: #FDE8E8; "
+                "border-radius: 10px; padding: 2px 8px; font-weight: 600;"
+            )
         self._db_indicator.setText(db_text)
 
         if nome:

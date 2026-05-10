@@ -48,14 +48,16 @@ _PROVINCE_ITALIANE = [
     "VI","VR","VT","VV",
 ]
 
-_FIELD_ERROR_STYLE = (
-    "border: 2px solid #e74c3c; border-radius: 3px; background-color: #fff5f5;"
-)
-
-
 def _set_field_error(widget, has_error: bool) -> None:
-    """Applica o rimuove il bordo rosso di errore da un widget di input."""
-    widget.setStyleSheet(_FIELD_ERROR_STYLE if has_error else "")
+    """Applica o rimuove il bordo rosso di errore da un widget di input.
+
+    Usa la property [error="true"] gestita dal foglio di stile per
+    mantenere coerenza visiva col tema (vs. inline CSS che soppianta
+    border-radius, padding, ecc.).
+    """
+    widget.setProperty("error", "true" if has_error else "false")
+    widget.style().unpolish(widget)
+    widget.style().polish(widget)
 
 
 def _show_status_message(message: str, timeout_ms: int = 4000) -> None:
@@ -83,9 +85,23 @@ class InserimentoComuneWidget(LazyLoadedWidget): # Eredita da LazyLoadedWidget
     def _initUI(self):
         # ... (tutta la definizione della UI rimane la stessa)
         main_layout = QVBoxLayout(self)
+        main_layout.setContentsMargins(0, 0, 0, 0)
+        main_layout.setSpacing(14)
+
+        title = QLabel("Inserimento Comune")
+        title.setObjectName("pageTitle")
+        subtitle = QLabel("Aggiungi un nuovo comune all'archivio catastale.")
+        subtitle.setObjectName("pageSubtitle")
+        main_layout.addWidget(title)
+        main_layout.addWidget(subtitle)
+
         form_group = QGroupBox("Dati del Nuovo Comune")
         form_layout = QFormLayout(form_group)
-        form_layout.setSpacing(10)
+        form_layout.setSpacing(12)
+        form_layout.setHorizontalSpacing(18)
+        form_layout.setVerticalSpacing(12)
+        form_layout.setLabelAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
+        form_layout.setFieldGrowthPolicy(QFormLayout.FieldGrowthPolicy.ExpandingFieldsGrow)
         self.nome_comune_edit = QLineEdit()
         _lbl_nome = QLabel('Nome Comune <span style="color:#e74c3c;font-weight:bold;">*</span>:')
         form_layout.addRow(_lbl_nome, self.nome_comune_edit)
@@ -129,28 +145,40 @@ class InserimentoComuneWidget(LazyLoadedWidget): # Eredita da LazyLoadedWidget
         self.periodo_combo = QComboBox()
         form_layout.addRow("Periodo Storico:", self.periodo_combo)
         main_layout.addWidget(form_group)
+
         button_layout = QHBoxLayout()
-        self.submit_button = QPushButton("Inserisci Comune")
-        self.submit_button.clicked.connect(self.inserisci_comune)
-        self.submit_button.setToolTip("Salva il comune nel database (Invio)")
-        self.clear_button = QPushButton("Pulisci Campi")
-        self.clear_button.clicked.connect(self.pulisci_campi)
-        self.clear_button.setToolTip("Azzera tutti i campi del form")
+        button_layout.setSpacing(8)
+
+        # CSV utilities a sinistra (secondari)
         btn_import = QPushButton("Importa CSV")
+        btn_import.setObjectName("secondaryButton")
         btn_import.clicked.connect(self.import_csv_requested.emit)
         btn_import.setToolTip("Importa più comuni da un file CSV")
         btn_scarica = QPushButton("Scarica CSV")
+        btn_scarica.setObjectName("secondaryButton")
         btn_scarica.clicked.connect(self.scarica_csv_requested.emit)
         btn_scarica.setToolTip("Scarica i comuni esistenti come file CSV")
         btn_template = QPushButton("Scarica template")
+        btn_template.setObjectName("secondaryButton")
         btn_template.clicked.connect(self._scarica_template_csv)
         btn_template.setToolTip("Scarica un file CSV di esempio con le colonne corrette")
-        button_layout.addStretch()
-        button_layout.addWidget(self.submit_button)
-        button_layout.addWidget(self.clear_button)
         button_layout.addWidget(btn_import)
         button_layout.addWidget(btn_scarica)
         button_layout.addWidget(btn_template)
+        button_layout.addStretch()
+
+        # Azioni primarie a destra
+        self.clear_button = QPushButton("Pulisci Campi")
+        self.clear_button.setObjectName("secondaryButton")
+        self.clear_button.clicked.connect(self.pulisci_campi)
+        self.clear_button.setToolTip("Azzera tutti i campi del form")
+        self.submit_button = QPushButton("Inserisci Comune")
+        self.submit_button.clicked.connect(self.inserisci_comune)
+        self.submit_button.setDefault(True)
+        self.submit_button.setToolTip("Salva il comune nel database (Invio)")
+        button_layout.addWidget(self.clear_button)
+        button_layout.addWidget(self.submit_button)
+
         main_layout.addLayout(button_layout)
         main_layout.addStretch(1)
 
@@ -248,30 +276,52 @@ class InserimentoPossessoreWidget(LazyLoadedWidget):
 
     def _initUI(self):
         main_layout = QVBoxLayout(self)
+        main_layout.setContentsMargins(0, 0, 0, 0)
+        main_layout.setSpacing(14)
+
+        title = QLabel("Inserimento Possessore")
+        title.setObjectName("pageTitle")
+        subtitle = QLabel("Anagrafica di un nuovo possessore di partite catastali.")
+        subtitle.setObjectName("pageSubtitle")
+        main_layout.addWidget(title)
+        main_layout.addWidget(subtitle)
+
         form_group = QGroupBox("Dati del Nuovo Possessore")
         form_layout = QGridLayout(form_group)
+        form_layout.setHorizontalSpacing(18)
+        form_layout.setVerticalSpacing(12)
+        form_layout.setContentsMargins(4, 4, 4, 4)
         form_layout.setColumnStretch(1, 1)
 
-        form_layout.addWidget(QLabel('Cognome e Nome <span style="color:#e74c3c;font-weight:bold;">*</span>:'), 0, 0)
+        _lbl_cn = QLabel('Cognome e Nome <span style="color:#C62828;font-weight:600;">*</span>:')
+        _lbl_cn.setAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
+        form_layout.addWidget(_lbl_cn, 0, 0)
         self.cognome_nome_edit = QLineEdit()
         self.cognome_nome_edit.setPlaceholderText("Es. Rossi Mario, Bianchi Giovanni")
         form_layout.addWidget(self.cognome_nome_edit, 0, 1)
 
-        form_layout.addWidget(QLabel("Paternità (es. fu Carlo):"), 1, 0)
+        _lbl_pat = QLabel("Paternità (es. fu Carlo):")
+        _lbl_pat.setAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
+        form_layout.addWidget(_lbl_pat, 1, 0)
         self.paternita_edit = QLineEdit()
         form_layout.addWidget(self.paternita_edit, 1, 1)
 
         self.btn_genera_nome_completo = QPushButton("Genera Nome Completo")
+        self.btn_genera_nome_completo.setObjectName("secondaryButton")
         self.btn_genera_nome_completo.clicked.connect(self._genera_e_imposta_nome_completo)
         form_layout.addWidget(self.btn_genera_nome_completo, 2, 1, Qt.AlignmentFlag.AlignLeft)
 
-        form_layout.addWidget(QLabel('Nome Completo (generato) <span style="color:#e74c3c;font-weight:bold;">*</span>:'), 3, 0)
+        _lbl_nc = QLabel('Nome Completo (generato) <span style="color:#C62828;font-weight:600;">*</span>:')
+        _lbl_nc.setAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
+        form_layout.addWidget(_lbl_nc, 3, 0)
         self.nome_completo_edit = QLineEdit()
         self.nome_completo_edit.setPlaceholderText("Verrà generato o inserire manualmente")
         self.nome_completo_edit.returnPressed.connect(self._salva_possessore)
         form_layout.addWidget(self.nome_completo_edit, 3, 1)
 
-        form_layout.addWidget(QLabel('Comune di Riferimento <span style="color:#e74c3c;font-weight:bold;">*</span>:'), 4, 0)
+        _lbl_com = QLabel('Comune di Riferimento <span style="color:#C62828;font-weight:600;">*</span>:')
+        _lbl_com.setAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
+        form_layout.addWidget(_lbl_com, 4, 0)
         self.comune_combo = QComboBox()
         self.comune_combo.addItem("Caricamento comuni...", None)
         self.comune_combo.setEnabled(False)
@@ -289,30 +339,38 @@ class InserimentoPossessoreWidget(LazyLoadedWidget):
         main_layout.addWidget(form_group)
 
         button_layout = QHBoxLayout()
-        self.save_button = QPushButton("Salva Nuovo Possessore")
-        self.save_button.clicked.connect(self._salva_possessore)
-        self.save_button.setToolTip("Salva il possessore nel database (Invio)")
-        self.clear_button = QPushButton("Pulisci Campi")
-        self.clear_button.clicked.connect(self._pulisci_campi_possessore)
-        self.clear_button.setToolTip("Azzera tutti i campi del form")
+        button_layout.setSpacing(8)
+
         btn_import = QPushButton("Importa CSV")
+        btn_import.setObjectName("secondaryButton")
         btn_import.clicked.connect(self.import_csv_requested.emit)
         btn_import.setToolTip("Importa più possessori da un file CSV")
         btn_scarica = QPushButton("Scarica CSV")
+        btn_scarica.setObjectName("secondaryButton")
         btn_scarica.clicked.connect(self.scarica_csv_requested.emit)
         btn_scarica.setToolTip("Scarica i possessori esistenti come file CSV")
         btn_template = QPushButton("Scarica template")
+        btn_template.setObjectName("secondaryButton")
         btn_template.clicked.connect(self._scarica_template_csv)
         btn_template.setToolTip("Scarica un file CSV di esempio con le colonne corrette")
-        button_layout.addStretch()
-        button_layout.addWidget(self.save_button)
-        button_layout.addWidget(self.clear_button)
         button_layout.addWidget(btn_import)
         button_layout.addWidget(btn_scarica)
         button_layout.addWidget(btn_template)
-        main_layout.addLayout(button_layout)
+        button_layout.addStretch()
 
-        self.setLayout(main_layout)
+        self.clear_button = QPushButton("Pulisci Campi")
+        self.clear_button.setObjectName("secondaryButton")
+        self.clear_button.clicked.connect(self._pulisci_campi_possessore)
+        self.clear_button.setToolTip("Azzera tutti i campi del form")
+        self.save_button = QPushButton("Salva Possessore")
+        self.save_button.setDefault(True)
+        self.save_button.clicked.connect(self._salva_possessore)
+        self.save_button.setToolTip("Salva il possessore nel database (Invio)")
+        button_layout.addWidget(self.clear_button)
+        button_layout.addWidget(self.save_button)
+
+        main_layout.addLayout(button_layout)
+        main_layout.addStretch(1)
 
     def _load_data_on_first_show(self):
         """Metodo per il lazy loading: carica i comuni la prima volta che il tab viene visualizzato."""
@@ -484,56 +542,90 @@ class InserimentoLocalitaWidget(QWidget):
         # Non carichiamo i tipi qui, ma quando un comune viene selezionato
 
     def _initUI(self):
-        # ... (la UI rimane quasi identica)
         layout = QVBoxLayout(self)
+        layout.setContentsMargins(0, 0, 0, 0)
+        layout.setSpacing(14)
+
+        title = QLabel("Inserimento Località")
+        title.setObjectName("pageTitle")
+        subtitle = QLabel("Aggiungi una nuova località geografica (frazione, contrada, regione).")
+        subtitle.setObjectName("pageSubtitle")
+        layout.addWidget(title)
+        layout.addWidget(subtitle)
+
         form_group = QGroupBox("Inserimento Nuova Località")
         form_layout = QGridLayout(form_group)
-        comune_label = QLabel('Comune <span style="color:#e74c3c;font-weight:bold;">*</span>:')
+        form_layout.setHorizontalSpacing(14)
+        form_layout.setVerticalSpacing(12)
+        form_layout.setContentsMargins(4, 4, 4, 4)
+        form_layout.setColumnStretch(1, 1)
+        form_layout.setColumnStretch(2, 2)
+
+        comune_label = QLabel('Comune <span style="color:#C62828;font-weight:600;">*</span>:')
+        comune_label.setAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
         self.comune_button = QPushButton("Seleziona Comune...")
+        self.comune_button.setObjectName("secondaryButton")
         self.comune_button.clicked.connect(self.select_comune)
         self.comune_display = QLabel("Nessun comune selezionato")
+        self.comune_display.setProperty("muted", "true")
         form_layout.addWidget(comune_label, 0, 0)
         form_layout.addWidget(self.comune_button, 0, 1)
         form_layout.addWidget(self.comune_display, 0, 2)
-        nome_label = QLabel('Nome località <span style="color:#e74c3c;font-weight:bold;">*</span>:')
+
+        nome_label = QLabel('Nome località <span style="color:#C62828;font-weight:600;">*</span>:')
+        nome_label.setAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
         self.nome_edit = QLineEdit()
         self.nome_edit.textChanged.connect(lambda: _set_field_error(self.nome_edit, False))
         self.nome_edit.returnPressed.connect(self.insert_localita)
         form_layout.addWidget(nome_label, 1, 0)
         form_layout.addWidget(self.nome_edit, 1, 1, 1, 2)
-        tipo_label = QLabel('Tipo <span style="color:#e74c3c;font-weight:bold;">*</span>:')
+
+        tipo_label = QLabel('Tipo <span style="color:#C62828;font-weight:600;">*</span>:')
+        tipo_label.setAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
         self.tipo_combo = QComboBox()
         self.tipo_combo.addItem("Seleziona prima un comune...", None)
         self.tipo_combo.setEnabled(False)
         self.tipo_combo.currentIndexChanged.connect(lambda: _set_field_error(self.tipo_combo, False))
         form_layout.addWidget(tipo_label, 2, 0)
-        form_layout.addWidget(self.tipo_combo, 2, 1)
+        form_layout.addWidget(self.tipo_combo, 2, 1, 1, 2)
+
         form_group.setLayout(form_layout)
         layout.addWidget(form_group)
+
         button_layout = QHBoxLayout()
-        btn_inserisci = QPushButton("Inserisci Località")
-        btn_inserisci.clicked.connect(self.insert_localita)
-        btn_inserisci.setToolTip("Salva la località nel database (Invio)")
-        self._btn_inserisci_localita = btn_inserisci
-        btn_pulisci = QPushButton("Pulisci Campi")
-        btn_pulisci.clicked.connect(self._pulisci_campi)
-        btn_pulisci.setToolTip("Azzera tutti i campi del form")
+        button_layout.setSpacing(8)
+
         btn_import = QPushButton("Importa CSV")
+        btn_import.setObjectName("secondaryButton")
         btn_import.clicked.connect(self.import_csv_requested.emit)
         btn_import.setToolTip("Importa più località da un file CSV")
         btn_scarica = QPushButton("Scarica CSV")
+        btn_scarica.setObjectName("secondaryButton")
         btn_scarica.clicked.connect(self.scarica_csv_requested.emit)
         btn_scarica.setToolTip("Scarica le località esistenti come file CSV")
         btn_template = QPushButton("Scarica template")
+        btn_template.setObjectName("secondaryButton")
         btn_template.clicked.connect(self._scarica_template_csv)
         btn_template.setToolTip("Scarica un file CSV di esempio con le colonne corrette")
-        button_layout.addStretch()
-        button_layout.addWidget(btn_inserisci)
-        button_layout.addWidget(btn_pulisci)
         button_layout.addWidget(btn_import)
         button_layout.addWidget(btn_scarica)
         button_layout.addWidget(btn_template)
+        button_layout.addStretch()
+
+        btn_pulisci = QPushButton("Pulisci Campi")
+        btn_pulisci.setObjectName("secondaryButton")
+        btn_pulisci.clicked.connect(self._pulisci_campi)
+        btn_pulisci.setToolTip("Azzera tutti i campi del form")
+        btn_inserisci = QPushButton("Inserisci Località")
+        btn_inserisci.setDefault(True)
+        btn_inserisci.clicked.connect(self.insert_localita)
+        btn_inserisci.setToolTip("Salva la località nel database (Invio)")
+        self._btn_inserisci_localita = btn_inserisci
+        button_layout.addWidget(btn_pulisci)
+        button_layout.addWidget(btn_inserisci)
+
         layout.addLayout(button_layout)
+        layout.addStretch(1)
 
         self.setLayout(layout)
 
@@ -612,19 +704,33 @@ class InserimentoPartitaWidget(QWidget):
 
     def _initUI(self):
         main_layout = QVBoxLayout(self)
+        main_layout.setContentsMargins(0, 0, 0, 0)
+        main_layout.setSpacing(14)
+
+        title = QLabel("Inserimento Partita")
+        title.setObjectName("pageTitle")
+        subtitle = QLabel("Crea una nuova partita catastale collegata a un comune.")
+        subtitle.setObjectName("pageSubtitle")
+        main_layout.addWidget(title)
+        main_layout.addWidget(subtitle)
+
         form_group = QGroupBox("Dati Nuova Partita")
         form_layout = QFormLayout(form_group)
-        form_layout.setSpacing(10)
-        
+        form_layout.setHorizontalSpacing(18)
+        form_layout.setVerticalSpacing(12)
+        form_layout.setLabelAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
+        form_layout.setFieldGrowthPolicy(QFormLayout.FieldGrowthPolicy.ExpandingFieldsGrow)
+
         # --- CAMPI DEL FORM AGGIORNATI SECONDO LO SCHEMA ---
         self.comune_combo = QComboBox()
         self.comune_combo.currentIndexChanged.connect(lambda: _set_field_error(self.comune_combo, False))
-        _lbl_comune_p = QLabel('Comune <span style="color:#e74c3c;font-weight:bold;">*</span>:')
+        _lbl_comune_p = QLabel('Comune <span style="color:#C62828;font-weight:600;">*</span>:')
         form_layout.addRow(_lbl_comune_p, self.comune_combo)
 
         self.numero_partita_spin = QSpinBox()
         self.numero_partita_spin.setRange(1, 999999)
-        form_layout.addRow("Numero Partita (*):", self.numero_partita_spin)
+        _lbl_num = QLabel('Numero Partita <span style="color:#C62828;font-weight:600;">*</span>:')
+        form_layout.addRow(_lbl_num, self.numero_partita_spin)
 
         self.suffisso_edit = QLineEdit()
         self.suffisso_edit.setPlaceholderText("Es. bis, A (opzionale)")
@@ -635,7 +741,8 @@ class InserimentoPartitaWidget(QWidget):
         self.data_impianto_edit = QDateEdit(calendarPopup=True)
         self.data_impianto_edit.setDisplayFormat("yyyy-MM-dd")
         self.data_impianto_edit.setDate(QDate.currentDate())
-        form_layout.addRow("Data Impianto (*):", self.data_impianto_edit)
+        _lbl_data = QLabel('Data Impianto <span style="color:#C62828;font-weight:600;">*</span>:')
+        form_layout.addRow(_lbl_data, self.data_impianto_edit)
 
         # NUOVO: Campo per data_chiusura (opzionale)
         self.data_chiusura_check = QCheckBox("Imposta data chiusura")
@@ -656,39 +763,49 @@ class InserimentoPartitaWidget(QWidget):
 
         self.tipo_combo = QComboBox()
         self.tipo_combo.addItems(["principale", "secondaria"])
-        form_layout.addRow("Tipo (*):", self.tipo_combo)
+        _lbl_tipo = QLabel('Tipo <span style="color:#C62828;font-weight:600;">*</span>:')
+        form_layout.addRow(_lbl_tipo, self.tipo_combo)
 
         self.stato_combo = QComboBox()
         self.stato_combo.addItems(["attiva", "inattiva"])
-        form_layout.addRow("Stato (*):", self.stato_combo)
+        _lbl_stato = QLabel('Stato <span style="color:#C62828;font-weight:600;">*</span>:')
+        form_layout.addRow(_lbl_stato, self.stato_combo)
 
         main_layout.addWidget(form_group)
 
         button_layout = QHBoxLayout()
-        btn_salva = QPushButton("Salva Nuova Partita")
-        btn_salva.clicked.connect(self._salva_partita)
-        btn_salva.setToolTip("Salva la partita nel database (Invio)")
-        self._btn_salva_partita = btn_salva
-        btn_pulisci = QPushButton("Pulisci Campi")
-        btn_pulisci.clicked.connect(self._pulisci_campi)
-        btn_pulisci.setToolTip("Azzera tutti i campi del form")
+        button_layout.setSpacing(8)
+
         btn_import = QPushButton("Importa CSV")
+        btn_import.setObjectName("secondaryButton")
         btn_import.clicked.connect(self.import_csv_requested.emit)
         btn_import.setToolTip("Importa più partite da un file CSV o Excel")
         btn_scarica = QPushButton("Scarica CSV")
+        btn_scarica.setObjectName("secondaryButton")
         btn_scarica.clicked.connect(self.scarica_csv_requested.emit)
         btn_scarica.setToolTip("Scarica le partite esistenti come file CSV")
         btn_template = QPushButton("Scarica template")
+        btn_template.setObjectName("secondaryButton")
         btn_template.clicked.connect(self._scarica_template_csv)
         btn_template.setToolTip("Scarica un file CSV di esempio con le colonne corrette")
-        button_layout.addStretch()
-        button_layout.addWidget(btn_salva)
-        button_layout.addWidget(btn_pulisci)
         button_layout.addWidget(btn_import)
         button_layout.addWidget(btn_scarica)
         button_layout.addWidget(btn_template)
-        main_layout.addLayout(button_layout)
+        button_layout.addStretch()
 
+        btn_pulisci = QPushButton("Pulisci Campi")
+        btn_pulisci.setObjectName("secondaryButton")
+        btn_pulisci.clicked.connect(self._pulisci_campi)
+        btn_pulisci.setToolTip("Azzera tutti i campi del form")
+        btn_salva = QPushButton("Salva Partita")
+        btn_salva.setDefault(True)
+        btn_salva.clicked.connect(self._salva_partita)
+        btn_salva.setToolTip("Salva la partita nel database (Invio)")
+        self._btn_salva_partita = btn_salva
+        button_layout.addWidget(btn_pulisci)
+        button_layout.addWidget(btn_salva)
+
+        main_layout.addLayout(button_layout)
         main_layout.addStretch()
         self.setLayout(main_layout)
         

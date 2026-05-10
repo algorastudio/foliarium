@@ -210,7 +210,16 @@ class CatastoMainWindow(QMainWindow):
 
         self.stack = QStackedWidget(self)
         self.stack.currentChanged.connect(self._on_stack_changed)
-        content_layout.addWidget(self.stack, 1)
+
+        # Wrapper con padding consistente attorno alle pagine, così ogni
+        # widget eredita un margine uniforme senza doverlo settare a mano.
+        stack_wrapper = QWidget()
+        stack_wrapper.setObjectName("pageContainer")
+        stack_wrapper_layout = QVBoxLayout(stack_wrapper)
+        stack_wrapper_layout.setContentsMargins(20, 18, 20, 14)
+        stack_wrapper_layout.setSpacing(0)
+        stack_wrapper_layout.addWidget(self.stack)
+        content_layout.addWidget(stack_wrapper, 1)
 
         self.main_layout.addWidget(content_widget, 1)
 
