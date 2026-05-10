@@ -865,8 +865,8 @@ class WelcomeScreen(QDialog):
 
         # ── Pannello sinistro (branding) ────────────────────────────────────
         left = QFrame()
+        left.setObjectName("welcomeBranding")
         left.setFixedWidth(320)
-        left.setStyleSheet("background-color: #3F51B5;")
         left_layout = QVBoxLayout(left)
         left_layout.setContentsMargins(28, 40, 28, 28)
         left_layout.setSpacing(12)
@@ -880,7 +880,6 @@ class WelcomeScreen(QDialog):
                     from PyQt6.QtSvgWidgets import QSvgWidget
                     logo_w = QSvgWidget(logo_path_str)
                     logo_w.setFixedSize(100, 100)
-                    logo_w.setStyleSheet("background: transparent;")
                     logo_layout = QHBoxLayout()
                     logo_layout.addStretch()
                     logo_layout.addWidget(logo_w)
@@ -894,74 +893,64 @@ class WelcomeScreen(QDialog):
                 lbl.setPixmap(px.scaled(100, 100, Qt.AspectRatioMode.KeepAspectRatio,
                                         Qt.TransformationMode.SmoothTransformation))
                 lbl.setAlignment(Qt.AlignmentFlag.AlignCenter)
-                lbl.setStyleSheet("background: transparent;")
                 left_layout.addWidget(lbl)
 
         left_layout.addSpacing(16)
 
         app_lbl = QLabel(APP_NAME)
-        app_lbl.setFont(QFont("Segoe UI", 26, QFont.Weight.Bold))
+        app_lbl.setObjectName("welcomeAppTitle")
         app_lbl.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        app_lbl.setStyleSheet("color: #FFFFFF; background: transparent;")
         left_layout.addWidget(app_lbl)
 
         sub_lbl = QLabel(APP_SUBTITLE)
-        sub_lbl.setFont(QFont("Segoe UI", 11))
+        sub_lbl.setObjectName("welcomeAppSubtitle")
         sub_lbl.setAlignment(Qt.AlignmentFlag.AlignCenter)
         sub_lbl.setWordWrap(True)
-        sub_lbl.setStyleSheet("color: #C5CAE9; background: transparent;")
         left_layout.addWidget(sub_lbl)
 
         left_layout.addStretch(1)
 
         separator = QFrame()
+        separator.setObjectName("welcomeSeparator")
         separator.setFrameShape(QFrame.Shape.HLine)
-        separator.setStyleSheet("color: #5C6BC0;")
         left_layout.addWidget(separator)
 
         algora_lbl = QLabel("Algora Studio")
-        algora_lbl.setFont(QFont("Segoe UI", 12, QFont.Weight.Bold))
+        algora_lbl.setObjectName("welcomeStudio")
         algora_lbl.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        algora_lbl.setStyleSheet("color: #E8EAF6; background: transparent;")
         left_layout.addWidget(algora_lbl)
 
         copy_lbl = QLabel(f"© 2025 Algora Studio\nVersione {APP_VERSION}")
-        copy_lbl.setFont(QFont("Segoe UI", 9))
+        copy_lbl.setObjectName("welcomeCopyright")
         copy_lbl.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        copy_lbl.setStyleSheet("color: #9FA8DA; background: transparent;")
         left_layout.addWidget(copy_lbl)
 
         root.addWidget(left)
 
         # ── Pannello destro (EULA) ──────────────────────────────────────────
         right = QFrame()
-        right.setStyleSheet("background-color: #FFFFFF;")
+        right.setObjectName("welcomeBody")
         right_layout = QVBoxLayout(right)
         right_layout.setContentsMargins(32, 32, 32, 24)
         right_layout.setSpacing(14)
 
         title_lbl = QLabel("Contratto di Licenza")
-        title_lbl.setFont(QFont("Segoe UI", 16, QFont.Weight.Bold))
-        title_lbl.setStyleSheet("color: #3F51B5;")
+        title_lbl.setObjectName("welcomeTitle")
         right_layout.addWidget(title_lbl)
 
         info_lbl = QLabel(
             "Leggi attentamente il contratto di licenza prima di utilizzare Foliarium.\n"
             "Devi accettare i termini per continuare."
         )
-        info_lbl.setFont(QFont("Segoe UI", 9))
-        info_lbl.setStyleSheet("color: #757575;")
+        info_lbl.setObjectName("welcomeInfo")
         info_lbl.setWordWrap(True)
         right_layout.addWidget(info_lbl)
 
         # Testo EULA
         self.eula_browser = QTextBrowser()
+        self.eula_browser.setObjectName("eulaBrowser")
         self.eula_browser.setReadOnly(True)
         self.eula_browser.setFont(QFont("Consolas", 9))
-        self.eula_browser.setStyleSheet(
-            "border: 1px solid #C5CAE9; border-radius: 6px; "
-            "background: #F8F9FA; padding: 8px; color: #212121;"
-        )
         eula_path = get_resource_path("EULA.txt")
         try:
             with open(str(eula_path), "r", encoding="utf-8") as f:
@@ -979,7 +968,6 @@ class WelcomeScreen(QDialog):
             "Ho letto e accetto i termini del Contratto di Licenza con l'Utente Finale (EULA)"
         )
         self.accept_cb.setFont(QFont("Segoe UI", 9, QFont.Weight.Bold))
-        self.accept_cb.setStyleSheet("color: #212121;")
         self.accept_cb.toggled.connect(self._on_accept_toggled)
         right_layout.addWidget(self.accept_cb)
 
@@ -1007,12 +995,7 @@ class WelcomeScreen(QDialog):
         self.continue_btn.setMinimumHeight(36)
         self.continue_btn.setMinimumWidth(110)
         self.continue_btn.setEnabled(False)
-        self.continue_btn.setStyleSheet(
-            "QPushButton { background-color: #3F51B5; color: #FFFFFF; border: none;"
-            " border-radius: 4px; padding: 6px 16px; font-weight: bold; }"
-            "QPushButton:hover { background-color: #5C6BC0; }"
-            "QPushButton:disabled { background-color: #C5CAE9; color: #9FA8DA; }"
-        )
+        self.continue_btn.setDefault(True)
         self.continue_btn.clicked.connect(self._on_continue)
         btn_row.addWidget(self.continue_btn)
 

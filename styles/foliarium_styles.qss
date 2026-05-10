@@ -702,19 +702,118 @@ QFrame#card, QWidget#card {
 }
 
 /* ============================================================
+   LOGIN DIALOG
+   ============================================================ */
+#loginDialog {
+    background: #FFFFFF;
+}
+#loginBanner {
+    background: qlineargradient(x1:0, y1:0, x2:1, y2:1,
+        stop:0 #1A237E, stop:0.5 #303F9F, stop:1 #3F51B5);
+    border: none;
+}
+#loginBanner QLabel { background: transparent; }
+#loginTitle {
+    color: #FFFFFF;
+    font-size: 22px;
+    font-weight: 700;
+    letter-spacing: 0.5px;
+}
+#loginSubtitle {
+    color: #C5CAE9;
+    font-size: 11px;
+    font-weight: 500;
+    letter-spacing: 0.8px;
+}
+#loginBody {
+    background: #FFFFFF;
+}
+#loginPrompt {
+    color: #1F2330;
+    font-size: 13px;
+    font-weight: 600;
+    padding-bottom: 4px;
+}
+
+/* ============================================================
+   WELCOME / EULA SCREEN
+   ============================================================ */
+#welcomeBranding {
+    background: qlineargradient(x1:0, y1:0, x2:0, y2:1,
+        stop:0 #303F9F, stop:1 #3F51B5);
+    border: none;
+}
+#welcomeBranding QLabel { background: transparent; }
+#welcomeAppTitle {
+    color: #FFFFFF;
+    font-size: 26px;
+    font-weight: 700;
+    letter-spacing: 0.3px;
+}
+#welcomeAppSubtitle {
+    color: #C5CAE9;
+    font-size: 11px;
+    font-weight: 500;
+}
+#welcomeStudio {
+    color: #E8EAF6;
+    font-size: 12px;
+    font-weight: 700;
+    letter-spacing: 0.5px;
+}
+#welcomeCopyright {
+    color: #9FA8DA;
+    font-size: 9px;
+}
+#welcomeSeparator {
+    color: #5C6BC0;
+    background: #5C6BC0;
+    max-height: 1px;
+}
+#welcomeBody {
+    background: #FFFFFF;
+}
+#welcomeTitle {
+    color: #1A237E;
+    font-size: 18px;
+    font-weight: 700;
+}
+#welcomeInfo {
+    color: #5A6478;
+    font-size: 10pt;
+}
+#eulaBrowser {
+    border: 1px solid #D5D9EA;
+    border-radius: 8px;
+    background: #FAFBFE;
+    padding: 10px;
+    color: #1F2330;
+    selection-background-color: #3F51B5;
+    selection-color: #FFFFFF;
+}
+
+/* ============================================================
    OFFLINE / WARNING BARS
    ============================================================ */
 #offlineBar {
     background: #FDE8E8;
     border-bottom: 1px solid #EF9A9A;
+}
+#offlineBar QLabel {
     color: #B71C1C;
     font-weight: 600;
-    padding: 6px 16px;
+    background: transparent;
+}
+#offlineTimestamp {
+    color: #B71C1C;
+    font-weight: 400;
 }
 #staleDataBar {
     background: #FFF8E1;
     border-bottom: 1px solid #FFE082;
-    color: #E65100;
+}
+#staleDataBar QLabel {
+    color: #664D03;
     font-weight: 600;
-    padding: 6px 16px;
+    background: transparent;
 }
