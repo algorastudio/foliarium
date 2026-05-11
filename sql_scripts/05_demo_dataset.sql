@@ -253,6 +253,24 @@ BEGIN
     RAISE NOTICE '[DEMO v2] Inizio caricamento dataset ampliato provincia di Savona...';
 
     -- ============================================================
+    -- 0. SELF-HEAL SCHEMA (v1.6.1+ usa tipologia_stradale)
+    --    Se il DB ha ancora la vecchia colonna tipo_id con vincolo
+    --    NOT NULL, lo rilassiamo per permettere agli INSERT seguenti
+    --    (che non specificano tipo_id) di completare. La colonna non
+    --    viene rimossa: lo farà eventualmente la migrazione 10.
+    -- ============================================================
+    IF EXISTS (
+        SELECT 1 FROM information_schema.columns
+        WHERE table_schema = current_schema()
+          AND table_name = 'localita'
+          AND column_name = 'tipo_id'
+          AND is_nullable = 'NO'
+    ) THEN
+        RAISE NOTICE '[DEMO v2] Rilascio NOT NULL su localita.tipo_id (schema legacy).';
+        ALTER TABLE localita ALTER COLUMN tipo_id DROP NOT NULL;
+    END IF;
+
+    -- ============================================================
     -- 1. TIPO_LOCALITA
     -- ============================================================
     INSERT INTO tipo_localita (nome, descrizione) VALUES
