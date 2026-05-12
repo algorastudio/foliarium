@@ -291,7 +291,6 @@ class CatastoMainWindow(QMainWindow):
 
         # --- Aggiornamento etichetta stato DB ---
         db_name_configured = "N/Config"  # Default
-        db_name_configured = "N/Config"
         if self.db_manager:
             db_name_configured = self.db_manager.get_current_dbname() or "N/Config(None)"
 
@@ -630,6 +629,13 @@ class CatastoMainWindow(QMainWindow):
         while self.stack.count():
             w = self.stack.widget(0)
             self.stack.removeWidget(w)
+            # Ferma in modo sicuro eventuali thread in esecuzione per evitare crash
+            for worker_attr in ['_dash_loader', '_loader', '_search_worker', 'search_thread']:
+                worker = getattr(w, worker_attr, None)
+                if worker and worker.isRunning():
+                    worker.quit()
+                    worker.wait(500)
+            w.deleteLater()  # Previene un grave memory leak eliminando il widget
         self._page_index.clear()
 
         is_admin = bool(
@@ -1236,6 +1242,13 @@ class CatastoMainWindow(QMainWindow):
             while self.stack.count():
                 w = self.stack.widget(0)
                 self.stack.removeWidget(w)
+                # Ferma in modo sicuro eventuali thread in esecuzione per evitare crash
+                for worker_attr in ['_dash_loader', '_loader', '_search_worker', 'search_thread']:
+                    worker = getattr(w, worker_attr, None)
+                    if worker and worker.isRunning():
+                        worker.quit()
+                        worker.wait(500)
+                w.deleteLater()  # Previene il memory leak a ogni logout
             self._page_index.clear()
 
             self.statusBar().showMessage("Logout effettuato. L'applicazione verrà chiusa.")
@@ -1277,6 +1290,23 @@ class CatastoMainWindow(QMainWindow):
         else:
             logging.getLogger("CatastoGUI").warning(
                 "DB Manager non disponibile durante closeEvent o pool già None.")
+                
+        # Rimuovi l'event filter globale per prevenire memory leak e segfaults
+        if QApplication.instance():
+            QApplication.instance().removeEventFilter(self)
+
+        # Ferma i thread attivi nello stack prima di uscire per prevenire segfault
+        for i in range(self.stack.count()):
+            w = self.stack.widget(i)
+            for worker_attr in ['_dash_loader', '_loader', '_search_worker', 'search_thread']:
+                worker = getattr(w, worker_attr, None)
+                if worker and worker.isRunning():
+                    worker.quit()
+                    worker.wait(500)
+
+        if hasattr(self, '_login_email_worker') and self._login_email_worker and self._login_email_worker.isRunning():
+            self._login_email_worker.quit()
+            self._login_email_worker.wait(500)
 
         # Rilascia il seat di licenza di rete
         if hasattr(self, '_license_manager') and self._license_manager:
@@ -1602,32 +1632,6 @@ class CatastoMainWindow(QMainWindow):
 
 
 
-def setup_logging():
-    """Configura il logging per scrivere nella cartella AppData dell'utente."""
-    # Imposta i metadati dell'applicazione per creare un percorso univoco
-    QCoreApplication.setOrganizationName("AlgoraStudio")
-    QCoreApplication.setApplicationName("Foliarium")
-
-    # Trova la cartella standard e scrivibile per i dati dell'applicazione
-    app_data_path = QStandardPaths.writableLocation(QStandardPaths.StandardLocation.AppLocalDataLocation)
-
-    # Assicurati che la cartella esista
-    os.makedirs(app_data_path, exist_ok=True)
-
-    # Percorso completo del file di log
-    log_file_path = os.path.join(app_data_path, "foliarium_session.log")
-
-    # Configura il logger principale (root logger)
-    log_format = '%(asctime)s - %(name)s - %(levelname)s - %(filename)s:%(lineno)d - %(message)s'
-    logging.basicConfig(level=logging.INFO,
-                        format=log_format,
-                        handlers=[
-                            logging.FileHandler(log_file_path, mode='a', encoding='utf-8'),
-                            logging.StreamHandler(sys.stdout)
-                        ])
-
-    logging.info(f"Logging configurato. I log verranno salvati in: {log_file_path}")
-    
 # Inserisci questa funzione in gui_main.py
 
 def setup_global_logging():

@@ -12,6 +12,7 @@ from typing import Dict, List, Optional, TYPE_CHECKING
 
 from PyQt6.QtCore import (
     QModelIndex, QPoint, QSize, Qt, QThread, QTimer, pyqtSignal,
+    QAbstractTableModel, QSortFilterProxyModel
 )
 from PyQt6.QtGui import QColor, QIcon
 from PyQt6.QtWidgets import (
@@ -20,6 +21,7 @@ from PyQt6.QtWidgets import (
     QLabel, QLineEdit, QMenu, QMessageBox, QProgressBar, QPushButton,
     QSlider, QSpinBox, QStyle, QTabWidget, QTableWidget, QTableWidgetItem,
     QVBoxLayout, QWidget,
+    QVBoxLayout, QWidget, QTableView
 )
 
 from app_paths import get_icon_path
@@ -147,6 +149,52 @@ class PartitaResultCard(QFrame):
         self.style().unpolish(self)
         self.style().polish(self)
 
+
+class PartiteTableModel(QAbstractTableModel):
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self._data = []
+        self._headers = ["ID", "N° Partita", "Comune", "Stato", "Tipo", "Data Impianto"]
+
+    def update_data(self, new_data):
+        self.beginResetModel()
+        self._data = new_data
+        self.endResetModel()
+
+    def rowCount(self, parent=QModelIndex()):
+        return len(self._data)
+
+    def columnCount(self, parent=QModelIndex()):
+        return len(self._headers)
+
+    def data(self, index, role=Qt.ItemDataRole.DisplayRole):
+        if not index.isValid():
+            return None
+            
+        row_data = self._data[index.row()]
+        col = index.column()
+
+        if role == Qt.ItemDataRole.DisplayRole:
+            if col == 0: return str(row_data.get('id', '—'))
+            elif col == 1:
+                suf = (row_data.get('suffisso_partita') or '').strip()
+                return f"{row_data.get('numero_partita')}{'/' + suf if suf else ''}"
+            elif col == 2: return row_data.get('comune_nome', '')
+            elif col == 3: return row_data.get('stato', '')
+            elif col == 4: return row_data.get('tipo', '')
+            elif col == 5: return str(row_data.get('data_impianto') or '—')
+        elif role == Qt.ItemDataRole.UserRole and col == 0:
+            return row_data.get('id')
+        elif role == Qt.ItemDataRole.EditRole:  # For correct numerical sorting
+            if col == 0: return row_data.get('id', 0)
+            elif col == 1: return row_data.get('numero_partita', 0)
+            return self.data(index, Qt.ItemDataRole.DisplayRole)
+        return None
+
+    def headerData(self, section, orientation, role=Qt.ItemDataRole.DisplayRole):
+        if role == Qt.ItemDataRole.DisplayRole and orientation == Qt.Orientation.Horizontal:
+            return self._headers[section]
+        return None
 
 class RicercaPartiteWidget(QWidget):
     def __init__(self, db_manager, parent=None):
@@ -286,6 +334,12 @@ class RicercaPartiteWidget(QWidget):
         self._table.setColumnCount(6)
         self._table.setHorizontalHeaderLabels(["ID", "N° Partita", "Comune", "Stato", "Tipo", "Data Impianto"])
         self._table.setEditTriggers(QAbstractItemView.EditTrigger.NoEditTriggers)
+        self._table = QTableView()
+        self._model = PartiteTableModel(self)
+        self._proxy = QSortFilterProxyModel(self)
+        self._proxy.setSourceModel(self._model)
+        self._table.setModel(self._proxy)
+        
         self._table.setSelectionBehavior(QAbstractItemView.SelectionBehavior.SelectRows)
         self._table.setSelectionMode(QAbstractItemView.SelectionMode.SingleSelection)
         self._table.setAlternatingRowColors(True)
@@ -301,6 +355,7 @@ class RicercaPartiteWidget(QWidget):
         self._table.setColumnWidth(3, 80)   # Stato
         self._table.setColumnWidth(4, 100)  # Tipo
         self._table.cellClicked.connect(lambda row, col: self._on_row_selected(row))
+        self._table.clicked.connect(lambda idx: self._on_row_selected(idx.row()))
         self._table.doubleClicked.connect(lambda: self.show_details())
         self._table.customContextMenuRequested.connect(self._on_context_menu)
         group_layout.addWidget(self._table, 1)
@@ -366,6 +421,7 @@ class RicercaPartiteWidget(QWidget):
         self._table.setSortingEnabled(False)
         self._table.setRowCount(0)
         self._table.setSortingEnabled(True)
+        self._model.update_data([])
         self._all_partite.clear()
         self._selected_partita_id = None
         self._count_label.setText("Nessuna ricerca eseguita.")
@@ -386,6 +442,9 @@ class RicercaPartiteWidget(QWidget):
         for row in range(self._table.rowCount()):
             stato_item = self._table.item(row, 3)  # col 3 = Stato (dopo aggiunta colonna ID)
             partita_stato = (stato_item.text() if stato_item else "").strip()
+        for row in range(self._proxy.rowCount()):
+            idx = self._proxy.index(row, 3)
+            partita_stato = str(self._proxy.data(idx) or "").strip()
             show = (not stato_filtro or
                     partita_stato.lower() == stato_filtro.lower())
             self._table.setRowHidden(row, not show)
@@ -454,6 +513,7 @@ class RicercaPartiteWidget(QWidget):
                     item.setData(Qt.ItemDataRole.UserRole, partita_id)
                 self._table.setItem(row, col, item)
         self._table.setSortingEnabled(True)
+        self._model.update_data(self._all_partite)
 
         self._selected_partita_id = None
         for btn in (self._btn_open_full, self._btn_albero, self._btn_copy_id, self._btn_archivia):
@@ -485,8 +545,11 @@ class RicercaPartiteWidget(QWidget):
 
         id_item = self._table.item(current_row, 0)
         if id_item is None:
+            idx = self._proxy.index(current_row, 0)
+        if not idx.isValid():
             return
         partita_id = id_item.data(Qt.ItemDataRole.UserRole)
+        partita_id = self._proxy.data(idx, Qt.ItemDataRole.UserRole)
         if not partita_id:
             return
 
@@ -523,9 +586,15 @@ class RicercaPartiteWidget(QWidget):
             return
         id_item = self._table.item(row, 0)
         if id_item is None:
+            
+            idx_id = self._proxy.index(row, 0)
+        if not idx_id.isValid():
             return
         partita_id = id_item.data(Qt.ItemDataRole.UserRole)
         numero_text = id_item.text()
+        partita_id = self._proxy.data(idx_id, Qt.ItemDataRole.UserRole)
+        idx_num = self._proxy.index(row, 1)
+        numero_text = str(self._proxy.data(idx_num))
 
         self._table.selectRow(row)
 
@@ -570,6 +639,8 @@ class RicercaPartiteWidget(QWidget):
             return
         row = self._table.currentRow()
         numero_text = self._table.item(row, 0).text() if row >= 0 and self._table.item(row, 0) else str(self._selected_partita_id)
+        row = self._table.currentIndex().row()
+        numero_text = str(self._proxy.data(self._proxy.index(row, 1))) if row >= 0 else str(self._selected_partita_id)
         self._archivia_partita(self._selected_partita_id, numero_text)
 
 
@@ -913,8 +984,8 @@ class UnifiedFuzzySearchThread(QThread):
     error_occurred = pyqtSignal(str)
     progress_updated = pyqtSignal(int)
 
-    def __init__(self, gin_search_manager, query_text, options):
-        super().__init__()
+    def __init__(self, gin_search_manager, query_text, options, parent=None):
+        super().__init__(parent)
         self.gin_search_manager = gin_search_manager
         self.query_text = query_text
         self.options = options
@@ -985,7 +1056,7 @@ class UnifiedFuzzySearchWidget(QWidget):
         # Variabili di stato
         self.current_results = {}
         self.search_thread = None
-        self.search_timer = QTimer()
+        self.search_timer = QTimer(self)
         self.search_timer.setSingleShot(True)
         self.search_timer.timeout.connect(self._perform_search)
 
@@ -1263,7 +1334,7 @@ class UnifiedFuzzySearchWidget(QWidget):
         self.search_btn.setEnabled(False)
         self.stats_label.setText("Ricerca in corso...")
         
-        self.search_thread = UnifiedFuzzySearchThread(self.gin_search, query_text, search_options)
+        self.search_thread = UnifiedFuzzySearchThread(self.gin_search, query_text, search_options, parent=self)
         self.search_thread.results_ready.connect(self._display_results)
         self.search_thread.error_occurred.connect(self._handle_search_error)
         self.search_thread.finished.connect(lambda: self.search_btn.setEnabled(True))
