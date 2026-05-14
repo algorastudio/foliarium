@@ -22,8 +22,9 @@ from datetime import datetime, date
 from typing import Optional, Dict, List, Any, TYPE_CHECKING
 
 from PyQt6.QtCore import (
-    QDate, QDateTime, QPoint, QProcess, QProcessEnvironment,
-    QSettings, QSize, Qt, QTimer, QUrl, pyqtSignal, pyqtSlot,
+    QAbstractTableModel, QDate, QDateTime, QModelIndex, QPoint, QProcess,
+    QProcessEnvironment, QSettings, QSize, QSortFilterProxyModel, Qt, QTimer,
+    QUrl, pyqtSignal, pyqtSlot,
 )
 from PyQt6.QtGui import QColor, QFont, QIcon, QAction
 from PyQt6.QtWidgets import (
@@ -34,7 +35,7 @@ from PyQt6.QtWidgets import (
     QLabel, QLineEdit, QMenu, QMessageBox, QProgressBar,
     QPushButton, QScrollArea, QSizePolicy, QSpacerItem,
     QSpinBox, QStyle, QTabWidget,
-    QTableWidget, QTableWidgetItem, QTextEdit,
+    QTableView, QTableWidget, QTableWidgetItem, QTextEdit,
     QVBoxLayout, QWidget, QProgressDialog, QTextBrowser, QSplitter,
 )
 
@@ -54,6 +55,227 @@ logger = logging.getLogger("CatastoGUI.admin_widgets")
 
 
 from foliarium.ui.widgets.custom import show_status_message as _show_status_message
+
+
+_USERS_COLS = ["ID", "Username", "Nome Completo", "Email", "Ruolo", "Stato"]
+
+
+class UtentiTableModel(QAbstractTableModel):
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self._data: List[Dict[str, Any]] = []
+
+    def load(self, utenti: List[Dict[str, Any]]) -> None:
+        self.beginResetModel()
+        self._data = utenti
+        self.endResetModel()
+
+    def user_id_at(self, source_row: int) -> Optional[int]:
+        if 0 <= source_row < len(self._data):
+            try:
+                return int(self._data[source_row]['id'])
+            except (KeyError, ValueError, TypeError):
+                return None
+        return None
+
+    def row_dict(self, source_row: int) -> Dict[str, Any]:
+        return self._data[source_row] if 0 <= source_row < len(self._data) else {}
+
+    def rowCount(self, parent=QModelIndex()) -> int:
+        return 0 if parent.isValid() else len(self._data)
+
+    def columnCount(self, parent=QModelIndex()) -> int:
+        return 0 if parent.isValid() else len(_USERS_COLS)
+
+    def headerData(self, section, orientation, role=Qt.ItemDataRole.DisplayRole):
+        if role == Qt.ItemDataRole.DisplayRole and orientation == Qt.Orientation.Horizontal:
+            return _USERS_COLS[section] if 0 <= section < len(_USERS_COLS) else None
+        return None
+
+    def data(self, index, role=Qt.ItemDataRole.DisplayRole):
+        if not index.isValid():
+            return None
+        row, col = index.row(), index.column()
+        if not (0 <= row < len(self._data) and 0 <= col < len(_USERS_COLS)):
+            return None
+        user = self._data[row]
+        if role in (Qt.ItemDataRole.DisplayRole, Qt.ItemDataRole.EditRole):
+            if col == 0:
+                val = user.get('id')
+                if role == Qt.ItemDataRole.EditRole and val is not None:
+                    return int(val)
+                return str(val) if val is not None else ''
+            if col == 1: return user.get('username', '') or ''
+            if col == 2: return user.get('nome_completo', '') or ''
+            if col == 3: return user.get('email', 'N/D') or 'N/D'
+            if col == 4: return user.get('ruolo', '') or ''
+            if col == 5: return "Attivo" if user.get('attivo') else "Non Attivo"
+        if role == Qt.ItemDataRole.TextAlignmentRole and col == 0:
+            return int(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
+        return None
+
+    def flags(self, index):
+        return Qt.ItemFlag.ItemIsEnabled | Qt.ItemFlag.ItemIsSelectable
+
+    def sort(self, column, order=Qt.SortOrder.AscendingOrder):
+        if not self._data:
+            return
+        _keys = {0: 'id', 1: 'username', 2: 'nome_completo', 3: 'email', 4: 'ruolo', 5: 'attivo'}
+        key = _keys.get(column, 'username')
+        self.layoutAboutToBeChanged.emit()
+        self._data.sort(
+            key=lambda r: (r.get(key) is None, r.get(key) if r.get(key) is not None else ''),
+            reverse=(order == Qt.SortOrder.DescendingOrder),
+        )
+        self.layoutChanged.emit()
+
+
+class GenericRecordsModel(QAbstractTableModel):
+    """Modello generico per tabelle record-oriented: ogni riga è (record_id, [val0, val1, ...])."""
+
+    def __init__(self, headers: List[str], parent=None, muted: bool = False):
+        super().__init__(parent)
+        self._headers = list(headers)
+        self._rows: List[tuple] = []
+        self._muted = muted
+
+    def load(self, rows: List[tuple]) -> None:
+        self.beginResetModel()
+        self._rows = list(rows)
+        self.endResetModel()
+
+    def record_id_at(self, row: int) -> Optional[Any]:
+        return self._rows[row][0] if 0 <= row < len(self._rows) else None
+
+    def row_values(self, row: int) -> list:
+        return self._rows[row][1] if 0 <= row < len(self._rows) else []
+
+    def row_count(self) -> int:
+        return len(self._rows)
+
+    def rowCount(self, parent=QModelIndex()) -> int:
+        return 0 if parent.isValid() else len(self._rows)
+
+    def columnCount(self, parent=QModelIndex()) -> int:
+        return 0 if parent.isValid() else len(self._headers)
+
+    def headerData(self, section, orientation, role=Qt.ItemDataRole.DisplayRole):
+        if role == Qt.ItemDataRole.DisplayRole and orientation == Qt.Orientation.Horizontal:
+            return self._headers[section] if 0 <= section < len(self._headers) else None
+        return None
+
+    def data(self, index, role=Qt.ItemDataRole.DisplayRole):
+        if not index.isValid():
+            return None
+        row, col = index.row(), index.column()
+        if not (0 <= row < len(self._rows) and 0 <= col < len(self._headers)):
+            return None
+        values = self._rows[row][1]
+        val = values[col] if col < len(values) else None
+        if role in (Qt.ItemDataRole.DisplayRole, Qt.ItemDataRole.EditRole):
+            if role == Qt.ItemDataRole.EditRole and col == 0:
+                try:
+                    return int(val)
+                except (ValueError, TypeError):
+                    return str(val) if val is not None else ''
+            return str(val) if val is not None else ''
+        if role == Qt.ItemDataRole.ForegroundRole and self._muted:
+            return QColor("#616161")
+        if role == Qt.ItemDataRole.TextAlignmentRole and col == 0:
+            return int(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
+        return None
+
+    def flags(self, index):
+        return Qt.ItemFlag.ItemIsEnabled | Qt.ItemFlag.ItemIsSelectable
+
+    def sort(self, column, order=Qt.SortOrder.AscendingOrder):
+        if not self._rows or column >= len(self._headers):
+            return
+        self.layoutAboutToBeChanged.emit()
+        def _key(r):
+            vals = r[1]
+            v = vals[column] if column < len(vals) else None
+            return (v is None, v if v is not None else '')
+        self._rows.sort(key=_key, reverse=(order == Qt.SortOrder.DescendingOrder))
+        self.layoutChanged.emit()
+
+
+_AUDIT_COLS = ["ID", "Data/Ora", "Utente", "Sessione", "Tabella", "Azione", "Record", "IP"]
+
+
+class AuditLogTableModel(QAbstractTableModel):
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self._data: List[Dict[str, Any]] = []
+
+    def load(self, logs: List[Dict[str, Any]]) -> None:
+        self.beginResetModel()
+        self._data = logs
+        self.endResetModel()
+
+    def log_at(self, source_row: int) -> Dict[str, Any]:
+        return self._data[source_row] if 0 <= source_row < len(self._data) else {}
+
+    def rowCount(self, parent=QModelIndex()) -> int:
+        return 0 if parent.isValid() else len(self._data)
+
+    def columnCount(self, parent=QModelIndex()) -> int:
+        return 0 if parent.isValid() else len(_AUDIT_COLS)
+
+    def headerData(self, section, orientation, role=Qt.ItemDataRole.DisplayRole):
+        if role == Qt.ItemDataRole.DisplayRole and orientation == Qt.Orientation.Horizontal:
+            return _AUDIT_COLS[section] if 0 <= section < len(_AUDIT_COLS) else None
+        return None
+
+    def data(self, index, role=Qt.ItemDataRole.DisplayRole):
+        if not index.isValid():
+            return None
+        row, col = index.row(), index.column()
+        if not (0 <= row < len(self._data) and 0 <= col < len(_AUDIT_COLS)):
+            return None
+        log = self._data[row]
+        if role in (Qt.ItemDataRole.DisplayRole, Qt.ItemDataRole.EditRole):
+            if col == 0:
+                val = log.get('id')
+                if role == Qt.ItemDataRole.EditRole and val is not None:
+                    return int(val)
+                return str(val) if val is not None else ''
+            if col == 1:
+                ts = log.get('timestamp')
+                return ts.strftime("%Y-%m-%d %H:%M:%S") if ts else "N/D"
+            if col == 2: return log.get('username', 'N/D') or 'N/D'
+            if col == 3:
+                sid = log.get('session_id', '') or ''
+                return (sid[:8] + '…') if sid else ''
+            if col == 4: return log.get('tabella', '') or ''
+            if col == 5: return log.get('operazione', '') or ''
+            if col == 6:
+                val = log.get('record_id')
+                if role == Qt.ItemDataRole.EditRole and val is not None:
+                    try: return int(val)
+                    except (ValueError, TypeError): return str(val)
+                return str(val) if val is not None else ''
+            if col == 7: return log.get('ip_address', '') or ''
+        if role == Qt.ItemDataRole.TextAlignmentRole and col in (0, 6):
+            return int(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
+        return None
+
+    def flags(self, index):
+        return Qt.ItemFlag.ItemIsEnabled | Qt.ItemFlag.ItemIsSelectable
+
+    def sort(self, column, order=Qt.SortOrder.AscendingOrder):
+        if not self._data:
+            return
+        _keys = {0: 'id', 1: 'timestamp', 2: 'username', 3: 'session_id',
+                 4: 'tabella', 5: 'operazione', 6: 'record_id', 7: 'ip_address'}
+        key = _keys.get(column, 'timestamp')
+        self.layoutAboutToBeChanged.emit()
+        self._data.sort(
+            key=lambda r: (r.get(key) is None, r.get(key) if r.get(key) is not None else ''),
+            reverse=(order == Qt.SortOrder.DescendingOrder),
+        )
+        self.layoutChanged.emit()
+
 
 class GestioneTipiLocalitaWidget(LazyLoadedWidget):
     def __init__(self, db_manager: 'CatastoDBManager', parent=None):
@@ -311,21 +533,28 @@ class GestioneUtentiWidget(LazyLoadedWidget):
         action_layout.addWidget(self.btn_refresh_list)
         layout.addLayout(action_layout)
 
-        # Tabella Utenti
-        self.user_table = QTableWidget()
-        self.user_table.setColumnCount(6)
-        self.user_table.setHorizontalHeaderLabels(["ID", "Username", "Nome Completo", "Email", "Ruolo", "Stato"])
+        # Tabella Utenti (model/view)
+        self._users_model = UtentiTableModel(self)
+        self._users_proxy = QSortFilterProxyModel(self)
+        self._users_proxy.setSourceModel(self._users_model)
+        self._users_proxy.setFilterCaseSensitivity(Qt.CaseSensitivity.CaseInsensitive)
+        self._users_proxy.setFilterKeyColumn(-1)
+
+        self.user_table = QTableView()
+        self.user_table.setModel(self._users_proxy)
         self.user_table.setSelectionBehavior(QAbstractItemView.SelectionBehavior.SelectRows)
         self.user_table.setSelectionMode(QAbstractItemView.SelectionMode.SingleSelection)
         self.user_table.setEditTriggers(QAbstractItemView.EditTrigger.NoEditTriggers)
+        self.user_table.setAlternatingRowColors(True)
+        self.user_table.setSortingEnabled(True)
         self.user_table.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeMode.Interactive)
         self.user_table.horizontalHeader().setStretchLastSection(True)
-        self.user_table.setColumnWidth(0, 40)   # ID
-        self.user_table.setColumnWidth(1, 130)  # Username
-        self.user_table.setColumnWidth(2, 180)  # Nome Completo
-        self.user_table.setColumnWidth(3, 180)  # Email
-        self.user_table.setColumnWidth(4, 100)  # Ruolo
-        self.user_table.itemSelectionChanged.connect(self._update_action_buttons_state)
+        self.user_table.setColumnWidth(0, 40)
+        self.user_table.setColumnWidth(1, 130)
+        self.user_table.setColumnWidth(2, 180)
+        self.user_table.setColumnWidth(3, 180)
+        self.user_table.setColumnWidth(4, 100)
+        self.user_table.selectionModel().selectionChanged.connect(self._update_action_buttons_state)
         self.user_table.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
         self.user_table.customContextMenuRequested.connect(self._apri_menu_contestuale_utente)
         layout.addWidget(self.user_table)
@@ -366,29 +595,18 @@ class GestioneUtentiWidget(LazyLoadedWidget):
     def refresh_user_list(self):
         """Carica o ricarica la lista degli utenti dal database e la visualizza."""
         self.logger.info("Aggiornamento della lista utenti in corso...")
-        self.user_table.setSortingEnabled(False)
-        self.user_table.setRowCount(0)
         try:
-            utenti = self.db_manager.get_utenti()
-            self.user_table.setRowCount(len(utenti))
-            for row, user_data in enumerate(utenti):
-                self.user_table.setItem(row, 0, QTableWidgetItem(str(user_data['id'])))
-                self.user_table.setItem(row, 1, QTableWidgetItem(user_data['username']))
-                self.user_table.setItem(row, 2, QTableWidgetItem(user_data['nome_completo']))
-                self.user_table.setItem(row, 3, QTableWidgetItem(user_data.get('email', 'N/D')))
-                self.user_table.setItem(row, 4, QTableWidgetItem(user_data['ruolo']))
-                self.user_table.setItem(row, 5, QTableWidgetItem("Attivo" if user_data['attivo'] else "Non Attivo"))
+            utenti = self.db_manager.get_utenti() or []
+            self._users_model.load(utenti)
             self.user_table.resizeColumnsToContents()
             self.logger.info("Lista utenti aggiornata con successo.")
         except DBMError as e:
             self.logger.error(f"Errore DB durante l'aggiornamento della lista utenti: {e}")
             QMessageBox.critical(self, "Errore Database", f"Impossibile caricare la lista degli utenti:\n{e}")
-        finally:
-            self.user_table.setSortingEnabled(True)
 
     def _update_action_buttons_state(self):
         """Abilita i pulsanti di gestione solo se un utente è selezionato."""
-        has_selection = bool(self.user_table.selectedItems())
+        has_selection = self.user_table.selectionModel().hasSelection()
         self.btn_modifica_utente.setEnabled(has_selection and self.is_admin)
         self.btn_reset_password.setEnabled(has_selection and self.is_admin)
         self.btn_toggle_stato.setEnabled(has_selection and self.is_admin)
@@ -427,12 +645,13 @@ class GestioneUtentiWidget(LazyLoadedWidget):
             QMessageBox.warning(self, "Nessuna Selezione",
                                 "Per favore, seleziona un utente dalla lista.")
             return None
-        try:
-            return int(self.user_table.item(selected_rows[0].row(), 0).text())
-        except (ValueError, AttributeError):
+        source_row = self._users_proxy.mapToSource(selected_rows[0]).row()
+        user_id = self._users_model.user_id_at(source_row)
+        if user_id is None:
             QMessageBox.critical(
                 self, "Errore", "Impossibile ottenere l'ID dell'utente selezionato.")
             return None
+        return user_id
 
     def modifica_utente_selezionato(self):
         user_id = self._get_selected_user_id()
@@ -640,16 +859,14 @@ class GestioneUtentiWidget(LazyLoadedWidget):
 
     def _apri_menu_contestuale_utente(self, position: QPoint):
         """Context menu sulla tabella utenti."""
-        index = self.user_table.indexAt(position)
-        if not index.isValid():
+        proxy_idx = self.user_table.indexAt(position)
+        if not proxy_idx.isValid():
             return
-        row = index.row()
-        username_item = self.user_table.item(row, 1)
-        nome_item = self.user_table.item(row, 2)
-        email_item = self.user_table.item(row, 3)
-        username = username_item.text() if username_item else ""
-        nome = nome_item.text() if nome_item else ""
-        email = email_item.text() if email_item else ""
+        source_row = self._users_proxy.mapToSource(proxy_idx).row()
+        user = self._users_model.row_dict(source_row)
+        username = user.get('username', '') or ''
+        nome = user.get('nome_completo', '') or ''
+        email = user.get('email', '') or ''
 
         menu = QMenu(self.user_table)
         menu.addAction(
@@ -825,28 +1042,28 @@ class AuditLogViewerWidget(LazyLoadedWidget):
         table_layout.setContentsMargins(0, 0, 0, 0)
         table_layout.setSpacing(5)
         
-        # Tabella risultati
-        self.log_table = QTableWidget()
-        self.log_table.setColumnCount(8)
-        self.log_table.setHorizontalHeaderLabels(["ID", "Data/Ora", "Utente", "Sessione", "Tabella", "Azione", "Record", "IP"])
+        # Tabella risultati (model/view)
+        self._audit_model = AuditLogTableModel(self)
+        self.log_table = QTableView()
+        self.log_table.setModel(self._audit_model)
         self.log_table.setEditTriggers(QAbstractItemView.EditTrigger.NoEditTriggers)
         self.log_table.setSelectionBehavior(QAbstractItemView.SelectionBehavior.SelectRows)
         self.log_table.setSelectionMode(QAbstractItemView.SelectionMode.SingleSelection)
         self.log_table.setAlternatingRowColors(True)
-        
-        # Configurazione colonne
+        self.log_table.setSortingEnabled(True)
+
         header = self.log_table.horizontalHeader()
-        header.setSectionResizeMode(0, QHeaderView.ResizeMode.ResizeToContents)  # ID
-        header.setSectionResizeMode(1, QHeaderView.ResizeMode.ResizeToContents)  # Data/Ora
-        header.setSectionResizeMode(2, QHeaderView.ResizeMode.Interactive)       # Utente
-        header.setSectionResizeMode(3, QHeaderView.ResizeMode.ResizeToContents)  # Sessione
-        header.setSectionResizeMode(4, QHeaderView.ResizeMode.Interactive)        # Tabella
-        header.setSectionResizeMode(5, QHeaderView.ResizeMode.ResizeToContents)  # Azione
-        header.setSectionResizeMode(6, QHeaderView.ResizeMode.ResizeToContents)  # Record
-        header.setSectionResizeMode(7, QHeaderView.ResizeMode.ResizeToContents)  # IP
+        header.setSectionResizeMode(0, QHeaderView.ResizeMode.ResizeToContents)
+        header.setSectionResizeMode(1, QHeaderView.ResizeMode.ResizeToContents)
+        header.setSectionResizeMode(2, QHeaderView.ResizeMode.Interactive)
+        header.setSectionResizeMode(3, QHeaderView.ResizeMode.ResizeToContents)
+        header.setSectionResizeMode(4, QHeaderView.ResizeMode.Interactive)
+        header.setSectionResizeMode(5, QHeaderView.ResizeMode.ResizeToContents)
+        header.setSectionResizeMode(6, QHeaderView.ResizeMode.ResizeToContents)
+        header.setSectionResizeMode(7, QHeaderView.ResizeMode.ResizeToContents)
         header.setStretchLastSection(False)
 
-        self.log_table.itemSelectionChanged.connect(self._display_log_details)
+        self.log_table.selectionModel().selectionChanged.connect(self._display_log_details)
         self.log_table.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
         self.log_table.customContextMenuRequested.connect(self._apri_menu_contestuale_log)
         table_layout.addWidget(self.log_table)
@@ -1029,26 +1246,18 @@ class AuditLogViewerWidget(LazyLoadedWidget):
         self._apply_filters_and_search()
 
     def _fetch_and_display_logs(self):
-        self.log_table.setRowCount(0)
-        if not self.db_manager or not self.db_manager.pool: return
+        if not self.db_manager or not self.db_manager.pool:
+            self._audit_model.load([])
+            return
         try:
             logs, self.total_records = self.db_manager.get_audit_logs(
                 filters=self.current_filters, page=self.current_page, page_size=self.page_size
             )
             self.total_pages = (self.total_records + self.page_size - 1) // self.page_size if self.total_records > 0 else 1
-            
-            self.log_table.setRowCount(len(logs))
-            for row_idx, log in enumerate(logs):
-                item_id = QTableWidgetItem(str(log.get('id', ''))); item_id.setData(Qt.ItemDataRole.UserRole, log)
-                ts = log.get('timestamp'); ts_str = ts.strftime("%Y-%m-%d %H:%M:%S") if ts else "N/D"
-                session_id = log.get('session_id', '')
-                session_display = (session_id[:8] + '…') if session_id else ''
-                self.log_table.setItem(row_idx, 0, item_id); self.log_table.setItem(row_idx, 1, QTableWidgetItem(ts_str))
-                self.log_table.setItem(row_idx, 2, QTableWidgetItem(log.get('username', 'N/D'))); self.log_table.setItem(row_idx, 3, QTableWidgetItem(session_display))
-                self.log_table.setItem(row_idx, 4, QTableWidgetItem(log.get('tabella'))); self.log_table.setItem(row_idx, 5, QTableWidgetItem(log.get('operazione')))
-                self.log_table.setItem(row_idx, 6, QTableWidgetItem(str(log.get('record_id', '')))); self.log_table.setItem(row_idx, 7, QTableWidgetItem(log.get('ip_address')))
+            self._audit_model.load(logs or [])
             self._update_pagination_controls()
         except DBMError as e:
+            self._audit_model.load([])
             QMessageBox.critical(self, "Errore Database", f"Impossibile caricare i log di audit:\n{e}")
 
     def _update_pagination_controls(self):
@@ -1064,10 +1273,19 @@ class AuditLogViewerWidget(LazyLoadedWidget):
     def _go_to_last_page(self): self.current_page = self.total_pages; self._fetch_and_display_logs()
 
     def _display_log_details(self):
-        selected = self.log_table.selectedItems()
-        if not selected: self.details_before_text.clear(); self.details_after_text.clear(); return
-        log_entry = self.log_table.item(selected[0].row(), 0).data(Qt.ItemDataRole.UserRole)
-        d_before = log_entry.get('dati_prima'); d_after = log_entry.get('dati_dopo')
+        selected_rows = self.log_table.selectionModel().selectedRows()
+        if not selected_rows:
+            self.details_before_text.clear()
+            self.details_after_text.clear()
+            return
+        source_row = selected_rows[0].row()
+        log_entry = self._audit_model.log_at(source_row)
+        if not log_entry:
+            self.details_before_text.clear()
+            self.details_after_text.clear()
+            return
+        d_before = log_entry.get('dati_prima')
+        d_after = log_entry.get('dati_dopo')
         self.details_before_text.setText(json.dumps(d_before, indent=4, ensure_ascii=False) if d_before else "")
         self.details_after_text.setText(json.dumps(d_after, indent=4, ensure_ascii=False) if d_after else "")
 
@@ -1101,14 +1319,13 @@ class AuditLogViewerWidget(LazyLoadedWidget):
         if not index.isValid():
             return
         row = index.row()
-        id_item = self.log_table.item(row, 0)
-        utente_item = self.log_table.item(row, 2)
-        azione_item = self.log_table.item(row, 5)
-        ip_item = self.log_table.item(row, 7)
-        id_text = id_item.text() if id_item else ""
-        utente_text = utente_item.text() if utente_item else ""
-        azione_text = azione_item.text() if azione_item else ""
-        ip_text = ip_item.text() if ip_item else ""
+        log = self._audit_model.log_at(row)
+        if not log:
+            return
+        id_text = str(log.get('id', '') or '')
+        utente_text = log.get('username', '') or ''
+        azione_text = log.get('operazione', '') or ''
+        ip_text = log.get('ip_address', '') or ''
 
         menu = QMenu(self.log_table)
         if id_text:
@@ -1124,12 +1341,13 @@ class AuditLogViewerWidget(LazyLoadedWidget):
             menu.addAction(f"Copia IP  ({ip_text})").triggered.connect(
                 lambda: QApplication.clipboard().setText(ip_text))
         menu.addSeparator()
-        # Copia intera riga come testo tab-separato
+
         def _copia_riga():
             parts = []
-            for col in range(self.log_table.columnCount()):
-                item = self.log_table.item(row, col)
-                parts.append(item.text() if item else "")
+            for col in range(self._audit_model.columnCount()):
+                idx = self._audit_model.index(row, col)
+                val = self._audit_model.data(idx, Qt.ItemDataRole.DisplayRole)
+                parts.append(str(val) if val is not None else "")
             QApplication.clipboard().setText("\t".join(parts))
         menu.addAction("Copia riga intera").triggered.connect(_copia_riga)
         menu.exec(self.log_table.viewport().mapToGlobal(position))
@@ -1643,39 +1861,40 @@ class ArchivioWidget(LazyLoadedWidget):
         main_layout.addLayout(btn_row)
 
         # ── Tab Comuni ──────────────────────────────────────────────────────
-        self._t_comuni = self._make_table(["ID", "Nome", "Provincia", "Regione", "Archiviato il"])
+        self._t_comuni, self._m_comuni = self._make_table(["ID", "Nome", "Provincia", "Regione", "Archiviato il"])
         self._tabs.addTab(self._t_comuni, "Comuni")
 
         # ── Tab Possessori ──────────────────────────────────────────────────
-        self._t_poss = self._make_table(["ID", "Nome Completo", "Cognome Nome", "Comune", "Archiviato il"])
+        self._t_poss, self._m_poss = self._make_table(["ID", "Nome Completo", "Cognome Nome", "Comune", "Archiviato il"])
         self._tabs.addTab(self._t_poss, "Possessori")
 
         # ── Tab Località ─────────────────────────────────────────────────────
-        self._t_loc = self._make_table(["ID", "Nome", "Tipologia", "Comune", "Archiviato il"])
+        self._t_loc, self._m_loc = self._make_table(["ID", "Nome", "Tipologia", "Comune", "Archiviato il"])
         self._tabs.addTab(self._t_loc, "Località")
 
         # ── Tab Partite ──────────────────────────────────────────────────────
-        self._t_part = self._make_table(["ID", "N° Partita", "Comune", "Stato", "Tipo", "Archiviato il"])
+        self._t_part, self._m_part = self._make_table(["ID", "N° Partita", "Comune", "Stato", "Tipo", "Archiviato il"])
         self._tabs.addTab(self._t_part, "Partite")
 
         self._current_entity: str = "comuni"
 
     # ── helpers ──────────────────────────────────────────────────────────────
 
-    def _make_table(self, headers: list[str]) -> QTableWidget:
-        t = QTableWidget()
-        t.setColumnCount(len(headers))
-        t.setHorizontalHeaderLabels(headers)
+    def _make_table(self, headers: list[str]) -> tuple:
+        model = GenericRecordsModel(headers, parent=self, muted=True)
+        t = QTableView()
+        t.setModel(model)
         t.setEditTriggers(QAbstractItemView.EditTrigger.NoEditTriggers)
         t.setSelectionBehavior(QAbstractItemView.SelectionBehavior.SelectRows)
         t.setSelectionMode(QAbstractItemView.SelectionMode.SingleSelection)
         t.setAlternatingRowColors(True)
+        t.setSortingEnabled(True)
         t.verticalHeader().setVisible(False)
         hh = t.horizontalHeader()
         hh.setSectionResizeMode(QHeaderView.ResizeMode.Interactive)
         hh.setStretchLastSection(True)
-        t.itemSelectionChanged.connect(self._update_button_state)
-        return t
+        t.selectionModel().selectionChanged.connect(self._update_button_state)
+        return t, model
 
     def _update_button_state(self):
         tables = {
@@ -1684,7 +1903,7 @@ class ArchivioWidget(LazyLoadedWidget):
             "localita":   self._t_loc,
             "partite":    self._t_part,
         }
-        has_selection = tables[self._current_entity].currentRow() >= 0
+        has_selection = tables[self._current_entity].selectionModel().hasSelection()
         self._btn_ripristina.setEnabled(has_selection)
         self._btn_elimina.setEnabled(has_selection)
 
@@ -1719,64 +1938,50 @@ class ArchivioWidget(LazyLoadedWidget):
             n = len(data.get(key, []))
             self._tabs.setTabText(i, f"{label} ({n})" if n else label)
 
-    def _fill_row(self, table: QTableWidget, row: int, values: list, record_id: int):
-        table.insertRow(row)
-        for col, val in enumerate(values):
-            item = QTableWidgetItem(str(val) if val is not None else "")
-            item.setFlags(item.flags() & ~Qt.ItemFlag.ItemIsEditable)
-            if col == 0:
-                item.setData(Qt.ItemDataRole.UserRole, record_id)
-            item.setForeground(QColor("#616161"))
-            table.setItem(row, col, item)
-
     def _fill_comuni(self, rows: list):
-        t = self._t_comuni
-        t.setRowCount(0)
-        for r in rows:
-            self._fill_row(t, t.rowCount(), [
-                r["id"], r["nome"], r["provincia"], r["regione"],
-                str(r.get("archiviato_il") or "—")[:19]
-            ], r["id"])
+        self._m_comuni.load([
+            (r["id"], [r["id"], r["nome"], r["provincia"], r["regione"],
+                       str(r.get("archiviato_il") or "—")[:19]])
+            for r in rows
+        ])
 
     def _fill_possessori(self, rows: list):
-        t = self._t_poss
-        t.setRowCount(0)
-        for r in rows:
-            self._fill_row(t, t.rowCount(), [
-                r["id"], r.get("nome_completo"), r.get("cognome_nome"),
-                r.get("comune_nome"), str(r.get("archiviato_il") or "—")[:19]
-            ], r["id"])
+        self._m_poss.load([
+            (r["id"], [r["id"], r.get("nome_completo"), r.get("cognome_nome"),
+                       r.get("comune_nome"), str(r.get("archiviato_il") or "—")[:19]])
+            for r in rows
+        ])
 
     def _fill_localita(self, rows: list):
-        t = self._t_loc
-        t.setRowCount(0)
-        for r in rows:
-            self._fill_row(t, t.rowCount(), [
-                r["id"], r["nome"], r.get("tipologia_stradale"),
-                r.get("comune_nome"), str(r.get("archiviato_il") or "—")[:19]
-            ], r["id"])
+        self._m_loc.load([
+            (r["id"], [r["id"], r["nome"], r.get("tipologia_stradale"),
+                       r.get("comune_nome"), str(r.get("archiviato_il") or "—")[:19]])
+            for r in rows
+        ])
 
     def _fill_partite(self, rows: list):
-        t = self._t_part
-        t.setRowCount(0)
-        for r in rows:
+        def _num(r):
             suf = (r.get("suffisso_partita") or "").strip()
-            num = f"{r['numero_partita']}{f'/{suf}' if suf else ''}"
-            self._fill_row(t, t.rowCount(), [
-                r["id"], num, r.get("comune_nome"),
-                r.get("stato"), r.get("tipo"),
-                str(r.get("archiviato_il") or "—")[:19]
-            ], r["id"])
+            return f"{r['numero_partita']}{f'/{suf}' if suf else ''}"
+        self._m_part.load([
+            (r["id"], [r["id"], _num(r), r.get("comune_nome"),
+                       r.get("stato"), r.get("tipo"),
+                       str(r.get("archiviato_il") or "—")[:19]])
+            for r in rows
+        ])
 
     # ── ripristino ───────────────────────────────────────────────────────────
 
-    def _ripristina_selezionato(self):
+    def _current_table_and_model(self):
         tables = {
-            "comuni":     self._t_comuni,
-            "possessori": self._t_poss,
-            "localita":   self._t_loc,
-            "partite":    self._t_part,
+            "comuni":     (self._t_comuni, self._m_comuni),
+            "possessori": (self._t_poss, self._m_poss),
+            "localita":   (self._t_loc, self._m_loc),
+            "partite":    (self._t_part, self._m_part),
         }
+        return tables[self._current_entity]
+
+    def _ripristina_selezionato(self):
         ripristina_fn = {
             "comuni":     self.db_manager.ripristina_comune,
             "possessori": self.db_manager.ripristina_possessore,
@@ -1788,16 +1993,16 @@ class ArchivioWidget(LazyLoadedWidget):
             "localita": "località", "partite": "partita",
         }
 
-        table = tables[self._current_entity]
-        row = table.currentRow()
-        if row < 0:
+        table, model = self._current_table_and_model()
+        sel_rows = table.selectionModel().selectedRows()
+        if not sel_rows:
             return
-        id_item = table.item(row, 0)
-        if id_item is None:
+        row = sel_rows[0].row()
+        record_id = model.record_id_at(row)
+        if record_id is None:
             return
-        record_id = id_item.data(Qt.ItemDataRole.UserRole)
-        nome_item = table.item(row, 1)
-        nome = nome_item.text() if nome_item else str(record_id)
+        values = model.row_values(row)
+        nome = str(values[1]) if len(values) > 1 else str(record_id)
         label = entity_label[self._current_entity]
 
         risposta = QMessageBox.question(
@@ -1819,12 +2024,6 @@ class ArchivioWidget(LazyLoadedWidget):
     # ── eliminazione definitiva ──────────────────────────────────────────────
 
     def _elimina_definitivamente(self):
-        tables = {
-            "comuni":     self._t_comuni,
-            "possessori": self._t_poss,
-            "localita":   self._t_loc,
-            "partite":    self._t_part,
-        }
         elimina_fn = {
             "comuni":     self.db_manager.elimina_definitivamente_comune,
             "possessori": self.db_manager.elimina_definitivamente_possessore,
@@ -1836,16 +2035,16 @@ class ArchivioWidget(LazyLoadedWidget):
             "localita": "località", "partite": "partita",
         }
 
-        table = tables[self._current_entity]
-        row = table.currentRow()
-        if row < 0:
+        table, model = self._current_table_and_model()
+        sel_rows = table.selectionModel().selectedRows()
+        if not sel_rows:
             return
-        id_item = table.item(row, 0)
-        if id_item is None:
+        row = sel_rows[0].row()
+        record_id = model.record_id_at(row)
+        if record_id is None:
             return
-        record_id = id_item.data(Qt.ItemDataRole.UserRole)
-        nome_item = table.item(row, 1)
-        nome = nome_item.text() if nome_item else str(record_id)
+        values = model.row_values(row)
+        nome = str(values[1]) if len(values) > 1 else str(record_id)
         label = entity_label[self._current_entity]
 
         risposta = QMessageBox.warning(
