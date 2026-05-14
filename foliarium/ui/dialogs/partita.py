@@ -451,12 +451,13 @@ class PartitaDetailsDialog(QDialog):
         if partita.get('immobili'):
             for i, imm in enumerate(partita['immobili']):
                 report_lines.append(f"  - Immobile {i+1} (ID: {imm.get('id', 'N/D')}): {imm.get('natura', 'N/D')}")
-                localita_info = f"{imm.get('localita_nome', '')}"
-                if imm.get('civico') is not None and str(imm.get('civico')).strip() != '':
-                    localita_info += f", civ. {imm.get('civico')}"
-                if imm.get('localita_tipo'):
-                    localita_info += f" ({imm.get('localita_tipo')})"
-                report_lines.append(f"    Località: {localita_info.strip() if localita_info.strip() else 'N/A'}")
+                from app_utils import format_indirizzo
+                localita_info = format_indirizzo(
+                    imm.get('tipologia_stradale') or imm.get('localita_tipo'),
+                    imm.get('localita_nome'),
+                    imm.get('numero_civico') or imm.get('civico'),
+                )
+                report_lines.append(f"    Località: {localita_info or 'N/A'}")
                 report_lines.append(f"    Classificazione: {imm.get('classificazione', 'N/A')}")
                 report_lines.append(f"    Consistenza: {imm.get('consistenza', 'N/A')}")
                 piani_vani_info = []
@@ -931,13 +932,12 @@ class ModificaPartitaDialog(QDialog):
                     self.immobili_table.setItem(row_idx, 1, QTableWidgetItem(imm.get('natura', '')))
                     self.immobili_table.setItem(row_idx, 2, QTableWidgetItem(imm.get('classificazione', '')))
                     self.immobili_table.setItem(row_idx, 3, QTableWidgetItem(imm.get('consistenza', '')))
-                    localita_text = ""
-                    if 'localita_nome' in imm:
-                        localita_text = imm['localita_nome']
-                        if 'civico' in imm and imm['civico'] is not None:
-                            localita_text += f", {imm['civico']}"
-                        if 'localita_tipo' in imm:
-                            localita_text += f" ({imm['localita_tipo']})"
+                    from app_utils import format_indirizzo
+                    localita_text = format_indirizzo(
+                        imm.get('tipologia_stradale') or imm.get('localita_tipo'),
+                        imm.get('localita_nome'),
+                        imm.get('numero_civico') or imm.get('civico'),
+                    )
                     self.immobili_table.setItem(row_idx, 4, QTableWidgetItem(localita_text))
                 self.immobili_table.resizeColumnsToContents()
             else:
@@ -1313,6 +1313,7 @@ class ModificaPartitaDialog(QDialog):
                     partita_id=self.partita_id,
                     natura=immobile_data['natura'],
                     localita_id=immobile_data['localita_id'],
+                    numero_civico=immobile_data.get('numero_civico'),
                     classificazione=immobile_data['classificazione'],
                     consistenza=immobile_data['consistenza'],
                     numero_piani=immobile_data['numero_piani'],
@@ -1850,6 +1851,9 @@ class ModificaImmobileDialog(QDialog):
         self.classificazione_edit = QLineEdit()
         self.indirizzo_edit = QLineEdit()
         self.localita_combo = QComboBox()
+        self.civico_edit = QLineEdit()
+        self.civico_edit.setMaxLength(20)
+        self.civico_edit.setPlaceholderText("Es. 17, 17/A, s.n.c.")
         self.foglio_edit = QLineEdit()
         self.mappale_edit = QLineEdit()
         self.subalterno_edit = QLineEdit()
@@ -1867,6 +1871,7 @@ class ModificaImmobileDialog(QDialog):
         form_layout.addRow("Classificazione:", self.classificazione_edit)
         form_layout.addRow("Indirizzo:", self.indirizzo_edit)
         form_layout.addRow("Località:", self.localita_combo)
+        form_layout.addRow("Civico:", self.civico_edit)
         form_layout.addRow("Foglio:", self.foglio_edit)
         form_layout.addRow("Mappale:", self.mappale_edit)
         form_layout.addRow("Subalterno:", self.subalterno_edit)
@@ -1916,6 +1921,7 @@ class ModificaImmobileDialog(QDialog):
             self.natura_combo.setCurrentText(self.dati_originali.get('natura', ''))
             self.classificazione_edit.setText(self.dati_originali.get('classificazione', ''))
             self.indirizzo_edit.setText(self.dati_originali.get('indirizzo', ''))
+            self.civico_edit.setText(self.dati_originali.get('numero_civico') or '')
             self.foglio_edit.setText(str(self.dati_originali.get('foglio', '')))
             self.mappale_edit.setText(str(self.dati_originali.get('mappale', '')))
             self.subalterno_edit.setText(str(self.dati_originali.get('subalterno', '')))
@@ -1941,6 +1947,7 @@ class ModificaImmobileDialog(QDialog):
             'classificazione': self.classificazione_edit.text().strip(),
             'indirizzo': self.indirizzo_edit.text().strip(),
             'id_localita': self.localita_combo.currentData(),
+            'numero_civico': self.civico_edit.text().strip() or None,
             'foglio': self.foglio_edit.text().strip(),
             'mappale': self.mappale_edit.text().strip(),
             'subalterno': self.subalterno_edit.text().strip(),
@@ -2155,23 +2162,30 @@ class ImmobileDialog(QDialog):
         form_layout.addWidget(self.localita_button, 1, 1)
         form_layout.addWidget(self.localita_display, 1, 2)
 
-        # ... (resto dei campi del form) ...
+        # Civico (alfanumerico: "17", "17/A", "s.n.c.")
+        civico_label = QLabel("Civico:")
+        self.civico_edit = QLineEdit()
+        self.civico_edit.setMaxLength(20)
+        self.civico_edit.setPlaceholderText("Es. 17, 17/A, s.n.c.")
+        form_layout.addWidget(civico_label, 2, 0)
+        form_layout.addWidget(self.civico_edit, 2, 1)
+
         # Classificazione
         classificazione_label = QLabel("Classificazione:")
         self.classificazione_edit = QLineEdit()
         self.classificazione_edit.setPlaceholderText(
             "Es. Abitazione civile, Deposito, ecc.")
 
-        form_layout.addWidget(classificazione_label, 2, 0)
-        form_layout.addWidget(self.classificazione_edit, 2, 1)
+        form_layout.addWidget(classificazione_label, 3, 0)
+        form_layout.addWidget(self.classificazione_edit, 3, 1)
 
         # Consistenza
         consistenza_label = QLabel("Consistenza:")
         self.consistenza_edit = QLineEdit()
         self.consistenza_edit.setPlaceholderText("Es. 120 mq")
 
-        form_layout.addWidget(consistenza_label, 3, 0)
-        form_layout.addWidget(self.consistenza_edit, 3, 1)
+        form_layout.addWidget(consistenza_label, 4, 0)
+        form_layout.addWidget(self.consistenza_edit, 4, 1)
 
         # Numero piani
         piani_label = QLabel("Numero piani:")
@@ -2180,8 +2194,8 @@ class ImmobileDialog(QDialog):
         self.piani_edit.setMaximum(99)
         self.piani_edit.setSpecialValueText("Non specificato")
 
-        form_layout.addWidget(piani_label, 4, 0)
-        form_layout.addWidget(self.piani_edit, 4, 1)
+        form_layout.addWidget(piani_label, 5, 0)
+        form_layout.addWidget(self.piani_edit, 5, 1)
 
         # Numero vani
         vani_label = QLabel("Numero vani:")
@@ -2190,8 +2204,8 @@ class ImmobileDialog(QDialog):
         self.vani_edit.setMaximum(99)
         self.vani_edit.setSpecialValueText("Non specificato")
 
-        form_layout.addWidget(vani_label, 5, 0)
-        form_layout.addWidget(self.vani_edit, 5, 1)
+        form_layout.addWidget(vani_label, 6, 0)
+        form_layout.addWidget(self.vani_edit, 6, 1)
 
         layout.addLayout(form_layout)
 
@@ -2268,6 +2282,7 @@ class ImmobileDialog(QDialog):
             return
 
         # Raccoglie i dati
+        numero_civico = self.civico_edit.text().strip() or None
         classificazione = self.classificazione_edit.text().strip() or None
         consistenza = self.consistenza_edit.text().strip() or None
         numero_piani = self.piani_edit.value() if self.piani_edit.value() > 0 else None
@@ -2278,6 +2293,7 @@ class ImmobileDialog(QDialog):
             'natura': natura,
             'localita_id': self.localita_id,
             'localita_nome': self.localita_display.text(),
+            'numero_civico': numero_civico,
             'classificazione': classificazione,
             'consistenza': consistenza,
             'numero_piani': numero_piani,

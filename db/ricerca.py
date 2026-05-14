@@ -337,6 +337,7 @@ class DBSearchMixin:
             SELECT DISTINCT
                 i.id AS id_immobile, p.numero_partita, c.nome AS comune_nome,
                 l.nome AS localita_nome, l.tipologia_stradale AS localita_tipo,
+                i.numero_civico,
                 i.natura, i.classificazione, i.consistenza, i.numero_piani, i.numero_vani,
                 (SELECT string_agg(DISTINCT pos_agg.nome_completo, ', ')
                  FROM {self.schema}.partita_possessore pp_agg
@@ -344,7 +345,7 @@ class DBSearchMixin:
                  WHERE pp_agg.partita_id = p.id AND pos_agg.attivo = TRUE) AS possessori_attuali
             {joins}
             {where}
-            ORDER BY c.nome, p.numero_partita, i.natura
+            ORDER BY c.nome, p.numero_partita, l.tipologia_stradale, l.nome, i.numero_civico, i.natura
         """
 
         with self._get_connection() as conn:

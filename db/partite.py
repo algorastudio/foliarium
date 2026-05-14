@@ -242,11 +242,12 @@ class DBPartiteMixin:
                 # 3. Immobili
                 query_imm = f"""
                     SELECT i.id, i.natura, i.numero_piani, i.numero_vani, i.consistenza,
-                        i.classificazione, l.nome as localita_nome, l.tipologia_stradale
+                        i.classificazione, i.numero_civico,
+                        l.nome as localita_nome, l.tipologia_stradale
                     FROM {self.schema}.immobile i
                     JOIN {self.schema}.localita l ON i.localita_id = l.id
                     WHERE i.partita_id = %s
-                    ORDER BY l.nome, i.natura;
+                    ORDER BY l.tipologia_stradale, l.nome, i.numero_civico, i.natura;
                 """
                 cur.execute(query_imm, (partita_id,))
                 partita_details['immobili'] = [dict(row) for row in cur.fetchall()]

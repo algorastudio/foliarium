@@ -86,12 +86,13 @@ class ImmobiliTableWidget(QTableWidget):
             self.setItem(row_position, 3, QTableWidgetItem(
                 immobile.get('consistenza', '')))
 
-            # Informazioni sulla località (civico incorporato nel nome da v1.6.1)
-            localita_text = ""
-            if 'localita_nome' in immobile:
-                localita_text = immobile['localita_nome']
-                if 'localita_tipo' in immobile:
-                    localita_text += f" ({immobile['localita_tipo']})"
+            # Informazioni sulla località (v1.7.0: tipologia + nome + civico)
+            from app_utils import format_indirizzo
+            localita_text = format_indirizzo(
+                immobile.get('tipologia_stradale') or immobile.get('localita_tipo'),
+                immobile.get('localita_nome'),
+                immobile.get('numero_civico'),
+            )
 
             self.setItem(row_position, 4, QTableWidgetItem(localita_text))
 

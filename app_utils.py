@@ -274,6 +274,29 @@ if FPDF_AVAILABLE:
                             new_x=XPos.LMARGIN, new_y=YPos.NEXT)
             self.ln()
 
+def format_indirizzo(tipologia: Optional[str], nome: Optional[str],
+                     numero_civico: Optional[str] = None) -> str:
+    """Concatena tipologia + nome + civico in un indirizzo leggibile.
+
+    Esempi:
+        format_indirizzo("Via", "Repubblica", "17")   → "Via Repubblica, 17"
+        format_indirizzo("Piazza", "Garibaldi", None) → "Piazza Garibaldi"
+        format_indirizzo(None, "Pianello", None)      → "Pianello"
+    """
+    parts = []
+    tipo = (tipologia or "").strip()
+    n = (nome or "").strip()
+    if tipo:
+        parts.append(tipo)
+    if n:
+        parts.append(n)
+    base = " ".join(parts).strip()
+    civ = (numero_civico or "").strip()
+    if base and civ:
+        return f"{base}, {civ}"
+    return base or civ or ""
+
+
 def get_local_ip_address():
     """
     Ottiene l'indirizzo IP locale della macchina con cui si esce sulla rete.

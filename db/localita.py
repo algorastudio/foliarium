@@ -139,31 +139,42 @@ class DBLocalitaMixin:
             self.logger.error(f"Errore DB in get_localita_by_comune: {e}", exc_info=True)
             return [] # Restituisce lista vuota in caso di errore
 
-    def insert_localita(self, comune_id: int, nome: str, tipologia_stradale: Optional[str] = None) -> int:
+    def insert_localita(self, comune_id: int, nome: str, tipologia_stradale: str) -> int:
         """
-        Inserisce una nuova località. Civico è incorporato nel nome (es. 'Via Roma 10').
+        Inserisce una nuova località. Da v1.7.0 il nome NON contiene il civico
+        (es. 'Repubblica') e la tipologia_stradale è obbligatoria.
+        Univoco per (comune_id, nome, tipologia_stradale).
         """
         if not all([isinstance(comune_id, int), comune_id > 0, isinstance(nome, str), nome.strip()]):
             raise DBDataError("Parametri per l'inserimento della località non validi.")
+        if not (isinstance(tipologia_stradale, str) and tipologia_stradale.strip()):
+            raise DBDataError("La tipologia stradale è obbligatoria (es. Via, Piazza, Borgata).")
 
-        query_insert = f"INSERT INTO {self.schema}.localita (comune_id, nome, tipologia_stradale) VALUES (%s, %s, %s) ON CONFLICT (comune_id, nome) DO NOTHING RETURNING id;"
-        query_select = f"SELECT id FROM {self.schema}.localita WHERE comune_id = %s AND nome = %s;"
+        query_insert = (
+            f"INSERT INTO {self.schema}.localita (comune_id, nome, tipologia_stradale) "
+            f"VALUES (%s, %s, %s) "
+            f"ON CONFLICT (comune_id, nome, tipologia_stradale) DO NOTHING RETURNING id;"
+        )
+        query_select = (
+            f"SELECT id FROM {self.schema}.localita "
+            f"WHERE comune_id = %s AND nome = %s AND tipologia_stradale = %s;"
+        )
 
         try:
             with self._get_connection() as conn:
                 with conn.cursor(cursor_factory=psycopg2.extras.DictCursor) as cur:
-                    cur.execute(query_insert, (comune_id, nome.strip(), tipologia_stradale))
+                    cur.execute(query_insert, (comune_id, nome.strip(), tipologia_stradale.strip()))
                     insert_result = cur.fetchone()
 
                     if insert_result and insert_result['id']:
                         localita_id = insert_result['id']
-                        self.logger.info(f"Località '{nome}' inserita con successo. ID: {localita_id}.")
+                        self.logger.info(f"Località '{tipologia_stradale} {nome}' inserita con successo. ID: {localita_id}.")
                     else: # Conflitto, recupera l'ID esistente
-                        cur.execute(query_select, (comune_id, nome.strip()))
+                        cur.execute(query_select, (comune_id, nome.strip(), tipologia_stradale.strip()))
                         select_result = cur.fetchone()
                         if select_result and select_result['id']:
                             localita_id = select_result['id']
-                            self.logger.info(f"Località '{nome}' già esistente trovata. ID: {localita_id}.")
+                            self.logger.info(f"Località '{tipologia_stradale} {nome}' già esistente trovata. ID: {localita_id}.")
                         else:
                             raise DBMError(f"Logica inconsistente: impossibile inserire o trovare la località '{nome}'.")
             return localita_id
@@ -214,8 +225,11 @@ class DBLocalitaMixin:
             params.append(dati_modificati["nome"].strip())
 
         if "tipologia_stradale" in dati_modificati:
+            tip = dati_modificati["tipologia_stradale"]
+            if not (isinstance(tip, str) and tip.strip()):
+                raise DBDataError("La tipologia stradale è obbligatoria e non può essere vuota.")
             set_clauses.append("tipologia_stradale = %s")
-            params.append(dati_modificati["tipologia_stradale"] if dati_modificati["tipologia_stradale"] else None)
+            params.append(tip.strip())
 
         if not set_clauses:
             return
