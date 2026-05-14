@@ -28,6 +28,7 @@ from PyQt6.QtWidgets import (
 from app_paths import get_icon_path
 from app_utils import (
     BulkReportPDF, FPDF_AVAILABLE,
+    format_indirizzo,
     gui_esporta_partita_pdf, gui_esporta_partita_json, gui_esporta_partita_csv,
     gui_esporta_possessore_pdf, gui_esporta_possessore_json, gui_esporta_possessore_csv,
     GenericTextReportPDF, is_file_locked, get_alternative_filename,
@@ -311,6 +312,11 @@ class RegistrazioneProprietaWidget(LazyLoadedWidget):
         new_layout.addWidget(QLabel("Vani:"), 2, 2)
         new_layout.addWidget(self._s3_vani_spin, 2, 3)
 
+        self._s3_civico_edit = QLineEdit()
+        self._s3_civico_edit.setPlaceholderText("Es. 17, 17/A, s.n.c.")
+        new_layout.addWidget(QLabel("N. Civico:"), 3, 0)
+        new_layout.addWidget(self._s3_civico_edit, 3, 1)
+
         btn_add_new = QPushButton("Aggiungi alla Lista")
         btn_add_new.clicked.connect(self._s3_add_inline)
         new_layout.addWidget(btn_add_new, 3, 3, Qt.AlignmentFlag.AlignRight)
@@ -416,6 +422,7 @@ class RegistrazioneProprietaWidget(LazyLoadedWidget):
         self._s3_consist_edit.clear()
         self._s3_piani_spin.setValue(0)
         self._s3_vani_spin.setValue(0)
+        self._s3_civico_edit.clear()
         self._s4_browser.clear()
         self._stack.setCurrentIndex(0)
         self._update_nav()
@@ -479,8 +486,12 @@ class RegistrazioneProprietaWidget(LazyLoadedWidget):
             if self._immobili_cache:
                 self._s3_exist_combo.addItem("--- Cerca Immobile ---", None)
                 for imm in self._immobili_cache:
-                    self._s3_exist_combo.addItem(
-                        f"{imm['natura']} in {imm['localita_nome']}", imm['id'])
+                    loc = format_indirizzo(
+                        imm.get('tipologia_stradale') or imm.get('localita_tipo'),
+                        imm.get('localita_nome'),
+                        imm.get('numero_civico'),
+                    )
+                    self._s3_exist_combo.addItem(f"{imm['natura']} — {loc}", imm['id'])
                 self._s3_exist_combo.setEnabled(True)
             else:
                 self._s3_exist_combo.addItem("Nessun immobile in questo comune", None)
@@ -569,6 +580,7 @@ class RegistrazioneProprietaWidget(LazyLoadedWidget):
             'consistenza': self._s3_consist_edit.text().strip(),
             'numero_piani': self._s3_piani_spin.value(),
             'numero_vani': self._s3_vani_spin.value(),
+            'numero_civico': self._s3_civico_edit.text().strip() or None,
         })
         self._refresh_imm_table()
         self._s3_natura_edit.clear()
@@ -576,6 +588,7 @@ class RegistrazioneProprietaWidget(LazyLoadedWidget):
         self._s3_consist_edit.clear()
         self._s3_piani_spin.setValue(0)
         self._s3_vani_spin.setValue(0)
+        self._s3_civico_edit.clear()
         self._s3_localita_combo.setCurrentIndex(0)
 
     def _s3_remove_immobile(self):
@@ -597,7 +610,11 @@ class RegistrazioneProprietaWidget(LazyLoadedWidget):
             if imm.get('numero_vani'):
                 piani_vani_parts.append(f"Vani: {imm['numero_vani']}")
             self._s3_imm_table.setItem(i, 0, QTableWidgetItem(imm.get('natura', '')))
-            self._s3_imm_table.setItem(i, 1, QTableWidgetItem(imm.get('localita_nome', '')))
+            self._s3_imm_table.setItem(i, 1, QTableWidgetItem(format_indirizzo(
+                imm.get('tipologia_stradale') or imm.get('localita_tipo'),
+                imm.get('localita_nome'),
+                imm.get('numero_civico'),
+            )))
             self._s3_imm_table.setItem(i, 2, QTableWidgetItem(imm.get('classificazione', '')))
             self._s3_imm_table.setItem(i, 3, QTableWidgetItem(imm.get('consistenza', '')))
             self._s3_imm_table.setItem(i, 4, QTableWidgetItem(", ".join(piani_vani_parts)))
@@ -614,7 +631,8 @@ class RegistrazioneProprietaWidget(LazyLoadedWidget):
             for p in self._possessori_data
         )
         imm_rows = "".join(
-            f"<tr><td>{i.get('natura', '')}</td><td>{i.get('localita_nome', '')}</td>"
+            f"<tr><td>{i.get('natura', '')}</td>"
+            f"<td>{format_indirizzo(i.get('tipologia_stradale') or i.get('localita_tipo'), i.get('localita_nome'), i.get('numero_civico'))}</td>"
             f"<td>{i.get('classificazione', '')}</td><td>{i.get('consistenza', '')}</td></tr>"
             for i in self._immobili_data
         )
@@ -1770,15 +1788,12 @@ class OperazioniPartitaWidget(QWidget):
                 col += 1
                 # --- FINE NUOVE COLONNE ---
 
-                loc_nome = immobile.get('localita_nome', '')
-                loc_tipo = immobile.get('localita_tipo', '')
-                loc_civico = immobile.get('civico', '')
-                loc_text = loc_nome
-                if loc_tipo:
-                    loc_text += f" ({loc_tipo})"
-                if loc_civico:  # Civico potrebbe essere 0 o stringa vuota se non presente
-                    loc_text += f", civ. {loc_civico}"
-                table.setItem(row, col, QTableWidgetItem(loc_text.strip()))
+                loc_text = format_indirizzo(
+                    immobile.get('tipologia_stradale') or immobile.get('localita_tipo'),
+                    immobile.get('localita_nome'),
+                    immobile.get('numero_civico'),
+                )
+                table.setItem(row, col, QTableWidgetItem(loc_text))
                 col += 1
 
             table.resizeColumnsToContents()  # Adatta dopo aver popolato
@@ -1870,7 +1885,10 @@ class OperazioniPartitaWidget(QWidget):
                 nat_i = QTableWidgetItem(immobile.get('natura', 'N/D'))
                 nat_i.setFlags(nat_i.flags() & ~Qt.ItemFlag.ItemIsEditable)
                 table.setItem(row, 2, nat_i)
-                loc_t = f"{immobile.get('localita_nome', '')} {immobile.get('civico', '')}".strip(
+                loc_t = format_indirizzo(
+                    immobile.get('tipologia_stradale') or immobile.get('localita_tipo'),
+                    immobile.get('localita_nome'),
+                    immobile.get('numero_civico'),
                 )
                 loc_i = QTableWidgetItem(loc_t)
                 loc_i.setFlags(loc_i.flags() & ~Qt.ItemFlag.ItemIsEditable)

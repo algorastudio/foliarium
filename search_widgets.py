@@ -24,7 +24,7 @@ from PyQt6.QtWidgets import (
 )
 
 from app_paths import get_icon_path
-from app_utils import BulkReportPDF, FPDF_AVAILABLE, prompt_to_open_file
+from app_utils import BulkReportPDF, FPDF_AVAILABLE, format_indirizzo, prompt_to_open_file
 from foliarium.ui.widgets.custom import show_status_message as _show_status_message
 from dialogs import (
     ComuneSelectionDialog, LocalitaSelectionDialog,
@@ -701,12 +701,11 @@ class ImmobiliSearchModel(QAbstractTableModel):
             if col == 2:
                 return imm.get('comune_nome', '')
             if col == 3:
-                loc = imm.get('localita_nome', '')
-                if imm.get('civico'):
-                    loc += f", {imm['civico']}"
-                if imm.get('localita_tipo'):
-                    loc += f" ({imm['localita_tipo']})"
-                return loc.strip()
+                return format_indirizzo(
+                    imm.get('localita_tipo') or imm.get('tipologia_stradale'),
+                    imm.get('localita_nome'),
+                    imm.get('numero_civico'),
+                )
             if col == 4:
                 return imm.get('natura', '')
             if col == 5:
@@ -1364,7 +1363,7 @@ class UnifiedFuzzySearchWidget(QWidget):
         self.results_tabs.addTab(self.possessori_table, QIcon(str(get_icon_path("users"))), "Possessori")
 
         self.localita_table, self._localita_model = self._create_table_view(
-            ["Nome", "Tipo", "Civico", "Comune", "Immobili", "Similitud."], similarity_col=5)
+            ["Nome", "Tipologia", "Comune", "Immobili", "Similitud."], similarity_col=4)
         self.results_tabs.addTab(self.localita_table, QIcon(str(get_icon_path("map-pin"))), "Località")
 
         self.immobili_table, self._immobili_model = self._create_table_view(
@@ -1569,7 +1568,7 @@ class UnifiedFuzzySearchWidget(QWidget):
         ])
 
         self._localita_model.load([
-            (l, [l.get('nome', ''), l.get('tipo', '') or '', l.get('civico', '') or '',
+            (l, [l.get('nome', ''), l.get('tipologia_stradale', '') or l.get('tipo', '') or '',
                  l.get('comune_nome', ''), l.get('num_immobili', 0),
                  f"{l.get('similarity_score', 0):.3f}"])
             for l in results_by_type.get('localita', [])
