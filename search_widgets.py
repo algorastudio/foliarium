@@ -78,13 +78,6 @@ class PartitaResultCard(QFrame):
     card_clicked = pyqtSignal(int)
     context_menu_requested = pyqtSignal(int, QPoint)
 
-    _STATO_STYLE: dict[str, tuple[str, str]] = {
-        "attiva":   ("#E8F5E9", "#1B5E20"),
-        "inattiva": ("#F5F5F5", "#616161"),
-        "aperta":   ("#E3F2FD", "#0D47A1"),
-        "chiusa":   ("#FFF3E0", "#BF360C"),
-    }
-
     def __init__(self, partita_data: dict, parent=None):
         super().__init__(parent)
         self._partita_id: int = partita_data.get('id', -1)
@@ -115,12 +108,10 @@ class PartitaResultCard(QFrame):
         row1.addStretch()
 
         stato = (partita_data.get('stato') or '').strip()
-        bg, fg = self._STATO_STYLE.get(stato.lower(), ("#F5F5F5", "#424242"))
         stato_lbl = QLabel(stato or "—")
-        stato_lbl.setStyleSheet(
-            f"background:{bg}; color:{fg}; border-radius:9px; "
-            f"padding:1px 9px; font-size:9pt; font-weight:600;"
-        )
+        stato_lbl.setObjectName("statoBadge")
+        if stato:
+            stato_lbl.setProperty("stato", stato.lower())
         row1.addWidget(stato_lbl)
         layout.addLayout(row1)
 

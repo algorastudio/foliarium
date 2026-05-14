@@ -807,7 +807,7 @@ class BackupReminderSettingsDialog(QDialog):
         layout.addRow("Mostra promemoria ogni:", self.days_spinbox)
 
         info_label = QLabel("Impostando a '0', il promemoria verrà disattivato.")
-        info_label.setStyleSheet("font-style: italic; color: #555;")
+        info_label.setObjectName("hintLabel")
         layout.addRow(info_label)
 
         buttons = QDialogButtonBox(QDialogButtonBox.StandardButton.Save | QDialogButtonBox.StandardButton.Cancel)
@@ -1115,12 +1115,12 @@ class SMTPSettingsDialog(QDialog):
         to = self.from_edit.text().strip() or self.user_edit.text().strip()
         if not to:
             self.test_label.setText("⚠ Inserisci l'indirizzo mittente.")
-            self.test_label.setStyleSheet("color: orange;")
+            self._set_test_label_status("warning")
             return
 
         self.btn_test.setEnabled(False)
         self.test_label.setText("Invio in corso…")
-        self.test_label.setStyleSheet("color: gray;")
+        self._set_test_label_status("pending")
 
         self._email_worker = EmailWorker(
             svc, to,
@@ -1130,14 +1130,19 @@ class SMTPSettingsDialog(QDialog):
         self._email_worker.result.connect(self._on_test_result)
         self._email_worker.start()
 
+    def _set_test_label_status(self, status: str) -> None:
+        self.test_label.setProperty("status", status)
+        self.test_label.style().unpolish(self.test_label)
+        self.test_label.style().polish(self.test_label)
+
     def _on_test_result(self, ok: bool, err: str):
         self.btn_test.setEnabled(True)
         if ok:
             self.test_label.setText("✓ Email di test inviata con successo.")
-            self.test_label.setStyleSheet("color: green;")
+            self._set_test_label_status("success")
         else:
             self.test_label.setText(f"✗ {err}")
-            self.test_label.setStyleSheet("color: red;")
+            self._set_test_label_status("error")
 
 
 # ---------------------------------------------------------------------------
@@ -1579,7 +1584,7 @@ class LicenseDialog(QDialog):
             "Lascia vuoto per non limitare le istanze simultanee."
         )
         lbl_help.setWordWrap(True)
-        lbl_help.setStyleSheet("color: gray; font-size: 11px;")
+        lbl_help.setProperty("muted", "true")
         share_layout.addWidget(lbl_help)
         share_row = QHBoxLayout()
         self._edit_share = QLineEdit()

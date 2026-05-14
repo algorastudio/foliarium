@@ -321,7 +321,7 @@ def _start_auto_download(parent_widget, installer_asset: dict,
         layout.addWidget(progress_bar)
 
         lbl_info = QLabel("Attendere prego…")
-        lbl_info.setStyleSheet("color: gray; font-size: 11px;")
+        lbl_info.setProperty("status", "pending")
         layout.addWidget(lbl_info)
 
         btn_layout = QHBoxLayout()
@@ -362,7 +362,9 @@ def _start_auto_download(parent_widget, installer_asset: dict,
             progress_bar.setValue(0)
             lbl_status.setText("Download fallito")
             lbl_info.setText(msg)
-            lbl_info.setStyleSheet("color: red; font-size: 11px;")
+            lbl_info.setProperty("status", "error")
+            lbl_info.style().unpolish(lbl_info)
+            lbl_info.style().polish(lbl_info)
 
         def on_cancel():
             if worker.isRunning():

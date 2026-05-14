@@ -110,16 +110,12 @@ class TopBarWidget(QFrame):
         """Aggiorna label utente, ruolo, avatar e stato DB."""
         if db_connected:
             db_text = f"● DB: {db_name}" if db_name else "● DB: connesso"
-            self._db_indicator.setStyleSheet(
-                "color: #2E7D32; font-size: 11px; background: #E8F5E9; "
-                "border-radius: 10px; padding: 2px 8px; font-weight: 600;"
-            )
+            self._db_indicator.setProperty("dbStatus", "connected")
         else:
             db_text = "● DB: offline"
-            self._db_indicator.setStyleSheet(
-                "color: #B71C1C; font-size: 11px; background: #FDE8E8; "
-                "border-radius: 10px; padding: 2px 8px; font-weight: 600;"
-            )
+            self._db_indicator.setProperty("dbStatus", "offline")
+        self._db_indicator.style().unpolish(self._db_indicator)
+        self._db_indicator.style().polish(self._db_indicator)
         self._db_indicator.setText(db_text)
 
         if nome:
@@ -150,16 +146,15 @@ class TopBarWidget(QFrame):
             return
         if days_left <= 0:
             text = "Licenza scaduta!"
-            color = "#B71C1C"
+            severity = "expired"
         elif days_left <= 7:
             text = f"Licenza: scade in {days_left}g"
-            color = "#E65100"
+            severity = "critical"
         else:
             text = f"Licenza: {days_left}gg alla scadenza"
-            color = "#F57F17"
+            severity = "warning"
         self._license_chip.setText(f"  {text}  ")
-        self._license_chip.setStyleSheet(
-            f"background: {color}; color: white; border-radius: 4px; "
-            "font-size: 11px; font-weight: bold; padding: 2px 6px;"
-        )
+        self._license_chip.setProperty("severity", severity)
+        self._license_chip.style().unpolish(self._license_chip)
+        self._license_chip.style().polish(self._license_chip)
         self._license_chip.setVisible(True)
