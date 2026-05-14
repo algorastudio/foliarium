@@ -283,15 +283,29 @@ class GestioneUtentiWidget(LazyLoadedWidget):
     def _initUI(self):
         """Crea e assembla i componenti dell'interfaccia utente."""
         layout = QVBoxLayout(self)
+        layout.setContentsMargins(0, 0, 0, 0)
+        layout.setSpacing(10)
+
+        title = QLabel("Gestione Utenti")
+        title.setObjectName("pageTitle")
+        layout.addWidget(title)
+        subtitle = QLabel("Crea, modifica e gestisci gli account utente. Solo gli amministratori possono modificare i ruoli.")
+        subtitle.setObjectName("pageSubtitle")
+        layout.addWidget(subtitle)
 
         # Pulsanti Azioni
         action_layout = QHBoxLayout()
-        self.btn_crea_utente = QPushButton(QApplication.style().standardIcon(QStyle.StandardPixmap.SP_FileDialogNewFolder), " Crea Nuovo Utente")
+        self.btn_crea_utente = QPushButton(
+            QApplication.style().standardIcon(QStyle.StandardPixmap.SP_FileDialogNewFolder),
+            " Crea Nuovo Utente")
         self.btn_crea_utente.clicked.connect(self.crea_nuovo_utente)
         self.btn_crea_utente.setEnabled(self.is_admin)
-        self.btn_refresh_list = QPushButton(QApplication.style().standardIcon(QStyle.StandardPixmap.SP_BrowserReload), " Aggiorna Lista")
+        self.btn_refresh_list = QPushButton(
+            QApplication.style().standardIcon(QStyle.StandardPixmap.SP_BrowserReload),
+            " Aggiorna")
+        self.btn_refresh_list.setObjectName("secondaryButton")
         self.btn_refresh_list.clicked.connect(self.refresh_user_list)
-        
+
         action_layout.addWidget(self.btn_crea_utente)
         action_layout.addStretch()
         action_layout.addWidget(self.btn_refresh_list)
@@ -319,20 +333,25 @@ class GestioneUtentiWidget(LazyLoadedWidget):
         # Pulsanti di gestione per utente selezionato
         manage_layout = QHBoxLayout()
         self.btn_modifica_utente = QPushButton("Modifica Utente")
+        self.btn_modifica_utente.setObjectName("secondaryButton")
         self.btn_modifica_utente.clicked.connect(self.modifica_utente_selezionato)
-        
+
         self.btn_reset_password = QPushButton("Resetta Password")
+        self.btn_reset_password.setObjectName("secondaryButton")
         self.btn_reset_password.clicked.connect(self.reset_password_utente_selezionato)
-        
-        self.btn_toggle_stato = QPushButton("Attiva/Disattiva Utente")
+
+        self.btn_toggle_stato = QPushButton("Attiva/Disattiva")
+        self.btn_toggle_stato.setObjectName("secondaryButton")
         self.btn_toggle_stato.clicked.connect(self.toggle_stato_utente_selezionato)
-        
+
         self.btn_delete_utente = QPushButton("Elimina Utente")
+        self.btn_delete_utente.setObjectName("dangerButton")
         self.btn_delete_utente.clicked.connect(self.elimina_utente_selezionato)
 
         manage_layout.addWidget(self.btn_modifica_utente)
         manage_layout.addWidget(self.btn_reset_password)
         manage_layout.addWidget(self.btn_toggle_stato)
+        manage_layout.addStretch()
         manage_layout.addWidget(self.btn_delete_utente)
         layout.addLayout(manage_layout)
         
@@ -667,8 +686,15 @@ class AuditLogViewerWidget(LazyLoadedWidget):
 
     def _init_ui(self):
         main_layout = QVBoxLayout(self)
-        main_layout.setContentsMargins(10, 10, 10, 10)
+        main_layout.setContentsMargins(0, 0, 0, 0)
         main_layout.setSpacing(10)
+
+        title = QLabel("Registro Audit")
+        title.setObjectName("pageTitle")
+        main_layout.addWidget(title)
+        subtitle = QLabel("Cronologia delle operazioni INSERT/UPDATE/DELETE eseguite sul database. Filtra per tabella, utente o periodo.")
+        subtitle.setObjectName("pageSubtitle")
+        main_layout.addWidget(subtitle)
 
         # === SEZIONE 1: FILTRI (più compatta) ===
         filters_group = QGroupBox("Filtri Ricerca")
@@ -874,7 +900,7 @@ class AuditLogViewerWidget(LazyLoadedWidget):
         details_layout.setContentsMargins(0, 0, 0, 0)
         
         details_label = QLabel("Dettagli Modifica (seleziona una riga)")
-        details_label.setStyleSheet("font-weight: bold; padding: 5px;")
+        details_label.setObjectName("sectionLabel")
         details_layout.addWidget(details_label)
         
         details_splitter = QSplitter(Qt.Orientation.Horizontal)
@@ -1580,7 +1606,7 @@ class ArchivioWidget(LazyLoadedWidget):
         main_layout.setSpacing(8)
 
         header = QLabel("Archivio — Elementi nascosti (soft delete)")
-        header.setStyleSheet("font-size:13pt; font-weight:600; color:#424242;")
+        header.setObjectName("pageTitle")
         main_layout.addWidget(header)
 
         sub = QLabel(
@@ -1589,7 +1615,7 @@ class ArchivioWidget(LazyLoadedWidget):
             "'Elimina Definitivamente' per cancellarli in modo permanente."
         )
         sub.setWordWrap(True)
-        sub.setStyleSheet("color:#757575; font-size:9pt;")
+        sub.setObjectName("pageSubtitle")
         main_layout.addWidget(sub)
 
         self._tabs = QTabWidget()
@@ -1867,7 +1893,7 @@ class TipiPossessoWidget(LazyLoadedWidget):
         main_layout = QVBoxLayout()
 
         title = QLabel("Tipi di Possesso Disponibili")
-        title.setStyleSheet("font-size: 14px; font-weight: bold;")
+        title.setObjectName("pageTitle")
         main_layout.addWidget(title)
 
         # Tabella tipi possesso
@@ -2060,7 +2086,7 @@ class TabelleDiSistemaWidget(QWidget):
             "periodi storici). Modifiche poco frequenti, riservate agli amministratori."
         )
         intro.setWordWrap(True)
-        intro.setStyleSheet("color: gray; padding: 4px 0 8px 0;")
+        intro.setObjectName("pageSubtitle")
         layout.addWidget(intro)
 
         self.tabs = QTabWidget()

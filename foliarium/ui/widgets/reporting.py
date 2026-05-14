@@ -75,8 +75,15 @@ class RicercaDocumentiWidget(QWidget):
 
     def _init_ui(self):
         main_layout = QVBoxLayout(self)
-        main_layout.setContentsMargins(15, 15, 15, 15)
+        main_layout.setContentsMargins(0, 0, 0, 0)
         main_layout.setSpacing(12)
+
+        title = QLabel("Ricerca Documenti")
+        title.setObjectName("pageTitle")
+        main_layout.addWidget(title)
+        subtitle = QLabel("Cerca tra i documenti storici catastali per parole chiave, tipo e anno.")
+        subtitle.setObjectName("pageSubtitle")
+        main_layout.addWidget(subtitle)
 
         # --- Filtri ---
         filtri_group = QGroupBox("Criteri di Ricerca Documenti Storici")
@@ -261,8 +268,15 @@ class EsportazioniWidget(LazyLoadedWidget):
 
     def _initUI(self):
         main_layout = QVBoxLayout(self)
-        main_layout.setContentsMargins(15, 15, 15, 15)
+        main_layout.setContentsMargins(0, 0, 0, 0)
         main_layout.setSpacing(15)
+
+        title = QLabel("Esportazioni")
+        title.setObjectName("pageTitle")
+        main_layout.addWidget(title)
+        subtitle = QLabel("Esporta l'archivio in CSV o Excel. Filtra per comune prima di esportare.")
+        subtitle.setObjectName("pageSubtitle")
+        main_layout.addWidget(subtitle)
 
         selection_group = QGroupBox("Selezione Dati da Esportare")
         selection_layout = QFormLayout(selection_group)
@@ -786,6 +800,15 @@ class ReportisticaWidget(LazyLoadedWidget):
 
     def _initUI(self):
         main_layout = QVBoxLayout(self)
+        main_layout.setContentsMargins(0, 0, 0, 0)
+        main_layout.setSpacing(12)
+
+        title = QLabel("Reportistica")
+        title.setObjectName("pageTitle")
+        main_layout.addWidget(title)
+        subtitle = QLabel("Genera report in PDF, TXT o ODT su proprietà, genealogie, possessori e consultazioni.")
+        subtitle.setObjectName("pageSubtitle")
+        main_layout.addWidget(subtitle)
 
         # Contenitore principale per tutti i controlli di generazione report
         generation_group = QGroupBox("Seleziona il Report da Generare")
@@ -1262,7 +1285,16 @@ class StatisticheWidget(LazyLoadedWidget):
     def _initUI(self):
         """Crea l'interfaccia utente, riorganizzata per maggiore chiarezza."""
         main_layout = QVBoxLayout(self)
-        
+        main_layout.setContentsMargins(0, 0, 0, 0)
+        main_layout.setSpacing(12)
+
+        title = QLabel("Statistiche")
+        title.setObjectName("pageTitle")
+        main_layout.addWidget(title)
+        subtitle = QLabel("Visualizza statistiche aggregate per comune, tipologia immobili e grafici di distribuzione.")
+        subtitle.setObjectName("pageSubtitle")
+        main_layout.addWidget(subtitle)
+
         # Tab principale per separare Statistiche da Manutenzione
         self.main_tabs = QTabWidget()
         main_layout.addWidget(self.main_tabs)
