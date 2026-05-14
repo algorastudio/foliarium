@@ -346,11 +346,14 @@ class RegistrazioneProprietaWidget(LazyLoadedWidget):
     def _update_step_bar(self):
         for i, lbl in enumerate(self._step_labels):
             if i == self._step:
-                lbl.setStyleSheet("font-weight:700; color:#3F51B5; text-decoration:underline;")
+                state = "current"
             elif i < self._step:
-                lbl.setStyleSheet("color:#4CAF50;")
+                state = "done"
             else:
-                lbl.setStyleSheet("color:#9E9E9E;")
+                state = "pending"
+            lbl.setProperty("stepState", state)
+            lbl.style().unpolish(lbl)
+            lbl.style().polish(lbl)
 
     def _go_next(self):
         if self._step == self._stack.count() - 1:
