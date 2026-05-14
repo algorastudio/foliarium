@@ -147,3 +147,7 @@ frontend/node_modules/
 *.dump
 *.backup
 *.sql.gz
+
+# Export artifacts
+*.pdf
+esportazioni/

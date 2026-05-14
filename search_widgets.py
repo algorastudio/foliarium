@@ -663,6 +663,110 @@ class RicercaPartiteWidget(QWidget):
         self._archivia_partita(self._selected_partita_id, numero_text)
 
 
+_IMMOBILI_COLS = ["ID Imm.", "Part. N.", "Comune", "Località", "Natura",
+                  "Class.", "Consist.", "Piani", "Vani", "Possessori"]
+
+
+class ImmobiliSearchModel(QAbstractTableModel):
+    """Modello per la tabella di RicercaAvanzataImmobiliWidget.
+
+    Ogni riga è un dict restituito da ricerca_avanzata_immobili_gui().
+    """
+
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self._data: list[dict] = []
+
+    def load(self, rows: list[dict]) -> None:
+        self.beginResetModel()
+        self._data = rows
+        self.endResetModel()
+
+    def row_count(self) -> int:
+        return len(self._data)
+
+    def rowCount(self, parent=QModelIndex()) -> int:
+        return 0 if parent.isValid() else len(self._data)
+
+    def columnCount(self, parent=QModelIndex()) -> int:
+        return 0 if parent.isValid() else len(_IMMOBILI_COLS)
+
+    def headerData(self, section: int, orientation, role=Qt.ItemDataRole.DisplayRole):
+        if orientation == Qt.Orientation.Horizontal and role == Qt.ItemDataRole.DisplayRole:
+            return _IMMOBILI_COLS[section]
+        return None
+
+    def data(self, index: QModelIndex, role=Qt.ItemDataRole.DisplayRole):
+        if not index.isValid():
+            return None
+        row, col = index.row(), index.column()
+        imm = self._data[row]
+
+        if role == Qt.ItemDataRole.DisplayRole:
+            if col == 0:
+                return str(imm.get('id_immobile', ''))
+            if col == 1:
+                return str(imm.get('numero_partita', ''))
+            if col == 2:
+                return imm.get('comune_nome', '')
+            if col == 3:
+                loc = imm.get('localita_nome', '')
+                if imm.get('civico'):
+                    loc += f", {imm['civico']}"
+                if imm.get('localita_tipo'):
+                    loc += f" ({imm['localita_tipo']})"
+                return loc.strip()
+            if col == 4:
+                return imm.get('natura', '')
+            if col == 5:
+                return imm.get('classificazione', '')
+            if col == 6:
+                return imm.get('consistenza', '')
+            if col == 7:
+                v = imm.get('numero_piani')
+                return str(v) if v is not None else ''
+            if col == 8:
+                v = imm.get('numero_vani')
+                return str(v) if v is not None else ''
+            if col == 9:
+                return imm.get('possessori_attuali', '')
+
+        if role == Qt.ItemDataRole.EditRole:
+            if col == 0:
+                return imm.get('id_immobile', 0)
+            if col == 1:
+                return imm.get('numero_partita', 0)
+            if col in (7, 8):
+                return imm.get('numero_piani' if col == 7 else 'numero_vani', 0) or 0
+            return self.data(index, Qt.ItemDataRole.DisplayRole)
+
+        return None
+
+    def flags(self, index: QModelIndex):
+        if not index.isValid():
+            return Qt.ItemFlag.NoItemFlags
+        return Qt.ItemFlag.ItemIsEnabled | Qt.ItemFlag.ItemIsSelectable
+
+    def sort(self, column: int, order=Qt.SortOrder.AscendingOrder) -> None:
+        reverse = (order == Qt.SortOrder.DescendingOrder)
+        keys = {
+            0: 'id_immobile', 1: 'numero_partita', 2: 'comune_nome',
+            3: 'localita_nome', 4: 'natura', 5: 'classificazione',
+            6: 'consistenza', 7: 'numero_piani', 8: 'numero_vani',
+            9: 'possessori_attuali',
+        }
+        key = keys.get(column, 'id_immobile')
+        self.layoutAboutToBeChanged.emit()
+        self._data.sort(
+            key=lambda r: (r.get(key) is None, str(r.get(key) or '')),
+            reverse=reverse,
+        )
+        self.layoutChanged.emit()
+
+    def row_data(self, row: int) -> dict:
+        return self._data[row] if 0 <= row < len(self._data) else {}
+
+
 class RicercaAvanzataImmobiliWidget(QWidget):
     def __init__(self, db_manager: CatastoDBManager, parent=None):
         super().__init__(parent)
@@ -795,13 +899,9 @@ class RicercaAvanzataImmobiliWidget(QWidget):
 
         results_group = QGroupBox("Risultati Ricerca")
         results_layout = QVBoxLayout(results_group)
-        self.risultati_immobili_table = QTableWidget()
-        # Colonne basate sulla funzione SQL cerca_immobili_avanzato
-        self.risultati_immobili_table.setColumnCount(10)
-        self.risultati_immobili_table.setHorizontalHeaderLabels([
-            "ID Imm.", "Part. N.", "Comune", "Località", "Natura",
-            "Class.", "Consist.", "Piani", "Vani", "Possessori"
-        ])
+        self._imm_model = ImmobiliSearchModel(self)
+        self.risultati_immobili_table = QTableView()
+        self.risultati_immobili_table.setModel(self._imm_model)
         self.risultati_immobili_table.setEditTriggers(
             QAbstractItemView.EditTrigger.NoEditTriggers)
         self.risultati_immobili_table.setSelectionBehavior(
@@ -811,6 +911,7 @@ class RicercaAvanzataImmobiliWidget(QWidget):
             QHeaderView.ResizeMode.Interactive)
         self.risultati_immobili_table.horizontalHeader().setStretchLastSection(True)
         self.risultati_immobili_table.setSortingEnabled(True)
+        self.risultati_immobili_table.verticalHeader().setVisible(False)
         self.risultati_immobili_table.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
         self.risultati_immobili_table.customContextMenuRequested.connect(self._apri_menu_immobile)
         self.result_count_label = QLabel("Nessuna ricerca eseguita.")
@@ -916,54 +1017,12 @@ class RicercaAvanzataImmobiliWidget(QWidget):
                 data_fine_possesso_search=None    # Non ancora in GUI
             )
 
-            self.risultati_immobili_table.setSortingEnabled(False)
-            self.risultati_immobili_table.setRowCount(0)
-            if immobili_trovati:
-                self.risultati_immobili_table.setRowCount(
-                    len(immobili_trovati))
-                for row_idx, immobile in enumerate(immobili_trovati):
-                    col = 0
-                    self.risultati_immobili_table.setItem(
-                        row_idx, col, QTableWidgetItem(str(immobile.get('id_immobile', ''))))
-                    col += 1
-                    self.risultati_immobili_table.setItem(
-                        row_idx, col, QTableWidgetItem(str(immobile.get('numero_partita', ''))))
-                    col += 1
-                    self.risultati_immobili_table.setItem(
-                        row_idx, col, QTableWidgetItem(immobile.get('comune_nome', '')))
-                    col += 1
-                    localita_display = f"{immobile.get('localita_nome', '')}"
-                    if immobile.get('civico'):
-                        localita_display += f", {immobile.get('civico')}"
-                    if immobile.get('localita_tipo'):
-                        localita_display += f" ({immobile.get('localita_tipo')})"
-                    self.risultati_immobili_table.setItem(
-                        row_idx, col, QTableWidgetItem(localita_display.strip()))
-                    col += 1
-                    self.risultati_immobili_table.setItem(
-                        row_idx, col, QTableWidgetItem(immobile.get('natura', '')))
-                    col += 1
-                    self.risultati_immobili_table.setItem(
-                        row_idx, col, QTableWidgetItem(immobile.get('classificazione', '')))
-                    col += 1
-                    self.risultati_immobili_table.setItem(
-                        row_idx, col, QTableWidgetItem(immobile.get('consistenza', '')))
-                    col += 1
-                    self.risultati_immobili_table.setItem(row_idx, col, QTableWidgetItem(str(
-                        immobile.get('numero_piani', '')) if immobile.get('numero_piani') is not None else ''))
-                    col += 1
-                    self.risultati_immobili_table.setItem(row_idx, col, QTableWidgetItem(str(
-                        immobile.get('numero_vani', '')) if immobile.get('numero_vani') is not None else ''))
-                    col += 1
-                    self.risultati_immobili_table.setItem(
-                        row_idx, col, QTableWidgetItem(immobile.get('possessori_attuali', '')))
-                    col += 1  # Campo dalla funzione SQL
-
-                self.risultati_immobili_table.setSortingEnabled(True)
-                self.result_count_label.setText(f"{len(immobili_trovati)} immobili trovati.")
-                _show_status_message(f"Ricerca completata: {len(immobili_trovati)} immobili trovati.", 4000)
+            self._imm_model.load(immobili_trovati or [])
+            n = self._imm_model.row_count()
+            if n:
+                self.result_count_label.setText(f"{n} immobili trovati.")
+                _show_status_message(f"Ricerca completata: {n} immobili trovati.", 4000)
             else:
-                self.risultati_immobili_table.setSortingEnabled(True)
                 self.result_count_label.setText("Nessun immobile trovato con i criteri specificati.")
         except AttributeError as ae:
             logging.getLogger("CatastoGUI").error(
@@ -980,11 +1039,13 @@ class RicercaAvanzataImmobiliWidget(QWidget):
         index = self.risultati_immobili_table.indexAt(position)
         if not index.isValid():
             return
-        row = index.row()
-        def _cell(col):
-            item = self.risultati_immobili_table.item(row, col)
-            return item.text() if item else ""
-        id_imm, numero, comune, _, natura = _cell(0), _cell(1), _cell(2), _cell(3), _cell(4)
+        imm = self._imm_model.row_data(index.row())
+        if not imm:
+            return
+        id_imm = str(imm.get('id_immobile', ''))
+        numero = str(imm.get('numero_partita', ''))
+        comune = imm.get('comune_nome', '')
+        natura = imm.get('natura', '')
         menu = QMenu(self.risultati_immobili_table)
         menu.addAction(f"ID Immobile: {id_imm}").triggered.connect(
             lambda: QApplication.clipboard().setText(id_imm))
