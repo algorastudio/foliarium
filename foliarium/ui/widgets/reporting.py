@@ -23,7 +23,8 @@ from typing import Optional, List, Dict, Any, Tuple, TYPE_CHECKING
 import pandas as pd
 
 from PyQt6.QtCore import (
-    QDate, QPoint, QSettings, QStandardPaths, Qt, QTimer, QUrl, pyqtSignal,
+    QAbstractTableModel, QDate, QModelIndex, QPoint, QSettings, QStandardPaths,
+    Qt, QTimer, QUrl, pyqtSignal,
 )
 from PyQt6.QtGui import (
     QColor, QDesktopServices, QFont, QIcon, QAction,
@@ -37,7 +38,7 @@ from PyQt6.QtWidgets import (
     QMenu, QMessageBox, QProgressBar, QProgressDialog,
     QPushButton, QScrollArea, QSizePolicy, QSpinBox,
     QSplitter, QStyle, QTabWidget,
-    QTableWidget, QTableWidgetItem, QTextBrowser, QTextEdit,
+    QTableView, QTableWidget, QTableWidgetItem, QTextBrowser, QTextEdit,
     QVBoxLayout, QWidget,
 )
 
@@ -60,6 +61,81 @@ if TYPE_CHECKING:
     from catasto_db_manager import CatastoDBManager
 
 logger = logging.getLogger("CatastoGUI.reporting_widgets")
+
+
+class SimpleRowsModel(QAbstractTableModel):
+    """Modello generico per tabelle read-only: ogni riga è una list[Any]."""
+
+    def __init__(self, headers: List[str], parent=None, numeric_cols: Optional[List[int]] = None):
+        super().__init__(parent)
+        self._headers = list(headers)
+        self._rows: List[List[Any]] = []
+        self._numeric_cols = set(numeric_cols or [])
+
+    def load(self, rows: List[List[Any]]) -> None:
+        self.beginResetModel()
+        self._rows = [list(r) for r in rows]
+        self.endResetModel()
+
+    def row_at(self, row: int) -> List[Any]:
+        return self._rows[row] if 0 <= row < len(self._rows) else []
+
+    def cell(self, row: int, col: int) -> Any:
+        r = self.row_at(row)
+        return r[col] if 0 <= col < len(r) else None
+
+    def row_count(self) -> int:
+        return len(self._rows)
+
+    def rowCount(self, parent=QModelIndex()) -> int:
+        return 0 if parent.isValid() else len(self._rows)
+
+    def columnCount(self, parent=QModelIndex()) -> int:
+        return 0 if parent.isValid() else len(self._headers)
+
+    def headerData(self, section, orientation, role=Qt.ItemDataRole.DisplayRole):
+        if role == Qt.ItemDataRole.DisplayRole and orientation == Qt.Orientation.Horizontal:
+            return self._headers[section] if 0 <= section < len(self._headers) else None
+        return None
+
+    def data(self, index, role=Qt.ItemDataRole.DisplayRole):
+        if not index.isValid():
+            return None
+        row, col = index.row(), index.column()
+        if not (0 <= row < len(self._rows) and 0 <= col < len(self._headers)):
+            return None
+        values = self._rows[row]
+        val = values[col] if col < len(values) else None
+        if role in (Qt.ItemDataRole.DisplayRole, Qt.ItemDataRole.EditRole):
+            if role == Qt.ItemDataRole.EditRole and col in self._numeric_cols:
+                try:
+                    return float(val)
+                except (ValueError, TypeError):
+                    return 0.0
+            return str(val) if val is not None else ''
+        if role == Qt.ItemDataRole.TextAlignmentRole and col in self._numeric_cols:
+            return int(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
+        return None
+
+    def flags(self, index):
+        return Qt.ItemFlag.ItemIsEnabled | Qt.ItemFlag.ItemIsSelectable
+
+    def sort(self, column, order=Qt.SortOrder.AscendingOrder):
+        if not self._rows or column >= len(self._headers):
+            return
+        self.layoutAboutToBeChanged.emit()
+        numeric = column in self._numeric_cols
+        def _key(r):
+            v = r[column] if column < len(r) else None
+            if numeric:
+                try:
+                    return (False, float(v))
+                except (ValueError, TypeError):
+                    return (True, 0.0)
+            return (v is None, v if v is not None else '')
+        self._rows.sort(key=_key, reverse=(order == Qt.SortOrder.DescendingOrder))
+        self.layoutChanged.emit()
+
 
 class RicercaDocumentiWidget(QWidget):
     """Pannello di ricerca full-text nei documenti storici catastali."""
@@ -144,12 +220,13 @@ class RicercaDocumentiWidget(QWidget):
         btn_layout.addWidget(self.risultati_label)
         main_layout.addLayout(btn_layout)
 
-        # --- Tabella risultati ---
-        self.tabella = QTableWidget()
-        self.tabella.setColumnCount(len(self.COLONNE))
-        self.tabella.setHorizontalHeaderLabels(self.COLONNE)
+        # --- Tabella risultati (model/view) ---
+        self._docs_model = SimpleRowsModel(self.COLONNE, parent=self, numeric_cols=[0, 3])
+        self.tabella = QTableView()
+        self.tabella.setModel(self._docs_model)
         self.tabella.setEditTriggers(QAbstractItemView.EditTrigger.NoEditTriggers)
         self.tabella.setSelectionBehavior(QAbstractItemView.SelectionBehavior.SelectRows)
+        self.tabella.setSelectionMode(QAbstractItemView.SelectionMode.SingleSelection)
         self.tabella.setAlternatingRowColors(True)
         hdr = self.tabella.horizontalHeader()
         hdr.setSectionResizeMode(QHeaderView.ResizeMode.Interactive)
@@ -165,8 +242,8 @@ class RicercaDocumentiWidget(QWidget):
             return
         row = index.row()
         def _cell(col):
-            item = self.tabella.item(row, col)
-            return item.text() if item else ""
+            val = self._docs_model.cell(row, col)
+            return str(val) if val is not None else ""
         id_doc, titolo, _tipo, anno, _comune, partita = (
             _cell(0), _cell(1), _cell(2), _cell(3), _cell(4), _cell(5)
         )
@@ -208,20 +285,18 @@ class RicercaDocumentiWidget(QWidget):
         self._popola_tabella(risultati)
 
     def _popola_tabella(self, righe: list):
-        self.tabella.setSortingEnabled(False)
-        self.tabella.setRowCount(0)
         if not righe:
+            self._docs_model.load([])
             self.risultati_label.setText("Nessun documento trovato.")
-            self.tabella.setSortingEnabled(True)
             return
-        self.tabella.setRowCount(len(righe))
-        for r, row in enumerate(righe):
-            for c, key in enumerate(self.KEYS):
-                val = row.get(key, '') if isinstance(row, dict) else (row[c] if c < len(row) else '')
-                item = QTableWidgetItem(str(val) if val is not None else '')
-                item.setFlags(item.flags() & ~Qt.ItemFlag.ItemIsEditable)
-                self.tabella.setItem(r, c, item)
-        self.tabella.setSortingEnabled(True)
+        rows = []
+        for row in righe:
+            if isinstance(row, dict):
+                rows.append([row.get(key, '') for key in self.KEYS])
+            else:
+                rows.append([row[c] if c < len(row) else '' for c in range(len(self.KEYS))])
+        self._docs_model.load(rows)
+        self.risultati_label.setText(f"{len(rows)} documenti trovati.")
         self.risultati_label.setText(f"{len(righe)} documento/i trovato/i.")
 
     def _reset_filtri(self):
@@ -1330,10 +1405,17 @@ class StatisticheWidget(LazyLoadedWidget):
         layout = QVBoxLayout(widget)
         refresh_button = QPushButton("Aggiorna Statistiche Comuni")
         refresh_button.clicked.connect(self.refresh_stats_comune)
-        self.stats_comune_table = QTableWidget()
-        self.stats_comune_table.setColumnCount(7)
-        self.stats_comune_table.setHorizontalHeaderLabels(["Comune", "Provincia", "Totale Partite", "Partite Attive", "Partite Inattive", "Totale Possessori", "Totale Immobili"])
+        self._stats_comune_model = SimpleRowsModel(
+            ["Comune", "Provincia", "Totale Partite", "Partite Attive",
+             "Partite Inattive", "Totale Possessori", "Totale Immobili"],
+            parent=self, numeric_cols=[2, 3, 4, 5, 6])
+        self.stats_comune_table = QTableView()
+        self.stats_comune_table.setModel(self._stats_comune_model)
+        self.stats_comune_table.setEditTriggers(QAbstractItemView.EditTrigger.NoEditTriggers)
+        self.stats_comune_table.setSelectionBehavior(QAbstractItemView.SelectionBehavior.SelectRows)
+        self.stats_comune_table.setSelectionMode(QAbstractItemView.SelectionMode.SingleSelection)
         self.stats_comune_table.setAlternatingRowColors(True)
+        self.stats_comune_table.setSortingEnabled(True)
         self.stats_comune_table.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeMode.Interactive)
         self.stats_comune_table.horizontalHeader().setStretchLastSection(True)
         self.stats_comune_table.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
@@ -1359,10 +1441,17 @@ class StatisticheWidget(LazyLoadedWidget):
         refresh_button = QPushButton("Aggiorna Statistiche Immobili")
         refresh_button.clicked.connect(self.refresh_immobili_tipologia)
         layout.addWidget(refresh_button)
-        self.immobili_table = QTableWidget()
-        self.immobili_table.setColumnCount(6)
-        self.immobili_table.setHorizontalHeaderLabels(["Comune", "Classificazione", "Numero Immobili", "Totale Piani", "Totale Vani", "Media Vani/Immobile"])
+        self._immobili_stats_model = SimpleRowsModel(
+            ["Comune", "Classificazione", "Numero Immobili", "Totale Piani",
+             "Totale Vani", "Media Vani/Immobile"],
+            parent=self, numeric_cols=[2, 3, 4, 5])
+        self.immobili_table = QTableView()
+        self.immobili_table.setModel(self._immobili_stats_model)
+        self.immobili_table.setEditTriggers(QAbstractItemView.EditTrigger.NoEditTriggers)
+        self.immobili_table.setSelectionBehavior(QAbstractItemView.SelectionBehavior.SelectRows)
+        self.immobili_table.setSelectionMode(QAbstractItemView.SelectionMode.SingleSelection)
         self.immobili_table.setAlternatingRowColors(True)
+        self.immobili_table.setSortingEnabled(True)
         self.immobili_table.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeMode.Interactive)
         self.immobili_table.horizontalHeader().setStretchLastSection(True)
         self.immobili_table.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
@@ -1489,19 +1578,16 @@ class StatisticheWidget(LazyLoadedWidget):
 
     def refresh_stats_comune(self):
         self.logger.info("Aggiornamento statistiche comuni...")
-        self.stats_comune_table.setRowCount(0)
         try:
-            stats = self.db_manager.get_statistiche_comune()
+            stats = self.db_manager.get_statistiche_comune() or []
+            self._stats_comune_model.load([
+                [s.get('comune', ''), s.get('provincia', ''),
+                 s.get('totale_partite', 0), s.get('partite_attive', 0),
+                 s.get('partite_inattive', 0), s.get('totale_possessori', 0),
+                 s.get('totale_immobili', 0)]
+                for s in stats
+            ])
             if stats:
-                self.stats_comune_table.setRowCount(len(stats))
-                for i, s in enumerate(stats):
-                    self.stats_comune_table.setItem(i, 0, QTableWidgetItem(s.get('comune', '')))
-                    self.stats_comune_table.setItem(i, 1, QTableWidgetItem(s.get('provincia', '')))
-                    self.stats_comune_table.setItem(i, 2, QTableWidgetItem(str(s.get('totale_partite', 0))))
-                    self.stats_comune_table.setItem(i, 3, QTableWidgetItem(str(s.get('partite_attive', 0))))
-                    self.stats_comune_table.setItem(i, 4, QTableWidgetItem(str(s.get('partite_inattive', 0))))
-                    self.stats_comune_table.setItem(i, 5, QTableWidgetItem(str(s.get('totale_possessori', 0))))
-                    self.stats_comune_table.setItem(i, 6, QTableWidgetItem(str(s.get('totale_immobili', 0))))
                 self.stats_comune_table.resizeColumnsToContents()
             self.log_status("Statistiche comuni aggiornate con successo.")
         except DBMError as e:
@@ -1522,21 +1608,20 @@ class StatisticheWidget(LazyLoadedWidget):
 
     def refresh_immobili_tipologia(self):
         self.logger.info("Aggiornamento statistiche immobili per tipologia...")
-        self.immobili_table.setRowCount(0)
         try:
-            stats = self.db_manager.get_immobili_per_tipologia(self.comune_filter_id)
-            if stats:
-                self.immobili_table.setRowCount(len(stats))
-                for i, s in enumerate(stats):
-                    self.immobili_table.setItem(i, 0, QTableWidgetItem(s.get('comune_nome', '')))
-                    self.immobili_table.setItem(i, 1, QTableWidgetItem(s.get('classificazione', 'N/D')))
-                    num_immobili = s.get('numero_immobili', 0)
-                    self.immobili_table.setItem(i, 2, QTableWidgetItem(str(num_immobili)))
-                    self.immobili_table.setItem(i, 3, QTableWidgetItem(str(s.get('totale_piani', 0))))
-                    totale_vani = s.get('totale_vani', 0)
-                    self.immobili_table.setItem(i, 4, QTableWidgetItem(str(totale_vani)))
-                    media_vani = round(totale_vani / num_immobili, 2) if num_immobili > 0 else 0
-                    self.immobili_table.setItem(i, 5, QTableWidgetItem(str(media_vani)))
+            stats = self.db_manager.get_immobili_per_tipologia(self.comune_filter_id) or []
+            rows = []
+            for s in stats:
+                num_immobili = s.get('numero_immobili', 0)
+                totale_vani = s.get('totale_vani', 0)
+                media_vani = round(totale_vani / num_immobili, 2) if num_immobili > 0 else 0
+                rows.append([
+                    s.get('comune_nome', ''), s.get('classificazione', 'N/D'),
+                    num_immobili, s.get('totale_piani', 0),
+                    totale_vani, media_vani,
+                ])
+            self._immobili_stats_model.load(rows)
+            if rows:
                 self.immobili_table.resizeColumnsToContents()
             status_text = "Statistiche immobili aggiornate"
             if self.comune_filter_id:
@@ -1576,10 +1661,9 @@ class StatisticheWidget(LazyLoadedWidget):
         if not index.isValid():
             return
         row = index.row()
-        comune_item = self.stats_comune_table.item(row, 0)
-        prov_item = self.stats_comune_table.item(row, 1)
-        comune = comune_item.text() if comune_item else ""
-        prov = prov_item.text() if prov_item else ""
+        values = self._stats_comune_model.row_at(row)
+        comune = str(values[0]) if len(values) > 0 and values[0] is not None else ""
+        prov = str(values[1]) if len(values) > 1 and values[1] is not None else ""
 
         menu = QMenu(self.stats_comune_table)
         if comune:
@@ -1589,13 +1673,8 @@ class StatisticheWidget(LazyLoadedWidget):
             menu.addAction(f"Copia provincia  ({prov})").triggered.connect(
                 lambda: QApplication.clipboard().setText(prov))
         menu.addSeparator()
-        def _copia_riga():
-            parts = []
-            for col in range(self.stats_comune_table.columnCount()):
-                item = self.stats_comune_table.item(row, col)
-                parts.append(item.text() if item else "")
-            QApplication.clipboard().setText("\t".join(parts))
-        menu.addAction("Copia riga intera").triggered.connect(_copia_riga)
+        menu.addAction("Copia riga intera").triggered.connect(
+            lambda: QApplication.clipboard().setText("\t".join(str(v) if v is not None else "" for v in values)))
         menu.exec(self.stats_comune_table.viewport().mapToGlobal(position))
 
     def _apri_menu_immobili_stats(self, position: QPoint):
@@ -1604,10 +1683,9 @@ class StatisticheWidget(LazyLoadedWidget):
         if not index.isValid():
             return
         row = index.row()
-        comune_item = self.immobili_table.item(row, 0)
-        class_item = self.immobili_table.item(row, 1)
-        comune = comune_item.text() if comune_item else ""
-        classificazione = class_item.text() if class_item else ""
+        values = self._immobili_stats_model.row_at(row)
+        comune = str(values[0]) if len(values) > 0 and values[0] is not None else ""
+        classificazione = str(values[1]) if len(values) > 1 and values[1] is not None else ""
 
         menu = QMenu(self.immobili_table)
         if comune:
@@ -1617,13 +1695,8 @@ class StatisticheWidget(LazyLoadedWidget):
             menu.addAction(f"Copia classificazione  ({classificazione})").triggered.connect(
                 lambda: QApplication.clipboard().setText(classificazione))
         menu.addSeparator()
-        def _copia_riga():
-            parts = []
-            for col in range(self.immobili_table.columnCount()):
-                item = self.immobili_table.item(row, col)
-                parts.append(item.text() if item else "")
-            QApplication.clipboard().setText("\t".join(parts))
-        menu.addAction("Copia riga intera").triggered.connect(_copia_riga)
+        menu.addAction("Copia riga intera").triggered.connect(
+            lambda: QApplication.clipboard().setText("\t".join(str(v) if v is not None else "" for v in values)))
         menu.exec(self.immobili_table.viewport().mapToGlobal(position))
 
 

@@ -1878,7 +1878,7 @@ def run_gui_app():
                     _pg_vlay.addWidget(_pg_title)
                     _pg_lbl = QLabel("Preparazione in corso...")
                     _pg_lbl.setWordWrap(True)
-                    _pg_lbl.setStyleSheet("color: gray; font-size: 11px;")
+                    _pg_lbl.setProperty("muted", "true")
                     _pg_vlay.addWidget(_pg_lbl)
                     from PyQt6.QtWidgets import QProgressBar
                     _pg_bar = QProgressBar()

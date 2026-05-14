@@ -91,14 +91,11 @@ _PROVINCE_ITALIANE = [
     "VI","VR","VT","VV",
 ]
 
-_FIELD_ERROR_STYLE = (
-    "border: 2px solid #e74c3c; border-radius: 3px; background-color: #fff5f5;"
-)
-
-
 def _set_field_error(widget, has_error: bool) -> None:
-    """Applica o rimuove il bordo rosso di errore da un widget di input."""
-    widget.setStyleSheet(_FIELD_ERROR_STYLE if has_error else "")
+    """Applica o rimuove il bordo rosso di errore via property [error="true"]."""
+    widget.setProperty("error", "true" if has_error else "false")
+    widget.style().unpolish(widget)
+    widget.style().polish(widget)
 
 
 from foliarium.ui.widgets.custom import show_status_message as _show_status_message

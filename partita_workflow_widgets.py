@@ -150,7 +150,7 @@ class RegistrazioneProprietaWidget(LazyLoadedWidget):
         layout.setSpacing(12)
 
         title = QLabel("Dati della Partita")
-        title.setStyleSheet("font-size:14pt; font-weight:600; color:#3F51B5;")
+        title.setObjectName("wizardStepTitle")
         layout.addWidget(title)
 
         form_group = QGroupBox("Informazioni Generali")
@@ -158,7 +158,7 @@ class RegistrazioneProprietaWidget(LazyLoadedWidget):
         form_layout.setSpacing(10)
 
         self._s1_comune_label = QLabel("Nessun comune selezionato")
-        self._s1_comune_label.setStyleSheet("color:#757575; font-style:italic;")
+        self._s1_comune_label.setProperty("muted", "true"); self._s1_comune_label.style().unpolish(self._s1_comune_label); self._s1_comune_label.style().polish(self._s1_comune_label)
         comune_btn = QPushButton("Seleziona...")
         comune_btn.setObjectName("secondaryButton")
         comune_btn.clicked.connect(self._s1_select_comune)
@@ -193,7 +193,7 @@ class RegistrazioneProprietaWidget(LazyLoadedWidget):
         layout.setSpacing(12)
 
         title = QLabel("Possessori")
-        title.setStyleSheet("font-size:14pt; font-weight:600; color:#3F51B5;")
+        title.setObjectName("wizardStepTitle")
         layout.addWidget(title)
 
         self._s2_poss_table = QTableWidget()
@@ -244,7 +244,7 @@ class RegistrazioneProprietaWidget(LazyLoadedWidget):
         layout.setSpacing(12)
 
         title = QLabel("Immobili")
-        title.setStyleSheet("font-size:14pt; font-weight:600; color:#3F51B5;")
+        title.setObjectName("wizardStepTitle")
         layout.addWidget(title)
 
         self._s3_imm_table = QTableWidget()
@@ -327,7 +327,7 @@ class RegistrazioneProprietaWidget(LazyLoadedWidget):
         layout.setSpacing(12)
 
         title = QLabel("Riepilogo e Conferma")
-        title.setStyleSheet("font-size:14pt; font-weight:600; color:#3F51B5;")
+        title.setObjectName("wizardStepTitle")
         layout.addWidget(title)
 
         self._s4_browser = QTextBrowser()
@@ -397,7 +397,7 @@ class RegistrazioneProprietaWidget(LazyLoadedWidget):
         self._possessori_cache = []
         self._immobili_cache = []
         self._s1_comune_label.setText("Nessun comune selezionato")
-        self._s1_comune_label.setStyleSheet("color:#757575; font-style:italic;")
+        self._s1_comune_label.setProperty("muted", "true"); self._s1_comune_label.style().unpolish(self._s1_comune_label); self._s1_comune_label.style().polish(self._s1_comune_label)
         self._s1_numero.setValue(1)
         self._s1_suffisso.clear()
         self._s1_data_imp.setDate(QDate.currentDate())
@@ -425,7 +425,7 @@ class RegistrazioneProprietaWidget(LazyLoadedWidget):
             self._comune_id = dialog.selected_comune_id
             self._comune_nome = dialog.selected_comune_name
             self._s1_comune_label.setText(self._comune_nome)
-            self._s1_comune_label.setStyleSheet("color:#212121;")
+            self._s1_comune_label.setProperty("muted", "false"); self._s1_comune_label.style().unpolish(self._s1_comune_label); self._s1_comune_label.style().polish(self._s1_comune_label)
 
     def _load_comune_dependent_data(self):
         self._load_possessori_cache()
@@ -760,7 +760,7 @@ class NuovaPartitaWizardWidget(QWidget):
         layout.setSpacing(12)
 
         title = QLabel("Dati della Partita")
-        title.setStyleSheet("font-size:14pt; font-weight:600; color:#3F51B5;")
+        title.setObjectName("wizardStepTitle")
         layout.addWidget(title)
 
         form_group = QGroupBox("Informazioni Generali")
@@ -768,7 +768,7 @@ class NuovaPartitaWizardWidget(QWidget):
         form_layout.setSpacing(10)
 
         self._s1_comune_label = QLabel("Nessun comune selezionato")
-        self._s1_comune_label.setStyleSheet("color:#757575; font-style:italic;")
+        self._s1_comune_label.setProperty("muted", "true"); self._s1_comune_label.style().unpolish(self._s1_comune_label); self._s1_comune_label.style().polish(self._s1_comune_label)
         comune_btn = QPushButton("Seleziona...")
         comune_btn.setObjectName("secondaryButton")
         comune_btn.clicked.connect(self._s1_select_comune)
@@ -812,7 +812,7 @@ class NuovaPartitaWizardWidget(QWidget):
             self._comune_id = dialog.selected_comune_id
             self._comune_nome = dialog.selected_comune_name
             self._s1_comune_label.setText(self._comune_nome)
-            self._s1_comune_label.setStyleSheet("color:#212121;")
+            self._s1_comune_label.setProperty("muted", "false"); self._s1_comune_label.style().unpolish(self._s1_comune_label); self._s1_comune_label.style().polish(self._s1_comune_label)
 
     def _build_step2(self) -> QWidget:
         w = QWidget()
@@ -821,7 +821,7 @@ class NuovaPartitaWizardWidget(QWidget):
         layout.setSpacing(12)
 
         title = QLabel("Aggiungi Possessori (Opzionale)")
-        title.setStyleSheet("font-size:14pt; font-weight:600; color:#3F51B5;")
+        title.setObjectName("wizardStepTitle")
         layout.addWidget(title)
 
         search_row = QHBoxLayout()
@@ -887,7 +887,7 @@ class NuovaPartitaWizardWidget(QWidget):
         layout.setSpacing(12)
 
         title = QLabel("Aggiungi Immobili (Opzionale)")
-        title.setStyleSheet("font-size:14pt; font-weight:600; color:#3F51B5;")
+        title.setObjectName("wizardStepTitle")
         layout.addWidget(title)
 
         add_group = QGroupBox("Nuovo Immobile")
@@ -942,7 +942,7 @@ class NuovaPartitaWizardWidget(QWidget):
         layout.setSpacing(12)
 
         title = QLabel("Riepilogo e Conferma")
-        title.setStyleSheet("font-size:14pt; font-weight:600; color:#3F51B5;")
+        title.setObjectName("wizardStepTitle")
         layout.addWidget(title)
 
         self._s4_browser = QTextBrowser()
@@ -1137,8 +1137,7 @@ class OperazioniPartitaWidget(QWidget):
         self.source_partita_info_label = QLabel(
             "Nessuna partita sorgente selezionata.")
         self.source_partita_info_label.setWordWrap(True)
-        self.source_partita_info_label.setStyleSheet(
-            "QLabel { padding: 5px; background-color: #e8f0fe; border: 1px solid #d0e0ff; border-radius: 3px; min-height: 2em; }")
+        self.source_partita_info_label.setObjectName("infoBox")
         source_partita_layout.addWidget(
             self.source_partita_info_label, 1, 0, 1, 4)  # Span su 4 colonne
         main_layout.addWidget(source_partita_group)
@@ -1223,8 +1222,7 @@ class OperazioniPartitaWidget(QWidget):
 
         self.immobile_id_transfer_label = QLabel(
             "Nessun immobile selezionato dalla lista sottostante.")
-        self.immobile_id_transfer_label.setStyleSheet(
-            "font-style: italic; color: #555;")
+        self.immobile_id_transfer_label.setProperty("muted", "true")
         transfer_form_layout.addRow(self.immobile_id_transfer_label)
 
         # --- Modifiche per Partita Destinazione ---
@@ -1263,9 +1261,8 @@ class OperazioniPartitaWidget(QWidget):
         # --- Fine Modifiche per Partita Destinazione ---
 
         self.dest_partita_info_label = QLabel(
-            "Nessuna partita destinazione selezionata o verificata.")  # Testo iniziale modificato
-        self.dest_partita_info_label.setStyleSheet(
-            "font-style: italic; color: #555; padding: 3px; background-color: #E8F0FE; border: 1px solid #B0C4DE; border-radius: 3px;")
+            "Nessuna partita destinazione selezionata o verificata.")
+        self.dest_partita_info_label.setObjectName("infoBox")
         self.dest_partita_info_label.setWordWrap(True)
         transfer_form_layout.addRow(self.dest_partita_info_label)
 

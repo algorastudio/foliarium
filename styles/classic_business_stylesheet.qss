@@ -390,3 +390,25 @@ QPushButton#navButton[active="true"] {
     border-left: 3px solid #546E7A;
 }
 QStackedWidget { background: #F8F9FA; }
+
+/* Form validation error state — gestito da _set_field_error() */
+QLineEdit[error="true"], QTextEdit[error="true"], QPlainTextEdit[error="true"],
+QComboBox[error="true"], QDateEdit[error="true"], QSpinBox[error="true"] {
+    border: 1.5px solid #e74c3c;
+}
+
+/* Info box per riepiloghi (partita sorgente/destinazione, etc.) */
+QLabel#infoBox {
+    padding: 5px 8px;
+    border: 1px solid palette(mid);
+    border-radius: 4px;
+    background: palette(alternate-base);
+    min-height: 1.6em;
+}
+
+/* Titolo step wizard partita/operazioni */
+QLabel#wizardStepTitle {
+    font-size: 14pt;
+    font-weight: 600;
+    color: palette(highlight);
+}
