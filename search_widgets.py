@@ -1058,6 +1058,98 @@ class RicercaAvanzataImmobiliWidget(QWidget):
                 lambda: QApplication.clipboard().setText(natura))
         menu.exec(self.risultati_immobili_table.viewport().mapToGlobal(position))
 
+class FuzzyResultsModel(QAbstractTableModel):
+    """Modello per i risultati di ricerca fuzzy.
+
+    Ogni riga è (entity_data, mapped_values). entity_data può essere
+    l'entità grezza (tabelle individuali) o un wrapper {'type': t, 'data': entity}
+    (tabella unificata). similarity_col abilita la colorazione del background
+    sulla colonna di similarità; type_icons mappa entity_type→QIcon per la
+    decoration nella colonna 0.
+    """
+
+    def __init__(self, headers, similarity_col=None, type_icons=None, parent=None):
+        super().__init__(parent)
+        self._headers = list(headers)
+        self._similarity_col = similarity_col
+        self._type_icons = type_icons or {}
+        self._rows: list[tuple] = []
+
+    def load(self, rows: list[tuple]) -> None:
+        self.beginResetModel()
+        self._rows = list(rows)
+        self.endResetModel()
+
+    def clear(self) -> None:
+        self.load([])
+
+    def item_at(self, row: int) -> dict:
+        if 0 <= row < len(self._rows):
+            entity = self._rows[row][0]
+            return entity if isinstance(entity, dict) else {}
+        return {}
+
+    def row_count(self) -> int:
+        return len(self._rows)
+
+    def rowCount(self, parent=QModelIndex()) -> int:
+        return 0 if parent.isValid() else len(self._rows)
+
+    def columnCount(self, parent=QModelIndex()) -> int:
+        return 0 if parent.isValid() else len(self._headers)
+
+    def headerData(self, section, orientation, role=Qt.ItemDataRole.DisplayRole):
+        if role == Qt.ItemDataRole.DisplayRole and orientation == Qt.Orientation.Horizontal:
+            return self._headers[section] if 0 <= section < len(self._headers) else None
+        return None
+
+    def data(self, index, role=Qt.ItemDataRole.DisplayRole):
+        if not index.isValid():
+            return None
+        row, col = index.row(), index.column()
+        if not (0 <= row < len(self._rows) and 0 <= col < len(self._headers)):
+            return None
+        entity, values = self._rows[row]
+        val = values[col] if col < len(values) else None
+        if role in (Qt.ItemDataRole.DisplayRole, Qt.ItemDataRole.EditRole):
+            if role == Qt.ItemDataRole.EditRole and col == self._similarity_col:
+                try:
+                    return float(val)
+                except (ValueError, TypeError):
+                    return 0.0
+            return str(val) if val is not None else ''
+        if role == Qt.ItemDataRole.BackgroundRole and self._similarity_col is not None and col == self._similarity_col:
+            try:
+                sim = float(val)
+            except (ValueError, TypeError):
+                return None
+            if sim > 0.7:
+                return QColor("#d4edda")
+            if sim > 0.5:
+                return QColor("#fff3cd")
+            return QColor("#f8d7da")
+        if role == Qt.ItemDataRole.DecorationRole and col == 0 and self._type_icons:
+            if isinstance(entity, dict):
+                t = entity.get('type')
+                if t and t in self._type_icons:
+                    return self._type_icons[t]
+        return None
+
+    def flags(self, index):
+        return Qt.ItemFlag.ItemIsEnabled | Qt.ItemFlag.ItemIsSelectable
+
+    def sort(self, column, order=Qt.SortOrder.AscendingOrder):
+        if not self._rows or column >= len(self._headers):
+            return
+        self.layoutAboutToBeChanged.emit()
+        def _key(r):
+            vals = r[1]
+            v = vals[column] if column < len(vals) else None
+            return (v is None, v if v is not None else '')
+        self._rows.sort(key=_key, reverse=(order == Qt.SortOrder.DescendingOrder))
+        self.layoutChanged.emit()
+
+
 class UnifiedFuzzySearchThread(QThread):
     """Thread unificato per eseguire ricerche fuzzy in background."""
     results_ready = pyqtSignal(dict)
@@ -1258,23 +1350,47 @@ class UnifiedFuzzySearchWidget(QWidget):
 
         content_layout.addLayout(types_layout) # AGGIUNTO AL CONTENT_LAYOUT
 
-        # === AREA RISULTATI (da aggiungere al content_layout) ===
+        # === AREA RISULTATI ===
         self.results_tabs = QTabWidget()
         self.results_tabs.setMinimumHeight(400)
-        # ... (tutta la creazione delle tabelle e l'aggiunta a results_tabs rimane identica) ...
-        self.unified_table = self._create_table_widget(["Tipo", "Nome/Descrizione", "Dettagli", "Similarità", "Campo"], [1, 2], 3); self.results_tabs.addTab(self.unified_table, QIcon(str(get_icon_path("search"))), "Tutti")
-        self.possessori_table = self._create_table_widget(["Nome Completo", "Comune", "Partite", "Similitud."], [0], 3); self.results_tabs.addTab(self.possessori_table, QIcon(str(get_icon_path("users"))), "Possessori")
-        self.localita_table = self._create_table_widget(["Nome", "Tipo", "Civico", "Comune", "Immobili", "Similitud."], [0, 3], 5); self.results_tabs.addTab(self.localita_table, QIcon(str(get_icon_path("map-pin"))), "Località")
-        self.immobili_table = self._create_table_widget(["Natura", "Classificazione", "Partita", "Suffisso", "Comune", "Similitud."], [1, 4], 5); self.results_tabs.addTab(self.immobili_table, QIcon(str(get_icon_path("building"))), "Immobili")
-        self.variazioni_table = self._create_table_widget(["Tipo", "Data", "Rif. e Partita Origine", "Similitud."], [2], 3)
+
+        _type_icons = {
+            'possessore': QIcon(str(get_icon_path("users"))),
+            'localita':   QIcon(str(get_icon_path("map-pin"))),
+            'immobile':   QIcon(str(get_icon_path("building"))),
+            'variazione': QIcon(str(get_icon_path("report"))),
+            'contratto':  QIcon(str(get_icon_path("file-text"))),
+            'partita':    QIcon(str(get_icon_path("bar-chart"))),
+        }
+
+        self.unified_table, self._unified_model = self._create_table_view(
+            ["Tipo", "Nome/Descrizione", "Dettagli", "Similarità", "Campo"],
+            similarity_col=3, type_icons=_type_icons)
+        self.results_tabs.addTab(self.unified_table, QIcon(str(get_icon_path("search"))), "Tutti")
+
+        self.possessori_table, self._possessori_model = self._create_table_view(
+            ["Nome Completo", "Comune", "Partite", "Similitud."], similarity_col=3)
+        self.results_tabs.addTab(self.possessori_table, QIcon(str(get_icon_path("users"))), "Possessori")
+
+        self.localita_table, self._localita_model = self._create_table_view(
+            ["Nome", "Tipo", "Civico", "Comune", "Immobili", "Similitud."], similarity_col=5)
+        self.results_tabs.addTab(self.localita_table, QIcon(str(get_icon_path("map-pin"))), "Località")
+
+        self.immobili_table, self._immobili_model = self._create_table_view(
+            ["Natura", "Classificazione", "Partita", "Suffisso", "Comune", "Similitud."], similarity_col=5)
+        self.results_tabs.addTab(self.immobili_table, QIcon(str(get_icon_path("building"))), "Immobili")
+
+        self.variazioni_table, self._variazioni_model = self._create_table_view(
+            ["Tipo", "Data", "Rif. e Partita Origine", "Similitud."], similarity_col=3)
         self.results_tabs.addTab(self.variazioni_table, QIcon(str(get_icon_path("report"))), "Variazioni")
-        self.contratti_table = self._create_table_widget(["Tipo", "Data", "Partita", "Similitud."], [0], 3); self.results_tabs.addTab(self.contratti_table, QIcon(str(get_icon_path("file-text"))), "Contratti")
-        # --- MODIFICA QUESTA RIGA ---
-        self.partite_table = self._create_table_widget(
+
+        self.contratti_table, self._contratti_model = self._create_table_view(
+            ["Tipo", "Data", "Partita", "Similitud."], similarity_col=3)
+        self.results_tabs.addTab(self.contratti_table, QIcon(str(get_icon_path("file-text"))), "Contratti")
+
+        self.partite_table, self._partite_model = self._create_table_view(
             ["Numero", "Suffisso", "Possessori", "Tipo", "Stato", "Data Impianto", "Comune", "Similitud."],
-            [2, 6],  # Indici delle colonne da espandere (Possessori e Comune)
-            7        # L'indice della colonna 'Similitud.' ora è 7
-        )
+            similarity_col=7)
         self.results_tabs.addTab(self.partite_table, QIcon(str(get_icon_path("bar-chart"))), "Partite")
 
         content_layout.addWidget(self.results_tabs) # AGGIUNTO AL CONTENT_LAYOUT
@@ -1301,21 +1417,21 @@ class UnifiedFuzzySearchWidget(QWidget):
 
         self.search_edit.setFocus()
 
-    def _create_table_widget(self, headers, stretch_columns, similarity_col_index):
-        """Helper per creare una QTableWidget standardizzata."""
-        table = QTableWidget()
-        table.setColumnCount(len(headers))
-        table.setHorizontalHeaderLabels(headers)
+    def _create_table_view(self, headers, similarity_col=None, type_icons=None):
+        """Crea una QTableView con FuzzyResultsModel. Ritorna (view, model)."""
+        model = FuzzyResultsModel(headers, similarity_col=similarity_col,
+                                   type_icons=type_icons, parent=self)
+        table = QTableView()
+        table.setModel(model)
         table.setAlternatingRowColors(True)
         table.setSelectionBehavior(QAbstractItemView.SelectionBehavior.SelectRows)
+        table.setSelectionMode(QAbstractItemView.SelectionMode.SingleSelection)
         table.setEditTriggers(QAbstractItemView.EditTrigger.NoEditTriggers)
+        table.setSortingEnabled(True)
         header = table.horizontalHeader()
         header.setSectionResizeMode(QHeaderView.ResizeMode.Interactive)
         header.setStretchLastSection(True)
-        
-        # Salva l'indice della colonna di similarità per usi futuri (es. colorazione)
-        table.setProperty("similarity_col", similarity_col_index)
-        return table
+        return table, model
 
     def _setup_signals(self):
         """Configura i segnali."""
@@ -1436,108 +1552,65 @@ class UnifiedFuzzySearchWidget(QWidget):
         if FPDF_AVAILABLE:
             self.btn_export_pdf.setEnabled(total > 0)
     
-    def _populate_table(self, table: QTableWidget, data: List[Dict], row_mapper_func):
-        """Funzione helper per popolare una QTableWidget."""
-        table.setRowCount(0)
-        table.setRowCount(len(data))
-        similarity_col = table.property("similarity_col")
-
-        for row_idx, item_data in enumerate(data):
-            row_content = row_mapper_func(item_data)
-            for col_idx, cell_text in enumerate(row_content):
-                item = QTableWidgetItem(str(cell_text))
-                if col_idx == 0: # Salva i dati completi nel primo item della riga
-                    item.setData(Qt.ItemDataRole.UserRole, item_data)
-                
-                # Applica colorazione alla colonna di similarità
-                if similarity_col is not None and col_idx == similarity_col:
-                    try:
-                        similarity = float(cell_text)
-                        if similarity > 0.7: item.setBackground(QColor("#d4edda")) # Verde
-                        elif similarity > 0.5: item.setBackground(QColor("#fff3cd")) # Giallo
-                        else: item.setBackground(QColor("#f8d7da")) # Rosso
-                    except (ValueError, TypeError):
-                        pass
-                
-                table.setItem(row_idx, col_idx, item)
-
     def _populate_unified_table(self, results_by_type: Dict[str, List]):
-        self.unified_table.setRowCount(0)
-        row = 0
-        _type_icon_names = {
-            'possessore': 'users', 'localita': 'map-pin', 'immobile': 'building',
-            'variazione': 'report', 'contratto': 'file-text', 'partita': 'bar-chart'
-        }
         _type_labels = {
             'possessore': 'Possessore', 'localita': 'Località', 'immobile': 'Immobile',
-            'variazione': 'Variazione', 'contratto': 'Contratto', 'partita': 'Partita'
+            'variazione': 'Variazione', 'contratto': 'Contratto', 'partita': 'Partita',
         }
+        rows = []
         for entity_type, entities in results_by_type.items():
             for entity in entities:
-                self.unified_table.insertRow(row)
-                _icon_name = _type_icon_names.get(entity_type, 'file-text')
-                _tipo_item = QTableWidgetItem(_type_labels.get(entity_type, entity_type.title()))
-                _tipo_item.setIcon(QIcon(str(get_icon_path(_icon_name))))
-
-                # ["Tipo", "Nome/Descrizione", "Dettagli", "Similarità", "Campo"]
-                self.unified_table.setItem(row, 0, _tipo_item)
-                self.unified_table.item(row, 0).setData(Qt.ItemDataRole.UserRole, {'type': entity_type, 'data': entity}) # Salva dati per doppio click
-                
-                self.unified_table.setItem(row, 1, QTableWidgetItem(entity.get('display_text', '')))
-                self.unified_table.setItem(row, 2, QTableWidgetItem(entity.get('detail_text', '')))
-                self.unified_table.setItem(row, 3, QTableWidgetItem(f"{entity.get('similarity_score', 0):.3f}"))
-                self.unified_table.setItem(row, 4, QTableWidgetItem(entity.get('search_field', '')))
-                row += 1
+                wrapper = {'type': entity_type, 'data': entity}
+                rows.append((wrapper, [
+                    _type_labels.get(entity_type, entity_type.title()),
+                    entity.get('display_text', ''),
+                    entity.get('detail_text', ''),
+                    f"{entity.get('similarity_score', 0):.3f}",
+                    entity.get('search_field', ''),
+                ]))
+        self._unified_model.load(rows)
 
     def _populate_individual_tables(self, results_by_type: Dict[str, List]):
-        self._populate_table(self.possessori_table, results_by_type.get('possessore', []), 
-            lambda p: [p.get('nome_completo', ''), p.get('comune_nome', ''), p.get('num_partite', 0), f"{p.get('similarity_score', 0):.3f}"])
-        
-        # --- MODIFICA QUESTA CHIAMATA ---
-        self._populate_table(self.localita_table, results_by_type.get('localita', []),
-            lambda l: [
-                l.get('nome', ''),
-                l.get('tipo', '') or '',      # Aggiunto
-                l.get('civico', '') or '',    # Aggiunto
-                l.get('comune_nome', ''),
-                l.get('num_immobili', 0),
-                f"{l.get('similarity_score', 0):.3f}"
-            ]
-        )
-        # --- MODIFICA QUESTA CHIAMATA ---
-        self._populate_table(self.immobili_table, results_by_type.get('immobile', []), 
-            lambda i: [
-                i.get('natura', ''),
-                i.get('classificazione', ''),
-                i.get('numero_partita', ''),
-                i.get('suffisso_partita', '') or '', # Aggiunto il valore per la nuova colonna
-                i.get('comune_nome', ''),
-                f"{i.get('similarity_score', 0):.3f}"
-            ]
-        )
+        self._possessori_model.load([
+            (p, [p.get('nome_completo', ''), p.get('comune_nome', ''),
+                 p.get('num_partite', 0), f"{p.get('similarity_score', 0):.3f}"])
+            for p in results_by_type.get('possessore', [])
+        ])
 
-        self._populate_table(self.variazioni_table, results_by_type.get('variazione', []),
-            lambda v: [
-                v.get('tipo', ''),
-                v.get('data_variazione', ''),
-                v.get('detail_text', ''), # Usa detail_text per la nuova colonna
-                f"{v.get('similarity_score', 0):.3f}"])
+        self._localita_model.load([
+            (l, [l.get('nome', ''), l.get('tipo', '') or '', l.get('civico', '') or '',
+                 l.get('comune_nome', ''), l.get('num_immobili', 0),
+                 f"{l.get('similarity_score', 0):.3f}"])
+            for l in results_by_type.get('localita', [])
+        ])
 
-        self._populate_table(self.contratti_table, results_by_type.get('contratto', []), 
-            lambda c: [c.get('tipo', ''), c.get('data_contratto', ''), c.get('numero_partita', ''), f"{c.get('similarity_score', 0):.3f}"])
+        self._immobili_model.load([
+            (i, [i.get('natura', ''), i.get('classificazione', ''),
+                 i.get('numero_partita', ''), i.get('suffisso_partita', '') or '',
+                 i.get('comune_nome', ''), f"{i.get('similarity_score', 0):.3f}"])
+            for i in results_by_type.get('immobile', [])
+        ])
 
-        self._populate_table(self.partite_table, results_by_type.get('partita', []), 
-            lambda pt: [
-                pt.get('numero_partita', ''),
-                pt.get('suffisso_partita', '') or '',
-                pt.get('possessori_concatenati', '') or '', # NUOVA COLONNA
-                pt.get('tipo_partita', ''),
-                pt.get('stato', ''),
-                str(pt.get('data_impianto', '')) if pt.get('data_impianto') else '',
-                pt.get('comune_nome', ''),
-                f"{pt.get('similarity_score', 0):.3f}"
-            ]
-        )
+        self._variazioni_model.load([
+            (v, [v.get('tipo', ''), v.get('data_variazione', ''),
+                 v.get('detail_text', ''), f"{v.get('similarity_score', 0):.3f}"])
+            for v in results_by_type.get('variazione', [])
+        ])
+
+        self._contratti_model.load([
+            (c, [c.get('tipo', ''), c.get('data_contratto', ''),
+                 c.get('numero_partita', ''), f"{c.get('similarity_score', 0):.3f}"])
+            for c in results_by_type.get('contratto', [])
+        ])
+
+        self._partite_model.load([
+            (pt, [pt.get('numero_partita', ''), pt.get('suffisso_partita', '') or '',
+                  pt.get('possessori_concatenati', '') or '', pt.get('tipo_partita', ''),
+                  pt.get('stato', ''),
+                  str(pt.get('data_impianto', '')) if pt.get('data_impianto') else '',
+                  pt.get('comune_nome', ''), f"{pt.get('similarity_score', 0):.3f}"])
+            for pt in results_by_type.get('partita', [])
+        ])
     def _update_tab_counters(self, results_by_type: Dict[str, List]):
         """Aggiorna i contatori nei titoli dei tab."""
         # --- MODIFICA: La logica di base_index non è più necessaria ---
@@ -1551,14 +1624,11 @@ class UnifiedFuzzySearchWidget(QWidget):
 
     def _clear_results(self):
         """Pulisce tutti i risultati e i contatori."""
-        tables = [
-            self.unified_table, self.possessori_table, self.localita_table, 
-            self.immobili_table, self.variazioni_table, self.contratti_table, 
-            self.partite_table
-        ]
-        for table in tables:
-            table.setRowCount(0)
-        
+        for model in (self._unified_model, self._possessori_model, self._localita_model,
+                      self._immobili_model, self._variazioni_model, self._contratti_model,
+                      self._partite_model):
+            model.clear()
+
         self._update_tab_counters({})
         
         # --- MODIFICA QUI: Disabilita i nuovi pulsanti invece del vecchio ---
@@ -1582,34 +1652,31 @@ class UnifiedFuzzySearchWidget(QWidget):
 
 
     def _on_unified_double_click(self, index):
-        """
-        Gestisce il doppio click nella tabella unificata, chiamando il gestore appropriato.
-        """
-        if not index.isValid(): return
-            
-        item_con_dati = self.unified_table.item(index.row(), 0)
-        if not item_con_dati: return
+        """Gestisce il doppio click nella tabella unificata."""
+        if not index.isValid():
+            return
+        wrapper = self._unified_model.item_at(index.row())
+        if not isinstance(wrapper, dict):
+            return
+        entity_type = wrapper.get('type')
+        entity = wrapper.get('data') or {}
+        entity_id = entity.get('entity_id') if isinstance(entity, dict) else None
 
-        full_item_data = item_con_dati.data(Qt.ItemDataRole.UserRole)
-        if not isinstance(full_item_data, dict): return
-
-        entity_type = full_item_data.get('type')
-
-        # Simula un evento di doppio click sul tab appropriato
         if entity_type == 'partita':
-            self._on_partite_double_click(index)
+            self._open_partita_dialog(entity_id)
         elif entity_type == 'possessore':
-            self._on_possessori_double_click(index)
+            self._open_possessore_dialog(entity_id)
         elif entity_type == 'localita':
-            self._on_localita_double_click(index)
+            self._open_localita_dialog(entity_id)
         elif entity_type == 'immobile':
-            self._on_immobili_double_click(index)
+            self._open_immobile_dialog(entity_id)
         elif entity_type == 'variazione':
-            self._on_variazioni_double_click(index)
+            self._show_generic_details(entity, 'variazione')
         elif entity_type == 'contratto':
-            self._on_contratti_double_click(index)
+            self._show_generic_details(entity, 'contratto')
         else:
-            QMessageBox.warning(self, "Tipo Sconosciuto", f"Nessuna azione di dettaglio definita per il tipo '{entity_type}'.")
+            QMessageBox.warning(self, "Tipo Sconosciuto",
+                                f"Nessuna azione di dettaglio definita per il tipo '{entity_type}'.")
     def _handle_export_csv(self):
         """Esporta i risultati correnti della ricerca unificata in un file CSV."""
         if not self.current_results or not self.current_results.get('total_results', 0) > 0:
@@ -1687,89 +1754,98 @@ class UnifiedFuzzySearchWidget(QWidget):
             QMessageBox.critical(self, "Errore Esportazione", f"Impossibile generare il file PDF:\n{e}")
    
 
-    def _get_entity_id_from_table(self, table: QTableWidget, index) -> Optional[int]:
-        """Helper generico per estrarre l'ID dell'entità da una riga della tabella."""
-        if not index.isValid():
-            return None
+    def _open_possessore_dialog(self, entity_id: Optional[int]):
+        if not entity_id:
+            return
+        dialog = ModificaPossessoreDialog(self.db_manager, entity_id, self)
+        if dialog.exec() == QDialog.DialogCode.Accepted:
+            self._perform_search()
 
-        # I dati completi sono sempre salvati nella UserRole della prima colonna (indice 0)
-        item_con_dati = table.item(index.row(), 0)
-        if not item_con_dati:
-            return None
-            
-        entity_data_wrapper = item_con_dati.data(Qt.ItemDataRole.UserRole)
-        if not isinstance(entity_data_wrapper, dict):
-            return None
-
-        # Gestisce sia il tab "Tutti" (dove i dati sono annidati in 'data') 
-        # sia i tab specifici (dove i dati sono al primo livello).
-        if 'data' in entity_data_wrapper and isinstance(entity_data_wrapper['data'], dict):
-            return entity_data_wrapper['data'].get('entity_id')
-        elif 'entity_id' in entity_data_wrapper:
-            return entity_data_wrapper.get('entity_id')
-
-        return None
-
-    def _on_possessori_double_click(self, index):
-        entity_id = self._get_entity_id_from_table(self.possessori_table, index)
-        if entity_id:
-            dialog = ModificaPossessoreDialog(self.db_manager, entity_id, self)
+    def _open_localita_dialog(self, entity_id: Optional[int]):
+        if not entity_id:
+            return
+        localita_details = self.db_manager.get_localita_details(entity_id)
+        if localita_details and localita_details.get('comune_id'):
+            dialog = ModificaLocalitaDialog(self.db_manager, entity_id, localita_details.get('comune_id'), self)
             if dialog.exec() == QDialog.DialogCode.Accepted:
-                self._perform_search() # Aggiorna i risultati se ci sono state modifiche
+                self._perform_search()
+        else:
+            QMessageBox.warning(self, "Errore Dati",
+                                f"Impossibile caricare i dettagli per la località ID {entity_id}.")
 
-    def _on_localita_double_click(self, index):
-        entity_id = self._get_entity_id_from_table(self.localita_table, index)
-        if entity_id:
-            localita_details = self.db_manager.get_localita_details(entity_id)
-            if localita_details and localita_details.get('comune_id'):
-                dialog = ModificaLocalitaDialog(self.db_manager, entity_id, localita_details.get('comune_id'), self)
+    def _open_immobile_dialog(self, entity_id: Optional[int]):
+        if not entity_id:
+            return
+        immobile_details = self.db_manager.get_immobile_details(entity_id)
+        if immobile_details and immobile_details.get('partita_id'):
+            partita_details = self.db_manager.get_partita_details(immobile_details.get('partita_id'))
+            if partita_details and partita_details.get('comune_id'):
+                dialog = ModificaImmobileDialog(self.db_manager, entity_id, partita_details.get('comune_id'), self)
                 if dialog.exec() == QDialog.DialogCode.Accepted:
                     self._perform_search()
             else:
-                QMessageBox.warning(self, "Errore Dati", f"Impossibile caricare i dettagli per la località ID {entity_id}.")
+                QMessageBox.warning(self, "Errore Dati",
+                                    f"Impossibile determinare il comune per l'immobile ID {entity_id}.")
+        else:
+            QMessageBox.warning(self, "Errore Dati",
+                                f"Impossibile caricare i dettagli per l'immobile ID {entity_id}.")
+
+    def _open_partita_dialog(self, entity_id: Optional[int]):
+        if not entity_id:
+            return
+        full_details = self.db_manager.get_partita_details(entity_id)
+        if full_details:
+            dialog = PartitaDetailsDialog(full_details, self)
+            dialog.exec()
+        else:
+            QMessageBox.warning(self, "Errore Dati",
+                                f"Impossibile caricare i dettagli per la partita ID {entity_id}.")
+
+    def _show_generic_details(self, entity_data: dict, entity_type_name: str):
+        """Mostra un popup leggibile per entità senza un dialogo di dettaglio dedicato."""
+        if not isinstance(entity_data, dict):
+            return
+        entity_id = entity_data.get('entity_id', 'N/A')
+        testo = f"<h3>Dettagli - {entity_type_name.title()} ID: {entity_id}</h3>"
+        testo += "<table border='0' cellspacing='5'>"
+        for key, value in entity_data.items():
+            chiave = key.replace('_', ' ').title()
+            testo += f"<tr><td><b>{chiave}:</b></td><td>{value}</td></tr>"
+        testo += "</table>"
+        QMessageBox.information(self, f"Dettagli - {entity_type_name.title()}", testo)
+
+    def _on_possessori_double_click(self, index):
+        if not index.isValid():
+            return
+        entity = self._possessori_model.item_at(index.row())
+        self._open_possessore_dialog(entity.get('entity_id'))
+
+    def _on_localita_double_click(self, index):
+        if not index.isValid():
+            return
+        entity = self._localita_model.item_at(index.row())
+        self._open_localita_dialog(entity.get('entity_id'))
 
     def _on_immobili_double_click(self, index):
-        entity_id = self._get_entity_id_from_table(self.immobili_table, index)
-        if entity_id:
-            immobile_details = self.db_manager.get_immobile_details(entity_id)
-            if immobile_details and immobile_details.get('partita_id'):
-                partita_details = self.db_manager.get_partita_details(immobile_details.get('partita_id'))
-                if partita_details and partita_details.get('comune_id'):
-                    dialog = ModificaImmobileDialog(self.db_manager, entity_id, partita_details.get('comune_id'), self)
-                    if dialog.exec() == QDialog.DialogCode.Accepted:
-                        self._perform_search()
-                else:
-                    QMessageBox.warning(self, "Errore Dati", f"Impossibile determinare il comune per l'immobile ID {entity_id}.")
-            else:
-                 QMessageBox.warning(self, "Errore Dati", f"Impossibile caricare i dettagli per l'immobile ID {entity_id}.")
+        if not index.isValid():
+            return
+        entity = self._immobili_model.item_at(index.row())
+        self._open_immobile_dialog(entity.get('entity_id'))
 
     def _on_partite_double_click(self, index):
-        entity_id = self._get_entity_id_from_table(self.partite_table, index)
-        if entity_id:
-            full_details = self.db_manager.get_partita_details(entity_id)
-            if full_details:
-                dialog = PartitaDetailsDialog(full_details, self)
-                dialog.exec()
-            else:
-                QMessageBox.warning(self, "Errore Dati", f"Impossibile caricare i dettagli per la partita ID {entity_id}.")
-
-    def _show_generic_details_popup(self, table: QTableWidget, index: 'QModelIndex', entity_type_name: str):
-        """Mostra un popup leggibile per entità senza un dialogo di dettaglio dedicato."""
-        item_con_dati = table.item(index.row(), 0)
-        if not item_con_dati: return
-        entity_data = item_con_dati.data(Qt.ItemDataRole.UserRole)
-        entity_id = entity_data.get('entity_id', 'N/A')
-
-        testo_formattato = f"<h3>Dettagli - {entity_type_name.title()} ID: {entity_id}</h3>"
-        testo_formattato += "<table border='0' cellspacing='5'>"
-        for key, value in entity_data.items():
-            chiave_formattata = key.replace('_', ' ').title()
-            testo_formattato += f"<tr><td><b>{chiave_formattata}:</b></td><td>{value}</td></tr>"
-        testo_formattato += "</table>"
-        QMessageBox.information(self, f"Dettagli - {entity_type_name.title()}", testo_formattato)
+        if not index.isValid():
+            return
+        entity = self._partite_model.item_at(index.row())
+        self._open_partita_dialog(entity.get('entity_id'))
 
     def _on_variazioni_double_click(self, index):
-        self._show_generic_details_popup(self.variazioni_table, index, 'variazione')
+        if not index.isValid():
+            return
+        entity = self._variazioni_model.item_at(index.row())
+        self._show_generic_details(entity, 'variazione')
 
     def _on_contratti_double_click(self, index):
-        self._show_generic_details_popup(self.contratti_table, index, 'contratto')
+        if not index.isValid():
+            return
+        entity = self._contratti_model.item_at(index.row())
+        self._show_generic_details(entity, 'contratto')
