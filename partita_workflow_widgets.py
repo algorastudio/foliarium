@@ -1438,9 +1438,6 @@ class OperazioniPartitaWidget(QWidget):
             QApplication.style().standardIcon(QStyle.StandardPixmap.SP_TrashIcon),
             " Rimuovi Selezionato"
         )
-        self.pp_btn_rimuovi_nuovo_possessore = QPushButton(QApplication.style(
-            # Esempio Icona
-        ).standardIcon(QStyle.StandardPixmap.SP_TrashIcon), " Rimuovi Selezionato")
         self.pp_btn_rimuovi_nuovo_possessore.clicked.connect(
             self._pp_rimuovi_nuovo_possessore_selezionato)
         nuovi_poss_buttons_layout.addWidget(
@@ -2076,7 +2073,6 @@ class OperazioniPartitaWidget(QWidget):
         notaio = self.pp_notaio_edit.text().strip() or None
         repertorio = self.pp_repertorio_edit.text().strip() or None
         note_v = self.pp_note_variazione_edit.toPlainText().strip() or None
-        suffisso_nuova_partita=suffisso_nuova_partita # AGGIUNTO
 
         # --- 4. Validazione Nuovi Possessori ---
         if not self._pp_temp_nuovi_possessori:
@@ -2193,5 +2189,3 @@ class OperazioniPartitaWidget(QWidget):
         self.source_partita_id_spinbox.setValue(partita_id)
         # Usa il metodo esistente per caricare i dati
         self._load_partita_sorgente_from_spinbox()
-
-
