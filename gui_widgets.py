@@ -306,19 +306,6 @@ class ElencoComuniWidget(LazyLoadedWidget):
                         row_visible = True
                         break
             self.comuni_table.setRowHidden(row, not row_visible)
-        
-        filter_text = self.filter_comuni_edit.text().strip().lower()
-        for row in range(self.comuni_table.rowCount()):
-            row_visible = False
-            if not filter_text:
-                row_visible = True
-            else:
-                for col in range(self.comuni_table.columnCount()):
-                    item = self.comuni_table.item(row, col)
-                    if item and filter_text in item.text().lower():
-                        row_visible = True
-                        break
-            self.comuni_table.setRowHidden(row, not row_visible)
     
     def _get_comune_info_from_row(self, row: int) -> Optional[Tuple[int, str]]:
         """Helper per ottenere ID e nome del comune da una specifica riga."""

@@ -219,6 +219,13 @@ class PartiteTableModel(QAbstractTableModel):
         if role == Qt.ItemDataRole.UserRole and col == 0:
             return p.get('id')
 
+        if role == Qt.ItemDataRole.EditRole:
+            if col == 0:
+                return p.get('id', 0)
+            if col == 1:
+                return p.get('numero_partita', 0)
+            return self.data(index, Qt.ItemDataRole.DisplayRole)
+
         if role == Qt.ItemDataRole.TextAlignmentRole and col == 0:
             return Qt.AlignmentFlag.AlignCenter | Qt.AlignmentFlag.AlignVCenter
 
@@ -259,7 +266,6 @@ class _PartiteFilterProxy(QSortFilterProxyModel):
         idx = self.sourceModel().index(source_row, _COL_STATO, source_parent)
         cell = (self.sourceModel().data(idx) or "").strip().lower()
         return cell == self._stato
-
 
 class RicercaPartiteWidget(QWidget):
     def __init__(self, db_manager, parent=None):
@@ -402,6 +408,12 @@ class RicercaPartiteWidget(QWidget):
         self._table = QTableView()
         self._table.setModel(self._proxy)
         self._table.setEditTriggers(QAbstractItemView.EditTrigger.NoEditTriggers)
+        self._table = QTableView()
+        self._model = PartiteTableModel(self)
+        self._proxy = QSortFilterProxyModel(self)
+        self._proxy.setSourceModel(self._model)
+        self._table.setModel(self._proxy)
+        
         self._table.setSelectionBehavior(QAbstractItemView.SelectionBehavior.SelectRows)
         self._table.setSelectionMode(QAbstractItemView.SelectionMode.SingleSelection)
         self._table.setAlternatingRowColors(True)
@@ -646,6 +658,8 @@ class RicercaPartiteWidget(QWidget):
             return
         row = self._table.currentRow()
         numero_text = self._table.item(row, 0).text() if row >= 0 and self._table.item(row, 0) else str(self._selected_partita_id)
+        row = self._table.currentIndex().row()
+        numero_text = str(self._proxy.data(self._proxy.index(row, 1))) if row >= 0 else str(self._selected_partita_id)
         self._archivia_partita(self._selected_partita_id, numero_text)
 
 
@@ -989,8 +1003,8 @@ class UnifiedFuzzySearchThread(QThread):
     error_occurred = pyqtSignal(str)
     progress_updated = pyqtSignal(int)
 
-    def __init__(self, gin_search_manager, query_text, options):
-        super().__init__()
+    def __init__(self, gin_search_manager, query_text, options, parent=None):
+        super().__init__(parent)
         self.gin_search_manager = gin_search_manager
         self.query_text = query_text
         self.options = options
@@ -1061,7 +1075,7 @@ class UnifiedFuzzySearchWidget(QWidget):
         # Variabili di stato
         self.current_results = {}
         self.search_thread = None
-        self.search_timer = QTimer()
+        self.search_timer = QTimer(self)
         self.search_timer.setSingleShot(True)
         self.search_timer.timeout.connect(self._perform_search)
 
@@ -1339,7 +1353,7 @@ class UnifiedFuzzySearchWidget(QWidget):
         self.search_btn.setEnabled(False)
         self.stats_label.setText("Ricerca in corso...")
         
-        self.search_thread = UnifiedFuzzySearchThread(self.gin_search, query_text, search_options)
+        self.search_thread = UnifiedFuzzySearchThread(self.gin_search, query_text, search_options, parent=self)
         self.search_thread.results_ready.connect(self._display_results)
         self.search_thread.error_occurred.connect(self._handle_search_error)
         self.search_thread.finished.connect(lambda: self.search_btn.setEnabled(True))
