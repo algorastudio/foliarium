@@ -84,6 +84,7 @@ BEGIN
         FOR v_immobile IN SELECT * FROM jsonb_to_recordset(p_immobili_json) AS x(
             natura TEXT,
             localita_id INTEGER,
+            numero_civico TEXT,
             classificazione TEXT,
             consistenza TEXT,
             numero_piani INTEGER,
@@ -96,6 +97,7 @@ BEGIN
             INSERT INTO catasto.immobile (
                 partita_id,
                 localita_id,
+                numero_civico,
                 natura,
                 classificazione,
                 consistenza,
@@ -104,6 +106,7 @@ BEGIN
             ) VALUES (
                 v_nuova_partita_id,
                 v_localita_id,
+                v_immobile.numero_civico,
                 v_immobile.natura,
                 v_immobile.classificazione,
                 v_immobile.consistenza,

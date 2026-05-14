@@ -33,6 +33,7 @@ from PyQt6.QtWidgets import (QAbstractItemView, QApplication,
                              QTextBrowser, QDialogButtonBox)
 
 from catasto_db_manager import CatastoDBManager
+from app_utils import format_indirizzo
 from foliarium.ui.widgets.custom import ImmobiliTableWidget, show_status_message as _show_status_message
 
 try:
@@ -936,9 +937,9 @@ class ModificaLocalitaDialog(QDialog):
         self.comune_display_label = QLabel("Caricamento...")
         form_layout.addRow("Comune di Appartenenza:", self.comune_display_label)
         self.nome_edit = QLineEdit()
-        form_layout.addRow("Nome Località (*; civico incorporato):", self.nome_edit)
+        form_layout.addRow("Nome Località (*):", self.nome_edit)
         self.tipologia_edit = QLineEdit()
-        form_layout.addRow("Tipologia Stradale (opzionale):", self.tipologia_edit)
+        form_layout.addRow("Tipologia Stradale (*):", self.tipologia_edit)
         layout.addLayout(form_layout)
 
         buttons_layout = QHBoxLayout()
@@ -972,13 +973,18 @@ class ModificaLocalitaDialog(QDialog):
     def _save_changes(self):
         """Salva le modifiche alla località."""
         nome = self.nome_edit.text().strip()
+        tipologia_stradale = self.tipologia_edit.text().strip()
         if not nome:
             QMessageBox.warning(self, "Dati Mancanti", "Il nome della località è obbligatorio.")
+            return
+        if not tipologia_stradale:
+            QMessageBox.warning(self, "Dati Mancanti", "La tipologia stradale è obbligatoria (es. Via, Piazza, Borgata).")
+            self.tipologia_edit.setFocus()
             return
 
         dati_modificati = {
             "nome": nome,
-            "tipologia_stradale": self.tipologia_edit.text().strip() or None
+            "tipologia_stradale": tipologia_stradale,
         }
 
         try:
@@ -1505,11 +1511,11 @@ class LocalitaSelectionDialog(QDialog):
             create_tab = QWidget()
             create_form_layout = QFormLayout(create_tab)
             self.nome_edit_nuova = QLineEdit()
-            self.nome_edit_nuova.setPlaceholderText("Es. Via Roma 10")
+            self.nome_edit_nuova.setPlaceholderText("Es. Repubblica")
             self.tipologia_edit_nuova = QLineEdit()
-            self.tipologia_edit_nuova.setPlaceholderText("Es. Via, Piazza, Borgata (opzionale)")
-            create_form_layout.addRow(QLabel("Nome località (*; civico incorporato):"), self.nome_edit_nuova)
-            create_form_layout.addRow(QLabel("Tipologia Stradale (opzionale):"), self.tipologia_edit_nuova)
+            self.tipologia_edit_nuova.setPlaceholderText("Es. Via, Piazza, Borgata")
+            create_form_layout.addRow(QLabel("Nome località (*):"), self.nome_edit_nuova)
+            create_form_layout.addRow(QLabel("Tipologia Stradale (*):"), self.tipologia_edit_nuova)
             self.btn_salva_nuova_localita = QPushButton(QApplication.style().standardIcon(QStyle.StandardPixmap.SP_DialogSaveButton), "Salva Nuova Località")
             self.btn_salva_nuova_localita.clicked.connect(self._salva_nuova_localita_da_tab)
             create_form_layout.addRow(self.btn_salva_nuova_localita)
@@ -1710,11 +1716,15 @@ class LocalitaSelectionDialog(QDialog):
 
         elif current_tab_index == 1 and not self.selection_mode: # Tab "Crea Nuova Località"
             nome = self.nome_edit_nuova.text().strip()
-            tipologia_stradale = self.tipologia_edit_nuova.text().strip() or None
+            tipologia_stradale = self.tipologia_edit_nuova.text().strip()
 
             if not nome:
-                QMessageBox.warning(self, "Dati Mancanti", "Il nome della località è obbligatorio (civico incorporato).")
+                QMessageBox.warning(self, "Dati Mancanti", "Il nome della località è obbligatorio.")
                 self.nome_edit_nuova.setFocus()
+                return
+            if not tipologia_stradale:
+                QMessageBox.warning(self, "Dati Mancanti", "La tipologia stradale è obbligatoria (es. Via, Piazza, Borgata).")
+                self.tipologia_edit_nuova.setFocus()
                 return
 
             if self.comune_id is None:
@@ -1728,9 +1738,7 @@ class LocalitaSelectionDialog(QDialog):
 
                 if localita_id_creata is not None:
                     self.selected_localita_id = localita_id_creata
-                    self.selected_localita_name = nome
-                    if tipologia_stradale:
-                        self.selected_localita_name += f" ({tipologia_stradale})"
+                    self.selected_localita_name = format_indirizzo(tipologia_stradale, nome)
 
                     _show_status_message(f"Località '{self.selected_localita_name}' registrata (ID: {self.selected_localita_id}).", 5000)
                     self._pulisci_campi_creazione_localita()
@@ -1758,11 +1766,15 @@ class LocalitaSelectionDialog(QDialog):
     def _salva_nuova_localita_da_tab(self):
         """Salva una nuova località dal tab "Crea Nuova Località"."""
         nome = self.nome_edit_nuova.text().strip()
-        tipologia_stradale = self.tipologia_edit_nuova.text().strip() or None
+        tipologia_stradale = self.tipologia_edit_nuova.text().strip()
 
         if not nome:
-            QMessageBox.warning(self, "Dati Mancanti", "Il nome della località è obbligatorio (civico già incorporato).")
+            QMessageBox.warning(self, "Dati Mancanti", "Il nome della località è obbligatorio.")
             self.nome_edit_nuova.setFocus()
+            return
+        if not tipologia_stradale:
+            QMessageBox.warning(self, "Dati Mancanti", "La tipologia stradale è obbligatoria (es. Via, Piazza, Borgata).")
+            self.tipologia_edit_nuova.setFocus()
             return
 
         if self.comune_id is None:

@@ -29,9 +29,9 @@ class DBImmobiliMixin:
         query = f"""
             SELECT
                 i.id AS id_immobile, i.natura, i.classificazione, i.consistenza,
-                i.numero_piani, i.numero_vani, l.nome AS localita_nome,
-                l.tipologia_stradale, p.numero_partita,
-                p.suffisso_partita, c.nome AS comune_nome
+                i.numero_piani, i.numero_vani, i.numero_civico,
+                l.nome AS localita_nome, l.tipologia_stradale,
+                p.numero_partita, p.suffisso_partita, c.nome AS comune_nome
             FROM {self.schema}.immobile i
             JOIN {self.schema}.partita p ON i.partita_id = p.id
             JOIN {self.schema}.comune c ON p.comune_id = c.id
@@ -41,7 +41,7 @@ class DBImmobiliMixin:
         if comune_id:
             query += " WHERE p.comune_id = %s"
             params.append(comune_id)
-        query += " ORDER BY c.nome, p.numero_partita, l.nome, i.natura;"
+        query += " ORDER BY c.nome, p.numero_partita, l.nome, i.numero_civico, i.natura;"
         with self._get_connection() as conn:
             with conn.cursor(cursor_factory=psycopg2.extras.DictCursor) as cur:
                 cur.execute(query, params)
@@ -62,12 +62,52 @@ class DBImmobiliMixin:
                 cur.execute(query, params)
                 return [dict(row) for row in cur.fetchall()]
 
+    @db_handle_errors
+    def inserisci_immobile(self, partita_id: int, natura: str, localita_id: int,
+                           numero_civico: Optional[str] = None,
+                           classificazione: Optional[str] = None,
+                           consistenza: Optional[str] = None,
+                           numero_piani: Optional[int] = None,
+                           numero_vani: Optional[int] = None) -> Optional[int]:
+        """Inserisce un nuovo immobile e ritorna l'ID generato.
+
+        TIER 1: @db_handle_errors centralizes exception handling.
+        """
+        if not (isinstance(partita_id, int) and partita_id > 0):
+            raise DBDataError("ID partita non valido.")
+        if not (isinstance(localita_id, int) and localita_id > 0):
+            raise DBDataError("ID località non valido.")
+        if not (isinstance(natura, str) and natura.strip()):
+            raise DBDataError("La natura dell'immobile è obbligatoria.")
+
+        query = f"""
+            INSERT INTO {self.schema}.immobile
+                (partita_id, localita_id, numero_civico, natura,
+                 classificazione, consistenza, numero_piani, numero_vani)
+            VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
+            RETURNING id;
+        """
+        params = (partita_id, localita_id,
+                  numero_civico.strip() if numero_civico else None,
+                  natura.strip(), classificazione, consistenza,
+                  numero_piani, numero_vani)
+        with self._get_connection() as conn:
+            with conn.cursor() as cur:
+                cur.execute(query, params)
+                row = cur.fetchone()
+                if row:
+                    immobile_id = row[0]
+                    self.logger.info(f"Immobile '{natura}' inserito con ID {immobile_id}.")
+                    return immobile_id
+        return None
+
     def update_immobile(self, immobile_id: int, **kwargs) -> bool:
         """Chiama la procedura SQL aggiorna_immobile. Il commit è automatico."""
         params = {'p_id': immobile_id, 'p_natura': kwargs.get('natura'), 'p_numero_piani': kwargs.get('numero_piani'),
                   'p_numero_vani': kwargs.get('numero_vani'), 'p_consistenza': kwargs.get('consistenza'),
-                  'p_classificazione': kwargs.get('classificazione'), 'p_localita_id': kwargs.get('localita_id')}
-        call_proc = "CALL aggiorna_immobile(%(p_id)s, %(p_natura)s, %(p_numero_piani)s, %(p_numero_vani)s, %(p_consistenza)s, %(p_classificazione)s, %(p_localita_id)s)"
+                  'p_classificazione': kwargs.get('classificazione'), 'p_localita_id': kwargs.get('localita_id'),
+                  'p_numero_civico': kwargs.get('numero_civico')}
+        call_proc = "CALL aggiorna_immobile(%(p_id)s, %(p_natura)s, %(p_numero_piani)s, %(p_numero_vani)s, %(p_consistenza)s, %(p_classificazione)s, %(p_localita_id)s, %(p_numero_civico)s)"
         try:
             with self._get_connection() as conn:
                 with conn.cursor() as cur:
@@ -131,7 +171,7 @@ class DBImmobiliMixin:
         query = f"""
             SELECT
                 i.id, i.partita_id, i.localita_id, i.natura, i.classificazione, i.consistenza,
-                i.numero_piani, i.numero_vani,
+                i.numero_piani, i.numero_vani, i.numero_civico,
                 p.numero_partita, p.suffisso_partita,
                 c.nome AS comune_nome,
                 l.nome AS localita_nome, l.tipologia_stradale

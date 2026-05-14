@@ -645,8 +645,9 @@ class InserimentoLocalitaWidget(QWidget):
         try:
             with open(path, "w", encoding="utf-8-sig") as f:
                 f.write("nome;tipologia_stradale\n")
-                f.write("Via Roma 10;Via\n")
-                f.write("Borgata Pianello;Borgata\n")
+                f.write("Roma;Via\n")
+                f.write("Garibaldi;Piazza\n")
+                f.write("Pianello;Borgata\n")
             QMessageBox.information(self, "Template salvato", f"Template salvato in:\n{path}")
         except Exception as e:
             QMessageBox.critical(self, "Errore", str(e))
@@ -678,15 +679,23 @@ class InserimentoLocalitaWidget(QWidget):
 
     def insert_localita(self):
         nome = self.nome_edit.text().strip()
-        tipologia_stradale = self.tipo_combo.currentText() if self.tipo_combo.currentData() else None
+        tipologia_stradale = (
+            self.tipo_combo.currentText() if self.tipo_combo.currentData() else None
+        )
 
         _set_field_error(self.nome_edit, not nome)
-        if not self.comune_id or not nome:
+        _set_field_error(self.tipo_combo, not tipologia_stradale)
+        if not self.comune_id or not nome or not tipologia_stradale:
+            if not tipologia_stradale:
+                _show_status_message("Selezionare la tipologia stradale (Via, Piazza, ...).", 4000)
             return
 
         try:
             localita_id = self.db_manager.insert_localita(self.comune_id, nome, tipologia_stradale)
-            _show_status_message(f"Località '{nome}' inserita con successo (ID: {localita_id}).", 5000)
+            _show_status_message(
+                f"Località '{tipologia_stradale} {nome}' inserita con successo (ID: {localita_id}).",
+                5000,
+            )
             self.nome_edit.clear()
         except (DBMError, DBDataError, DBUniqueConstraintError) as e:
             QMessageBox.critical(self, "Errore Inserimento", str(e))

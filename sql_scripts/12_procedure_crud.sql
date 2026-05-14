@@ -15,7 +15,8 @@ CREATE OR REPLACE PROCEDURE aggiorna_immobile(
     p_numero_vani INTEGER DEFAULT NULL,
     p_consistenza VARCHAR(255) DEFAULT NULL,
     p_classificazione VARCHAR(100) DEFAULT NULL,
-    p_localita_id INTEGER DEFAULT NULL
+    p_localita_id INTEGER DEFAULT NULL,
+    p_numero_civico VARCHAR(20) DEFAULT NULL
 )
 LANGUAGE plpgsql
 AS $$
@@ -27,6 +28,7 @@ BEGIN
         consistenza = COALESCE(p_consistenza, consistenza),
         classificazione = COALESCE(p_classificazione, classificazione),
         localita_id = COALESCE(p_localita_id, localita_id),
+        numero_civico = COALESCE(p_numero_civico, numero_civico),
         data_modifica = CURRENT_TIMESTAMP -- Aggiunto aggiornamento timestamp
     WHERE id = p_id;
 
@@ -471,10 +473,10 @@ BEGIN
     -- Copia immobili (se richiesto)
     IF p_mantenere_immobili THEN
         INSERT INTO catasto.immobile (
-            partita_id, natura, localita_id, classificazione, consistenza, numero_piani, numero_vani
+            partita_id, natura, localita_id, numero_civico, classificazione, consistenza, numero_piani, numero_vani
         )
         SELECT
-            v_nuova_partita_id, natura, localita_id, classificazione, consistenza, numero_piani, numero_vani
+            v_nuova_partita_id, natura, localita_id, numero_civico, classificazione, consistenza, numero_piani, numero_vani
         FROM catasto.immobile
         WHERE partita_id = p_partita_id_originale;
     END IF;

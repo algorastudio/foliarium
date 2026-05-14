@@ -174,25 +174,28 @@ CREATE TABLE partita_possessore (
 );
 COMMENT ON TABLE partita_possessore IS 'Relazione tra partite e possessori.';
 
--- Tabella LOCALITA (Modificata per usare comune_id; civico incorporato nel nome da v1.6.1)
+-- Tabella LOCALITA (v1.7.0: nome senza civico, tipologia_stradale obbligatoria)
 CREATE TABLE localita (
     id SERIAL PRIMARY KEY,
     comune_id INTEGER NOT NULL REFERENCES comune(id) ON UPDATE CASCADE ON DELETE RESTRICT,
     nome VARCHAR(255) NOT NULL,
-    tipologia_stradale VARCHAR(50),
+    tipologia_stradale VARCHAR(50) NOT NULL,
     archiviato   BOOLEAN NOT NULL DEFAULT FALSE,
     archiviato_il TIMESTAMP WITHOUT TIME ZONE DEFAULT NULL,
     data_creazione TIMESTAMP(0) DEFAULT CURRENT_TIMESTAMP,
     data_modifica TIMESTAMP(0) DEFAULT CURRENT_TIMESTAMP,
-    UNIQUE(comune_id, nome)
+    CONSTRAINT localita_comune_nome_tipo_unique UNIQUE (comune_id, nome, tipologia_stradale)
 );
-COMMENT ON TABLE localita IS 'Località o indirizzi degli immobili (comune_id + nome univoco). Civico incorporato nel nome.';
+COMMENT ON TABLE localita IS 'Località degli immobili. Solo nome strada (senza civico) + tipologia_stradale obbligatoria. Civico in immobile.numero_civico.';
+COMMENT ON COLUMN localita.nome IS 'Nome della località senza civico (es. ''Repubblica'', ''Garibaldi''). Univoco per (comune_id, nome, tipologia_stradale).';
+COMMENT ON COLUMN localita.tipologia_stradale IS 'Tipologia (obbligatoria): Via, Piazza, Borgata, Regione, Frazione, ecc. Valori popolati da tipo_localita.';
 
--- Tabella IMMOBILE (Nessuna modifica diretta per comune_id, relazione indiretta tramite partita_id)
+-- Tabella IMMOBILE (v1.7.0: aggiunto numero_civico alfanumerico)
 CREATE TABLE immobile (
     id SERIAL PRIMARY KEY,
     partita_id INTEGER NOT NULL REFERENCES partita(id) ON UPDATE CASCADE ON DELETE RESTRICT,
     localita_id INTEGER NOT NULL REFERENCES localita(id) ON UPDATE CASCADE ON DELETE RESTRICT,
+    numero_civico VARCHAR(20),
     natura VARCHAR(100) NOT NULL,
     numero_piani INTEGER,
     numero_vani INTEGER,
@@ -202,6 +205,7 @@ CREATE TABLE immobile (
     data_modifica TIMESTAMP(0) DEFAULT CURRENT_TIMESTAMP
 );
 COMMENT ON TABLE immobile IS 'Immobili registrati nel catasto.';
+COMMENT ON COLUMN immobile.numero_civico IS 'Numero civico (alfanumerico: es. ''17'', ''17/A'', ''s.n.c.'', ''3 bis'')';
 
 -- Relazione tra PARTITE (Nessuna modifica necessaria qui)
 CREATE TABLE partita_relazione (
