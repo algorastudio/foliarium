@@ -475,9 +475,14 @@ def _setup_on_external_pg(
             log(f"ATTENZIONE: {BOOTSTRAP_ADMIN_SCRIPT} non trovato — admin non creato!")
 
         run_psql(pg_bin, port,
+                 f"GRANT USAGE ON SCHEMA catasto TO {db_user}; "
                  f"GRANT USAGE ON SCHEMA public TO {db_user}; "
+                 f"GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA catasto TO {db_user}; "
                  f"GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA public TO {db_user}; "
+                 f"GRANT USAGE ON ALL SEQUENCES IN SCHEMA catasto TO {db_user}; "
                  f"GRANT USAGE ON ALL SEQUENCES IN SCHEMA public TO {db_user}; "
+                 f"ALTER DEFAULT PRIVILEGES IN SCHEMA catasto "
+                 f"GRANT SELECT, INSERT, UPDATE, DELETE ON TABLES TO {db_user}; "
                  f"ALTER DEFAULT PRIVILEGES IN SCHEMA public "
                  f"GRANT SELECT, INSERT, UPDATE, DELETE ON TABLES TO {db_user};",
                  dbname=db_name, password=postgres_password)
@@ -492,8 +497,8 @@ def _setup_on_external_pg(
         "host": "127.0.0.1",
         "port": str(port),
         "dbname": db_name,
-        "user": "postgres",
-        "password": postgres_password,
+        "user": db_user,
+        "password": db_password,
     }
     config["service"] = {
         "name": "external",
@@ -516,7 +521,9 @@ def _setup_on_external_pg(
     print(f"\n{'='*60}")
     print(f" Setup completato!")
     print(f"{'='*60}")
-    log(f"Porta:    {port}  |  Database: {db_name}  |  Utente: {db_user}")
+    log(f"Porta:    {port}  |  Database: {db_name}")
+    log(f"Utente DB app:   {db_user}")
+    log(f"Config:          {config_file}")
     log(f"Utente admin:    admin  /  {admin_password}")
     log("IMPORTANTE: cambiare la password admin al primo accesso!")
     print(f"{'='*60}\n")
