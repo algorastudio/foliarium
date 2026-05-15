@@ -20,11 +20,11 @@
 
 **Client:**
 - Sistema operativo: Windows 10/11 o Linux (Ubuntu 20.04+, Debian 11+, Fedora 35+)
-- Python 3.8 o superiore
-- PyQt5 (5.15+)
+- Python 3.12 (64-bit)
+- PyQt6 6.8.1+
 
 **Server:**
-- PostgreSQL 13 o superiore (consigliato PostgreSQL 15+)
+- PostgreSQL 14 o superiore (consigliato PostgreSQL 16+)
 - Estensioni PostgreSQL: `uuid-ossp`, `pg_trgm` (opzionale: `system_stats`)
 - Sistema operativo: qualsiasi sistema supportato da PostgreSQL
 
@@ -86,80 +86,57 @@ source venv/bin/activate  # Linux
 pip install -r requirements.txt
 ```
 
-### 4. Configurare la connessione al database
+### 4. Inizializzare il database
 
-Copia il file di configurazione di esempio:
+Usa `setup_database.py` per creare il database, applicare tutti gli script SQL
+e generare `config.ini` in un'unica operazione:
 
 ```bash
-cp config.example.ini config.ini
+# Windows (PostgreSQL 17)
+python setup_database.py --pg-bin "C:\Program Files\PostgreSQL\17\bin" --postgres-password <password_postgres>
+
+# Linux / macOS (ricerca automatica)
+python setup_database.py --pg-bin auto --postgres-password <password_postgres>
 ```
 
-Modifica `config.ini` con i dati del tuo database:
+#### Opzioni principali
 
-```ini
-[database]
-host = localhost
-port = 5432
-database = catasto_storico
-user = foliarium_user
-password = scegli_una_password_sicura
-
-[application]
-language = it
-theme = default
-log_level = INFO
-```
+| Opzione | Default | Descrizione |
+|---|---|---|
+| `--pg-bin <path\|auto>` | — | Cartella `bin/` di PostgreSQL oppure `auto` |
+| `--postgres-password` | *(vuoto)* | Password del superuser `postgres` |
+| `--db-name` | `catasto_storico` | Nome del database |
+| `--db-user` | `foliarium` | Ruolo PostgreSQL dell'applicazione |
+| `--db-password` | *(generata)* | Password ruolo applicativo |
+| `--admin-password` | *(generata)* | Password utente admin applicativo |
+| `--port` | `5432` | Porta PostgreSQL |
+| `--config-file` | `config.ini` | Percorso del file di configurazione da scrivere |
 
 **Nota:** il file `config.ini` contiene credenziali ed è escluso dal controllo versione tramite `.gitignore`.
 
-### 5. Inizializzare lo schema del database
-
-Esegui lo script di setup che crea lo schema, le tabelle, le funzioni, le viste e gli indici:
+### 5. Avviare Foliarium
 
 ```bash
-python setup_db.py --host localhost --dbname catasto_storico --user postgres
+python gui_main.py
 ```
 
-Lo script eseguirà in ordine tutti i file SQL dalla cartella `database/` (escluso `01_creazione-database.sql` che va eseguito al passo 2).
-
-Per caricare anche i dati demo (utili per test e valutazione):
-
-```bash
-python setup_db.py --host localhost --dbname catasto_storico --user postgres --demo
-```
-
-### 6. Creare l'utente amministratore
-
-Esegui lo script SQL di creazione admin in PostgreSQL:
-
-```bash
-psql -h localhost -d catasto_storico -U postgres -f database/crea_admin_interattivo.sql
-```
-
-### 7. Avviare Foliarium
-
-```bash
-python main.py
-```
-
-L'applicazione si connetterà al database usando i parametri configurati. Al primo avvio verrà mostrato il dialogo di configurazione connessione dove è possibile inserire o modificare i parametri di connessione.
+L'applicazione legge i parametri di connessione dal `config.ini` generato.
+Al primo avvio accedere con le credenziali `admin / admin123` e cambiare
+immediatamente la password.
 
 ## Struttura del progetto
 
 ```
 foliarium/
-├── main.py                     # Entry point applicazione
-├── setup_db.py                 # Inizializzazione database
-├── src/                        # Codice sorgente Python
-│   ├── app_paths.py            # Gestione percorsi applicazione
-│   ├── config.py               # Configurazione e logging
-│   ├── catasto_db_manager.py   # Accesso database PostgreSQL
-│   ├── gui_main.py             # Finestra principale
-│   ├── gui_widgets.py          # Widget interfaccia
-│   ├── dialogs.py              # Dialoghi
-│   ├── custom_widgets.py       # Widget personalizzati
-│   └── app_utils.py            # Utility e funzioni di esportazione
-├── database/                   # Script SQL
+├── gui_main.py                 # Entry point applicazione
+├── setup_database.py           # Inizializzazione database (cross-platform)
+├── catasto_db_manager.py       # Facade accesso database
+├── app_paths.py                # Gestione percorsi applicazione
+├── config.py                   # Configurazione e logging
+├── app_utils.py                # Utility ed esportazioni
+├── sql_scripts/                # Script SQL (schema, procedure, migrazioni)
+├── foliarium/ui/               # Widget e dialoghi PyQt6
+├── db/                         # Layer database (14 mixin)
 └── docs/                       # Documentazione
 ```
 
@@ -184,9 +161,9 @@ Se necessario, esegui gli script SQL aggiornati per le migrazioni dello schema.
 - Verifica che `pg_hba.conf` permetta connessioni dall'host del client
 
 ### Errore di avvio dell'interfaccia grafica
-- Verifica che PyQt5 sia installato: `pip install PyQt5`
-- Su Linux, potrebbe servire: `sudo apt install python3-pyqt5 python3-pyqt5.qtwebengine`
-- Per problemi con il display su Linux: verifica che `$DISPLAY` sia impostato
+- Verifica che PyQt6 sia installato: `pip install PyQt6`
+- Su Linux, potrebbe servire: `sudo apt install python3-pyqt6 libgl1`
+- Per problemi con il display su Linux: verifica che `$DISPLAY` sia impostato oppure usa `QT_QPA_PLATFORM=offscreen` per test headless
 
 ### Errore estensioni PostgreSQL
 - Le estensioni `uuid-ossp` e `pg_trgm` vanno installate con privilegi superuser

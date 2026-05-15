@@ -121,15 +121,62 @@ python gui_main.py
     automaticamente** il database. Questa sezione serve solo a chi
     installa Foliarium da sorgente o utilizza un PostgreSQL preesistente.
 
-### Creazione del database
+### Script automatico `setup_database.py`
 
-Aprire pgAdmin o psql e creare il database:
+Il modo più rapido per inizializzare il database è usare lo script incluso,
+che crea il database, esegue tutti gli script SQL nell'ordine corretto e
+scrive il file `config.ini`.
+
+**Utilizzo base (PostgreSQL 17 già installato su Windows):**
+
+```powershell
+python setup_database.py --pg-bin "C:\Program Files\PostgreSQL\17\bin" --postgres-password <password_postgres>
+```
+
+**Ricerca automatica del PostgreSQL nel PATH:**
+
+```powershell
+python setup_database.py --pg-bin auto --postgres-password <password_postgres>
+```
+
+#### Opzioni disponibili
+
+| Opzione | Default | Descrizione |
+|---|---|---|
+| `--pg-bin <path\|auto>` | — | Percorso `bin/` di PostgreSQL, oppure `auto` per ricerca automatica |
+| `--postgres-password` | *(vuoto)* | Password del superuser `postgres` |
+| `--db-name` | `catasto_storico` | Nome del database da creare |
+| `--db-user` | `foliarium` | Ruolo PostgreSQL dell'applicazione |
+| `--db-password` | *(generata)* | Password per il ruolo applicativo (generata casualmente se omessa) |
+| `--admin-password` | *(generata)* | Password utente admin applicativo |
+| `--port` | `5432` | Porta PostgreSQL |
+| `--config-file` | `config.ini` | Percorso/nome del file di configurazione da scrivere |
+
+**Esempio con opzioni personalizzate:**
+
+```powershell
+python setup_database.py `
+    --pg-bin "C:\Program Files\PostgreSQL\17\bin" `
+    --postgres-password postgres `
+    --db-name archivio_savona `
+    --db-user archivio_user `
+    --admin-password AdminSicuro2025 `
+    --config-file archivio_savona.ini
+```
+
+!!! info "Risultato"
+    Al termine lo script stampa le credenziali generate e il percorso
+    del file di configurazione scritto. Conservare questi dati in luogo sicuro.
+
+### Creazione manuale del database
+
+In alternativa allo script, aprire pgAdmin o psql e creare il database:
 
 ```sql
 CREATE DATABASE catasto_storico;
 ```
 
-### Esecuzione degli script SQL
+### Esecuzione manuale degli script SQL
 
 Eseguire gli script nella cartella `sql_scripts/` nell'ordine indicato:
 
