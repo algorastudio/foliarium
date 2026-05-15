@@ -2,6 +2,7 @@
 -- Schema completo: tabelle, vincoli, indici base, lookup, audit_log.
 -- Include anche le tabelle per feature avanzate (nome_storico, documento_storico).
 -- Versione: Foliarium v1.7.0+
+
 -- File: 02_creazione-schema-tabelle.sql (Versione CORRETTA Definitiva)
 
 -- Dopo la creazione del database, utilizzare un comando ALTER
@@ -478,23 +479,13 @@ CREATE INDEX IF NOT EXISTS idx_comune_archiviato    ON catasto.comune    (archiv
 CREATE INDEX IF NOT EXISTS idx_localita_archiviato  ON catasto.localita  (archiviato);
 CREATE INDEX IF NOT EXISTS idx_partita_archiviato   ON catasto.partita   (archiviato);
 CREATE INDEX IF NOT EXISTS idx_possessore_attivo    ON catasto.possessore (attivo);
--- ========================================================================
+
+-- =====================================================================
 -- TABELLE PER FEATURE AVANZATE (da 11_advanced-cadastral-features.sql)
--- Nome storico, documenti storici, collegamento documenti-partite.
--- ========================================================================
+-- nome_storico, documento_storico, documento_partita
+-- =====================================================================
 
--- Imposta lo schema
-SET search_path TO catasto;
-
--- Estensione delle tabelle per contemplare il periodo storico
---ALTER TABLE comune ADD COLUMN periodo_id INTEGER REFERENCES periodo_storico(id);
-ALTER TABLE localita ADD COLUMN periodo_id INTEGER REFERENCES periodo_storico(id);
-
--- Aggiorna i dati esistenti
-UPDATE comune SET periodo_id = 3; -- Repubblica Italiana
-UPDATE localita SET periodo_id = 3; -- Repubblica Italiana
-
--- 3. Estensione per gestire le variazioni dei nomi storici di luoghi
+-- Estensione per gestire le variazioni dei nomi storici di luoghi
 CREATE TABLE nome_storico (
     id SERIAL PRIMARY KEY,
     entita_tipo VARCHAR(20) NOT NULL CHECK (entita_tipo IN ('comune', 'localita')),
@@ -510,7 +501,7 @@ CREATE TABLE nome_storico (
 CREATE INDEX idx_nome_storico_entita ON nome_storico(entita_tipo, entita_id);
 CREATE INDEX idx_nome_storico_periodo ON nome_storico(periodo_id);
 
--- 6. Estensione per la gestione dei documenti storici
+-- Estensione per la gestione dei documenti storici
 CREATE TABLE documento_storico (
     id SERIAL PRIMARY KEY,
     titolo VARCHAR(255) NOT NULL,
@@ -528,7 +519,7 @@ CREATE INDEX idx_documento_anno ON documento_storico(anno);
 CREATE INDEX idx_documento_tipo ON documento_storico(tipo_documento);
 CREATE INDEX idx_documento_periodo ON documento_storico(periodo_id);
 
--- 7. Tabella di collegamento tra documenti e partite
+-- Tabella di collegamento tra documenti e partite
 CREATE TABLE documento_partita (
     documento_id INTEGER REFERENCES documento_storico(id) ON DELETE CASCADE,
     partita_id INTEGER REFERENCES partita(id) ON DELETE CASCADE,
