@@ -395,13 +395,15 @@ def _setup_on_external_pg(
     port: int,
     db_name: str = DB_NAME,
     db_user: str = DB_USER,
+    config_file: Path | None = None,
 ) -> bool:
     """
     Crea il DB su un PostgreSQL già in esecuzione (modalità sviluppo).
     Non esegue initdb, non modifica pg_hba.conf, non registra servizi.
     """
     sql_dir = install_dir / "sql_scripts"
-    config_file = install_dir / "config.ini"
+    if config_file is None:
+        config_file = install_dir / "config.ini"
 
     print(f"\n{'='*60}")
     print(f" Foliarium — Setup DB su PostgreSQL di sistema ({SYSTEM})")
@@ -542,6 +544,7 @@ def setup(
     skip_service: bool = False,
     logfile: Path | None = None,
     admin_password: str | None = None,
+    config_file: Path | None = None,
 ) -> bool:
     """
     Esegue l'intera sequenza di setup del database.
@@ -558,7 +561,8 @@ def setup(
     else:
         pg_data = install_dir / "pg_data"
     sql_dir = install_dir / "sql_scripts"
-    config_file = install_dir / "config.ini"
+    if config_file is None:
+        config_file = install_dir / "config.ini"
 
     if not pg_bin.exists():
         log(f"ERRORE: cartella pgsql/bin non trovata in '{install_dir}'")
@@ -917,6 +921,10 @@ def main() -> None:
         "--db-user", default=DB_USER,
         help=f"Ruolo PostgreSQL dell'applicazione (default: {DB_USER})",
     )
+    parser.add_argument(
+        "--config-file", default=None, metavar="FILE",
+        help="Percorso del file di configurazione da scrivere (default: config.ini nella directory di installazione)",
+    )
     args = parser.parse_args()
 
     install_dir = Path(args.install_dir) if args.install_dir else detect_install_dir()
@@ -949,12 +957,14 @@ def main() -> None:
             port=args.port,
             db_name=args.db_name,
             db_user=args.db_user,
+            config_file=Path(args.config_file) if args.config_file else None,
         )
         sys.exit(0 if ok else 1)
 
     # Modalità bundle: pgsql/ incluso nell'installer
     ok = setup(install_dir, args.db_password, args.skip_service,
-               admin_password=args.admin_password)
+               admin_password=args.admin_password,
+               config_file=Path(args.config_file) if args.config_file else None)
     sys.exit(0 if ok else 1)
 
 
