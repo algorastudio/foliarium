@@ -66,25 +66,21 @@ EXE = ".exe" if IS_WIN else ""
 # Da v1.0.0: lookup tipo_possesso/tipo_localita, soft-delete e tabella sessioni
 # sono integrati in 02 e 07_user-management (vedi sql_scripts/README.md).
 SQL_SCRIPTS = [
-    "02_creazione-schema-tabelle.sql",
-    "03_funzioni-procedure.sql",
-    "03b_expand_fuzzy_search.sql",
-    "07_user-management.sql",
-    "08_advanced-reporting.sql",
-    "09_backup-system.sql",
-    "10_performance-optimization.sql",
-    "11_advanced-cadastral-features.sql",
-    "12_procedure_crud.sql",
-    "13_workflow_integrati.sql",
-    "14_report_functions.sql",
-    "15_integration_audit_users.sql",
-    "16_advanced_search.sql",
-    "17_funzione_ricerca_immobili.sql",
-    "18_funzioni_trigger_audit.sql",
-    "07_create_trigram_indexes.sql",  # CONCURRENTLY: deve stare fuori transazione
+    "schema/01_tables.sql",
+    "functions/01_core.sql",
+    "functions/02_crud.sql",
+    "functions/03_workflow.sql",
+    "functions/04_search.sql",
+    "functions/05_reporting.sql",
+    "functions/06_audit.sql",
+    "functions/07_features.sql",
+    "admin/01_users.sql",
+    "admin/02_backup.sql",
+    "admin/03_performance.sql",
+    "schema/02_trigram_indexes.sql",  # CONCURRENTLY: deve stare fuori transazione
 ]
 
-BOOTSTRAP_ADMIN_SCRIPT = "07a_bootstrap_admin.sql"
+BOOTSTRAP_ADMIN_SCRIPT = "admin/04_bootstrap_admin.sql"
 
 
 # ============================================================================
@@ -395,13 +391,15 @@ def _setup_on_external_pg(
     port: int,
     db_name: str = DB_NAME,
     db_user: str = DB_USER,
+    config_file: Path | None = None,
 ) -> bool:
     """
     Crea il DB su un PostgreSQL già in esecuzione (modalità sviluppo).
     Non esegue initdb, non modifica pg_hba.conf, non registra servizi.
     """
     sql_dir = install_dir / "sql_scripts"
-    config_file = install_dir / "config.ini"
+    if config_file is None:
+        config_file = install_dir / "config.ini"
 
     print(f"\n{'='*60}")
     print(f" Foliarium — Setup DB su PostgreSQL di sistema ({SYSTEM})")
@@ -542,6 +540,7 @@ def setup(
     skip_service: bool = False,
     logfile: Path | None = None,
     admin_password: str | None = None,
+    config_file: Path | None = None,
 ) -> bool:
     """
     Esegue l'intera sequenza di setup del database.
@@ -558,7 +557,8 @@ def setup(
     else:
         pg_data = install_dir / "pg_data"
     sql_dir = install_dir / "sql_scripts"
-    config_file = install_dir / "config.ini"
+    if config_file is None:
+        config_file = install_dir / "config.ini"
 
     if not pg_bin.exists():
         log(f"ERRORE: cartella pgsql/bin non trovata in '{install_dir}'")
@@ -917,6 +917,10 @@ def main() -> None:
         "--db-user", default=DB_USER,
         help=f"Ruolo PostgreSQL dell'applicazione (default: {DB_USER})",
     )
+    parser.add_argument(
+        "--config-file", default=None, metavar="FILE",
+        help="Percorso del file di configurazione da scrivere (default: config.ini nella directory di installazione)",
+    )
     args = parser.parse_args()
 
     install_dir = Path(args.install_dir) if args.install_dir else detect_install_dir()
@@ -949,12 +953,14 @@ def main() -> None:
             port=args.port,
             db_name=args.db_name,
             db_user=args.db_user,
+            config_file=Path(args.config_file) if args.config_file else None,
         )
         sys.exit(0 if ok else 1)
 
     # Modalità bundle: pgsql/ incluso nell'installer
     ok = setup(install_dir, args.db_password, args.skip_service,
-               admin_password=args.admin_password)
+               admin_password=args.admin_password,
+               config_file=Path(args.config_file) if args.config_file else None)
     sys.exit(0 if ok else 1)
 
 

@@ -1,130 +1,92 @@
 # sql_scripts/
 
-Script SQL per inizializzare PostgreSQL e applicare le feature successive.
+Script SQL per inizializzare PostgreSQL per Foliarium.
+Struttura riorganizzata in v1.7.0: sottocartelle per tema invece di un unico flat layout.
 
-## Casistica "partenza da zero"
+## Struttura
 
-Il flusso obbligatorio per un'installazione vergine è:
+```
+sql_scripts/
+├── schema/
+│   ├── 01_tables.sql          # Tabelle, vincoli, indici base, lookup, audit_log
+│   └── 02_trigram_indexes.sql # Indici GIN trigram CONCURRENTLY (ultimo passo)
+├── functions/
+│   ├── 01_core.sql            # Funzioni core: trigger timestamp, inserimento base, viste
+│   ├── 02_crud.sql            # Procedure CRUD: aggiorna_immobile, duplica_partita, ecc.
+│   ├── 03_workflow.sql        # Workflow integrati: registra_nuova_proprieta, passaggi, ecc.
+│   ├── 04_search.sql          # Ricerca fuzzy (trigram) + ricerca avanzata possessori/immobili
+│   ├── 05_reporting.sql       # Viste materializzate + funzioni di reporting
+│   ├── 06_audit.sql           # Trigger audit, log_audit_trigger_function, FK audit→utente
+│   └── 07_features.sql        # Feature avanzate: nomi storici, documenti, genealogia
+├── admin/
+│   ├── 01_users.sql           # Schema utente, permessi, sessioni
+│   ├── 02_backup.sql          # Registro backup e procedure
+│   ├── 03_performance.sql     # VACUUM/REINDEX procedure
+│   └── 04_bootstrap_admin.sql # Crea utente admin (richiede -v admin_password)
+├── demo/
+│   └── demo_data.sql          # Dataset demo (solo ambienti demo/test)
+├── utils/
+│   ├── truncate_data.sql      # Svuota le tabelle (utility sviluppo)
+│   └── validate_install.sql   # Validazione post-installazione (non parte del flusso)
+└── migrations/                # Script per aggiornare DB già esistenti (vedi sotto)
+```
 
-1. **Generare una password admin** (l'installer lo fa via Pascal randomicamente,
-   `setup_database.py` lo accetta via `--admin-password`).
-2. **Creare il database** ed eseguire **tutti** gli script in ordine numerico.
-3. **Eseguire `07a_bootstrap_admin.sql`** passando la password come variabile
-   psql. Senza questo step **non sarà possibile loggarsi** al primo avvio.
+## Flusso fresh install
 
-Questo è esattamente quello che fanno `setup_database.bat`, `setup_database.py`
-e `prepare_demo_db.py`.
-
-## Ordine di applicazione (fresh install)
+Eseguito automaticamente da `setup_database.py` e `prepare_demo_db.py`.
 
 | # | File | Cosa fa |
 |---|------|---------|
-| 01 | `01_creazione-database.sql` | `CREATE DATABASE catasto_storico` (gestito già dal bat) |
-| 02 | `02_creazione-schema-tabelle.sql` | Schema base: tabelle, indici, lookup `tipo_possesso`/`tipo_localita`, colonne soft-delete |
-| 03 | `03_funzioni-procedure.sql` | Funzioni / procedure di base |
-| 03b | `03b_expand_fuzzy_search.sql` | Funzioni di ricerca fuzzy (estensione) |
-| 07 | `07_user-management.sql` | Schema `utente`, ruoli, permessi e tabella `sessioni_accesso` |
-| 08 | `08_advanced-reporting.sql` | Materialized views + procedure di reporting |
-| 09 | `09_backup-system.sql` | Tabella `backup_registro` + procedure |
-| 10 | `10_performance-optimization.sql` | Procedure VACUUM/REINDEX |
-| 11 | `11_advanced-cadastral-features.sql` | `nome_storico`, `documento_storico`, ALTER `localita.periodo_id` |
-| 12 | `12_procedure_crud.sql` | Procedure CRUD per immobili / variazioni / contratti |
-| 13 | `13_workflow_integrati.sql` | Procedure workflow complessi (registrazione proprietà, passaggi) |
-| 14 | `14_report_functions.sql` | Funzioni di generazione report (genealogico, proprietà, ecc.) |
-| 15 | `15_integration_audit_users.sql` | Integrazione audit-utenti |
-| 16 | `16_advanced_search.sql` | Funzioni di ricerca avanzata possessori |
-| 17 | `17_funzione_ricerca_immobili.sql` | Funzione di ricerca avanzata immobili |
-| 18 | `18_funzioni_trigger_audit.sql` | Trigger di audit su tutte le tabelle |
-| 07 | `07_create_trigram_indexes.sql` | Indici GIN trigram (in fondo: `CONCURRENTLY` non si può mettere dentro una transazione) |
-| **07a** | **`07a_bootstrap_admin.sql`** | **Crea l'utente `admin` con la password passata via `-v admin_password='...'`** |
+| 1 | `schema/01_tables.sql` | Schema completo: tutte le tabelle, indici, lookup, audit_log |
+| 2 | `functions/01_core.sql` | Trigger timestamp, funzioni inserimento base, viste riepilogo |
+| 3 | `functions/02_crud.sql` | Procedure CRUD per immobili, variazioni, contratti, duplicazione |
+| 4 | `functions/03_workflow.sql` | Workflow complessi: registrazione proprietà, passaggi, frazionamenti |
+| 5 | `functions/04_search.sql` | Ricerca fuzzy trigram + ricerca avanzata possessori e immobili |
+| 6 | `functions/05_reporting.sql` | Materialized views statistiche + funzioni report testuali |
+| 7 | `functions/06_audit.sql` | Trigger audit su tutte le tabelle + FK audit_log→utente |
+| 8 | `functions/07_features.sql` | Feature avanzate: genealogia, documenti storici, statistiche periodo |
+| 9 | `admin/01_users.sql` | Tabelle utente/permesso/sessioni + funzioni autenticazione app |
+| 10 | `admin/02_backup.sql` | Tabella backup_registro + procedure |
+| 11 | `admin/03_performance.sql` | Procedure VACUUM/REINDEX |
+| 12 | `schema/02_trigram_indexes.sql` | **Indici GIN CONCURRENTLY** — deve stare fuori transazione |
+| — | `admin/04_bootstrap_admin.sql` | **Separato**: crea utente admin (richiede `-v admin_password`) |
 
 Per il setup demo (`prepare_demo_db.py`) viene applicato anche
-`05_demo_dataset.sql` come ultimo passo (dopo schema + feature).
+`demo/demo_data.sql` come ultimo passo.
 
-### Cosa è stato consolidato in v1.0.0
-
-Quattro micro-script di estensione precedentemente separati sono stati
-inglobati nei due script principali per ridurre il numero di file e
-chiarire la struttura del fresh install. Le versioni originali sono
-state spostate in `migrations/` con un nome parlante per chi deve
-aggiornare un DB già esistente:
-
-| Confluito in (fresh install) | Migrazione (DB esistenti) | Cosa contiene |
-|------------------------------|---------------------------|---------------|
-| `02_creazione-schema-tabelle.sql` | `migrations/add_tipo_possesso.sql` | Lookup `tipo_possesso` + 8 valori di default |
-| `02_creazione-schema-tabelle.sql` | `migrations/add_soft_delete.sql` | Colonne `archiviato`/`archiviato_il` + indici |
-| `07_user-management.sql`          | `migrations/add_sessioni_accesso.sql` | Tabella `sessioni_accesso` (FK su `utente`) |
-| `02_creazione-schema-tabelle.sql` | `migrations/add_tipo_localita.sql` | Lookup `tipo_localita` + 4 valori di default |
-
-In v1.0.0 è stato anche **rimosso da `07_user-management.sql`** il blocco
-che creava un utente `admin` con hash bcrypt hardcoded (`admin123`): quel
-blocco vinceva la corsa contro `07a_bootstrap_admin.sql` e impediva
-all'installer di iniettare la password generata casualmente.
-
-## Variabili psql per `07a_bootstrap_admin.sql`
+## Variabili psql per `admin/04_bootstrap_admin.sql`
 
 ```bash
-psql ... \
-  -v admin_password="'mia_password_robusta'" \
-  -v admin_email="'admin@mio-archivio.it'" \
-  -f 07a_bootstrap_admin.sql
+psql -d catasto_storico \
+  -v admin_password="mia_password_robusta" \
+  -v admin_email="admin@mio-archivio.it" \
+  -f admin/04_bootstrap_admin.sql
 ```
 
-L'hash bcrypt è generato dinamicamente via estensione `pgcrypto` (l'estensione
-viene creata dallo script stesso). Il prefisso `$2a` prodotto da pgcrypto è
-compatibile con la libreria Python `bcrypt` usata dall'app.
-
-Se `admin_password` non è passata, il default è `admin123` (solo per dev).
+Se `admin_password` non è passata, il default è `admin123` (solo per dev/demo).
 
 ## Migrazioni per DB esistenti (`migrations/`)
 
-Script che modificano la struttura di un DB già popolato. **Non vanno mai
-applicati su un DB fresco** (perché creato già con la struttura corretta).
+Script da applicare **solo su DB già popolati** che aggiornano da versioni precedenti.
+**Non vanno mai applicati su un DB fresco** (già creato con la struttura corretta).
 
 | File | Cosa fa | Quando applicarlo |
 |------|---------|-------------------|
-| `migrations/06_migrate_civico_to_nome.sql` | Concatena `civico` nel `nome` di `localita`, droppa la colonna | Solo su DB v ≤ 1.6.0 dove `localita.civico` esiste ancora |
-| `migrations/10_migrate_drop_tipo_id.sql` | Rimuove `tipo_id` da `localita` (lookup table superata) | Solo su DB v ≤ 1.6.0 |
-| `migrations/add_soft_delete.sql` | Aggiunge `archiviato`/`archiviato_il` a comune, localita, partita, possessore | DB ante v1.0.0 senza colonne soft-delete |
-| `migrations/add_tipo_possesso.sql` | Crea lookup `tipo_possesso` + 8 default | DB ante v1.0.0 senza la lookup |
-| `migrations/add_sessioni_accesso.sql` | Crea tabella `sessioni_accesso` | DB ante v1.0.0 senza la tabella |
-| `migrations/add_tipo_localita.sql` | Crea lookup `tipo_localita` + 4 default | DB ante v1.0.0 senza la lookup |
+| `migrations/06_migrate_civico_to_nome.sql` | Concatena `civico` nel `nome` di `localita` | DB v ≤ 1.6.0 |
+| `migrations/10_migrate_drop_tipo_id.sql` | Rimuove `tipo_id` da `localita` | DB v ≤ 1.6.0 |
+| `migrations/11_migrate_civico_to_immobile.sql` | Sposta civico da `localita.nome` a `immobile.numero_civico` | DB v ≤ 1.6.9 |
+| `migrations/add_soft_delete.sql` | Aggiunge colonne soft-delete | DB ante v1.0.0 |
+| `migrations/add_tipo_possesso.sql` | Crea lookup `tipo_possesso` | DB ante v1.0.0 |
+| `migrations/add_sessioni_accesso.sql` | Crea tabella `sessioni_accesso` | DB ante v1.0.0 |
+| `migrations/add_tipo_localita.sql` | Crea lookup `tipo_localita` | DB ante v1.0.0 |
 
-Per applicarne una manualmente: `psql -d catasto_storico -f migrations/<file>.sql`.
-
-### Script di gestione migration (consigliato)
-
-Per ambienti di sviluppo/produzione, usare `migrate_database.py` nella root
-del progetto. Tiene traccia delle migration applicate in
-`catasto.schema_migrations` ed evita doppie applicazioni:
-
-```bash
-# Mostra solo lo status (cosa è applicato e cosa è pending)
-python migrate_database.py --pg-bin auto --postgres-password postgres --list
-
-# Modalità interattiva: chiede conferma per ogni pending
-python migrate_database.py --pg-bin auto --postgres-password postgres
-
-# Applica tutte le pending senza chiedere
-python migrate_database.py --pg-bin auto --postgres-password postgres --apply-all
-
-# Applica solo una migration specifica (per nome senza .sql)
-python migrate_database.py --pg-bin auto --postgres-password postgres \
-    --apply add_soft_delete
-
-# DB con nome custom
-python migrate_database.py --pg-bin auto --postgres-password postgres \
-    --db-name catasto_dev --apply-all
-```
-
-Lo script crea la tracking table `catasto.schema_migrations` al primo
-avvio. Le migration già applicate vengono skipped automaticamente.
+Per applicarne una: `psql -d catasto_storico -f migrations/<file>.sql`.
 
 ## Note
 
-- Tutti i fresh-install avvengono via `setup_database.bat`/`.py` o
-  `prepare_demo_db.py`. Non eseguire gli script SQL a mano se non per debug.
-- L'ordine sopra è identico a quello hardcoded in `SQL_SCRIPTS` dei due file
-  Python di setup. Se cambi un nome qui, aggiorna anche quelli.
-- `00_svuota_dati.sql` è un'utility per svuotare le tabelle di test, non parte
-  del flusso di install.
+- I vecchi file numerati (`02_creazione-schema-tabelle.sql`, `03_funzioni-procedure.sql`, ecc.)
+  sono mantenuti per compatibilità ma **non fanno più parte del flusso di install**.
+  Verranno rimossi in una release futura.
+- `utils/truncate_data.sql` è un'utility per svuotare le tabelle di test: non fa parte
+  del flusso di installazione.
+- `utils/validate_install.sql` contiene query di verifica post-installazione.

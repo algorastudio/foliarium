@@ -57,23 +57,19 @@ DATA_DIR      = HERE / "demo_data"
 # Da v1.0.0: lookup tipo_possesso/tipo_localita, soft-delete e tabella sessioni
 # sono integrati in 02 e 07_user-management (vedi sql_scripts/README.md).
 SQL_SCRIPTS = [
-    HERE / "sql_scripts" / "02_creazione-schema-tabelle.sql",
-    HERE / "sql_scripts" / "03_funzioni-procedure.sql",
-    HERE / "sql_scripts" / "03b_expand_fuzzy_search.sql",
-    HERE / "sql_scripts" / "07_user-management.sql",
-    HERE / "sql_scripts" / "08_advanced-reporting.sql",
-    HERE / "sql_scripts" / "09_backup-system.sql",
-    HERE / "sql_scripts" / "10_performance-optimization.sql",
-    HERE / "sql_scripts" / "11_advanced-cadastral-features.sql",
-    HERE / "sql_scripts" / "12_procedure_crud.sql",
-    HERE / "sql_scripts" / "13_workflow_integrati.sql",
-    HERE / "sql_scripts" / "14_report_functions.sql",
-    HERE / "sql_scripts" / "15_integration_audit_users.sql",
-    HERE / "sql_scripts" / "16_advanced_search.sql",
-    HERE / "sql_scripts" / "17_funzione_ricerca_immobili.sql",
-    HERE / "sql_scripts" / "18_funzioni_trigger_audit.sql",
-    HERE / "sql_scripts" / "07_create_trigram_indexes.sql",  # CONCURRENTLY: fuori transazione
-    HERE / "sql_scripts" / "05_demo_dataset.sql",
+    HERE / "sql_scripts" / "schema"    / "01_tables.sql",
+    HERE / "sql_scripts" / "functions" / "01_core.sql",
+    HERE / "sql_scripts" / "functions" / "02_crud.sql",
+    HERE / "sql_scripts" / "functions" / "03_workflow.sql",
+    HERE / "sql_scripts" / "functions" / "04_search.sql",
+    HERE / "sql_scripts" / "functions" / "05_reporting.sql",
+    HERE / "sql_scripts" / "functions" / "06_audit.sql",
+    HERE / "sql_scripts" / "functions" / "07_features.sql",
+    HERE / "sql_scripts" / "admin"     / "01_users.sql",
+    HERE / "sql_scripts" / "admin"     / "02_backup.sql",
+    HERE / "sql_scripts" / "admin"     / "03_performance.sql",
+    HERE / "sql_scripts" / "schema"    / "02_trigram_indexes.sql",  # CONCURRENTLY: fuori transazione
+    HERE / "sql_scripts" / "demo"      / "demo_data.sql",
 ]
 
 IS_WIN = platform.system() == "Windows"
