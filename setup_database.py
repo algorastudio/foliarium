@@ -66,25 +66,21 @@ EXE = ".exe" if IS_WIN else ""
 # Da v1.0.0: lookup tipo_possesso/tipo_localita, soft-delete e tabella sessioni
 # sono integrati in 02 e 07_user-management (vedi sql_scripts/README.md).
 SQL_SCRIPTS = [
-    "02_creazione-schema-tabelle.sql",
-    "03_funzioni-procedure.sql",
-    "03b_expand_fuzzy_search.sql",
-    "07_user-management.sql",
-    "08_advanced-reporting.sql",
-    "09_backup-system.sql",
-    "10_performance-optimization.sql",
-    "11_advanced-cadastral-features.sql",
-    "12_procedure_crud.sql",
-    "13_workflow_integrati.sql",
-    "14_report_functions.sql",
-    "15_integration_audit_users.sql",
-    "16_advanced_search.sql",
-    "17_funzione_ricerca_immobili.sql",
-    "18_funzioni_trigger_audit.sql",
-    "07_create_trigram_indexes.sql",  # CONCURRENTLY: deve stare fuori transazione
+    "schema/01_tables.sql",
+    "functions/01_core.sql",
+    "functions/02_crud.sql",
+    "functions/03_workflow.sql",
+    "functions/04_search.sql",
+    "functions/05_reporting.sql",
+    "functions/06_audit.sql",
+    "functions/07_features.sql",
+    "admin/01_users.sql",
+    "admin/02_backup.sql",
+    "admin/03_performance.sql",
+    "schema/02_trigram_indexes.sql",  # CONCURRENTLY: deve stare fuori transazione
 ]
 
-BOOTSTRAP_ADMIN_SCRIPT = "07a_bootstrap_admin.sql"
+BOOTSTRAP_ADMIN_SCRIPT = "admin/04_bootstrap_admin.sql"
 
 
 # ============================================================================
