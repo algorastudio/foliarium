@@ -11,7 +11,7 @@
 
 Foliarium è un software gestionale desktop per la gestione, consultazione e digitalizzazione del **catasto storico** presso gli Archivi di Stato italiani.
 
-Sviluppato in **Python** con interfaccia grafica **PyQt5** e database centralizzato **PostgreSQL**, Foliarium consente agli operatori archivistici di gestire in modo efficiente l'intero patrimonio catastale storico.
+Sviluppato in **Python 3.12** con interfaccia grafica **PyQt6** e database centralizzato **PostgreSQL**, Foliarium consente agli operatori archivistici di gestire in modo efficiente l'intero patrimonio catastale storico.
 
 > Nato dall'esperienza diretta con l'Archivio di Stato di Savona.
 
@@ -28,15 +28,18 @@ Sviluppato in **Python** con interfaccia grafica **PyQt5** e database centralizz
 - **Variazioni e contratti**: vendite, successioni, frazionamenti, divisioni con notaio e repertorio
 - **Gestione periodi storici**: suddivisione per epoca (Regno di Sardegna, Regno d'Italia, Repubblica)
 - **Gestione tipi località**: tipologie stradali (via, piazza, salita, ecc.)
-- **Gestione utenti con ruoli e permessi**: profili differenziati (operatori, consultatori, amministratori) con login/logout e hashing bcrypt
+- **Gestione utenti con ruoli e permessi**: profili differenziati (operatori, consultatori, amministratori) con login/logout, hashing bcrypt, rate-limit anti brute-force e protezione anti user-enumeration
 - **Audit log**: registrazione automatica di tutte le operazioni di inserimento, modifica e cancellazione
 - **Registrazione consultazioni**: registro delle consultazioni dell'archivio con richiedente e motivazione
 - **Esportazioni**: export in CSV, PDF e JSON per partite e possessori, report di massa
 - **Reportistica avanzata**: viste aggregate, statistiche per comune e periodo
 - **Backup database**: sistema di backup integrato
-- **Temi interfaccia**: supporto stili QSS personalizzabili
+- **Temi interfaccia**: stylesheet QSS multipli (chiaro, scuro, alto contrasto, pergamena, ecc.)
 - **Importazione CSV**: importazione dati da file CSV con dialogo di anteprima
 - **Ottimizzazione performance**: indici GIN, viste materializzate, connection pooling
+- **Modalità demo embedded**: avvio con PostgreSQL portabile (`--demo`) per valutazione senza installazione
+- **REST API opzionale**: server FastAPI per integrazioni esterne (`api/`)
+- **Sistema licenze**: file `.license` firmati HMAC-SHA256 con vincoli per scadenza, hardware fingerprint e seat di rete
 
 ---
 
@@ -44,12 +47,16 @@ Sviluppato in **Python** con interfaccia grafica **PyQt5** e database centralizz
 
 | Componente | Tecnologia |
 |---|---|
-| Linguaggio | Python 3.8+ |
-| Interfaccia grafica | PyQt5 |
-| Database | PostgreSQL 13+ |
-| Accesso dati | psycopg2 (connection pool) |
-| Report PDF | fpdf2 |
-| Sicurezza password | bcrypt + keyring |
+| Linguaggio | Python 3.12 |
+| Interfaccia grafica | PyQt6 6.8.1 |
+| Database | PostgreSQL 14+ |
+| Accesso dati | psycopg2-binary 2.9.10 (connection pool) |
+| Elaborazione dati | pandas 2.3, numpy 2.3, openpyxl 3.1.5 |
+| Report PDF | fpdf2 2.8.3 |
+| Sicurezza password | bcrypt 4.3 + keyring 25.6 |
+| API REST (opzionale) | FastAPI, uvicorn |
+| Build pacchetto | PyInstaller + Inno Setup |
+| Documentazione | MkDocs Material |
 
 ---
 
@@ -57,67 +64,60 @@ Sviluppato in **Python** con interfaccia grafica **PyQt5** e database centralizz
 
 ```
 foliarium/
-├── main.py                    # Entry point dell'applicazione
-├── setup_db.py                # Script inizializzazione database
-├── requirements.txt           # Dipendenze Python
-├── config.example.ini         # Configurazione di esempio
-├── publiccode.yml             # Metadati per il software pubblico italiano
-├── LICENSE                    # AGPL-3.0-or-later
-├── CONTRIBUTING.md            # Linee guida per contribuire
-├── .gitignore
-├── src/                       # Codice sorgente Python
-│   ├── __init__.py
-│   ├── app_paths.py           # Gestione percorsi (base dir, risorse, stili, log)
-│   ├── config.py              # Configurazione DB, logging, costanti interfaccia
-│   ├── catasto_db_manager.py  # Logica accesso database PostgreSQL (CRUD, pool)
-│   ├── gui_main.py            # Finestra principale PyQt5
-│   ├── gui_widgets.py         # Widget interfaccia (dashboard, ricerca, inserimento)
-│   ├── dialogs.py             # Dialoghi (import CSV, EULA, backup, configurazione DB)
-│   ├── custom_widgets.py      # Widget personalizzati (tabelle, password, lazy loading)
-│   └── app_utils.py           # Utility (IP locale, keyring, PDF, esportazioni)
-├── database/                  # Script SQL per PostgreSQL
-│   ├── 00_svuota_dati.sql             # Reset dati del database
-│   ├── 01_creazione-database.sql      # Creazione database e estensioni
-│   ├── 02_creazione-schema-tabelle.sql # Schema e tabelle principali
-│   ├── 03_funzioni-procedure.sql      # Funzioni e stored procedure
-│   ├── 03_funzioni-procedure_def.sql  # Definizioni procedure aggiuntive
-│   ├── 03b_expand_fuzzy_search.sql    # Espansione ricerca fuzzy (trigrammi)
-│   ├── 04_dati-esempio_modificato.sql # Dati di esempio
-│   ├── 04_dati_stress_test.sql        # Dati per stress test
-│   ├── 04b_dati_test_realistici.sql   # Dati di test realistici
-│   ├── 05_query-test.sql              # Query di test
-│   ├── 05_query-test_aggiornato.sql   # Query di test aggiornate
-│   ├── 07_user-management.sql         # Gestione utenti e permessi
-│   ├── 07a_bootstrap_admin.sql        # Creazione utente admin iniziale
-│   ├── 08_advanced-reporting.sql      # Reportistica avanzata
-│   ├── 09_backup-system.sql           # Sistema di backup
-│   ├── 10_performance-optimization.sql # Indici e ottimizzazioni
-│   ├── 11_advanced-cadastral-features.sql # Funzionalità catastali avanzate
-│   ├── 12_procedure_crud.sql          # Procedure CRUD
-│   ├── 13_workflow_integrati.sql      # Workflow integrati
-│   ├── 14_report_functions.sql        # Funzioni di reportistica
-│   ├── 15_integration_audit_users.sql # Integrazione audit e utenti
-│   ├── 16_advanced_search.sql         # Ricerca avanzata
-│   ├── 17_funzione_ricerca_immobili.sql # Ricerca immobili
-│   ├── 18_funzioni_trigger_audit.sql  # Trigger per audit log
-│   ├── crea_admin_interattivo.sql     # Script interattivo creazione admin
-│   ├── demo_data.sql                  # Dati dimostrativi (località liguri)
-│   ├── drop_db.sql                    # Eliminazione database
-│   ├── execute_fuzzy_expansion.sql    # Esecuzione espansione fuzzy
-│   ├── expand_fuzzy_search.sql        # Configurazione ricerca fuzzy
-│   ├── meridiana.spec                 # File spec (legacy)
-│   └── script x cancellare db1.txt    # Note cancellazione DB
-├── docs/                      # Documentazione
-│   ├── installazione.md
-│   └── architettura.md
-├── portable/                  # Versione portatile (no installazione)
-│   ├── setup_primo_avvio.bat  # Configurazione iniziale automatica
-│   ├── avvia_foliarium.bat    # Avvio applicazione + PostgreSQL
-│   ├── arresta_foliarium.bat  # Arresto PostgreSQL
-│   └── README_PORTABLE.md     # Istruzioni versione portatile
-├── resources/                 # Risorse (icone, loghi, EULA)
-├── styles/                    # Fogli di stile QSS
-└── screenshots/               # Screenshot dell'applicazione
+├── gui_main.py                   # Entry point — QMainWindow, app init
+├── gui_widgets.py                # Facade UI + widget principali (Dashboard, Elenco comuni)
+├── search_widgets.py             # Widget di ricerca (partite, immobili, fuzzy unificata)
+├── partita_workflow_widgets.py   # Workflow partite (registrazione, wizard, operazioni)
+├── dialogs.py                    # Facade dialoghi (impl. in foliarium/ui/dialogs/)
+├── catasto_db_manager.py         # Facade DB — delega al package db/
+├── app_utils.py                  # Helper PDF, esportazioni, IP locale
+├── app_paths.py                  # Risoluzione path (BASE_DIR, EXE_DIR, APP_DATA_DIR)
+├── config.py                     # Costanti, logging, lettura config.ini
+├── validators.py                 # Validatori centralizzati per form e logica
+│
+├── foliarium/                    # Package principale (servizi + UI estratti)
+│   ├── core/services/            # email, license, update_checker, demo_launcher
+│   └── ui/                       # top_bar, sidebar, command_palette, splash
+│       ├── dialogs/              # entity, admin, partita, import_, export_
+│       └── widgets/              # admin, insertion, reporting, custom
+│
+├── db/                           # Database layer (mixin per dominio)
+│   ├── base.py                   # DBConnectionBase: pool, error handler, transazioni
+│   ├── comuni.py, localita.py, possessori.py, partite.py, immobili.py
+│   ├── variazioni.py, documenti.py, audit.py, utenti.py
+│   ├── backup.py, stats.py, ricerca.py, io.py, archivio.py
+│   └── models.py                 # Dataclass models
+│
+├── core/                         # Gestione sessione e autenticazione
+│   ├── session_manager.py        # SessionManager (stato utente corrente)
+│   └── auth_manager.py           # AuthManager (login + permessi, rate-limit)
+│
+├── api/                          # REST API FastAPI (opzionale)
+│   ├── main.py, server_thread.py
+│   └── routes/                   # comuni, partite, possessori, audit, genealogia...
+│
+├── utils/
+│   └── error_handlers.py         # Eccezioni custom (AuthenticationError, ecc.)
+│
+├── sql_scripts/                  # Script PostgreSQL
+│   ├── 01_creazione-database.sql, 02_…, … 18_funzioni_trigger_audit.sql
+│   └── migrations/               # Upgrade script per DB esistenti
+│
+├── tests/                        # Test suite pytest (unit/, integration/)
+├── styles/                       # Fogli di stile QSS
+├── resources/                    # Icone, immagini, EULA
+├── docs/                         # Documentazione MkDocs
+├── esportazioni/                 # Output PDF/CSV
+├── .devcontainer/                # Dev container per VS Code / Codespaces
+├── .github/workflows/            # CI/CD GitHub Actions
+├── foliarium.spec                # PyInstaller spec (build produzione)
+├── foliarium_demo.spec           # PyInstaller spec (build demo portabile)
+├── Foliarium_Unified_Installer.iss  # Installer Inno Setup
+├── setup_database.bat / .py      # Inizializzazione DB
+├── prepare_demo_db.py            # Script CI: initdb + schema + dati demo
+├── generate_license.py           # CLI per generare/ispezionare file .license
+├── generate_key.py               # CLI per generare la chiave HMAC di firma licenze
+└── requirements.txt              # Dipendenze Python (versioni pinnate)
 ```
 
 ---
@@ -125,21 +125,21 @@ foliarium/
 ## Requisiti di sistema
 
 ### Client
-- Sistema operativo: Windows 10/11 o Linux (Ubuntu 20.04+, Debian 11+)
-- Python 3.8 o superiore
-- PyQt5 (5.15+)
+- Sistema operativo: Windows 10/11 (target principale) o Linux (Ubuntu 22.04+, Debian 12+)
+- Python **3.12** (se si esegue dai sorgenti)
+- PyQt6 6.8.1
 
 ### Server database
-- PostgreSQL 13 o superiore (consigliato 15+)
+- PostgreSQL **14 o superiore**
 - Estensioni: `uuid-ossp`, `pg_trgm`
 - Minimo 2 GB RAM dedicati
-- Spazio disco in base alla dimensione dell'archivio catastale
+- Spazio disco proporzionale alla dimensione dell'archivio catastale
 
 ---
 
 ## Installazione rapida
 
-> **Versione portatile per Windows:** se vuoi provare Foliarium senza installare PostgreSQL, consulta la [guida portatile](portable/README_PORTABLE.md). Basta scaricare i binari PostgreSQL, un doppio clic e sei operativo.
+> **Per provare Foliarium senza installare nulla:** scarica la versione demo embedded (PostgreSQL portabile incluso) dalla pagina Releases ed esegui `Foliarium.exe --demo`.
 
 ### 1. Clona il repository
 
@@ -152,8 +152,8 @@ cd foliarium
 
 ```bash
 python -m venv venv
-source venv/bin/activate  # Linux
-venv\Scripts\activate     # Windows
+source venv/bin/activate     # Linux / macOS
+venv\Scripts\activate        # Windows
 ```
 
 ### 3. Installa le dipendenze
@@ -167,42 +167,84 @@ pip install -r requirements.txt
 Crea il database PostgreSQL (richiede privilegi superuser):
 
 ```bash
-sudo -u postgres psql -f database/01_creazione-database.sql
+sudo -u postgres psql -f sql_scripts/01_creazione-database.sql
 ```
 
-Poi copia e personalizza il file di configurazione:
+Copia il template di configurazione e personalizzalo con le credenziali del tuo PostgreSQL:
 
 ```bash
 cp config.example.ini config.ini
-# Modifica config.ini con le credenziali del tuo database
+# Modifica config.ini con host, dbname, user, password
 ```
+
+In alternativa puoi usare variabili d'ambiente (`DB_HOST`, `DB_USER`, `DB_PASS`, `DB_NAME`, `DB_PORT`).
+Se non viene fornita una password in modalità non-demo, Foliarium aprirà il dialogo di configurazione manuale all'avvio.
 
 ### 5. Inizializza lo schema
 
 ```bash
-python setup_db.py --host localhost --dbname catasto_storico --user postgres
-```
-
-Per caricare anche i dati demo:
-
-```bash
-python setup_db.py --host localhost --dbname catasto_storico --user postgres --demo
+python setup_database.py
 ```
 
 ### 6. Avvia l'applicazione
 
 ```bash
-python main.py
+python gui_main.py
 ```
 
-Per la guida completa, consulta [docs/installazione.md](docs/installazione.md).
+Per la modalità demo (PostgreSQL portabile, autologin):
+
+```bash
+python gui_main.py --demo
+```
+
+---
+
+## Comandi utili
+
+```bash
+# Esecuzione test (richiede DB attivo)
+pytest                       # tutti i test
+pytest -m unit               # solo unit test
+pytest -m "not gui"          # salta test GUI (utile in CI headless)
+
+# Generare un file licenza per un cliente
+python generate_license.py generate \
+    --to "Archivio di Stato di Savona" \
+    --type standard --seats 2 \
+    --expiry 2027-12-31 --out savona.license
+
+# Ispezionare un file licenza
+python generate_license.py inspect savona.license
+
+# Generare la chiave HMAC per la firma delle licenze (una volta per ambiente)
+python generate_key.py --save-exe-dir   # salva accanto a Foliarium.exe
+python generate_key.py --env-var        # stampa solo l'HEX per FOLIARIUM_LICENSE_KEY
+
+# Build dell'eseguibile Windows
+pyinstaller foliarium.spec               # build produzione
+pyinstaller foliarium_demo.spec          # build demo portabile
+
+# Documentazione
+mkdocs serve                             # anteprima locale
+```
+
+Per un'esecuzione in ambiente CI/headless:
+
+```bash
+export CI=true
+export DB_HOST=localhost DB_USER=postgres DB_PASS=postgres
+export DB_NAME=catasto_storico DB_PORT=5432
+export QT_QPA_PLATFORM=offscreen
+pytest
+```
 
 ---
 
 ## Documentazione
 
-- [Guida all'installazione](docs/installazione.md)
-- [Architettura del sistema](docs/architettura.md)
+- [Guida all'installazione](docs/installazione.md) *(se presente)*
+- Documentazione completa: `mkdocs serve` o vedi cartella `docs/`
 
 ---
 

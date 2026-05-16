@@ -1,12 +1,12 @@
 {
-  "name": "Meridiana – Catasto Storico",
+  "name": "Foliarium – Catasto Storico",
   "build": {
     "dockerfile": "Dockerfile"
   },
 
   "features": {
     "ghcr.io/devcontainers/features/desktop-lite:1": {
-      "password": "meridiana",
+      "password": "foliarium-dev",
       "webPort": 6080
     }
   },
