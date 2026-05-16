@@ -198,7 +198,7 @@ Always use the full three-part path `Module.EnumClass.Value`.
 ## Dev container (VS Code / Codespaces)
 
 ```
-noVNC desktop  → http://localhost:6080  (password: meridiana)
+noVNC desktop  → http://localhost:6080  (password: foliarium-dev)
 PostgreSQL     → localhost:5432
 QT_QPA_PLATFORM=xcb  (set automatically inside container)
 ```

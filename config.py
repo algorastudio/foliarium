@@ -66,6 +66,30 @@ ENV_DB_USER = _ini_get('database', 'user', os.environ.get('DB_USER', 'postgres')
 ENV_DB_PASS = _ini_get('database', 'password', os.environ.get('DB_PASS', ''))
 ENV_DB_PORT = _ini_get('database', 'port', os.environ.get('DB_PORT', '5432'))
 
+# True se la password DB e' stata fornita esplicitamente (config.ini o env var).
+# Una password vuota implicita in produzione e' un errore di configurazione:
+# i chiamanti che instaurano la connessione devono interromperla con un messaggio
+# chiaro invece di tentare un login senza credenziali.
+DB_PASS_PROVIDED = bool(ENV_DB_PASS)
+
+
+def assert_db_password_configured() -> None:
+    """
+    Verifica che la password del DB sia stata configurata in modo esplicito.
+
+    Tollerata l'assenza solo in ambiente di test/CI (IS_TEST_ENV) e in modalita'
+    demo embedded (IS_DEMO_MODE), dove le credenziali vengono fornite altrove.
+    In tutti gli altri casi solleva RuntimeError per evitare un tentativo di
+    connessione silenzioso senza password.
+    """
+    if DB_PASS_PROVIDED or IS_TEST_ENV or IS_DEMO_MODE:
+        return
+    raise RuntimeError(
+        "Password del database non configurata. "
+        "Impostare la variabile d'ambiente DB_PASS, oppure la chiave "
+        "[database] password in config.ini accanto all'eseguibile."
+    )
+
 # --- Info servizio PostgreSQL integrato (se installato con l'installer unificato) ---
 BUNDLED_PG_SERVICE = _ini_get('service', 'name', '')
 BUNDLED_PG_BIN = _ini_get('service', 'pg_bin', '')

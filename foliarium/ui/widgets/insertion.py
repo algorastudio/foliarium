@@ -1,5 +1,5 @@
 """
-insertion_widgets.py — Widget di inserimento dati per Meridiana.
+insertion_widgets.py — Widget di inserimento dati per Foliarium.
 
 Estratto da gui_widgets.py per migliorare la modularità.
 Contiene:
