@@ -7,31 +7,22 @@ backward compatibility con i consumer esistenti.
 """
 from __future__ import annotations
 
-import csv
 import logging
-from datetime import date, datetime
-from typing import Dict, List, Optional, TYPE_CHECKING
+from typing import Optional, TYPE_CHECKING
 
 from PyQt6.QtCore import (
-    QAbstractTableModel, QModelIndex, QPoint, QSize, QSortFilterProxyModel,
-    Qt, QThread, QTimer, pyqtSignal,
+    QAbstractTableModel, QModelIndex, QPoint, Qt,
 )
-from PyQt6.QtGui import QColor, QIcon
 from PyQt6.QtWidgets import (
-    QAbstractItemView, QApplication, QCheckBox, QComboBox, QDialog,
-    QFileDialog, QFrame, QGridLayout, QGroupBox, QHBoxLayout, QHeaderView,
-    QLabel, QLineEdit, QMenu, QMessageBox, QProgressBar, QPushButton,
-    QSlider, QSpinBox, QStyle, QTabWidget, QTableView, QTableWidget,
-    QTableWidgetItem, QVBoxLayout, QWidget,
+    QAbstractItemView, QApplication, QDialog, QGridLayout, QGroupBox,
+    QHBoxLayout, QHeaderView, QLabel, QLineEdit, QMenu, QMessageBox,
+    QPushButton, QSpinBox, QStyle, QTableView, QVBoxLayout, QWidget,
 )
 
-from app_paths import get_icon_path
-from app_utils import BulkReportPDF, FPDF_AVAILABLE, format_indirizzo, prompt_to_open_file
+from app_utils import format_indirizzo
 from foliarium.ui.widgets.custom import show_status_message as _show_status_message
 from dialogs import (
     ComuneSelectionDialog, LocalitaSelectionDialog,
-    ModificaImmobileDialog, ModificaLocalitaDialog, ModificaPossessoreDialog,
-    PartitaDetailsDialog,
 )
 
 try:
