@@ -34,7 +34,7 @@
 ```
 foliarium/
 ├── gui_main.py                   # Entry point — QMainWindow, navigazione, slot Qt (~2000 LOC)
-├── gui_widgets.py                # Facade UI — ElencoComuniWidget, DashboardWidget, WelcomeScreen + re-export hub
+├── gui_widgets.py                # Facade thin (178 LOC) → foliarium/ui/widgets/{comuni,dashboard,welcome} + altri re-export
 ├── search_widgets.py             # Facade thin (41 LOC) → foliarium/ui/widgets/search/
 ├── partita_workflow_widgets.py   # Facade thin (24 LOC) → foliarium/ui/widgets/workflow/
 ├── dialogs.py                    # Facade di re-export dialogs (implementati in foliarium/ui/dialogs/)
@@ -62,6 +62,9 @@ foliarium/
 │           ├── insertion.py      # Form inserimento (Comune, Possessore, Localita, Partita)
 │           ├── reporting.py      # Documenti, Esportazioni, Reportistica, Statistiche
 │           ├── custom.py         # Widget condivisi, show_status_message, LazyLoadedWidget
+│           ├── comuni.py         # ElencoComuniWidget + ComuniTableModel (Sprint 3.8)
+│           ├── dashboard.py      # DashboardWidget + _DashboardLoaderWorker (Sprint 3.8)
+│           ├── welcome.py        # WelcomeScreen (EULA) (Sprint 3.8)
 │           ├── workflow/         # Widget workflow partite (post-refactor Sprint 3.3)
 │           │   ├── registrazione_proprieta.py    # RegistrazioneProprietaWidget
 │           │   ├── nuova_partita_wizard.py       # NuovaPartitaWizardWidget
@@ -133,8 +136,9 @@ from foliarium.ui.export import gui_esporta_partita_pdf
 |---|---|---|
 | `partita_workflow_widgets.py` | 2.209 | 24 |
 | `search_widgets.py` | 1.841 | 41 |
+| `gui_widgets.py` | 1.036 | 178 |
 | `app_utils.py` | 923 | 176 |
-| `gui_main.py` | 2.155 | 1.999 |
+| `gui_main.py` | 2.155 | 1.982 |
 
 ---
 
@@ -199,7 +203,10 @@ export QT_QPA_PLATFORM=offscreen
 - **DB layer:** `catasto_db_manager.py` — facade thin che eredita dai mixin in `db/`. `CatastoDBManager` espone tutti i metodi CRUD. Credentials are read from env vars (`DB_HOST`, `DB_USER`, `DB_PASS`, `DB_NAME`, `DB_PORT`) with fallback to defaults defined in `config.py`. Se la password manca in produzione, `config.assert_db_password_configured()` solleva `RuntimeError` invece di tentare un login silenzioso con password vuota.
 - **CI detection:** `config.IS_TEST_ENV` is `True` when `CI=true` or `GITHUB_ACTIONS=true`. Used to skip interactive prompts and adjust logging.
 - **UI widget distribution** (post-refactor Sprint 3):
-  - `gui_widgets.py` — facade + `ElencoComuniWidget`, `DashboardWidget`, `WelcomeScreen`
+  - `gui_widgets.py` — facade thin (178 LOC) di re-export verso `foliarium/ui/widgets/{comuni,dashboard,welcome}` + altri
+  - `foliarium/ui/widgets/comuni.py` — `ElencoComuniWidget` + `ComuniTableModel` + `_ComuniLoaderWorker` (Sprint 3.8)
+  - `foliarium/ui/widgets/dashboard.py` — `DashboardWidget` + `_DashboardLoaderWorker` (Sprint 3.8)
+  - `foliarium/ui/widgets/welcome.py` — `WelcomeScreen` (EULA splash) (Sprint 3.8)
   - `foliarium/ui/widgets/search/` — 3 file per famiglia: `partite.py`, `immobili.py`, `fuzzy.py`
   - `foliarium/ui/widgets/workflow/` — 3 file: `registrazione_proprieta.py`, `nuova_partita_wizard.py`, `operazioni_partita.py`
   - `foliarium/ui/widgets/insertion.py` — form inserimento (Comune, Possessore, Località, Partita)
