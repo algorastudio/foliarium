@@ -13,7 +13,7 @@ _log = logging.getLogger("CatastoGUI.app_utils")
 # foliarium.reporting.pdf. Qui restano re-export di compatibilita' per il
 # codice (gui_widgets, partita_workflow_widgets, search_widgets, dialoghi,
 # test) che li importa storicamente da app_utils.
-from foliarium.reporting.pdf import (
+from foliarium.reporting.pdf import (  # noqa: F401
     FPDF_AVAILABLE,
     ModernCatastoPDF,
     PDFPartita,
@@ -95,7 +95,7 @@ def _get_default_export_path(default_filename: str) -> str:
 # spostati in foliarium/ui/export/{partita,possessore}.py. Qui restano
 # re-export di compatibilita' per i chiamanti storici (gui_widgets,
 # partita_workflow_widgets, foliarium/ui/dialogs/partita).
-from foliarium.ui.export import (  # noqa: E402
+from foliarium.ui.export import (  # noqa: E402, F401
     gui_esporta_partita_csv,
     gui_esporta_partita_json,
     gui_esporta_partita_pdf,
