@@ -6,6 +6,11 @@ on:
     tags:
       - '*.*.*'        # es. 1.0.0
       - 'v*.*.*'       # es. v1.0.0
+  pull_request:
+    branches: [ "main", "master" ]
+    # I job di build (Windows/Linux/macOS) sono skippati sulle PR via
+    # `if: github.event_name != 'pull_request'`: solo il test job gira,
+    # cosi' otteniamo feedback rapido senza pagare i runner pesanti.
   workflow_dispatch: # Permette di avviare l'azione manualmente da GitHub
 
 permissions:
@@ -140,6 +145,7 @@ jobs:
   # ==========================================
   build-windows:
     needs: test-database-and-code # Parte SOLO se i test sopra hanno successo
+    if: github.event_name != 'pull_request'
     runs-on: windows-latest
 
     steps:
@@ -190,6 +196,7 @@ jobs:
   # ==========================================
   build-demo:
     needs: test-database-and-code  # Parte solo se i test passano
+    if: github.event_name != 'pull_request'
     runs-on: windows-latest
 
     steps:
@@ -319,6 +326,7 @@ jobs:
   # ==========================================
   build-unified:
     needs: test-database-and-code
+    if: github.event_name != 'pull_request'
     runs-on: windows-latest
 
     steps:
@@ -414,6 +422,7 @@ jobs:
   # ==========================================
   build-linux:
     needs: test-database-and-code
+    if: github.event_name != 'pull_request'
     runs-on: ubuntu-latest
 
     steps:
@@ -497,6 +506,7 @@ jobs:
   # ==========================================
   build-macos:
     needs: test-database-and-code
+    if: github.event_name != 'pull_request'
     runs-on: macos-latest
 
     steps:
