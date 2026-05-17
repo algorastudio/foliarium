@@ -238,7 +238,7 @@ def _show_update_available_dialog(parent_widget, current_version: str,
                                    new_version: str, release_data: dict) -> None:
     """Mostra il dialogo 'Aggiornamento disponibile' con opzione di download automatico."""
     try:
-        from PyQt6.QtWidgets import QMessageBox, QPushButton
+        from PyQt6.QtWidgets import QMessageBox
         from PyQt6.QtCore import QUrl
         from PyQt6.QtGui import QDesktopServices
 

@@ -25,7 +25,6 @@ from __future__ import annotations
 import logging
 import sys
 import time
-from typing import Optional
 
 from PyQt6.QtCore import QSettings
 from PyQt6.QtWidgets import QApplication, QDialog, QMessageBox

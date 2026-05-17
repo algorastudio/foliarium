@@ -9,7 +9,6 @@ Uso:
   python generate_key.py --env-var          # Stampa il valore per variabile d'ambiente
 """
 
-import sys
 import secrets
 import argparse
 import textwrap

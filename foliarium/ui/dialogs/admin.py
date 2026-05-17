@@ -928,8 +928,7 @@ def _validate_password_strength(password: str) -> tuple:
     return True, ""
 
 
-# Hash/verifica password: logica centralizzata in core.auth_manager
-from core.auth_manager import AuthManager as _AuthManager
+# Hash/verifica password: logica centralizzata in core.auth_manager (_AuthManager importato a riga 44)
 def _hash_password(password: str) -> str:
     """Genera un hash sicuro per la password usando bcrypt."""
     return _AuthManager._hash_password(password)

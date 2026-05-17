@@ -26,7 +26,6 @@ from __future__ import annotations
 
 import functools
 import logging
-import traceback
 from typing import Callable, Optional, Type
 
 logger = logging.getLogger(__name__)
