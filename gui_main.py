@@ -29,14 +29,14 @@ from PyQt6.QtWidgets import (QApplication,
                              QLabel, QLineEdit, QListWidget, QListWidgetItem,
                              QMainWindow, QMessageBox, QPushButton,
                              QScrollArea, QSizePolicy, QSplashScreen, QStackedWidget,
-                             QStyle, QStyleFactory, QTabWidget,
+                             QStyle, QTabWidget,
                              QVBoxLayout, QWidget)
 
 
 from catasto_db_manager import CatastoDBManager
-from app_utils import get_local_ip_address, get_password_from_keyring 
+from app_utils import get_local_ip_address
 import pandas as pd # Importa pandas
-from app_paths import get_available_styles, load_stylesheet, get_logo_svg_path, get_resource_path
+from app_paths import get_available_styles, get_logo_svg_path, get_resource_path
 from dialogs import (CSVImportResultDialog, EulaDialog, BackupReminderSettingsDialog,
                      ImportComuniDialog, ImportLocalitaDialog)
 
@@ -47,7 +47,7 @@ from gui_widgets import (
     InserimentoPossessoreWidget, InserimentoLocalitaWidget, RegistrazioneProprietaWidget,
     OperazioniPartitaWidget, EsportazioniWidget, ReportisticaWidget, StatisticheWidget,
     GestioneUtentiWidget, AuditLogViewerWidget, BackupWidget, ArchivioWidget,
-    RegistraConsultazioneWidget, WelcomeScreen, GestionePeriodiStoriciWidget,
+    RegistraConsultazioneWidget, GestionePeriodiStoriciWidget,
     GestioneTipiLocalitaWidget, TipiPossessoWidget, NuovaPartitaWizardWidget,
     DBConfigDialog, InserimentoPartitaWidget, RicercaDocumentiWidget)
 from foliarium.ui.widgets.admin import TabelleDiSistemaWidget
@@ -59,11 +59,10 @@ from foliarium.core.services import update_checker
 from config import (
     APP_VERSION, APP_NAME, APP_SUBTITLE,
     SETTINGS_DB_TYPE, SETTINGS_DB_HOST, SETTINGS_DB_PORT,
-    SETTINGS_DB_NAME, SETTINGS_DB_USER, SETTINGS_DB_SCHEMA, SETTINGS_DB_PASSWORD,
+    SETTINGS_DB_NAME, SETTINGS_DB_USER, SETTINGS_DB_SCHEMA,
     SETTINGS_UI_CURRENT_STYLE, SETTINGS_UI_AUTO_THEME, SETTINGS_UI_WIN11_STYLE,
-    AUTO_THEME_DARK, AUTO_THEME_LIGHT,
+    AUTO_THEME_LIGHT,
     IS_TEST_ENV, SETTINGS_SESSION_TIMEOUT,
-    EULA_VERSION, SETTINGS_EULA_ACCEPTED,
     IS_DEMO_MODE,
     DEMO_DB_HOST, DEMO_DB_NAME, DEMO_DB_USER, DEMO_DB_PASS, DEMO_DB_PORT,
     DEMO_LOGIN_USER, DEMO_LOGIN_PASS,
@@ -108,7 +107,6 @@ except ImportError:
                              "Non è possibile importare CatastoDBManager. "
                              "Assicurati che catasto_db_manager.py sia accessibile.")
         sys.exit(1)
-from foliarium.ui.splash import FoliariumSplashScreen  # noqa: F401
 from foliarium.ui.dialogs.admin import LoginDialog       # noqa: F401
 
 
@@ -496,7 +494,8 @@ class CatastoMainWindow(QMainWindow):
 
         # Voce speciale: stile nativo Windows 11 (solo se disponibile)
         self.win11_action = None
-        if "windows11" in QStyleFactory.keys():
+        from foliarium.ui.theme import is_win11_style_available
+        if is_win11_style_available():
             self.win11_action = QAction("Stile Nativo Windows 11", self, checkable=True)
             self.win11_action.setChecked(win11_enabled)
             self.win11_action.triggered.connect(self._enable_win11_style)
@@ -528,10 +527,8 @@ class CatastoMainWindow(QMainWindow):
     def _change_stylesheet(self, filename: str):
         """Carica, applica e salva il nuovo stylesheet. Disabilita tema automatico e stile Win11."""
         self.logger.info(f"Cambio tema grafico richiesto: {filename}")
-        new_stylesheet = load_stylesheet(filename)
-        if new_stylesheet:
-            self._reset_app_style()
-            QApplication.instance().setStyleSheet(new_stylesheet)
+        from foliarium.ui import theme as _theme
+        if _theme.apply_stylesheet(filename, logger=self.logger):
             settings = QSettings()
             settings.setValue(SETTINGS_UI_CURRENT_STYLE, filename)
             settings.setValue(SETTINGS_UI_AUTO_THEME, False)
@@ -545,23 +542,20 @@ class CatastoMainWindow(QMainWindow):
 
     def _enable_auto_theme(self):
         """Attiva il tema automatico basato sulla preferenza dark/light del sistema operativo."""
-        self._reset_app_style()
+        from foliarium.ui import theme as _theme
+        _theme.reset_app_style()
         settings = QSettings()
         settings.setValue(SETTINGS_UI_AUTO_THEME, True)
         settings.setValue(SETTINGS_UI_WIN11_STYLE, False)
         if self.win11_action:
             self.win11_action.setChecked(False)
-        self._apply_auto_theme()
+        _theme.apply_auto_theme(logger=self.logger)
         self.logger.info("Tema automatico attivato.")
 
     def _apply_auto_theme(self):
         """Applica il tema chiaro o scuro in base allo schema colori del sistema operativo."""
-        scheme = QGuiApplication.styleHints().colorScheme()
-        theme_file = AUTO_THEME_DARK if scheme == Qt.ColorScheme.Dark else AUTO_THEME_LIGHT
-        stylesheet = load_stylesheet(theme_file)
-        if stylesheet:
-            QApplication.instance().setStyleSheet(stylesheet)
-            self.logger.info(f"Tema automatico applicato: {theme_file} (schema OS: {scheme.name})")
+        from foliarium.ui import theme as _theme
+        _theme.apply_auto_theme(logger=self.logger)
 
     @pyqtSlot(Qt.ColorScheme)
     def _on_color_scheme_changed(self, scheme: Qt.ColorScheme):
@@ -573,8 +567,8 @@ class CatastoMainWindow(QMainWindow):
 
     def _enable_win11_style(self):
         """Attiva lo stile nativo Windows 11, rimuovendo qualsiasi QSS personalizzato."""
-        QApplication.instance().setStyle("windows11")
-        QApplication.instance().setStyleSheet("")
+        from foliarium.ui import theme as _theme
+        _theme.apply_win11_style()
         settings = QSettings()
         settings.setValue(SETTINGS_UI_WIN11_STYLE, True)
         settings.setValue(SETTINGS_UI_AUTO_THEME, False)
@@ -612,7 +606,8 @@ class CatastoMainWindow(QMainWindow):
 
     def _reset_app_style(self):
         """Ripristina lo stile Qt predefinito (necessario prima di applicare un QSS)."""
-        QApplication.instance().setStyle(QStyleFactory.create("Fusion"))
+        from foliarium.ui import theme as _theme
+        _theme.reset_app_style()
 
     def _show_about_eula_dialog(self):
         """Apre la finestra di dialogo con le informazioni su versione e licenza (EULA)."""
@@ -1765,17 +1760,8 @@ def run_gui_app():
         QCoreApplication.setApplicationName("Foliarium")
 
         # Splash screen (saltata in ambiente CI/test)
-        _splash = None
-        if not IS_TEST_ENV:
-            _splash = FoliariumSplashScreen()
-            _splash.show()
-            # Mostra la splash per 2.5 secondi poi la chiude automaticamente
-            import time
-            app.processEvents()
-            time.sleep(2.5)
-            app.processEvents()
-            _splash.close()
-            _splash = None
+        from foliarium.ui.startup import show_splash_screen
+        show_splash_screen(app)
 
         # --- CHIAMATA ALLA NUOVA FUNZIONE QUI ---
         # Questo imposta il logging per l'intera applicazione prima che qualsiasi
@@ -1790,65 +1776,16 @@ def run_gui_app():
         client_ip_address_gui = get_local_ip_address()
         gui_logger.info(f"Indirizzo IP locale identificato: {client_ip_address_gui}")
 
-        settings = QSettings()
-        if settings.value(SETTINGS_UI_WIN11_STYLE, False, type=bool) and \
-                "windows11" in QStyleFactory.keys():
-            app.setStyle("windows11")
-        elif settings.value(SETTINGS_UI_AUTO_THEME, False, type=bool):
-            scheme = QGuiApplication.styleHints().colorScheme()
-            current_style_file = AUTO_THEME_DARK if scheme == Qt.ColorScheme.Dark else AUTO_THEME_LIGHT
-            stylesheet = load_stylesheet(current_style_file)
-            if stylesheet:
-                app.setStyleSheet(stylesheet)
-        else:
-            current_style_file = settings.value(SETTINGS_UI_CURRENT_STYLE, AUTO_THEME_LIGHT, type=str)
-            stylesheet = load_stylesheet(current_style_file)
-            if stylesheet:
-                app.setStyleSheet(stylesheet)
-        # --- CONTROLLO EULA / WELCOME SCREEN ---
-        settings = QSettings()
-        accepted_version = settings.value(SETTINGS_EULA_ACCEPTED, "", type=str)
-        if accepted_version != EULA_VERSION:
-            welcome = WelcomeScreen(parent=None)
-            if welcome.exec() != QDialog.DialogCode.Accepted:
-                gui_logger.info("EULA non accettata. Uscita.")
-                sys.exit(0)
-            settings.setValue(SETTINGS_EULA_ACCEPTED, EULA_VERSION)
-            settings.sync()
-        # --- FINE CONTROLLO EULA ---
+        from foliarium.ui import theme as _theme
+        _theme.apply_initial_theme_from_settings(app, logger=gui_logger)
 
-        # --- VERIFICA LICENZA ---
-        from foliarium.core.services.license import LicenseManager
-        _license_mgr = LicenseManager()
-        _license_info = _license_mgr.validate()
-        if not _license_info.is_valid:
-            QMessageBox.critical(
-                None,
-                "Licenza non valida",
-                f"<b>Foliarium non può essere avviato.</b><br><br>"
-                f"{_license_info.error_message}<br><br>"
-                "Contatta il tuo amministratore per ottenere una licenza valida."
-            )
-            gui_logger.error(f"Licenza non valida: {_license_info.error_message}")
-            sys.exit(1)
-
-        # Controllo seat di rete (skip per demo — max_seats=1 e no share)
-        _allowed, _seats, _max = _license_mgr.acquire_seat()
-        if not _allowed:
-            QMessageBox.critical(
-                None,
-                "Numero di licenze esaurito",
-                f"<b>Impossibile avviare Foliarium.</b><br><br>"
-                f"Sono già attive <b>{_seats - 1}</b> istanze su {_max} consentite dalla licenza.<br>"
-                "Chiudi un'altra sessione e riprova."
-            )
-            gui_logger.error(f"Seat di rete esauriti ({_seats}/{_max})")
-            sys.exit(1)
-        gui_logger.info(
-            f"Licenza OK — intestata a: {_license_info.licensed_to} "
-            f"| tipo: {_license_info.license_type} | seat: {_seats}/{_max}"
+        from foliarium.ui.startup import (
+            ensure_eula_accepted,
+            validate_license_and_acquire_seat,
         )
-        # --- FINE VERIFICA LICENZA ---
+        ensure_eula_accepted(gui_logger)
+        _license_mgr = validate_license_and_acquire_seat(gui_logger)
+        settings = QSettings()
 
         gui_logger.info("Avvio dell'applicazione GUI Catasto Storico...")
         db_manager_gui: Optional[CatastoDBManager] = None
@@ -2005,114 +1942,21 @@ def run_gui_app():
         # MODALITÀ NORMALE
         # ================================================================
 
-        # --- NUOVO FLUSSO DI AVVIO ---
+        # --- FLUSSO DI AVVIO (estratto in foliarium/ui/login_flow.py) ---
+        from foliarium.ui.login_flow import ensure_db_connection, perform_user_login
 
-        # 1. TENTATIVO DI CONNESSIONE AUTOMATICA
-        gui_logger.info("Tentativo di connessione automatica con le impostazioni salvate...")
+        db_manager_gui = ensure_db_connection(
+            main_window_instance, settings, gui_logger, license_mgr=_license_mgr,
+        )
 
-        # --- CORREZIONE: Gestisci la password in modo più robusto ---
-        saved_password = settings.value(SETTINGS_DB_PASSWORD, "", type=str)
+        user_id, user_info, session_id = perform_user_login(
+            db_manager_gui, client_ip_address_gui,
+            parent=main_window_instance, logger=gui_logger,
+            license_mgr=_license_mgr,
+        )
 
-        # Se non c'è password salvata, prova a prenderla dal keyring
-        if not saved_password:
-            db_host = settings.value(SETTINGS_DB_HOST, "localhost", type=str)
-            db_user = settings.value(SETTINGS_DB_USER, "postgres", type=str)
-            saved_password = get_password_from_keyring(db_host, db_user)
-
-        saved_config = {
-            "host": settings.value(SETTINGS_DB_HOST, "localhost", type=str),
-            "port": settings.value(SETTINGS_DB_PORT, 5432, type=int),
-            "dbname": settings.value(SETTINGS_DB_NAME, "catasto_storico", type=str),
-            "user": settings.value(SETTINGS_DB_USER, "postgres", type=str),
-            "password": saved_password or ""  # Assicurati che ci sia sempre una password (anche vuota)
-        }
-
-        # Prova a connettere solo se sono presenti i dati essenziali E la password
-        if saved_config["dbname"] and saved_config["user"] and saved_config["password"]:
-            try:
-                db_manager_gui = CatastoDBManager(**saved_config)
-                if db_manager_gui.initialize_main_pool():
-                    main_window_instance.db_manager = db_manager_gui
-                    main_window_instance.pool_initialized_successful = True
-                    gui_logger.info("Connessione automatica riuscita.")
-                else:
-                    db_manager_gui = None # Resetta se fallisce
-            except Exception as e:
-                gui_logger.warning(f"Errore durante la creazione di CatastoDBManager: {e}")
-                db_manager_gui = None
-        else:
-            gui_logger.info("Dati di connessione incompleti (manca password o altri parametri essenziali). Skip connessione automatica.")
-            db_manager_gui = None
-
-        # 2. FALLBACK A CONFIGURAZIONE MANUALE se la connessione automatica è fallita
-        if not db_manager_gui or not db_manager_gui.pool:
-            gui_logger.warning("Connessione automatica fallita. Apertura dialogo di configurazione manuale.")
-            QMessageBox.information(None, "Configurazione Database", "Impossibile connettersi con le impostazioni salvate. Apriamo la configurazione.")
-
-            while True: # Loop per riprovare la configurazione manuale
-                config_dialog = DBConfigDialog(parent=None)
-                db_host = settings.value("Database/Host", "localhost", type=str)
-                db_user = settings.value("Database/User", "postgres", type=str)
-
-                if config_dialog.exec() != QDialog.DialogCode.Accepted:
-                    gui_logger.info("Configurazione manuale annullata. Uscita.")
-                    _license_mgr.release_seat()
-                    sys.exit(0)
-
-                current_config = config_dialog.get_config_values(include_password=True)
-
-                # --- CORREZIONE: Filtra solo i parametri supportati da CatastoDBManager ---
-                db_manager_params = {
-                    'host': current_config.get('host'),
-                    'port': current_config.get('port'),
-                    'dbname': current_config.get('dbname'),
-                    'user': current_config.get('user'),
-                    'password': current_config.get('password', '')  # Assicurati che ci sia sempre una password
-                }
-
-                # Rimuovi eventuali chiavi con valore None (ma mantieni password vuota se necessario)
-                db_manager_params = {k: v for k, v in db_manager_params.items() if v is not None}
-
-                # Assicurati che password sia sempre presente
-                if 'password' not in db_manager_params:
-                    db_manager_params['password'] = ''
-
-                try:
-                    db_manager_gui = CatastoDBManager(**db_manager_params)
-                except Exception as e:
-                    gui_logger.error(f"Errore creazione CatastoDBManager: {e}")
-                    QMessageBox.critical(None, "Errore Configurazione", f"Errore nella configurazione del database: {e}")
-                    continue  # Riprova il loop di configurazione
-        
-                if db_manager_gui.initialize_main_pool():
-                    main_window_instance.db_manager = db_manager_gui
-                    main_window_instance.pool_initialized_successful = True
-                    gui_logger.info("Connessione manuale riuscita.")
-                    break # Esce dal loop di configurazione
-                else:
-                    # Mostra l'errore specifico e il loop continuerà, riaprendo il dialogo
-                    error_details = db_manager_gui.get_last_connect_error_details() or {}
-                    pgcode = error_details.get('pgcode')
-                    pgerror_msg = error_details.get('pgerror')
-
-                    if pgcode == '28P01':
-                        QMessageBox.critical(None, "Errore Autenticazione", "Password o utente errati.")
-                    else:
-                        QMessageBox.critical(None, "Errore Connessione", f"Impossibile connettersi.\n{pgerror_msg}")
-
-        # 3. SE LA CONNESSIONE (auto o manuale) è OK, PROCEDI CON IL LOGIN UTENTE
-        login_dialog = LoginDialog(db_manager_gui, client_ip_address_gui, parent=main_window_instance)
-        if login_dialog.exec() != QDialog.DialogCode.Accepted:
-            gui_logger.info("Login utente annullato. Uscita.")
-            _license_mgr.release_seat()
-            sys.exit(0)
-
-        # 4. LOGIN UTENTE OK, AVVIA L'APP
         main_window_instance.perform_initial_setup(
-            db_manager_gui,
-            login_dialog.logged_in_user_id,
-            login_dialog.logged_in_user_info,
-            login_dialog.current_session_id_from_dialog
+            db_manager_gui, user_id, user_info, session_id,
         )
 
         QTimer.singleShot(1500, lambda: update_checker.check_for_updates(main_window_instance))
