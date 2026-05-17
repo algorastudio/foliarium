@@ -656,7 +656,4 @@ class RicercaPartiteWidget(QWidget):
         self._archivia_partita(self._selected_partita_id, numero_text)
 
 
-_IMMOBILI_COLS = ["ID Imm.", "Part. N.", "Comune", "Località", "Natura",
-                  "Class.", "Consist.", "Piani", "Vani", "Possessori"]
-
 

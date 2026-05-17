@@ -45,6 +45,9 @@ if TYPE_CHECKING:
 
 logger = logging.getLogger("CatastoGUI.search.immobili")
 
+_IMMOBILI_COLS = ["ID Imm.", "Part. N.", "Comune", "Località", "Natura",
+                  "Class.", "Consist.", "Piani", "Vani", "Possessori"]
+
 
 class ImmobiliSearchModel(QAbstractTableModel):
     """Modello per la tabella di RicercaAvanzataImmobiliWidget.
