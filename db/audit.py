@@ -17,6 +17,25 @@ if TYPE_CHECKING:
     from catasto_db_manager import CatastoDBManager
 
 
+# Messaggio mostrato (una sola volta per processo) quando la vista
+# v_audit_dettagliato manca: indica come applicare la migrazione 19.
+_MISSING_AUDIT_VIEW_MSG = (
+    "La vista 'catasto.v_audit_dettagliato' non esiste nel database. "
+    "Applica la migrazione sql_scripts/migrations/19_create_v_audit_dettagliato.sql "
+    "(es. `psql -U postgres -d catasto_storico "
+    "-f sql_scripts/migrations/19_create_v_audit_dettagliato.sql`). "
+    "Fino ad allora il visualizzatore audit log restituira' risultati vuoti."
+)
+_audit_view_warning_logged = False
+
+
+def _warn_missing_audit_view_once(logger: logging.Logger) -> None:
+    global _audit_view_warning_logged
+    if not _audit_view_warning_logged:
+        logger.warning(_MISSING_AUDIT_VIEW_MSG)
+        _audit_view_warning_logged = True
+
+
 class DBAuditMixin:
     """Mixin per audit, sessioni, log e consultazioni."""
 
@@ -78,6 +97,9 @@ class DBAuditMixin:
                 with conn.cursor(cursor_factory=DictCursor) as cur:
                     cur.execute(query, tuple(params))
                     return [dict(row) for row in cur.fetchall()]
+        except psycopg2.errors.UndefinedTable:
+            _warn_missing_audit_view_once(self.logger)
+            return []
         except psycopg2.Error as db_err: self.logger.error(f"Errore DB get_audit_log: {db_err}"); return []
         except Exception as e: self.logger.error(f"Errore Python get_audit_log: {e}"); return []
         return []
@@ -171,6 +193,9 @@ class DBAuditMixin:
                     else:
                         logs = []
 
+        except psycopg2.errors.UndefinedTable:
+            _warn_missing_audit_view_once(self.logger)
+            return [], 0
         except Exception as e:
             self.logger.error(f"Errore durante il recupero dei log di audit: {e}", exc_info=True)
             return [], 0
