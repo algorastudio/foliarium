@@ -32,12 +32,11 @@ class TestCatastoDBManagerConnection:
         # Inizializza pool
         manager.initialize_main_pool()
         assert manager.pool is not None
-        
-        # Verifica che il pool sia utilizzabile
-        conn = manager._get_connection()
-        assert conn is not None
-        manager._release_connection(conn)
-        
+
+        # Verifica che il pool sia utilizzabile (context manager)
+        with manager._get_connection() as conn:
+            assert conn is not None
+
         # Cleanup
         manager.close_pool()
         assert manager.pool is None
@@ -64,12 +63,11 @@ class TestCatastoDBManagerConnection:
         
         def worker():
             try:
-                conn = db_manager._get_connection()
-                time.sleep(0.1)  # Simula operazione
-                with conn.cursor() as cur:
-                    cur.execute("SELECT 1")
-                    results.append(cur.fetchone()[0])
-                db_manager._release_connection(conn)
+                with db_manager._get_connection() as conn:
+                    time.sleep(0.1)  # Simula operazione
+                    with conn.cursor() as cur:
+                        cur.execute("SELECT 1")
+                        results.append(cur.fetchone()[0])
             except Exception as e:
                 errors.append(e)
         
@@ -137,22 +135,19 @@ class TestComuneOperations:
         
         # Mock della funzione di update (se esiste)
         # Altrimenti, testa attraverso query diretta
-        conn = sample_data.db._get_connection()
-        try:
+        with sample_data.db._get_connection() as conn:
             with conn.cursor() as cur:
                 cur.execute("""
-                    UPDATE comune 
+                    UPDATE comune
                     SET provincia = %s, data_modifica = CURRENT_TIMESTAMP
                     WHERE id = %s
                 """, ("SV", comune_id))
                 conn.commit()
-                
+
                 # Verifica aggiornamento
                 cur.execute("SELECT provincia FROM comune WHERE id = %s", (comune_id,))
                 result = cur.fetchone()
                 assert result[0] == "SV"
-        finally:
-            sample_data.db._release_connection(conn)
 
 
 class TestPossessoreOperations:
@@ -241,13 +236,10 @@ class TestPossessoreOperations:
         
         # Tentativo di eliminazione deve fallire
         with pytest.raises(psycopg2.IntegrityError):
-            conn = db._get_connection()
-            try:
+            with db._get_connection() as conn:
                 with conn.cursor() as cur:
                     cur.execute("DELETE FROM possessore WHERE id = %s", (possessore_id,))
                     conn.commit()
-            finally:
-                db._release_connection(conn)
 
 
 class TestPartitaOperations:
@@ -318,16 +310,13 @@ class TestPartitaOperations:
         )
         
         # Recupera ID del legame
-        conn = db._get_connection()
-        try:
+        with db._get_connection() as conn:
             with conn.cursor() as cur:
                 cur.execute("""
-                    SELECT id FROM partita_possessore 
+                    SELECT id FROM partita_possessore
                     WHERE partita_id = %s AND possessore_id = %s
                 """, (sample_data['partita_id'], sample_data['possessore1_id']))
                 link_id = cur.fetchone()[0]
-        finally:
-            db._release_connection(conn)
         
         # Aggiorna il legame
         success = db.aggiorna_legame_partita_possessore(

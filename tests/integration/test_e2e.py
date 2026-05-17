@@ -78,13 +78,10 @@ class TestDatabaseGUIIntegration:
                     break
         assert found
 
-        conn = db_manager._get_connection()
-        try:
+        with db_manager._get_connection() as conn:
             with conn.cursor() as cur:
                 cur.execute("DELETE FROM comune WHERE nome = %s", ("Test Integration",))
                 conn.commit()
-        finally:
-            db_manager._release_connection(conn)
 
     def test_possessore_partita_association(self, qapp, sample_data):
         """Test associazione possessore-partita attraverso GUI"""
@@ -237,8 +234,7 @@ class TestSearchIntegration:
         db = sample_data.db
         comune_id = sample_data['comune_id']
 
-        conn = db._get_connection()
-        try:
+        with db._get_connection() as conn:
             with conn.cursor() as cur:
                 cur.execute("""
                     INSERT INTO localita (comune_id, nome, tipologia_stradale)
@@ -253,8 +249,6 @@ class TestSearchIntegration:
                 localita2_id = cur.fetchone()[0]
 
                 conn.commit()
-        finally:
-            db._release_connection(conn)
 
         partita1_id = db.create_partita(
             comune_id=comune_id,
@@ -350,8 +344,7 @@ class TestConcurrentOperations:
             comune_riferimento_id=comune_id
         )
 
-        conn2 = db_manager._get_connection()
-        try:
+        with db_manager._get_connection() as conn2:
             with conn2.cursor() as cur:
                 cur.execute("""
                     SELECT COUNT(*) FROM possessore
@@ -359,13 +352,10 @@ class TestConcurrentOperations:
                 """, ("ISOLATION TEST 1",))
                 count = cur.fetchone()[0]
                 assert count == 0
-        finally:
-            db_manager._release_connection(conn2)
 
         db_manager.commit()
 
-        conn3 = db_manager._get_connection()
-        try:
+        with db_manager._get_connection() as conn3:
             with conn3.cursor() as cur:
                 cur.execute("""
                     SELECT COUNT(*) FROM possessore
@@ -373,8 +363,6 @@ class TestConcurrentOperations:
                 """, ("ISOLATION TEST 1",))
                 count = cur.fetchone()[0]
                 assert count == 1
-        finally:
-            db_manager._release_connection(conn3)
 
 
 class TestBackupRestoreIntegration:
@@ -384,13 +372,10 @@ class TestBackupRestoreIntegration:
         """Test ciclo completo backup e restore"""
         db = sample_data.db
 
-        conn = db._get_connection()
-        try:
+        with db._get_connection() as conn:
             with conn.cursor() as cur:
                 cur.execute("SELECT COUNT(*) FROM possessore")
                 original_count = cur.fetchone()[0]
-        finally:
-            db._release_connection(conn)
 
         assert original_count > 0
 
@@ -461,8 +446,7 @@ class TestEndToEndScenarios:
             quota='1/1'
         )
 
-        conn = db._get_connection()
-        try:
+        with db._get_connection() as conn:
             with conn.cursor() as cur:
                 cur.execute("""
                     INSERT INTO variazione
@@ -489,8 +473,6 @@ class TestEndToEndScenarios:
                 ))
 
                 conn.commit()
-        finally:
-            db._release_connection(conn)
 
         partita_nuova_id = db.create_partita(
             comune_id=sample_data['comune_id'],

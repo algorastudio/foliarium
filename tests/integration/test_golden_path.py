@@ -47,8 +47,7 @@ def _insert_variazione_and_contratto(db, partita_origine_id: int,
     Tenuto come helper locale per evitare di dipendere da procedure SQL
     di alto livello che potrebbero cambiare firma (registra_passaggio_…).
     """
-    conn = db._get_connection()
-    try:
+    with db._get_connection() as conn:
         with conn.cursor() as cur:
             cur.execute(
                 f"""
@@ -77,8 +76,6 @@ def _insert_variazione_and_contratto(db, partita_origine_id: int,
                 ),
             )
             conn.commit()
-    finally:
-        db._release_connection(conn)
     return variazione_id
 
 
