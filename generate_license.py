@@ -78,7 +78,7 @@ def cmd_inspect(args: argparse.Namespace) -> None:
         status = "SCADUTA" if days < 0 else f"tra {days} giorni"
         print(f"  Scadenza       : {info.expiry_date.strftime('%d/%m/%Y')} ({status})")
     else:
-        print(f"  Scadenza       : Perpetua")
+        print("  Scadenza       : Perpetua")
     print(f"  Hardware ID    : {info.hardware_id or 'Qualsiasi (floating)'}")
     print(f"  Emessa il      : {info.issued_at.strftime('%d/%m/%Y')}")
     print(f"  ID computer    : {current_fp}")
@@ -98,13 +98,13 @@ def cmd_fingerprint(_args: argparse.Namespace) -> None:
     host = socket.gethostname()
 
     print(f"\n{'='*55}")
-    print(f" Fingerprint hardware di questo computer")
+    print(" Fingerprint hardware di questo computer")
     print(f"{'='*55}")
     print(f"  Hostname       : {host}")
     print(f"  MAC address    : {':'.join(f'{(mac >> i) & 0xff:02x}' for i in range(40, -1, -8))}")
     print(f"  Fingerprint    : {fp}")
-    print(f"\nUsare questo fingerprint con --hardware durante la generazione")
-    print(f"di una licenza vincolata a questo specifico computer.\n")
+    print("\nUsare questo fingerprint con --hardware durante la generazione")
+    print("di una licenza vincolata a questo specifico computer.\n")
 
 
 def _print_license_info(data: dict) -> None:

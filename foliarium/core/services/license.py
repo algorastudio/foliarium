@@ -30,7 +30,7 @@ import os
 import socket
 import time
 import uuid
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from datetime import date
 from pathlib import Path
 from typing import Optional

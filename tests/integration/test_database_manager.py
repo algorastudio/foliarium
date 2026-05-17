@@ -25,12 +25,12 @@ class TestCatastoDBManagerConnection:
     def test_initialize_pool(self, test_db_setup):
         """Test inizializzazione pool connessioni"""
         manager = CatastoDBManager(**test_db_setup)
-        
+
         # Pool non deve essere inizializzato alla creazione
         assert manager.pool is None
-        
+
         # Inizializza pool
-        manager.initialize_pool()
+        manager.initialize_main_pool()
         assert manager.pool is not None
         
         # Verifica che il pool sia utilizzabile
@@ -43,15 +43,16 @@ class TestCatastoDBManagerConnection:
         assert manager.pool is None
     
     def test_connection_error_handling(self, test_db_setup):
-        """Test gestione errori di connessione"""
-        # Configurazione con parametri errati
+        """Test gestione errori di connessione: initialize_main_pool ritorna
+        False senza sollevare (gli errori sono catturati internamente e
+        riportati via get_last_connect_error_details)."""
         bad_config = test_db_setup.copy()
         bad_config['password'] = 'wrong_password'
-        
+
         manager = CatastoDBManager(**bad_config)
-        
-        with pytest.raises(psycopg2.OperationalError):
-            manager.initialize_pool()
+
+        assert manager.initialize_main_pool() is False
+        assert manager.pool is None
     
     def test_pool_thread_safety(self, db_manager):
         """Test thread safety del pool"""

@@ -420,16 +420,17 @@ class TestAppPaths:
         assert isinstance(LOG_DIR, Path)
 
     def test_get_logo_svg_path_dark(self):
-        """get_logo_svg_path(dark=True) deve restituire un Path con estensione .svg."""
+        """get_logo_svg_path(dark=True) ritorna un Path SVG; se la variante
+        dark non e' presente cade su get_logo_path() (PNG)."""
         path = get_logo_svg_path(dark=True)
         assert isinstance(path, Path)
-        assert str(path).lower().endswith(".svg")
+        assert str(path).lower().endswith((".svg", ".png"))
 
     def test_get_logo_svg_path_light(self):
-        """get_logo_svg_path(dark=False) deve restituire un Path con estensione .svg."""
+        """get_logo_svg_path(dark=False) ritorna un Path SVG; PNG come fallback."""
         path = get_logo_svg_path(dark=False)
         assert isinstance(path, Path)
-        assert str(path).lower().endswith(".svg")
+        assert str(path).lower().endswith((".svg", ".png"))
 
     def test_get_doc_path(self):
         """get_doc_path deve restituire un Path valido."""

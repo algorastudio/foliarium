@@ -437,7 +437,7 @@ class OperazioniPartitaWidget(QWidget):
             suffisso_display = f" (suffisso: {suffisso})" if suffisso else ""
 
             if self.selected_partita_id_source is not None and partita_id_dest == self.selected_partita_id_source:
-                self.dest_partita_info_label.setText(f"<font color='red'>Errore: La destinazione non può essere uguale alla sorgente.</font>")
+                self.dest_partita_info_label.setText("<font color='red'>Errore: La destinazione non può essere uguale alla sorgente.</font>")
                 self.partita_destinazione_valida = False
             elif stato != 'attiva':
                 self.dest_partita_info_label.setText(f"<font color='red'>Errore: La partita N.{numero}{suffisso_display} non è attiva.</font>")

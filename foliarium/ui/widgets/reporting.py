@@ -572,7 +572,7 @@ class EsportazioniWidget(LazyLoadedWidget):
                 for row_dict in data:
                     writer.writerow([row_dict.get(key) for key in ordered_keys])
             
-            self.log_status(f"Esportazione CSV completata con successo.", link=filename)
+            self.log_status("Esportazione CSV completata con successo.", link=filename)
             QMessageBox.information(self, "Successo", f"{len(data)} record esportati con successo.")
             # --- Audit log export ---
             try:
@@ -1105,7 +1105,7 @@ class ReportisticaWidget(LazyLoadedWidget):
                 reply = QMessageBox.question(
                     self, 
                     "File Salvato", 
-                    f"Report salvato con successo!\n\nVuoi aprire il file ora?",
+                    "Report salvato con successo!\n\nVuoi aprire il file ora?",
                     QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
                     QMessageBox.StandardButton.No
                 )
@@ -1220,7 +1220,7 @@ class ReportisticaWidget(LazyLoadedWidget):
                 reply = QMessageBox.question(
                     self, 
                     "PDF Creato", 
-                    f"PDF creato con successo!\n\nVuoi aprire il file ora?",
+                    "PDF creato con successo!\n\nVuoi aprire il file ora?",
                     QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
                     QMessageBox.StandardButton.No
                 )

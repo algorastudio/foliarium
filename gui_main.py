@@ -1547,7 +1547,7 @@ class CatastoMainWindow(QMainWindow):
         msg.setIcon(QMessageBox.Icon.Warning)
         msg.setText(
             "<b>Alcune migrazioni dello schema del database non sono state applicate.</b><br><br>"
-            + "<br>".join(l.replace("\n", "<br>") for l in lines)
+            + "<br>".join(line.replace("\n", "<br>") for line in lines)
         )
         msg.setInformativeText(
             "Per applicare le migrazioni, eseguire gli script SQL indicati con:\n"
@@ -1976,7 +1976,7 @@ if __name__ == "__main__":
             QMessageBox.critical(None, "Errore Critico", 
                                f"Si è verificato un errore critico:\n\n{str(e)}\n\n"
                                "Controlla il file catasto_gui.log per maggiori dettagli.")
-        except:
+        except Exception:
             logging.critical(f"ERRORE CRITICO: {e}")
             logging.critical("Controlla il file catasto_gui.log per maggiori dettagli.")
         

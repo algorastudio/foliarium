@@ -560,10 +560,10 @@ class UnifiedFuzzySearchWidget(QWidget):
         ])
 
         self._localita_model.load([
-            (l, [l.get('nome', ''), l.get('tipologia_stradale', '') or l.get('tipo', '') or '',
-                 l.get('comune_nome', ''), l.get('num_immobili', 0),
-                 f"{l.get('similarity_score', 0):.3f}"])
-            for l in results_by_type.get('localita', [])
+            (loc, [loc.get('nome', ''), loc.get('tipologia_stradale', '') or loc.get('tipo', '') or '',
+                   loc.get('comune_nome', ''), loc.get('num_immobili', 0),
+                   f"{loc.get('similarity_score', 0):.3f}"])
+            for loc in results_by_type.get('localita', [])
         ])
 
         self._immobili_model.load([

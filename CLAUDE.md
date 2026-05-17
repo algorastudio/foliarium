@@ -240,6 +240,8 @@ Always use the full three-part path `Module.EnumClass.Value`.
 - Passwords are **not** stored in QSettings — keyring is used for secure storage.
 - Init SQL scripts are in `sql_scripts/`; run in order for a fresh DB.
 - Upgrade scripts for existing DBs are in `sql_scripts/migrations/`.
+- **Auto-apply migrazioni idempotenti:** `db/base.py::_apply_pending_schema_migrations()` viene invocata a ogni init pool e applica silenziosamente migrazioni sicure (es. schema v1.6.1, indici UNIQUE sulle MV, vista `v_audit_dettagliato` — equivalente di `migrations/19_create_v_audit_dettagliato.sql`). Best-effort, non bloccante.
+- **Avvisi schema:** `db/base.py::check_missing_migrations()` rileva colonne / tabelle critiche mancanti (`soft_delete`, `tipo_possesso`) e `gui_main._check_db_schema_migrations` mostra un avviso non bloccante.
 
 ---
 
@@ -262,6 +264,15 @@ Pipeline: `.github/workflows/pipeline_foliarium.yml`
 1. **Test job** (Ubuntu): spins up PostgreSQL 14, installs Qt6 system libs, runs pytest with `QT_QPA_PLATFORM=offscreen`, captures GUI screenshots as artifacts.
 2. **Build job** (Windows, only if tests pass): runs PyInstaller, creates portable ZIP and Inno Setup installer, uploads as artifacts.
 
+### Trigger
+
+| Evento | Job eseguiti |
+|---|---|
+| `push` a `main`/`master`/branch-allowlist | test + tutti i build |
+| `push` di un tag `*.*.*` | test + build + create-release |
+| `pull_request` verso `main`/`master` | solo test (build skippati via `if: github.event_name != 'pull_request'`) |
+| `workflow_dispatch` | tutti i job |
+
 ---
 
 ## Test suite
@@ -273,8 +284,11 @@ tests/
 ├── unit/                          # Unit tests (pytest -m unit)
 │   ├── test_validators_exceptions.py   # 474 LOC, validators centralizzati
 │   ├── test_db_*.py                    # mixin DB (comuni, partite, possessori, ricerca)
+│   ├── test_db_base_audit_view.py      # _ensure_audit_view (auto-apply vista)
 │   ├── test_license_manager.py         # LicenseManager + HMAC
 │   ├── test_theme.py                   # foliarium/ui/theme.py (post-Sprint 3.5)
+│   ├── test_login_flow.py              # foliarium/ui/login_flow.py (post-Sprint 3.6)
+│   ├── test_startup.py                 # foliarium/ui/startup.py (post-Sprint 3.7)
 │   ├── test_demo_launcher.py, test_update_checker.py, test_email_service.py
 │   └── test_widget_modules.py          # smoke test re-export facade
 └── integration/                   # Integration tests (pytest -m integration)

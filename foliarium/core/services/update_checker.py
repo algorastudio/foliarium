@@ -238,7 +238,7 @@ def _show_update_available_dialog(parent_widget, current_version: str,
                                    new_version: str, release_data: dict) -> None:
     """Mostra il dialogo 'Aggiornamento disponibile' con opzione di download automatico."""
     try:
-        from PyQt6.QtWidgets import QMessageBox, QPushButton
+        from PyQt6.QtWidgets import QMessageBox
         from PyQt6.QtCore import QUrl
         from PyQt6.QtGui import QDesktopServices
 
@@ -257,7 +257,7 @@ def _show_update_available_dialog(parent_widget, current_version: str,
         )
         if release_notes:
             # Mostra solo le prime 3 righe delle note di rilascio
-            lines = [l for l in release_notes.splitlines() if l.strip()][:3]
+            lines = [line for line in release_notes.splitlines() if line.strip()][:3]
             body += "<br><br><i>" + "<br>".join(lines) + "</i>"
         msg.setText(body)
 
@@ -343,7 +343,7 @@ def _start_auto_download(parent_widget, installer_asset: dict,
 
         def on_finished(path: str):
             btn_cancel.setText("Chiudi")
-            lbl_status.setText(f"Download completato.\nAvvio dell'installazione…")
+            lbl_status.setText("Download completato.\nAvvio dell'installazione…")
             lbl_info.setText(path)
             try:
                 _launch_installer(path)

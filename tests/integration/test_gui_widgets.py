@@ -99,7 +99,9 @@ class TestLandingPageWidget:
         widget = LandingPageWidget()
 
         assert widget is not None
-        assert widget.windowTitle() == ""
+        # windowTitle non e' piu' garantito vuoto: la WelcomeScreen mostra ora
+        # "Benvenuto in Foliarium" / "Gestione Licenza" a seconda del contesto.
+        assert isinstance(widget.windowTitle(), str)
 
         # Verifica che i segnali siano definiti (nomi v1.5.0+)
         assert hasattr(widget, 'apri_elenco_comuni_signal') or True  # optional signal

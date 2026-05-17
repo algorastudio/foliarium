@@ -259,7 +259,7 @@ class DBArchiviaMixin:
         except IntegrityError as e:
             if "partita_comune_id_fkey" in str(e):
                 raise DBMError(
-                    f"Impossibile eliminare il comune: esistono ancora partite "
+                    "Impossibile eliminare il comune: esistono ancora partite "
                     "che lo referenziano. Elimina prima le partite correlate."
                 )
             raise
@@ -285,7 +285,7 @@ class DBArchiviaMixin:
         except IntegrityError as e:
             if "legame_possesso" in str(e) or "legame" in str(e).lower():
                 raise DBMError(
-                    f"Impossibile eliminare il possessore: è ancora collegato a partite "
+                    "Impossibile eliminare il possessore: è ancora collegato a partite "
                     "(attraverso legami di possesso). Elimina prima i legami."
                 )
             raise
@@ -310,7 +310,7 @@ class DBArchiviaMixin:
         except IntegrityError as e:
             if "immobile" in str(e).lower():
                 raise DBMError(
-                    f"Impossibile eliminare la località: è ancora collegata a immobili. "
+                    "Impossibile eliminare la località: è ancora collegata a immobili. "
                     "Elimina prima gli immobili correlati."
                 )
             raise
@@ -335,17 +335,17 @@ class DBArchiviaMixin:
         except IntegrityError as e:
             if "immobile" in str(e).lower():
                 raise DBMError(
-                    f"Impossibile eliminare la partita: contiene ancora immobili. "
+                    "Impossibile eliminare la partita: contiene ancora immobili. "
                     "Elimina prima gli immobili correlati."
                 )
             elif "variazione" in str(e).lower():
                 raise DBMError(
-                    f"Impossibile eliminare la partita: è referenziata da variazioni. "
+                    "Impossibile eliminare la partita: è referenziata da variazioni. "
                     "Elimina prima le variazioni correlate."
                 )
             elif "legame" in str(e).lower():
                 raise DBMError(
-                    f"Impossibile eliminare la partita: ha ancora legami di possesso. "
+                    "Impossibile eliminare la partita: ha ancora legami di possesso. "
                     "Elimina prima i legami."
                 )
             raise

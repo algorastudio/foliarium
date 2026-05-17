@@ -451,7 +451,7 @@ def _setup_on_external_pg(
         log("Suggerimento: usare --postgres-password se postgres richiede autenticazione.")
         return False
 
-    print(f"\n[2/4] Esecuzione script SQL...")
+    print("\n[2/4] Esecuzione script SQL...")
     try:
         for script_name in SQL_SCRIPTS:
             sql_file = sql_dir / script_name
@@ -491,7 +491,7 @@ def _setup_on_external_pg(
         log(f"ERRORE nell'esecuzione degli script SQL: {e}")
         return False
 
-    print(f"\n[3/4] Scrittura config.ini...")
+    print("\n[3/4] Scrittura config.ini...")
     config = configparser.ConfigParser()
     config["database"] = {
         "host": "127.0.0.1",
@@ -512,14 +512,14 @@ def _setup_on_external_pg(
         config.write(f)
     log(f"config.ini scritto in: {config_file}")
 
-    print(f"\n[4/4] Verifica connessione finale...")
+    print("\n[4/4] Verifica connessione finale...")
     if not wait_ready(pg_bin, port, attempts=3):
         log("ATTENZIONE: verifica finale non superata.")
     else:
         log("Connessione OK.")
 
     print(f"\n{'='*60}")
-    print(f" Setup completato!")
+    print(" Setup completato!")
     print(f"{'='*60}")
     log(f"Porta:    {port}  |  Database: {db_name}")
     log(f"Utente DB app:   {db_user}")
@@ -585,12 +585,12 @@ def setup(
     log(f"Data directory:          {pg_data}")
 
     # --- 1. Trova porta libera ---
-    print(f"\n[1/8] Ricerca porta libera...")
+    print("\n[1/8] Ricerca porta libera...")
     port = find_free_port(DEFAULT_PORT)
     log(f"Porta selezionata: {port}")
 
     # --- 2. initdb ---
-    print(f"\n[2/8] Inizializzazione cluster PostgreSQL...")
+    print("\n[2/8] Inizializzazione cluster PostgreSQL...")
     if (pg_data / "PG_VERSION").exists():
         log("Cluster già esistente, skip initdb.")
     else:
@@ -609,7 +609,7 @@ def setup(
             return False
 
     # --- 3. Configurazione ---
-    print(f"\n[3/8] Configurazione PostgreSQL...")
+    print("\n[3/8] Configurazione PostgreSQL...")
 
     # pg_hba.conf
     hba = pg_data / "pg_hba.conf"
@@ -639,7 +639,7 @@ def setup(
     conf.write_text(conf_text + conf_overrides, encoding="utf-8")
 
     # --- 4. Avvio temporaneo per impostare password superuser ---
-    print(f"\n[4/8] Avvio temporaneo per configurazione iniziale...")
+    print("\n[4/8] Avvio temporaneo per configurazione iniziale...")
 
     # Prima: avvia con trust per impostare la password postgres
     # (pg_hba.conf è scram, ma initdb era trust → sovrascriviamo temporaneamente)
@@ -715,7 +715,7 @@ def setup(
                  dbname=DB_NAME, password=db_password)
 
         # --- 7. Script SQL ---
-        print(f"\n[6/8] Esecuzione script SQL (schema, funzioni, feature)...")
+        print("\n[6/8] Esecuzione script SQL (schema, funzioni, feature)...")
         for script_name in SQL_SCRIPTS:
             sql_file = sql_dir / script_name
             if sql_file.exists():
@@ -785,7 +785,7 @@ def setup(
         log("Skip registrazione servizio (--skip-service).")
 
     # --- 8. Scrittura config.ini ---
-    print(f"\n[8/8] Scrittura config.ini...")
+    print("\n[8/8] Scrittura config.ini...")
     config = configparser.ConfigParser()
     config["database"] = {
         "host": "127.0.0.1",
@@ -804,14 +804,14 @@ def setup(
     with open(config_file, "w", encoding="utf-8") as f:
         f.write("# Foliarium — Configurazione database locale\n")
         f.write(f"# Generato da setup_database.py ({SYSTEM})\n")
-        f.write(f"# NON modificare manualmente a meno che non si sappia cosa si fa.\n\n")
+        f.write("# NON modificare manualmente a meno che non si sappia cosa si fa.\n\n")
         config.write(f)
 
     log(f"config.ini scritto in: {config_file}")
 
     # --- Riepilogo ---
     print(f"\n{'='*60}")
-    print(f" Installazione completata!")
+    print(" Installazione completata!")
     print(f"{'='*60}")
     log(f"Piattaforma:  {SYSTEM}")
     log(f"Porta:        {port}")

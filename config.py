@@ -11,9 +11,9 @@ import sys
 from logging.handlers import RotatingFileHandler
 
 # Ora questo import è sicuro, perché app_paths è autonomo
-from app_paths import LOG_DIR, get_log_file_path, BASE_DIR, EXE_DIR
+from app_paths import BASE_DIR, EXE_DIR
 
-from PyQt6.QtCore import QStandardPaths, QCoreApplication
+from PyQt6.QtCore import QStandardPaths
 
 # --- CONFIGURAZIONI AMBIENTE E CI/CD (GITHUB ACTIONS) ---
 # GitHub Actions imposta automaticamente le variabili 'CI' e 'GITHUB_ACTIONS' a 'true'.

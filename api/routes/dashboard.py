@@ -1,6 +1,5 @@
 """api/routes/dashboard.py — Statistiche per la dashboard analytics."""
 import logging
-from datetime import date, datetime, timedelta
 
 from fastapi import APIRouter, Depends
 

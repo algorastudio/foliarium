@@ -1,5 +1,5 @@
 """api/routes/partite.py — Ricerca, dettaglio, creazione partite + immobili/variazioni inline."""
-from typing import Optional, List
+from typing import Optional
 from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel
 from datetime import date

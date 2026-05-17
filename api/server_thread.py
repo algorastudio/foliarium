@@ -2,10 +2,7 @@
 api/server_thread.py — QThread che avvia uvicorn in background.
 Usato da gui_main.py per integrare il server API nella app PyQt.
 """
-import sys
-import threading
 import logging
-from pathlib import Path
 
 from PyQt6.QtCore import QThread, pyqtSignal
 
