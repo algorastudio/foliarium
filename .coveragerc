@@ -1,10 +1,8 @@
 [run]
+# Coverage misurata solo sui moduli con test affidabili (non-GUI).
+# I file GUI sono esclusi: richiedono QApplication + DB live + interazione
+# utente, e i loro numeri di coverage sarebbero fuorvianti.
 source =
-    gui_main
-    gui_widgets
-    search_widgets
-    partita_workflow_widgets
-    dialogs
     catasto_db_manager
     app_utils
     app_paths
