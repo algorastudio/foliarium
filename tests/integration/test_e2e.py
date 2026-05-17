@@ -50,7 +50,8 @@ class TestComuneCRUD:
 
         dettagli = clean_db.get_comune_by_id(comune_id)
         assert dettagli is not None
-        assert dettagli["nome"] == "E2E Comune Test"
+        # get_comune_by_id aliasing: SELECT nome AS nome_comune
+        assert dettagli["nome_comune"] == "E2E Comune Test"
         assert dettagli["provincia"] == "GE"
 
     def test_update_comune(self, clean_db):
@@ -59,6 +60,7 @@ class TestComuneCRUD:
         assert ok is True
 
         dettagli = clean_db.get_comune_by_id(comune_id)
+        assert dettagli is not None
         assert dettagli["provincia"] == "IM"
 
     def test_archivia_comune(self, clean_db):
@@ -97,23 +99,24 @@ class TestPossessoreLifecycle:
         assert "E2E ROSSI MARIO fu Antonio" in nomi
 
     def test_update_con_dati_dict(self, sample_data):
-        """update_possessore(possessore_id, dati_modificati: dict) v1.5.0+."""
+        """update_possessore(possessore_id, dati_modificati: dict) v1.5.0+.
+
+        I campi accettati dalla whitelist sono: nome_completo, cognome_nome,
+        paternita, attivo, comune_riferimento_id. 'note' NON e' editabile via
+        update_possessore — e' un campo gestito altrove.
+        """
         db = sample_data["db"]
-        # sample_data crea gia' un possessore "TEST MARIO" nel comune di Genova
         pid = sample_data["possessore1_id"]
 
-        ok = db.update_possessore(pid, {"note": "aggiornato in test E2E"})
-        # Alcuni mixin restituiscono True/False, altri lo lasciano implicito
-        # Accettiamo entrambi (la verifica e' che la nota sia stata salvata)
-        assert ok is not False
+        # paternita e' nella whitelist → la modifica deve persistere
+        db.update_possessore(pid, {"paternita": "fu Antonio E2E"})
 
-        # Verifica via get_possessori_by_comune (filter_text)
         results = db.get_possessori_by_comune(
             sample_data["comune_id"], filter_text="TEST MARIO",
         )
         match = [p for p in results if p["id"] == pid]
         assert len(match) == 1
-        assert match[0].get("note") == "aggiornato in test E2E"
+        assert match[0].get("paternita") == "fu Antonio E2E"
 
 
 # ---------------------------------------------------------------------------
