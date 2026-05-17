@@ -270,6 +270,54 @@ class DBConnectionBase:
         # è verificata prima per evitare errori se la MV non è stata creata.
         self._ensure_mv_unique_indexes()
 
+        # Vista v_audit_dettagliato — assente nei DB inizializzati prima di
+        # sql_scripts/18_funzioni_trigger_audit.sql; senza, il visualizzatore
+        # audit log lancia UndefinedTable. CREATE OR REPLACE = idempotente.
+        self._ensure_audit_view()
+
+    def _ensure_audit_view(self):
+        """Crea la vista catasto.v_audit_dettagliato se mancante.
+
+        Equivale alla migrazione `migrations/19_create_v_audit_dettagliato.sql`
+        ma applicata automaticamente all'avvio. Best-effort: il fallimento
+        (es. tabella `utente` non esistente) viene loggato in debug e non
+        blocca l'avvio.
+        """
+        try:
+            with self._get_connection() as conn:
+                with conn.cursor() as cur:
+                    cur.execute(
+                        "SELECT 1 FROM information_schema.views "
+                        "WHERE table_schema = %s AND table_name = 'v_audit_dettagliato'",
+                        (self.schema,)
+                    )
+                    if cur.fetchone():
+                        return  # vista già presente
+                    cur.execute(
+                        "SELECT 1 FROM information_schema.tables "
+                        "WHERE table_schema = %s "
+                        "  AND table_name IN ('audit_log', 'utente')",
+                        (self.schema,)
+                    )
+                    # Devono esistere entrambe (audit_log + utente) per costruirla
+                    if cur.rowcount < 2:
+                        return
+                    cur.execute(
+                        f"CREATE OR REPLACE VIEW {self.schema}.v_audit_dettagliato AS "
+                        f"SELECT al.id, CAST(al.timestamp AS TIMESTAMP(0)) AS timestamp, "
+                        f"  al.app_user_id, u.username, u.nome_completo, al.session_id, "
+                        f"  al.tabella, al.operazione, al.record_id, al.ip_address, "
+                        f"  al.utente AS db_user, al.dati_prima, al.dati_dopo "
+                        f"FROM {self.schema}.audit_log al "
+                        f"LEFT JOIN {self.schema}.utente u ON al.app_user_id = u.id"
+                    )
+                    self.logger.info(
+                        "Vista %s.v_audit_dettagliato creata automaticamente all'avvio.",
+                        self.schema,
+                    )
+        except Exception as e:
+            self.logger.debug(f"_ensure_audit_view: {e}")
+
     def _ensure_mv_unique_indexes(self):
         """Crea gli indici UNIQUE mancanti sulle viste materializzate.
 
