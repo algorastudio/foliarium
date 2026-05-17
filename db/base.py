@@ -5,6 +5,7 @@ Classe base per CatastoDBManager (non usare direttamente).
 
 import psycopg2
 import psycopg2.errors
+import psycopg2.pool  # noqa: F401  — registra psycopg2.pool.X (usato via dotted access)
 from psycopg2.extras import DictCursor
 from psycopg2 import sql
 import logging

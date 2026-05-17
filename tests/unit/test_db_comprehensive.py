@@ -115,13 +115,15 @@ class TestLocalitaMixin:
         """insert_localita deve restituire l'ID della nuova località."""
         conn_cm, cur = make_mock_conn(fetchone_val={"id": 99})
         with patch.object(mgr, "_get_connection", return_value=conn_cm):
-            result = mgr.insert_localita(comune_id=1, nome="Via Nuova 15")
+            result = mgr.insert_localita(
+                comune_id=1, nome="Via Nuova 15", tipologia_stradale="Via",
+            )
         assert result == 99
 
     def test_insert_localita_nome_vuoto(self, mgr):
         """insert_localita con nome vuoto deve sollevare DBDataError."""
         with pytest.raises(DBDataError):
-            mgr.insert_localita(comune_id=1, nome="")
+            mgr.insert_localita(comune_id=1, nome="", tipologia_stradale="Via")
 
     def test_update_localita_valida(self, mgr):
         """update_localita deve aggiornare la località."""
@@ -342,7 +344,7 @@ class TestIOMixin:
     def test_import_localita_from_rows_incorpora_civico(self, mgr):
         """import_localita_from_rows deve incorporare civico nel nome."""
         rows = [
-            {"nome": "Via Roma", "civico": "10"},
+            {"nome": "Via Roma", "civico": "10", "tipologia_stradale": "Via"},
         ]
         with patch.object(mgr, "bulk_insert_with_savepoint", return_value={"success": [], "errors": []}):
             mgr.import_localita_from_rows(comune_id=1, rows=rows)
