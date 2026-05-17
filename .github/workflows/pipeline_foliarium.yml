@@ -95,6 +95,9 @@ jobs:
           -v admin_password="'testpassword'" \
           -v admin_email="'admin@test.local'" \
           -f sql_scripts/07a_bootstrap_admin.sql
+        # Migrazioni post-init: aggiornano funzioni/viste allo schema v1.6.1+
+        psql -h localhost -U postgres -d catasto_storico \
+          -f sql_scripts/migrations/20_fix_report_function_civico.sql
 
     - name: Esecuzione Test Automatici (Pytest + Coverage)
       env:
