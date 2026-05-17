@@ -7,60 +7,33 @@ preservare la backward compatibility con i consumer esistenti.
 """
 from __future__ import annotations
 
-import json
 import logging
-from datetime import date, datetime
-from typing import Any, Dict, List, Optional, Tuple, TYPE_CHECKING
+from typing import Any, Dict, List, Optional, TYPE_CHECKING
 
 from PyQt6.QtCore import (
-    QDate, Qt, QTimer, pyqtSignal, pyqtSlot,
+    QDate, Qt,
 )
-from PyQt6.QtGui import QColor, QFont, QIcon
 from PyQt6.QtWidgets import (
-    QAbstractItemView, QApplication, QCheckBox, QComboBox, QCompleter,
-    QDateEdit, QDialog, QDialogButtonBox, QFileDialog, QFormLayout, QFrame,
-    QGridLayout, QGroupBox, QHBoxLayout, QHeaderView, QInputDialog, QLabel,
-    QLineEdit, QListWidget, QListWidgetItem, QMenu, QMessageBox, QPushButton,
-    QScrollArea, QSizePolicy, QSpacerItem, QSpinBox, QSplitter,
-    QStackedWidget, QStyle, QTabWidget, QTableWidget, QTableWidgetItem,
-    QTextBrowser, QTextEdit, QVBoxLayout, QWidget,
+    QAbstractItemView, QApplication, QCheckBox, QComboBox, QDateEdit,
+    QDialog, QFormLayout, QGridLayout, QGroupBox, QHBoxLayout, QHeaderView,
+    QLabel, QLineEdit, QMessageBox, QPushButton, QScrollArea, QSpinBox,
+    QStyle, QTabWidget, QTableWidget, QTableWidgetItem, QTextEdit, QVBoxLayout,
+    QWidget,
 )
 
-from app_paths import get_icon_path
 from app_utils import (
-    BulkReportPDF, FPDF_AVAILABLE,
     format_indirizzo,
-    gui_esporta_partita_pdf, gui_esporta_partita_json, gui_esporta_partita_csv,
-    gui_esporta_possessore_pdf, gui_esporta_possessore_json, gui_esporta_possessore_csv,
-    GenericTextReportPDF, is_file_locked, get_alternative_filename,
 )
 from foliarium.ui.widgets.custom import (
-    LazyLoadedWidget, QPasswordLineEdit, StatCard,
     show_status_message as _show_status_message,
 )
-from foliarium.ui.widgets.insertion import (
-    InserimentoComuneWidget, InserimentoPossessoreWidget,
-    InserimentoLocalitaWidget, InserimentoPartitaWidget,
-)
-from foliarium.ui.widgets.admin import (
-    GestioneTipiLocalitaWidget, GestionePeriodiStoriciWidget,
-)
 from dialogs import (
-    AlberoGeneralogicoDialog, ComuneSelectionDialog, ConfrontoPartiteDialog,
-    CreatePossessoreDialog, CreateUserDialog, DBConfigDialog,
-    DettagliLegamePossessoreDialog, DocumentViewerDialog, ImmobileDialog,
-    LocalitaSelectionDialog, ModificaComuneDialog, ModificaImmobileDialog,
-    ModificaLocalitaDialog, ModificaPossessoreDialog, PartitaDetailsDialog,
-    PartitaSearchDialog, PartiteComuneDialog, PeriodoStoricoDetailsDialog,
-    PeriodoStoricoEditDialog, PossessoreSelectionDialog, PossessoriComuneDialog,
-    UserSelectionDialog,
-    qdate_to_datetime, datetime_to_qdate,
-    _hash_password, _verify_password,
+    DettagliLegamePossessoreDialog, PartitaSearchDialog, PossessoreSelectionDialog,
 )
 
 try:
     from catasto_db_manager import (
-        DBMError, DBUniqueConstraintError, DBNotFoundError, DBDataError,
+        DBMError, DBUniqueConstraintError, DBDataError,
     )
 except ImportError:
     class DBMError(Exception):
