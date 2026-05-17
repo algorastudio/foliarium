@@ -1,5 +1,48 @@
 # Changelog
 
+## Unreleased — Sprint 3 six-hats — Refactoring strutturale
+
+Tagliato il debito sui *god-file* identificati dall'analisi 6 cappelli di
+De Bono. **Nessuna modifica funzionale**: comportamento utente e dati
+invariati. Tutti gli import storici continuano a funzionare grazie a
+facade thin di re-export.
+
+### Igiene generale (Sprint 1)
+- Rebrand finale Meridiana → Foliarium: rimosse tracce residue da `.devcontainer/`, `.claude/launch.json`, docstring, `CLAUDE.md`.
+- Cambiata la password noVNC del dev container (`meridiana` → `foliarium-dev`).
+- README riallineato al codice reale: PyQt6 / Python 3.12, entry-point `gui_main.py`, struttura del progetto attuale, comandi aggiornati.
+- `config.py`: nuovo helper `assert_db_password_configured()` che solleva `RuntimeError` se in produzione manca `DB_PASS`, invece di tentare silenziosamente una connessione senza password.
+
+### Test (Sprint 2)
+- Nuovo `tests/integration/test_golden_path.py`: E2E **headless** del flusso critico (comune → località → possessore → partita → variazione + contratto → chiusura → nuova partita → export PDF). Marker `integration` + `golden_path`. Asserisce magic `%PDF-` e size minima del file.
+- Coverage misurata in modo significativo: i file GUI (`gui_main`, `gui_widgets`, `search_widgets`, `partita_workflow_widgets`, `dialogs`) esclusi da `--cov` in `pytest.ini` e `.coveragerc` perché richiedono `QApplication` + DB live + interazione utente.
+- Nuovo marker pytest `golden_path` per identificare i test da proteggere assolutamente da regressioni.
+
+### Scomposizione moduli (Sprint 3)
+
+| File originale | Prima | Dopo | Estratti in |
+|---|---|---|---|
+| `app_utils.py` | 923 LOC | **176** | `foliarium/reporting/pdf.py` (5 classi PDF) + `foliarium/ui/export/{partita,possessore}.py` (6 wrapper GUI) |
+| `partita_workflow_widgets.py` | 2.209 LOC | **24** | `foliarium/ui/widgets/workflow/{registrazione_proprieta,nuova_partita_wizard,operazioni_partita}.py` |
+| `search_widgets.py` | 1.841 LOC | **41** | `foliarium/ui/widgets/search/{partite,immobili,fuzzy}.py` |
+| `gui_main.py` | 2.155 LOC | **1.999** | `foliarium/ui/theme.py` + `foliarium/ui/login_flow.py` + `foliarium/ui/startup.py` |
+
+### Nuovi moduli pubblici
+
+- `foliarium.reporting.pdf` — `ModernCatastoPDF`, `PDFPartita`, `PDFPossessore`, `GenericTextReportPDF`, `BulkReportPDF`, `FPDF_AVAILABLE`
+- `foliarium.ui.export` — 6 wrapper GUI (`gui_esporta_{partita,possessore}_{json,csv,pdf}`)
+- `foliarium.ui.widgets.workflow` — 3 widget di workflow partite
+- `foliarium.ui.widgets.search` — 3 widget di ricerca (partite, immobili, fuzzy)
+- `foliarium.ui.theme` — 6 funzioni pure di gestione tema QSS (`apply_stylesheet`, `apply_auto_theme`, `apply_initial_theme_from_settings`, `is_win11_style_available`, `apply_win11_style`, `reset_app_style`)
+- `foliarium.ui.login_flow` — `try_autoconnect_db`, `connect_db_with_dialog`, `ensure_db_connection`, `perform_user_login`
+- `foliarium.ui.startup` — `show_splash_screen`, `ensure_eula_accepted`, `validate_license_and_acquire_seat`
+
+### Unit test sui nuovi moduli
+
+- `tests/unit/test_theme.py` (172 LOC): valida le 6 funzioni pure di `foliarium/ui/theme.py` con `QApplication` offscreen e `QSettings` isolato su `tmp_path`.
+
+---
+
 ## v1.0.1 — Maggio 2026 — Manutenzione e miglioramenti UX
 
 Release di manutenzione che consolida bug fix, igiene del codice e miglioramenti di esperienza utente. Nessuna modifica allo schema del database — aggiornamento sicuro da v1.0.0.

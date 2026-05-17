@@ -33,25 +33,43 @@
 
 ```
 foliarium/
-├── gui_main.py                   # Entry point — QMainWindow, app init, TopBarWidget, SidebarWidget
+├── gui_main.py                   # Entry point — QMainWindow, navigazione, slot Qt (~2000 LOC)
 ├── gui_widgets.py                # Facade UI — ElencoComuniWidget, DashboardWidget, WelcomeScreen + re-export hub
-├── search_widgets.py             # Widget ricerca — RicercaPartiteWidget, RicercaAvanzataImmobiliWidget, UnifiedFuzzySearchWidget
-├── partita_workflow_widgets.py   # Widget workflow — RegistrazioneProprietaWidget, NuovaPartitaWizardWidget, OperazioniPartitaWidget
+├── search_widgets.py             # Facade thin (41 LOC) → foliarium/ui/widgets/search/
+├── partita_workflow_widgets.py   # Facade thin (24 LOC) → foliarium/ui/widgets/workflow/
 ├── dialogs.py                    # Facade di re-export dialogs (implementati in foliarium/ui/dialogs/)
 ├── catasto_db_manager.py         # Facade DB — delega al package db/
-├── app_utils.py                  # PDF classes, export helpers, preview dialogs
+├── app_utils.py                  # Helper IO/keyring/format + facade PDF/export (176 LOC, post-refactor)
 ├── app_paths.py                  # Path resolution & resource loading
-├── config.py                     # Costanti, logging, APP_VERSION
+├── config.py                     # Costanti, logging, APP_VERSION, assert_db_password_configured()
 ├── validators.py                 # Validatori campi form
 │
 ├── foliarium/                    # Package principale (servizi + UI estratti)
 │   ├── core/services/            # email.py, license.py, update_checker.py, demo_launcher.py
-│   └── ui/                       # top_bar.py, sidebar.py, command_palette.py, splash.py
+│   ├── reporting/                # PDF reports (post-refactor Sprint 3.1)
+│   │   └── pdf.py                # ModernCatastoPDF + PDFPartita/Possessore/Generic/Bulk
+│   └── ui/
+│       ├── top_bar.py, sidebar.py, command_palette.py, splash.py, effects.py
+│       ├── theme.py              # Funzioni pure tema QSS (post-refactor Sprint 3.5)
+│       ├── login_flow.py         # Connessione DB + login utente (post-refactor Sprint 3.6)
+│       ├── startup.py            # Splash + EULA + license check (post-refactor Sprint 3.7)
 │       ├── dialogs/              # entity.py, admin.py (+ LoginDialog), partita.py, import_.py, export_.py
-│       └── widgets/              # admin.py (GestioneUtenti, Archivio, TipiPossesso)
-│                                 # insertion.py (Comune, Possessore, Localita, Partita)
-│                                 # reporting.py (Documenti, Esportazioni, Reportistica, Statistiche)
-│                                 # custom.py (widget condivisi, show_status_message)
+│       ├── export/               # Wrapper GUI export (post-refactor Sprint 3.2)
+│       │   ├── partita.py        # gui_esporta_partita_{json,csv,pdf}
+│       │   └── possessore.py     # gui_esporta_possessore_{json,csv,pdf}
+│       └── widgets/
+│           ├── admin.py          # GestioneUtenti, AuditLog, Backup, TipiPossesso, Archivio
+│           ├── insertion.py      # Form inserimento (Comune, Possessore, Localita, Partita)
+│           ├── reporting.py      # Documenti, Esportazioni, Reportistica, Statistiche
+│           ├── custom.py         # Widget condivisi, show_status_message, LazyLoadedWidget
+│           ├── workflow/         # Widget workflow partite (post-refactor Sprint 3.3)
+│           │   ├── registrazione_proprieta.py    # RegistrazioneProprietaWidget
+│           │   ├── nuova_partita_wizard.py       # NuovaPartitaWizardWidget
+│           │   └── operazioni_partita.py         # OperazioniPartitaWidget
+│           └── search/           # Widget ricerca (post-refactor Sprint 3.4)
+│               ├── partite.py    # Worker, model, proxy, card, widget
+│               ├── immobili.py   # Model + RicercaAvanzataImmobiliWidget
+│               └── fuzzy.py      # UnifiedFuzzySearchWidget + thread + model
 │
 ├── db/                           # Database layer — 14 mixin via ereditarietà multipla
 │   ├── base.py                   # DBConnectionBase: pool, _get_connection(), bulk_insert
@@ -73,9 +91,11 @@ foliarium/
 │
 ├── sql_scripts/                  # Script PostgreSQL (init + migrazioni)
 │   └── migrations/               # Script di upgrade per DB già esistenti
-├── styles/                       # Qt stylesheets (.qss) — 16 temi
+├── styles/                       # Qt stylesheets (.qss)
 ├── resources/                    # Icone, immagini, EULA
 ├── tests/                        # Test suite (pytest)
+│   ├── unit/                     # Unit test (validators, theme, db mixins, license, ecc.)
+│   └── integration/              # Integration test (E2E, golden_path, DB live, GUI)
 ├── docs/                         # MkDocs documentation source
 ├── esportazioni/                 # Output directory (PDF, CSV)
 ├── .devcontainer/                # Dev container config (VS Code / Codespaces)
@@ -88,6 +108,33 @@ foliarium/
 ├── generate_license.py           # CLI: genera/ispeziona file .license
 └── demo_config.ini               # Guida + credenziali DB demo
 ```
+
+### Convenzioni post-refactor (Sprint 3 — six-hats)
+
+Diversi moduli root sono ora **facade thin** che re-esportano dai nuovi
+package coesi. I consumer storici continuano a funzionare:
+
+```python
+# Vecchio import (ancora valido)
+from search_widgets import RicercaPartiteWidget
+from partita_workflow_widgets import NuovaPartitaWizardWidget
+from app_utils import PDFPartita, gui_esporta_partita_pdf
+
+# Nuovo import preferito
+from foliarium.ui.widgets.search import RicercaPartiteWidget
+from foliarium.ui.widgets.workflow import NuovaPartitaWizardWidget
+from foliarium.reporting.pdf import PDFPartita
+from foliarium.ui.export import gui_esporta_partita_pdf
+```
+
+**Riduzioni LOC** dopo lo Sprint 3:
+
+| File | Prima | Dopo |
+|---|---|---|
+| `partita_workflow_widgets.py` | 2.209 | 24 |
+| `search_widgets.py` | 1.841 | 41 |
+| `app_utils.py` | 923 | 176 |
+| `gui_main.py` | 2.155 | 1.999 |
 
 ---
 
@@ -148,17 +195,18 @@ export QT_QPA_PLATFORM=offscreen
 
 ## Architecture
 
-- **Entry point:** `gui_main.py` creates the `QApplication` and `QMainWindow`, initialises logging (`config.setup_global_logging`), builds `TopBarWidget` + `SidebarWidget` + `QStackedWidget`, navigates with `navigate_to(page_name)`.
-- **DB layer:** `catasto_db_manager.py` — `CatastoDBManager` class wraps all psycopg2 calls. Credentials are read from env vars (`DB_HOST`, `DB_USER`, `DB_PASS`, `DB_NAME`, `DB_PORT`) with fallback to defaults defined in `config.py`.
+- **Entry point:** `gui_main.py` creates the `QApplication` and `QMainWindow`, initialises logging (`config.setup_global_logging`), builds `TopBarWidget` + `SidebarWidget` + `QStackedWidget`, navigates with `navigate_to(page_name)`. La sequenza di avvio delega a moduli dedicati: `foliarium.ui.theme` (bootstrap stylesheet), `foliarium.ui.startup` (splash, EULA, licenza), `foliarium.ui.login_flow` (connessione DB + login utente).
+- **DB layer:** `catasto_db_manager.py` — facade thin che eredita dai mixin in `db/`. `CatastoDBManager` espone tutti i metodi CRUD. Credentials are read from env vars (`DB_HOST`, `DB_USER`, `DB_PASS`, `DB_NAME`, `DB_PORT`) with fallback to defaults defined in `config.py`. Se la password manca in produzione, `config.assert_db_password_configured()` solleva `RuntimeError` invece di tentare un login silenzioso con password vuota.
 - **CI detection:** `config.IS_TEST_ENV` is `True` when `CI=true` or `GITHUB_ACTIONS=true`. Used to skip interactive prompts and adjust logging.
-- **UI widget distribution** (post-refactor v1.0.0):
+- **UI widget distribution** (post-refactor Sprint 3):
   - `gui_widgets.py` — facade + `ElencoComuniWidget`, `DashboardWidget`, `WelcomeScreen`
-  - `search_widgets.py` — `RicercaPartiteWidget`, `RicercaAvanzataImmobiliWidget`, `UnifiedFuzzySearchWidget`
-  - `partita_workflow_widgets.py` — `RegistrazioneProprietaWidget`, `NuovaPartitaWizardWidget`, `OperazioniPartitaWidget`
+  - `foliarium/ui/widgets/search/` — 3 file per famiglia: `partite.py`, `immobili.py`, `fuzzy.py`
+  - `foliarium/ui/widgets/workflow/` — 3 file: `registrazione_proprieta.py`, `nuova_partita_wizard.py`, `operazioni_partita.py`
   - `foliarium/ui/widgets/insertion.py` — form inserimento (Comune, Possessore, Località, Partita)
   - `foliarium/ui/widgets/admin.py` — `GestioneUtentiWidget`, `AuditLogViewerWidget`, `BackupWidget`, `TipiPossessoWidget`, `ArchivioWidget`
   - `foliarium/ui/widgets/reporting.py` — `RicercaDocumentiWidget`, `EsportazioniWidget`, `ReportisticaWidget`, `StatisticheWidget`
-- **Themes:** QSS stylesheets in `styles/`. Loaded at runtime; 16 themes available (dark, light, business, ocean, nature, etc.).
+- **Reporting:** classi PDF in `foliarium/reporting/pdf.py` (estratte da `app_utils.py` nello Sprint 3.1). Wrapper GUI di export in `foliarium/ui/export/{partita,possessore}.py`.
+- **Themes:** QSS stylesheets in `styles/`. Funzioni pure in `foliarium/ui/theme.py`: `apply_stylesheet`, `apply_auto_theme`, `apply_initial_theme_from_settings`, `is_win11_style_available`.
 
 ---
 
@@ -220,13 +268,36 @@ Pipeline: `.github/workflows/pipeline_foliarium.yml`
 
 ```
 tests/
-├── conftest.py                    # pytest fixtures (DB connection)
+├── conftest.py                    # pytest fixtures (db_manager, clean_db, sample_data)
 ├── test_basic.py
 ├── unit/                          # Unit tests (pytest -m unit)
+│   ├── test_validators_exceptions.py   # 474 LOC, validators centralizzati
+│   ├── test_db_*.py                    # mixin DB (comuni, partite, possessori, ricerca)
+│   ├── test_license_manager.py         # LicenseManager + HMAC
+│   ├── test_theme.py                   # foliarium/ui/theme.py (post-Sprint 3.5)
+│   ├── test_demo_launcher.py, test_update_checker.py, test_email_service.py
+│   └── test_widget_modules.py          # smoke test re-export facade
 └── integration/                   # Integration tests (pytest -m integration)
+    ├── test_e2e.py                     # GUI E2E (richiede QApplication)
+    ├── test_database_manager.py
+    ├── test_gui_widgets.py
+    └── test_golden_path.py             # E2E headless del flusso critico
+                                        # comune → possessore → partita →
+                                        # variazione → export PDF (Sprint 2)
 ```
 
-Pytest markers: `slow`, `integration`, `gui`, `unit`.
+**Pytest markers:**
+- `unit` — unit test puri (rapidi)
+- `integration` — richiedono DB live e/o GUI
+- `gui` — richiedono `QApplication` (QT_QPA_PLATFORM=offscreen in CI)
+- `slow` — test lenti (esclusi da run rapidi)
+- `golden_path` — happy-path da proteggere assolutamente da regressioni
+
+**Coverage** (`pytest.ini` + `.coveragerc`):
+i file GUI (`gui_main`, `gui_widgets`, `search_widgets`, `partita_workflow_widgets`,
+`dialogs`) sono **esclusi** dal `--cov` perché richiedono interazione utente +
+DB live e i numeri risulterebbero fuorvianti. La coverage misurata copre
+`db/`, `core/`, `validators.py`, `app_utils.py`, `foliarium/` e moduli simili.
 
 ---
 
