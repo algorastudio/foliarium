@@ -999,114 +999,36 @@ class CatastoMainWindow(QMainWindow):
     # ------------------------------------------------------------------
 
     def _scarica_csv(self, data: list, fieldnames: list, default_filename: str) -> None:
-        """Salva una lista di dict come CSV (delimiter ';') tramite QFileDialog."""
-        if not data:
-            QMessageBox.information(self, "Nessun dato", "Nessun record da scaricare.")
-            return
-        filename, _ = QFileDialog.getSaveFileName(
-            self, "Salva CSV", default_filename, "File CSV (*.csv)"
+        from foliarium.ui.csv_export import scarica_csv_generico
+        scarica_csv_generico(
+            self, self.db_manager,
+            self.logged_in_user_id, self.current_session_id,
+            data, fieldnames, default_filename,
         )
-        if not filename:
-            return
-        try:
-            import csv as _csv
-            with open(filename, 'w', newline='', encoding='utf-8') as f:
-                writer = _csv.DictWriter(f, fieldnames=fieldnames, delimiter=';',
-                                         extrasaction='ignore')
-                writer.writeheader()
-                writer.writerows(data)
-            QMessageBox.information(
-                self, "Scaricato",
-                f"{len(data)} record salvati in:\n{filename}"
-            )
-            # --- Audit log export ---
-            if self.db_manager:
-                import os as _os
-                self.db_manager.log_app_event(
-                    self.logged_in_user_id, self.current_session_id,
-                    "export_csv",
-                    {"filename": _os.path.basename(filename), "n_record": len(data),
-                     "entity": default_filename.replace(".csv", "")})
-        except OSError as e:
-            QMessageBox.critical(self, "Errore salvataggio", str(e))
 
     def _seleziona_comune_per_csv(self, entita: str):
-        """
-        Mostra QInputDialog per selezionare un comune.
-        Restituisce (comune_id, nome_slug) oppure (None, '') se l'utente annulla.
-        """
-        try:
-            comuni = self.db_manager.get_elenco_comuni_semplice()
-        except Exception:
-            comuni = []
-        if not comuni:
-            QMessageBox.warning(self, "Nessun Comune",
-                                "Nessun comune trovato nel database.")
-            return None, ""
-        nomi = [c[1] for c in comuni]
-        nome, ok = QInputDialog.getItem(
-            self, "Selezione Comune",
-            f"Comune di riferimento per '{entita}':", nomi, 0, False
-        )
-        if not ok or not nome:
-            return None, ""
-        for cid, cnome in comuni:
-            if cnome == nome:
-                return cid, cnome.replace(' ', '_')
-        return None, ""
+        from foliarium.ui.csv_export import seleziona_comune_per_csv
+        return seleziona_comune_per_csv(self, self.db_manager, entita)
 
     def _scarica_csv_comuni(self):
-        """Scarica tutti i comuni in un CSV compatibile con 'Importa Comuni da CSV'."""
-        try:
-            data = self.db_manager.get_comuni_export_csv()
-        except Exception as e:
-            QMessageBox.critical(self, "Errore Database", str(e))
-            return
-        self._scarica_csv(
-            data,
-            ['nome', 'provincia', 'regione', 'codice_catastale',
-             'data_istituzione', 'data_soppressione', 'note'],
-            'comuni_export.csv'
-        )
+        from foliarium.ui.csv_export import scarica_csv_comuni
+        scarica_csv_comuni(self, self.db_manager,
+                           self.logged_in_user_id, self.current_session_id)
 
     def _scarica_csv_localita(self):
-        """Scarica le località di un comune in CSV compatibile con 'Importa Località da CSV'."""
-        comune_id, slug = self._seleziona_comune_per_csv("località")
-        if not comune_id:
-            return
-        try:
-            data = self.db_manager.get_localita_export_csv(comune_id)
-        except Exception as e:
-            QMessageBox.critical(self, "Errore Database", str(e))
-            return
-        self._scarica_csv(data, ['nome', 'tipo', 'civico'],
-                          f'localita_{slug}.csv')
+        from foliarium.ui.csv_export import scarica_csv_localita
+        scarica_csv_localita(self, self.db_manager,
+                             self.logged_in_user_id, self.current_session_id)
 
     def _scarica_csv_possessori(self):
-        """Scarica i possessori di un comune in CSV compatibile con 'Importa Possessori da CSV'."""
-        comune_id, slug = self._seleziona_comune_per_csv("possessori")
-        if not comune_id:
-            return
-        try:
-            data = self.db_manager.get_possessori_export_csv(comune_id)
-        except Exception as e:
-            QMessageBox.critical(self, "Errore Database", str(e))
-            return
-        self._scarica_csv(data, ['cognome_nome', 'nome_completo', 'paternita'],
-                          f'possessori_{slug}.csv')
+        from foliarium.ui.csv_export import scarica_csv_possessori
+        scarica_csv_possessori(self, self.db_manager,
+                               self.logged_in_user_id, self.current_session_id)
 
     def _scarica_csv_partite(self):
-        """Scarica le partite di un comune in CSV compatibile con 'Importa Partite da CSV'."""
-        comune_id, slug = self._seleziona_comune_per_csv("partite")
-        if not comune_id:
-            return
-        try:
-            data = self.db_manager.get_partite_export_csv(comune_id)
-        except Exception as e:
-            QMessageBox.critical(self, "Errore Database", str(e))
-            return
-        self._scarica_csv(data, ['numero_partita', 'data_impianto', 'stato', 'tipo'],
-                          f'partite_{slug}.csv')
+        from foliarium.ui.csv_export import scarica_csv_partite
+        scarica_csv_partite(self, self.db_manager,
+                            self.logged_in_user_id, self.current_session_id)
 
     # ------------------------------------------------------------------
     # Session timeout — inattività

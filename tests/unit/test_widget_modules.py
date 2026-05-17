@@ -110,3 +110,39 @@ class TestGuiWidgetsReexports:
         from search_widgets import UnifiedFuzzySearchWidget as original
         from gui_widgets import UnifiedFuzzySearchWidget as reexported
         assert original is reexported
+
+
+class TestGuiWidgetsExtractedModules:
+    """I 3 widget storicamente in gui_widgets sono stati estratti nello
+    Sprint 3.8 (ElencoComuniWidget, DashboardWidget, WelcomeScreen).
+    Verifica che siano accessibili sia dal nuovo modulo sia via re-export."""
+
+    def test_elenco_comuni_widget_extracted(self):
+        from foliarium.ui.widgets.comuni import ElencoComuniWidget as original
+        from gui_widgets import ElencoComuniWidget as reexported
+        assert original is reexported
+
+    def test_dashboard_widget_extracted(self):
+        from foliarium.ui.widgets.dashboard import DashboardWidget as original
+        from gui_widgets import DashboardWidget as reexported
+        assert original is reexported
+
+    def test_welcome_screen_extracted(self):
+        from foliarium.ui.widgets.welcome import WelcomeScreen as original
+        from gui_widgets import WelcomeScreen as reexported
+        assert original is reexported
+
+    def test_comuni_table_model_extracted(self):
+        from foliarium.ui.widgets.comuni import ComuniTableModel as original
+        from gui_widgets import ComuniTableModel as reexported
+        assert original is reexported
+
+    def test_comuni_loader_worker_extracted(self):
+        from foliarium.ui.widgets.comuni import _ComuniLoaderWorker as original
+        from gui_widgets import _ComuniLoaderWorker as reexported
+        assert original is reexported
+
+    def test_dashboard_loader_worker_extracted(self):
+        from foliarium.ui.widgets.dashboard import _DashboardLoaderWorker as original
+        from gui_widgets import _DashboardLoaderWorker as reexported
+        assert original is reexported

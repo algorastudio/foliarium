@@ -1881,10 +1881,11 @@ class ModificaImmobileDialog(QDialog):
         ])
 
         # Carica le località per il comune specifico
+        # (get_localita_by_comune ritorna List[Dict] con chiavi id, nome, tipologia_stradale)
         try:
-            localita_list = self.db_manager.get_localita_per_comune(self.comune_id_partita)
-            for loc_id, nome_localita in localita_list:
-                self.localita_combo.addItem(nome_localita, userData=loc_id)
+            localita_list = self.db_manager.get_localita_by_comune(self.comune_id_partita)
+            for loc in localita_list:
+                self.localita_combo.addItem(loc["nome"], userData=loc["id"])
         except Exception as e:
             self.logger.error(f"Errore nel caricamento delle località: {e}")
             self.localita_combo.addItem("Errore caricamento", -1)
