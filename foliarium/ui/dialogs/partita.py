@@ -10,41 +10,26 @@ from __future__ import annotations
 
 import logging
 import os
-import csv
-import json
-from datetime import date, datetime
-from typing import Optional, List, Dict, Any, Tuple
+from datetime import date
+from typing import Optional, Dict, Any
 
-from PyQt6.QtCore import (QDate, QDateTime, QPoint, QSettings,
-                          QSize, Qt, QTimer, QUrl, pyqtSignal)
-from PyQt6.QtGui import (QBrush, QColor, QDesktopServices, QFont,
-                         QIcon, QPalette, QPixmap, QAction)
+from PyQt6.QtCore import (QDate, Qt, QTimer)
+from PyQt6.QtGui import (QBrush, QColor)
 from PyQt6.QtWidgets import (QAbstractItemView, QApplication,
                              QCheckBox, QComboBox, QDateEdit,
                              QDialog, QDoubleSpinBox,
-                             QFileDialog, QFormLayout, QFrame, QGridLayout,
-                             QGroupBox, QHBoxLayout, QHeaderView, QInputDialog,
-                             QLabel, QLineEdit, QListWidget, QListWidgetItem,
-                             QMenu, QMessageBox, QProgressBar,
-                             QPushButton, QScrollArea, QSizePolicy, QSpacerItem,
-                             QSpinBox, QStyle, QTabWidget,
-                             QSplitter, QTableWidget, QTableWidgetItem, QTextEdit,
-                             QTreeWidget, QTreeWidgetItem,
-                             QVBoxLayout, QWidget,
-                             QTextBrowser, QDialogButtonBox)
-from PyQt6.QtGui import QPainter
-from app_paths import get_resource_path
+                             QFileDialog, QFormLayout, QGridLayout, QGroupBox,
+                             QHBoxLayout, QHeaderView, QLabel, QLineEdit,
+                             QMessageBox, QPushButton, QSpinBox, QStyle,
+                             QTabWidget, QSplitter, QTableWidget,
+                             QTableWidgetItem, QTextEdit, QTreeWidget, QTreeWidgetItem,
+                             QVBoxLayout, QWidget, QTextBrowser,
+                             QDialogButtonBox)
 
-from config import (
-    SETTINGS_DB_HOST, SETTINGS_DB_PORT,
-    SETTINGS_DB_NAME, SETTINGS_DB_USER,
-)
 from catasto_db_manager import CatastoDBManager
-from foliarium.ui.widgets.custom import QPasswordLineEdit, ImmobiliTableWidget
+from foliarium.ui.widgets.custom import ImmobiliTableWidget
 
-from app_utils import (gui_esporta_partita_pdf, gui_esporta_partita_json, gui_esporta_partita_csv,
-                       gui_esporta_possessore_pdf, gui_esporta_possessore_json, gui_esporta_possessore_csv,
-                       GenericTextReportPDF, FPDF_AVAILABLE, prompt_to_open_file)
+from app_utils import (GenericTextReportPDF, FPDF_AVAILABLE, prompt_to_open_file)
 from foliarium.ui.dialogs.export_ import PDFApreviewDialog
 
 from foliarium.ui.dialogs.admin import datetime_to_qdate, qdate_to_datetime
@@ -2440,7 +2425,6 @@ class AggiungiDocumentoDialog(QDialog):
         
 
 # Estratto in import_dialogs.py — backward compat re-export
-from foliarium.ui.dialogs.import_ import CSVImportResultDialog
 
 # ---------------------------------------------------------------------------
 # Import comuni e località da CSV / ISTAT
@@ -2448,11 +2432,6 @@ from foliarium.ui.dialogs.import_ import CSVImportResultDialog
 
 
 # Estratto in import_dialogs.py — backward compat re-export
-from foliarium.ui.dialogs.import_ import (
-    ISTATDownloadWorker, OSMLocalitaWorker,
-    ImportComuniDialog, ImportLocalitaDialog,
-    _mostra_risultati_import, _popola_preview_tabella,
-)
 
 
 class AlberoGeneralogicoDialog(QDialog):

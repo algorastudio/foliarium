@@ -14,20 +14,18 @@ Backward compatibility: gui_widgets.py re-esporta tutte le classi.
 from __future__ import annotations
 
 import logging
-from datetime import date
 from typing import Optional, List, Dict, Any, TYPE_CHECKING
 
 from PyQt6.QtCore import QDate, Qt, pyqtSignal
 from PyQt6.QtWidgets import (
-    QAbstractItemView, QApplication, QCheckBox, QComboBox, QDateEdit,
-    QDialog, QFileDialog, QFormLayout, QGridLayout, QGroupBox,
-    QHeaderView, QHBoxLayout, QLabel, QLineEdit, QMessageBox, QPushButton,
-    QScrollArea, QSpinBox, QTableWidget, QTableWidgetItem, QTextEdit, QVBoxLayout,
-    QWidget, QCompleter,
+    QApplication, QCheckBox, QComboBox, QDateEdit, QDialog,
+    QFileDialog, QFormLayout, QGridLayout, QGroupBox, QHBoxLayout,
+    QLabel, QLineEdit, QMessageBox, QPushButton, QSpinBox, QTextEdit,
+    QVBoxLayout, QWidget, QCompleter,
 )
 
 from foliarium.ui.widgets.custom import LazyLoadedWidget
-from catasto_exceptions import DBMError, DBUniqueConstraintError, DBNotFoundError, DBDataError
+from catasto_exceptions import DBMError, DBUniqueConstraintError, DBDataError
 from dialogs import ComuneSelectionDialog
 
 if TYPE_CHECKING:

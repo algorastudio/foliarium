@@ -1,15 +1,11 @@
 
-import os,csv,sys,logging,json
-from datetime import date, datetime
-from typing import Optional, List, Dict, Any, Tuple, TYPE_CHECKING
+import logging
+from typing import List, Dict
 
 # Importazioni PyQt6
-from PyQt6.QtCore import (QDate, QDateTime, QPoint, QProcess, QSettings,
-                          QSize, QStandardPaths, Qt, QTimer, QUrl,
-                          pyqtSignal, pyqtSlot)
+from PyQt6.QtCore import Qt
 
-from PyQt6.QtGui import (QCloseEvent, QColor, QDesktopServices, QFont,
-                         QIcon, QPalette, QPixmap, QAction)
+from PyQt6.QtGui import (QColor, QFont)
 
 # QWebEngineView: opzionale, riservato a future funzionalità web
 try:
@@ -20,16 +16,8 @@ except ImportError:
     WEB_ENGINE_AVAILABLE = False
 
 from PyQt6.QtWidgets import (QAbstractItemView, QApplication,
-                             QCheckBox, QComboBox, QDateEdit, QDateTimeEdit,
-                             QDialog, QDialogButtonBox, QDoubleSpinBox,
-                             QFileDialog, QFormLayout, QFrame, QGridLayout,
-                             QGroupBox, QHBoxLayout, QHeaderView, QInputDialog,
-                             QLabel, QLineEdit, QListWidget, QListWidgetItem,
-                             QMainWindow, QMenu, QMessageBox, QProgressBar,
-                             QPushButton, QScrollArea, QSizePolicy, QSpacerItem,
-                             QSpinBox, QStyle, QStyleFactory, QTabWidget,
-                             QTableWidget, QTableWidgetItem, QTextEdit,
-                             QVBoxLayout, QWidget)
+                             QFrame, QLineEdit, QSizePolicy, QTableWidget,
+                             QTableWidgetItem, QWidget)
 # Importazione commentata (da abilitare se necessario)
 # from PyQt6.QtSvgWidgets import QSvgWidget
 
@@ -136,12 +124,11 @@ class LazyLoadedWidget(QWidget):
         """
         # self.logger.warning(f"Metodo _load_data_on_first_show non implementato per {self.__class__.__name__}")
         # Usiamo pass per non mostrare avvisi per widget che potrebbero non averne bisogno
-        pass
         
 
 # ── StatCard ─────────────────────────────────────────────────────────────────
 
-from PyQt6.QtGui import QPainter, QPen, QBrush, QFontMetrics, QLinearGradient
+from PyQt6.QtGui import QPainter, QPen, QBrush
 from PyQt6.QtCore import QRect, QRectF
 
 class StatCard(QFrame):

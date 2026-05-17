@@ -18,34 +18,32 @@ import csv
 import json
 import os
 import logging
-from datetime import datetime, date
+from datetime import date
 from typing import Optional, Dict, List, Any, TYPE_CHECKING
 
 from PyQt6.QtCore import (
-    QAbstractTableModel, QDate, QDateTime, QModelIndex, QPoint, QProcess,
-    QProcessEnvironment, QSettings, QSize, QSortFilterProxyModel, Qt, QTimer,
-    QUrl, pyqtSignal, pyqtSlot,
+    QAbstractTableModel, QDateTime, QModelIndex, QPoint, QProcess, QProcessEnvironment,
+    QSettings, QSortFilterProxyModel, Qt, pyqtSlot,
 )
-from PyQt6.QtGui import QColor, QFont, QIcon, QAction
+from PyQt6.QtGui import QColor, QFont
 from PyQt6.QtWidgets import (
     QAbstractItemView, QApplication,
-    QCheckBox, QComboBox, QDateEdit, QDateTimeEdit,
-    QDialog, QDialogButtonBox, QFileDialog, QFormLayout, QFrame, QGridLayout,
-    QGroupBox, QHBoxLayout, QHeaderView, QInputDialog,
-    QLabel, QLineEdit, QMenu, QMessageBox, QProgressBar,
-    QPushButton, QScrollArea, QSizePolicy, QSpacerItem,
-    QSpinBox, QStyle, QTabWidget,
-    QTableView, QTableWidget, QTableWidgetItem, QTextEdit,
-    QVBoxLayout, QWidget, QProgressDialog, QTextBrowser, QSplitter,
+    QComboBox, QDateTimeEdit, QDialog, QDialogButtonBox,
+    QFileDialog, QFormLayout, QFrame, QGroupBox, QHBoxLayout, QHeaderView,
+    QInputDialog, QLabel, QLineEdit, QMenu,
+    QMessageBox, QProgressBar, QPushButton, QSpinBox, QStyle,
+    QTabWidget, QTableView, QTableWidget, QTableWidgetItem,
+    QTextEdit, QVBoxLayout, QWidget,
+    QSplitter,
 )
 
 from catasto_exceptions import (
-    DBMError, DBUniqueConstraintError, DBNotFoundError, DBDataError,
+    DBMError, DBUniqueConstraintError, DBDataError,
 )
-from foliarium.ui.widgets.custom import LazyLoadedWidget, QPasswordLineEdit
+from foliarium.ui.widgets.custom import LazyLoadedWidget
 from dialogs import (
     CreateUserDialog, PeriodoStoricoEditDialog,
-    _hash_password, _validate_password_strength,
+    _hash_password,
 )
 
 if TYPE_CHECKING:

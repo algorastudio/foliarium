@@ -6,7 +6,7 @@ Foliarium — Archivio Catastale Storico
 Autore: Marco Santoro
 Data: 18/05/2025
 """
-import sys,bcrypt
+import sys
 from gui_widgets import UnifiedFuzzySearchWidget
 import os
 import logging
@@ -14,29 +14,23 @@ from datetime import datetime
 from typing import Optional, Dict
 # Importazioni PyQt6
 from PyQt6.QtCore import (QSettings,
-                          QStandardPaths, Qt, QTimer, QUrl,
-                          pyqtSlot, pyqtSignal, QCoreApplication,
-                          QPropertyAnimation, QEasingCurve)
+                          QStandardPaths, Qt, QTimer, pyqtSlot,
+                          QCoreApplication, QPropertyAnimation, QEasingCurve)
 
-from PyQt6.QtGui import (QCloseEvent, QDesktopServices, QAction, QActionGroup, QGuiApplication,
-                         QKeySequence, QShortcut)
-from PyQt6.QtCore import QSize
+from PyQt6.QtGui import (QCloseEvent, QAction, QActionGroup, QGuiApplication, QKeySequence,
+                         QShortcut)
 from PyQt6.QtWidgets import QGraphicsOpacityEffect
 
 from PyQt6.QtWidgets import (QApplication,
-                             QDialog, QFileDialog, QFrame, QGridLayout,
-                             QHBoxLayout, QInputDialog,
-                             QLabel, QLineEdit, QListWidget, QListWidgetItem,
-                             QMainWindow, QMessageBox, QPushButton,
-                             QScrollArea, QSizePolicy, QSplashScreen, QStackedWidget,
-                             QStyle, QTabWidget,
-                             QVBoxLayout, QWidget)
+                             QDialog, QFileDialog, QFrame, QHBoxLayout,
+                             QInputDialog, QLabel,
+                             QMainWindow, QMessageBox, QPushButton, QStackedWidget,
+                             QStyle, QVBoxLayout, QWidget)
 
 
 from catasto_db_manager import CatastoDBManager
 from app_utils import get_local_ip_address
-import pandas as pd # Importa pandas
-from app_paths import get_available_styles, get_logo_svg_path, get_resource_path
+from app_paths import get_available_styles
 from dialogs import (CSVImportResultDialog, EulaDialog, BackupReminderSettingsDialog,
                      ImportComuniDialog, ImportLocalitaDialog)
 
@@ -52,27 +46,17 @@ from gui_widgets import (
     DBConfigDialog, InserimentoPartitaWidget, RicercaDocumentiWidget)
 from foliarium.ui.widgets.admin import TabelleDiSistemaWidget
 
-from foliarium.ui.widgets.custom import QPasswordLineEdit
 from foliarium.core.services import update_checker
 
 
 from config import (
-    APP_VERSION, APP_NAME, APP_SUBTITLE,
-    SETTINGS_DB_TYPE, SETTINGS_DB_HOST, SETTINGS_DB_PORT,
-    SETTINGS_DB_NAME, SETTINGS_DB_USER, SETTINGS_DB_SCHEMA,
     SETTINGS_UI_CURRENT_STYLE, SETTINGS_UI_AUTO_THEME, SETTINGS_UI_WIN11_STYLE,
-    AUTO_THEME_LIGHT,
-    IS_TEST_ENV, SETTINGS_SESSION_TIMEOUT,
-    IS_DEMO_MODE,
-    DEMO_DB_HOST, DEMO_DB_NAME, DEMO_DB_USER, DEMO_DB_PASS, DEMO_DB_PORT,
-    DEMO_LOGIN_USER, DEMO_LOGIN_PASS,
-    SETTINGS_LICENSE_FILE_PATH, SETTINGS_LICENSE_NETWORK_SHARE)
-from app_paths import get_icon_path
+    AUTO_THEME_LIGHT, SETTINGS_SESSION_TIMEOUT, IS_DEMO_MODE,
+    DEMO_DB_HOST, DEMO_DB_NAME, DEMO_DB_USER,
+    DEMO_DB_PASS, DEMO_DB_PORT, DEMO_LOGIN_USER)
 from core.session_manager import SessionManager
 
 try:
-    from fpdf import FPDF
-    from fpdf.enums import XPos, YPos
     FPDF_AVAILABLE = True
 except ImportError:
     FPDF_AVAILABLE = False
@@ -111,7 +95,7 @@ from foliarium.ui.dialogs.admin import LoginDialog       # noqa: F401
 
 
 try:
-    from gui_widgets import UnifiedFuzzySearchWidget,UnifiedFuzzySearchThread
+    from gui_widgets import UnifiedFuzzySearchWidget
     FUZZY_SEARCH_AVAILABLE = True
 except ImportError:
     logging.warning("[INIT] Ricerca fuzzy non disponibile")
@@ -150,7 +134,7 @@ class CatastoMainWindow(QMainWindow):
         self._seat_refresh_timer = None
 
         # --- Session timeout (inattività) ---
-        from PyQt6.QtCore import QTimer, QEvent
+        from PyQt6.QtCore import QTimer
         self._inactivity_timer = QTimer(self)
         self._inactivity_timer.setSingleShot(True)
         self._inactivity_timer.timeout.connect(self._on_inactivity_timeout)
@@ -1704,7 +1688,6 @@ class WebViewWindow(QMainWindow):
 
 def run_web_app():
     """Avvia la modalità React (FastAPI + WebView/browser)."""
-    import time
     from api.server_thread import APIServerThread
 
     app = QApplication(sys.argv)

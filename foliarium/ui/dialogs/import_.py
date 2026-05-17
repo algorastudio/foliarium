@@ -14,31 +14,23 @@ Contiene:
 Backward compatibility: dialogs.py re-esporta tutte le classi.
 """
 
-import os
 import csv
-import io
-import json
 import logging
 import urllib.request
-from typing import Optional, List, Dict, Any, Tuple, TYPE_CHECKING
+from typing import Optional, List, Dict, Tuple, TYPE_CHECKING
 
 from PyQt6.QtCore import (
-    QSettings, QThread, QTimer, Qt, pyqtSignal,
+    QThread, Qt, pyqtSignal,
 )
 from PyQt6.QtWidgets import (
     QAbstractItemView, QApplication,
     QCheckBox, QComboBox,
-    QDialog, QDialogButtonBox, QFileDialog, QFormLayout,
-    QGroupBox, QHBoxLayout, QHeaderView,
-    QLabel, QLineEdit, QMenu, QMessageBox, QProgressBar,
-    QPushButton, QSpinBox, QStyle, QTabWidget,
-    QTableWidget, QTableWidgetItem, QTextEdit,
+    QDialog, QDialogButtonBox, QFileDialog, QHBoxLayout,
+    QLabel, QLineEdit, QMessageBox,
+    QProgressBar, QPushButton, QTabWidget, QTableWidget, QTableWidgetItem,
     QVBoxLayout, QWidget,
 )
 
-from catasto_exceptions import (
-    DBMError, DBUniqueConstraintError, DBNotFoundError, DBDataError,
-)
 
 if TYPE_CHECKING:
     from catasto_db_manager import CatastoDBManager
