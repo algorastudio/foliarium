@@ -135,7 +135,7 @@ def prompt_to_open_file(parent_widget, filename: str):
     reply = QMessageBox.question(
         parent_widget,
         "Esportazione Completata",
-        f"File salvato con successo.\n\nVuoi aprirlo ora?",
+        "File salvato con successo.\n\nVuoi aprirlo ora?",
         QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
         QMessageBox.StandardButton.Yes  # Il pulsante 'Sì' è preselezionato
     )

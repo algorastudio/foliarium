@@ -1599,7 +1599,7 @@ class BackupWidget(QWidget):
             else: # Riconnessione pool fallita dopo un restore
                 self._log_to_output_box(
                     "FALLITO: Impossibile ripristinare le connessioni al database. Si prega di RIAVVIARE L'APPLICAZIONE.", "CRITICAL")
-                user_message_title = f"Errore Critico: Riconnessione Database Fallita"
+                user_message_title = "Errore Critico: Riconnessione Database Fallita"
                 user_message_text = (
                     f"L'operazione di {operation_name_display} è terminata, ma l'applicazione non è riuscita a riconnettersi al database. "
                     "Questo è un errore critico. Si prega di chiudere e riavviare l'applicazione immediatamente."

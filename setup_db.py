@@ -58,11 +58,11 @@ def execute_sql_file(cursor, filepath):
         print("OK")
         return True
     except psycopg2.Error as e:
-        print(f"ERRORE")
+        print("ERRORE")
         print(f"    Dettaglio: {e.pgerror or e}")
         return False
     except FileNotFoundError:
-        print(f"FILE NON TROVATO")
+        print("FILE NON TROVATO")
         return False
 
 
@@ -85,7 +85,7 @@ def main():
     db_dir = get_database_dir()
 
     print(f"\n{'='*60}")
-    print(f"  Foliarium — Inizializzazione Database")
+    print("  Foliarium — Inizializzazione Database")
     print(f"{'='*60}")
     print(f"  Host:     {args.host}:{args.port}")
     print(f"  Database: {args.dbname}")
@@ -105,10 +105,10 @@ def main():
         cursor = conn.cursor()
     except psycopg2.OperationalError as e:
         print(f"Errore di connessione al database: {e}")
-        print(f"\nAssicurati che:")
-        print(f"  1. PostgreSQL sia in esecuzione")
+        print("\nAssicurati che:")
+        print("  1. PostgreSQL sia in esecuzione")
         print(f"  2. Il database '{args.dbname}' esista (crea con: psql -f database/01_creazione-database.sql)")
-        print(f"  3. Le credenziali siano corrette")
+        print("  3. Le credenziali siano corrette")
         sys.exit(1)
 
     # Esecuzione degli script SQL in ordine

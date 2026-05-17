@@ -53,7 +53,7 @@ class DBAuditMixin:
                     cur.execute("SELECT set_config('app.ip_address', %s, false);", (ip_str,))
             
             # Il commit è automatico all'uscita del blocco 'with' senza errori
-            self.logger.info(f"Variabili di sessione applicative impostate con successo.")
+            self.logger.info("Variabili di sessione applicative impostate con successo.")
             return True
             
         except Exception as e:

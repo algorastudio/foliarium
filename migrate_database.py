@@ -152,7 +152,7 @@ def apply_migration(pg_bin: Path, port: int, db_name: str, password: str,
             print(f"    {line}")
         return False
     record_applied(pg_bin, port, db_name, password, name)
-    log(f"   OK — registrata in schema_migrations")
+    log("   OK — registrata in schema_migrations")
     return True
 
 

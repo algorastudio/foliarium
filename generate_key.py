@@ -142,7 +142,7 @@ def interactive_mode():
     if confirm in ("s", "si", "sì", "yes", "y", ""):
         if save_key_to_file(key, target_path):
             print(f"\n✅ File salvato: {target_path}")
-            print(f"   Permessi: 0o600 (solo lettura proprietario)")
+            print("   Permessi: 0o600 (solo lettura proprietario)")
             print("\n⚡ Ricorda:")
             print("   • Fai un backup sicuro di questo file")
             print("   • Non commitarlo su Git")

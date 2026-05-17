@@ -343,7 +343,7 @@ def _start_auto_download(parent_widget, installer_asset: dict,
 
         def on_finished(path: str):
             btn_cancel.setText("Chiudi")
-            lbl_status.setText(f"Download completato.\nAvvio dell'installazione…")
+            lbl_status.setText("Download completato.\nAvvio dell'installazione…")
             lbl_info.setText(path)
             try:
                 _launch_installer(path)

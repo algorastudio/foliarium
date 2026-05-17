@@ -170,7 +170,7 @@ class DBPartiteMixin:
                         raise DBMError("Creazione partita fallita, nessun ID restituito.")
         except psycopg2.errors.UniqueViolation as e:
             # Rileva violazione del vincolo di unicità (comune_id, numero_partita, suffisso_partita)
-            raise DBUniqueConstraintError(f"Esiste già una partita con questo numero e suffisso nel comune selezionato.") from e
+            raise DBUniqueConstraintError("Esiste già una partita con questo numero e suffisso nel comune selezionato.") from e
         except Exception as e:
             self.logger.error(f"Errore DB durante la creazione della partita: {e}", exc_info=True)
             raise DBMError(f"Errore imprevisto durante la creazione della partita: {e}") from e
@@ -349,7 +349,7 @@ class DBPartiteMixin:
         conditions.append("NOT p.archiviato")
         query = query_base + joins
         query += " WHERE " + " AND ".join(conditions)
-        query += f" ORDER BY c.nome, p.numero_partita LIMIT %s"
+        query += " ORDER BY c.nome, p.numero_partita LIMIT %s"
         params.append(max_results + 1)
 
         with self._get_connection() as conn:

@@ -202,7 +202,7 @@ def main() -> None:
         sys.exit(1)
 
     print(f"\n{'='*60}")
-    print(f" Preparazione demo_data/ per Foliarium Demo")
+    print(" Preparazione demo_data/ per Foliarium Demo")
     print(f"{'='*60}")
     print(f"  PostgreSQL bin : {pg_bin}")
     print(f"  Data dir       : {data_dir}")
@@ -211,9 +211,9 @@ def main() -> None:
     # --- 1. initdb ---
     if data_dir.exists():
         if args.skip_if_exists:
-            print(f"\n  demo_data/ già esistente, skip (--skip-if-exists).")
+            print("\n  demo_data/ già esistente, skip (--skip-if-exists).")
             return
-        print(f"\n  Rimozione demo_data/ esistente...")
+        print("\n  Rimozione demo_data/ esistente...")
         shutil.rmtree(data_dir)
 
     print("\n[1/6] initdb — inizializzazione cluster PostgreSQL...")
@@ -283,7 +283,7 @@ def main() -> None:
             dbname=DEMO_DB_NAME)
 
         # --- 5. Schema, procedure e dati demo ---
-        print(f"\n[5/6] Esecuzione script SQL...")
+        print("\n[5/6] Esecuzione script SQL...")
         for sql_file in SQL_SCRIPTS:
             if sql_file.exists():
                 print(f"  -> {sql_file.name}")
