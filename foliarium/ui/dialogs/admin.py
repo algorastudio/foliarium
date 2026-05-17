@@ -862,7 +862,7 @@ class EulaDialog(QDialog):
             try:
                 eula_path_1 = resource_path(os.path.join("resources", "EULA.txt"))
                 possible_paths.append(eula_path_1)
-            except:
+            except Exception:
                 pass
             
             # Percorso 2: Relativo all'eseguibile

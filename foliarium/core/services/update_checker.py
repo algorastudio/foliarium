@@ -257,7 +257,7 @@ def _show_update_available_dialog(parent_widget, current_version: str,
         )
         if release_notes:
             # Mostra solo le prime 3 righe delle note di rilascio
-            lines = [l for l in release_notes.splitlines() if l.strip()][:3]
+            lines = [line for line in release_notes.splitlines() if line.strip()][:3]
             body += "<br><br><i>" + "<br>".join(lines) + "</i>"
         msg.setText(body)
 
