@@ -10,31 +10,22 @@ Classi estratte da dialogs.py:
 from __future__ import annotations
 
 import logging
-import os
-from datetime import date, datetime
-from typing import Optional, List, Dict, Any, Tuple
+from typing import Optional, Dict, Any
 
-from PyQt6.QtCore import (QDate, QDateTime, QPoint, QSettings,
-                          QSize, Qt, QTimer, QUrl, pyqtSignal)
-from PyQt6.QtGui import (QBrush, QColor, QDesktopServices, QFont,
-                         QIcon, QPalette, QAction)
+from PyQt6.QtCore import (QDate, Qt, QTimer)
 from PyQt6.QtWidgets import (QAbstractItemView, QApplication,
                              QCheckBox, QComboBox, QDateEdit,
-                             QDialog, QDoubleSpinBox,
-                             QFileDialog, QFormLayout, QFrame, QGridLayout,
-                             QGroupBox, QHBoxLayout, QHeaderView, QInputDialog,
+                             QDialog, QFormLayout,
+                             QGridLayout, QGroupBox, QHBoxLayout, QHeaderView,
                              QLabel, QLineEdit, QListWidget, QListWidgetItem,
-                             QMenu, QMessageBox,
-                             QPushButton, QScrollArea, QSizePolicy, QSpacerItem,
-                             QSpinBox, QStyle, QTabWidget,
-                             QSplitter, QTableWidget, QTableWidgetItem, QTextEdit,
-                             QTreeWidget, QTreeWidgetItem,
-                             QVBoxLayout, QWidget,
-                             QTextBrowser, QDialogButtonBox)
+                             QMessageBox, QPushButton, QSpinBox, QStyle,
+                             QTabWidget, QTableWidget,
+                             QTableWidgetItem, QTextEdit, QVBoxLayout, QWidget,
+                             QDialogButtonBox)
 
 from catasto_db_manager import CatastoDBManager
 from app_utils import format_indirizzo
-from foliarium.ui.widgets.custom import ImmobiliTableWidget, show_status_message as _show_status_message
+from foliarium.ui.widgets.custom import show_status_message as _show_status_message
 
 try:
     from catasto_db_manager import DBMError, DBUniqueConstraintError, DBNotFoundError, DBDataError

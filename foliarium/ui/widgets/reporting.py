@@ -18,39 +18,29 @@ import os
 import csv
 import logging
 from datetime import date, datetime
-from typing import Optional, List, Dict, Any, Tuple, TYPE_CHECKING
+from typing import Optional, List, Dict, Any, TYPE_CHECKING
 
 import pandas as pd
 
 from PyQt6.QtCore import (
-    QAbstractTableModel, QDate, QModelIndex, QPoint, QSettings, QStandardPaths,
-    Qt, QTimer, QUrl, pyqtSignal,
+    QAbstractTableModel, QDate, QModelIndex, QPoint, Qt, QUrl,
 )
 from PyQt6.QtGui import (
-    QColor, QDesktopServices, QFont, QIcon, QAction,
+    QDesktopServices,
 )
 from PyQt6.QtWidgets import (
     QAbstractItemView, QApplication,
-    QCheckBox, QComboBox, QDateEdit, QDialog,
-    QFileDialog, QFormLayout, QFrame, QGridLayout,
-    QGroupBox, QHBoxLayout, QHeaderView,
-    QLabel, QLineEdit, QListWidget, QListWidgetItem,
-    QMenu, QMessageBox, QProgressBar, QProgressDialog,
-    QPushButton, QScrollArea, QSizePolicy, QSpinBox,
-    QSplitter, QStyle, QTabWidget,
-    QTableView, QTableWidget, QTableWidgetItem, QTextBrowser, QTextEdit,
-    QVBoxLayout, QWidget,
+    QComboBox, QDateEdit, QDialog, QFileDialog,
+    QFormLayout, QFrame, QGridLayout, QGroupBox,
+    QHBoxLayout, QHeaderView, QLabel,
+    QLineEdit, QMenu, QMessageBox, QProgressDialog,
+    QPushButton, QSpinBox, QStyle, QTabWidget,
+    QTableView, QTextBrowser, QTextEdit, QVBoxLayout,
+    QWidget,
 )
 
-from app_utils import BulkReportPDF, FPDF_AVAILABLE, GenericTextReportPDF, _get_default_export_path, prompt_to_open_file
+from app_utils import BulkReportPDF, FPDF_AVAILABLE, GenericTextReportPDF, _get_default_export_path
 from catasto_exceptions import DBMError, DBDataError, DBNotFoundError, DBUniqueConstraintError  # noqa: F401
-from config import (
-    APP_VERSION,
-    COLONNE_POSSESSORI_DETTAGLI_NUM, COLONNE_POSSESSORI_DETTAGLI_LABELS,
-    COLONNE_VISUALIZZAZIONE_POSSESSORI_NUM, COLONNE_VISUALIZZAZIONE_POSSESSORI_LABELS,
-    COLONNE_INSERIMENTO_POSSESSORI_NUM, COLONNE_INSERIMENTO_POSSESSORI_LABELS,
-    NUOVE_ETICHETTE_POSSESSORI,
-)
 from dialogs import (
     AlberoGeneralogicoDialog, ConfrontoPartiteDialog,
     ComuneSelectionDialog, PartitaSearchDialog, PossessoreSelectionDialog,

@@ -6,18 +6,12 @@ Classe base per CatastoDBManager (non usare direttamente).
 import psycopg2
 import psycopg2.errors
 from psycopg2.extras import DictCursor
-from psycopg2.extensions import ISOLATION_LEVEL_SERIALIZABLE, ISOLATION_LEVEL_AUTOCOMMIT
-from psycopg2 import sql, extras, pool
-import sys, csv
+from psycopg2 import sql
 import logging
-from datetime import date, datetime
-from typing import List, Dict, Any, Optional, Tuple, Union, Callable
+from datetime import datetime
+from typing import List, Dict, Any, Optional, Tuple, Callable
 import json
-import uuid
-import os
-import shutil
 from contextlib import contextmanager
-import time
 from functools import wraps
 
 
@@ -34,7 +28,6 @@ logger = logging.getLogger(__name__)
 from catasto_exceptions import (
     DBMError,
     DBUniqueConstraintError,
-    DBNotFoundError,
     DBDataError,
 )
 # -------------------------------------------------
@@ -115,7 +108,6 @@ class DBConnectionBase:
             from app_paths import CACHE_DIR
             self._cache_dir = CACHE_DIR
         except Exception:
-            import tempfile
             self._cache_dir = None
             self.logger.warning("CACHE_DIR non disponibile; cache offline disabilitata.")
     # In catasto_db_manager.py, SOSTITUISCI il metodo initialize_main_pool con questo:
@@ -277,6 +269,54 @@ class DBConnectionBase:
         # Idempotente: ogni CREATE è IF NOT EXISTS, l'esistenza della MV
         # è verificata prima per evitare errori se la MV non è stata creata.
         self._ensure_mv_unique_indexes()
+
+        # Vista v_audit_dettagliato — assente nei DB inizializzati prima di
+        # sql_scripts/18_funzioni_trigger_audit.sql; senza, il visualizzatore
+        # audit log lancia UndefinedTable. CREATE OR REPLACE = idempotente.
+        self._ensure_audit_view()
+
+    def _ensure_audit_view(self):
+        """Crea la vista catasto.v_audit_dettagliato se mancante.
+
+        Equivale alla migrazione `migrations/19_create_v_audit_dettagliato.sql`
+        ma applicata automaticamente all'avvio. Best-effort: il fallimento
+        (es. tabella `utente` non esistente) viene loggato in debug e non
+        blocca l'avvio.
+        """
+        try:
+            with self._get_connection() as conn:
+                with conn.cursor() as cur:
+                    cur.execute(
+                        "SELECT 1 FROM information_schema.views "
+                        "WHERE table_schema = %s AND table_name = 'v_audit_dettagliato'",
+                        (self.schema,)
+                    )
+                    if cur.fetchone():
+                        return  # vista già presente
+                    cur.execute(
+                        "SELECT 1 FROM information_schema.tables "
+                        "WHERE table_schema = %s "
+                        "  AND table_name IN ('audit_log', 'utente')",
+                        (self.schema,)
+                    )
+                    # Devono esistere entrambe (audit_log + utente) per costruirla
+                    if cur.rowcount < 2:
+                        return
+                    cur.execute(
+                        f"CREATE OR REPLACE VIEW {self.schema}.v_audit_dettagliato AS "
+                        f"SELECT al.id, CAST(al.timestamp AS TIMESTAMP(0)) AS timestamp, "
+                        f"  al.app_user_id, u.username, u.nome_completo, al.session_id, "
+                        f"  al.tabella, al.operazione, al.record_id, al.ip_address, "
+                        f"  al.utente AS db_user, al.dati_prima, al.dati_dopo "
+                        f"FROM {self.schema}.audit_log al "
+                        f"LEFT JOIN {self.schema}.utente u ON al.app_user_id = u.id"
+                    )
+                    self.logger.info(
+                        "Vista %s.v_audit_dettagliato creata automaticamente all'avvio.",
+                        self.schema,
+                    )
+        except Exception as e:
+            self.logger.debug(f"_ensure_audit_view: {e}")
 
     def _ensure_mv_unique_indexes(self):
         """Crea gli indici UNIQUE mancanti sulle viste materializzate.

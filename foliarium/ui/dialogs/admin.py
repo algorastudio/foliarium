@@ -10,31 +10,23 @@ from __future__ import annotations
 
 import logging
 import os
-import json
 import sys
-from datetime import date, datetime
-from typing import Optional, List, Dict, Any, Tuple
+from datetime import date
+from typing import Optional, Dict, Any
 
-from PyQt6.QtCore import (QDate, QPoint, QProcess, QSettings,
-                          QSize, QStandardPaths, Qt, QThread, QTimer, QUrl,
-                          pyqtSignal)
-from PyQt6.QtGui import (QBrush, QColor, QDesktopServices, QFont,
-                         QIcon, QPalette, QPixmap, QAction)
+from PyQt6.QtCore import (QDate, QSettings, Qt)
+from PyQt6.QtGui import (QDesktopServices, QFont, QPixmap)
 from PyQt6.QtPdf import QPdfDocument
 from PyQt6.QtPdfWidgets import QPdfView
 from PyQt6.QtWidgets import (QAbstractItemView, QApplication,
-                             QCheckBox, QComboBox, QDateEdit,
-                             QDialog, QFileDialog, QFormLayout, QFrame, QGridLayout,
-                             QGroupBox, QHBoxLayout, QHeaderView, QInputDialog,
-                             QLabel, QLineEdit, QListWidget, QListWidgetItem,
-                             QMenu, QMessageBox, QProgressBar,
-                             QPushButton, QScrollArea, QSizePolicy,
-                             QSpinBox, QStyle, QTabWidget,
-                             QSplitter, QTableWidget, QTableWidgetItem, QTextEdit,
-                             QTreeWidget, QTreeWidgetItem,
-                             QVBoxLayout, QWidget,
-                             QTextBrowser, QDialogButtonBox, QRadioButton,
-                             QGraphicsScene, QGraphicsView)
+                             QCheckBox, QComboBox, QDialog,
+                             QFileDialog, QFormLayout, QFrame, QGridLayout, QGroupBox,
+                             QHBoxLayout, QHeaderView, QLabel, QLineEdit,
+                             QMessageBox, QPushButton, QSpinBox, QStyle,
+                             QSplitter, QTableWidget, QTableWidgetItem,
+                             QTreeWidget, QTreeWidgetItem, QVBoxLayout,
+                             QWidget, QTextBrowser, QDialogButtonBox,
+                             QRadioButton, QGraphicsScene, QGraphicsView)
 from PyQt6.QtGui import QPainter
 from app_paths import get_resource_path, get_resource_path as resource_path, get_doc_path  # noqa: F401
 from config import (
@@ -953,11 +945,6 @@ def _verify_password(stored_hash: str, provided_password: str) -> bool:
 
 
 # Estratto in import_dialogs.py — backward compat re-export
-from foliarium.ui.dialogs.import_ import (
-    ISTATDownloadWorker, OSMLocalitaWorker,
-    ImportComuniDialog, ImportLocalitaDialog,
-    _mostra_risultati_import, _popola_preview_tabella,
-)
 
 
 # ---------------------------------------------------------------------------
