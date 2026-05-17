@@ -6,18 +6,12 @@ Classe base per CatastoDBManager (non usare direttamente).
 import psycopg2
 import psycopg2.errors
 from psycopg2.extras import DictCursor
-from psycopg2.extensions import ISOLATION_LEVEL_SERIALIZABLE, ISOLATION_LEVEL_AUTOCOMMIT
-from psycopg2 import sql, extras, pool
-import sys, csv
+from psycopg2 import sql
 import logging
-from datetime import date, datetime
-from typing import List, Dict, Any, Optional, Tuple, Union, Callable
+from datetime import datetime
+from typing import List, Dict, Any, Optional, Tuple, Callable
 import json
-import uuid
-import os
-import shutil
 from contextlib import contextmanager
-import time
 from functools import wraps
 
 
@@ -34,7 +28,6 @@ logger = logging.getLogger(__name__)
 from catasto_exceptions import (
     DBMError,
     DBUniqueConstraintError,
-    DBNotFoundError,
     DBDataError,
 )
 # -------------------------------------------------
@@ -115,7 +108,6 @@ class DBConnectionBase:
             from app_paths import CACHE_DIR
             self._cache_dir = CACHE_DIR
         except Exception:
-            import tempfile
             self._cache_dir = None
             self.logger.warning("CACHE_DIR non disponibile; cache offline disabilitata.")
     # In catasto_db_manager.py, SOSTITUISCI il metodo initialize_main_pool con questo:

@@ -14,9 +14,7 @@ API pubblica:
 """
 from __future__ import annotations
 
-import logging
-from datetime import datetime
-from typing import Any, Dict, List, Optional, TYPE_CHECKING
+from typing import Any, Dict, List
 
 from psycopg2.extras import DictCursor
 from psycopg2 import IntegrityError
@@ -24,8 +22,6 @@ from psycopg2 import IntegrityError
 from catasto_exceptions import DBDataError, DBMError, DBNotFoundError
 from db.base import db_handle_errors
 
-if TYPE_CHECKING:
-    from catasto_db_manager import CatastoDBManager
 
 
 class DBArchiviaMixin:

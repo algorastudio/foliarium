@@ -4,8 +4,7 @@ Estratto da catasto_db_manager.py — mixin per CatastoDBManager.
 """
 
 from __future__ import annotations
-import logging
-from typing import Optional, List, Dict, Any, TYPE_CHECKING
+from typing import Optional, List, Dict, Any
 
 from datetime import date, datetime
 import psycopg2
@@ -16,10 +15,7 @@ from psycopg2.extras import DictCursor
 # circolare tra il layer DB e il layer GUI, e per permettere l'import del modulo
 # in ambienti headless (test CI senza display).
 
-from catasto_exceptions import DBMError, DBUniqueConstraintError, DBNotFoundError, DBDataError
 
-if TYPE_CHECKING:
-    from catasto_db_manager import CatastoDBManager
 
 
 class DBStatsMixin:

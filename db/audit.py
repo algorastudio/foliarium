@@ -6,15 +6,12 @@ Estratto da catasto_db_manager.py — mixin per CatastoDBManager.
 from __future__ import annotations
 import logging
 from datetime import date, datetime
-from typing import Optional, List, Dict, Any, Tuple, TYPE_CHECKING
+from typing import Optional, List, Dict, Any, Tuple
 
 import psycopg2
 from psycopg2.extras import DictCursor
 
-from catasto_exceptions import DBMError, DBUniqueConstraintError, DBNotFoundError, DBDataError
-
-if TYPE_CHECKING:
-    from catasto_db_manager import CatastoDBManager
+from catasto_exceptions import DBMError, DBDataError
 
 
 # Messaggio mostrato (una sola volta per processo) quando la vista

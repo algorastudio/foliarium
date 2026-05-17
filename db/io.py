@@ -4,20 +4,16 @@ Estratto da catasto_db_manager.py — mixin per CatastoDBManager.
 """
 
 from __future__ import annotations
-import logging
-from typing import Optional, List, Dict, Any, Tuple, TYPE_CHECKING
+from typing import Optional, List, Dict, Any, Tuple
 
 import os
 from datetime import date, datetime
-import psycopg2
 from psycopg2.extras import DictCursor
 from psycopg2.extensions import ISOLATION_LEVEL_AUTOCOMMIT
 
-from catasto_exceptions import DBMError, DBUniqueConstraintError, DBNotFoundError, DBDataError
+from catasto_exceptions import DBMError
 from db.base import db_handle_errors
 
-if TYPE_CHECKING:
-    from catasto_db_manager import CatastoDBManager
 
 
 class DBIOMixin:
