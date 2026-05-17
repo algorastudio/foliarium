@@ -11,6 +11,16 @@ Espone:
     GenericTextReportPDF — report testuale generico (Courier, sfondo grigio)
     BulkReportPDF    — report tabellare landscape con header ripetuto
 
+LIMITAZIONE FONT (TODO: migrare a Unicode quando blocca):
+    I font "core" di fpdf2 (Helvetica/Times/Courier) sono latin-1 only.
+    Caratteri come em-dash (—), trattino lungo (–), virgolette curve («»),
+    simboli (€, °), accenti estesi NON sono supportati e sollevano
+    fpdf.errors.FPDFUnicodeEncodingException a runtime.
+
+    I chiamanti sono responsabili di sanitizzare il testo (es. sostituire
+    "—" con "-"). In futuro: registrare un TTF Unicode (DejaVuSans) via
+    pdf.add_font(uni=True) e usarlo come default per i nuovi report.
+
 In ambienti senza fpdf2 (CI minimale, build privi della dipendenza opzionale)
 vengono esportati stub vuoti per preservare gli import dei chiamanti, in
 modo simmetrico a quanto faceva storicamente app_utils.py.

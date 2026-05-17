@@ -197,8 +197,10 @@ def test_golden_path_partita_variazione_export_pdf(clean_db, tmp_path):
 
     from app_utils import GenericTextReportPDF
 
+    # Trattino normale (non em-dash U+2014) per evitare
+    # FPDFUnicodeEncodingException: i font core di fpdf2 sono latin-1.
     pdf = GenericTextReportPDF(
-        report_title=f"Partita {dettagli_nuova['numero_partita']} — "
+        report_title=f"Partita {dettagli_nuova['numero_partita']} - "
                      f"{dettagli_nuova['comune_nome']}"
     )
     pdf.alias_nb_pages()
