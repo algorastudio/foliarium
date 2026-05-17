@@ -8,73 +8,107 @@ Foliarium è un'applicazione desktop a due livelli (**client-server**):
 ┌─────────────────────────┐          ┌─────────────────────────┐
 │   Client Desktop        │          │   Server Database       │
 │                         │          │                         │
-│   PyQt5 GUI             │  TCP/IP  │   PostgreSQL 13+        │
+│   PyQt6 GUI             │  TCP/IP  │   PostgreSQL 14+        │
 │   (gui_main, widgets,   │◄────────►│   Schema: catasto       │
-│    dialogs)             │ psycopg2 │                         │
+│    dialogs, foliarium/) │ psycopg2 │                         │
 │                         │   pool   │   Tabelle, viste,       │
 │   Logica applicativa    │          │   funzioni, trigger,    │
 │   (catasto_db_manager)  │          │   procedure CRUD        │
 └─────────────────────────┘          └─────────────────────────┘
 ```
 
-- **Client**: applicazione Python/PyQt5 che si installa sulla postazione dell'operatore
+- **Client**: applicazione Python 3.12 / PyQt6 che si installa sulla postazione dell'operatore
 - **Server**: database PostgreSQL centralizzato, accessibile da più client in rete
 
 ## Moduli Python
 
-### `main.py` — Entry point
-Punto di ingresso dell'applicazione. Configura i metadati Qt (`QCoreApplication`), avvia il logging e crea la finestra principale.
+A partire dallo Sprint 3 del refactor (analisi six-hats), Foliarium è
+organizzato come un piccolo numero di moduli root + package `foliarium/`
+che contiene la maggior parte della logica UI estratta.
 
-### `src/config.py` — Configurazione
-Gestisce le impostazioni dell'applicazione: connessione al database (host, porta, nome, utente, schema), costanti dell'interfaccia (etichette colonne), flag ambiente CI/CD e configurazione del logging con rotazione dei file.
+### Entry point e infrastruttura
 
-### `src/app_paths.py` — Gestione percorsi
-Risolve i percorsi dell'applicazione sia in ambiente di sviluppo che in un eseguibile PyInstaller. Definisce le directory per risorse statiche (`resources/`, `styles/`) e per i dati utente dinamici (log, esportazioni).
-
-### `src/catasto_db_manager.py` — Accesso al database
-Classe `CatastoDBManager`: gestisce tutte le operazioni verso PostgreSQL tramite connection pool (`psycopg2.pool`). Include operazioni CRUD per tutte le entità (comuni, partite, possessori, immobili, località, variazioni, contratti), gestione utenti e permessi, audit log, backup e ricerca fuzzy. Definisce eccezioni personalizzate (`DBMError`, `DBUniqueConstraintError`, `DBNotFoundError`, `DBDataError`).
-
-### `src/gui_main.py` — Finestra principale
-Classe `CatastoMainWindow`: finestra principale con barra dei menu, barra di stato e area centrale a schede (`QTabWidget`). Gestisce la connessione al database, il login utente, il caricamento dei widget e la navigazione tra le sezioni.
-
-### `src/gui_widgets.py` — Widget interfaccia
-Contiene tutti i widget principali dell'interfaccia:
-
-| Widget | Funzione |
+| Modulo | Ruolo |
 |---|---|
-| `DashboardWidget` | Panoramica con statistiche |
-| `ElencoComuniWidget` | Lista e gestione dei comuni |
-| `RicercaPartiteWidget` | Ricerca partite catastali |
-| `RicercaAvanzataImmobiliWidget` | Ricerca immobili con filtri |
-| `UnifiedFuzzySearchWidget` | Ricerca fuzzy unificata |
-| `InserimentoComuneWidget` | Inserimento nuovo comune |
-| `InserimentoPossessoreWidget` | Inserimento nuovo possessore |
-| `InserimentoPartitaWidget` | Inserimento nuova partita |
-| `InserimentoLocalitaWidget` | Inserimento nuova località |
-| `RegistrazioneProprietaWidget` | Registrazione legami possessore-partita |
-| `OperazioniPartitaWidget` | Operazioni su partite esistenti |
-| `EsportazioniWidget` | Esportazione dati (CSV, PDF, JSON) |
-| `ReportisticaWidget` | Report avanzati |
-| `StatisticheWidget` | Statistiche aggregate |
-| `GestioneUtentiWidget` | Amministrazione utenti e ruoli |
-| `AuditLogViewerWidget` | Visualizzatore registro audit |
-| `BackupWidget` | Gestione backup database |
-| `RegistraConsultazioneWidget` | Registrazione consultazioni archivio |
-| `GestionePeriodiStoriciWidget` | Gestione periodi storici |
-| `GestioneTipiLocalitaWidget` | Gestione tipologie stradali |
+| `gui_main.py` | Entry point. `CatastoMainWindow` (`QMainWindow`), menu, navigazione, slot Qt. Delega login/startup/theme ai moduli sotto. |
+| `config.py` | Costanti, lettura `config.ini`, logging globale con rotazione, `IS_TEST_ENV`, `IS_DEMO_MODE`, `assert_db_password_configured()`. |
+| `app_paths.py` | Risoluzione path per dev / bundle PyInstaller (`BASE_DIR`, `EXE_DIR`, `APP_DATA_DIR`). |
+| `app_utils.py` | Helper IO/keyring/format + facade re-export per PDF e GUI export (era 923 LOC, ora 176). |
+| `validators.py` | `FieldValidator` con metodi statici (`required_text`, `email`, `data`, ecc.) e `ValidationResult` dataclass. |
 
-### `src/dialogs.py` — Dialoghi
-Finestre di dialogo per operazioni specifiche: configurazione database, importazione CSV, EULA, modifica entità (comuni, possessori, immobili, località, periodi storici), selezione entità, dettagli partita, creazione utente, promemoria backup.
+### Accesso ai dati (`db/`, `catasto_db_manager.py`)
 
-### `src/custom_widgets.py` — Widget personalizzati
-Widget riutilizzabili: `ImmobiliTableWidget` (tabella immobili preconfigurata), `QPasswordLineEdit` (campo password), `LazyLoadedWidget` (classe base per il caricamento differito dei dati al primo accesso).
+`CatastoDBManager` è un facade che eredita da 14 mixin per dominio:
+`db/comuni.py`, `db/possessori.py`, `db/partite.py`, `db/immobili.py`,
+`db/variazioni.py`, `db/documenti.py`, `db/audit.py`, `db/utenti.py`,
+`db/backup.py`, `db/stats.py`, `db/ricerca.py`, `db/io.py`,
+`db/archivio.py`, `db/localita.py`. La base condivisa
+(`db/base.py`) gestisce il connection pool `psycopg2.pool`, il context
+manager `_get_connection()` e il decorator `@db_handle_errors` che
+traduce errori psycopg2 in eccezioni custom (`DBMError`,
+`DBUniqueConstraintError`, `DBNotFoundError`, `DBDataError` —
+definite in `catasto_exceptions.py`).
 
-### `src/app_utils.py` — Utility
-Funzioni di supporto: rilevamento IP locale, gestione password con keyring, generazione report PDF (classi `PDFPartita`, `PDFPossessore`, `GenericTextReportPDF`, `BulkReportPDF`), funzioni di esportazione (`gui_esporta_partita_pdf/json/csv`, `gui_esporta_possessore_pdf/json/csv`).
+### Sessione e autenticazione (`core/`)
+
+| Modulo | Classe | Funzione |
+|---|---|---|
+| `core/session_manager.py` | `SessionManager` | Stato dell'utente corrente: id, username, ruolo, display name, IP, timestamp login |
+| `core/auth_manager.py` | `AuthManager` | Login con bcrypt, rate-limit anti brute-force in-memory, hash dummy anti user-enumeration (`_DUMMY_HASH`), verifica permessi |
+
+### UI estratta — `foliarium/ui/`
+
+Sequenza di avvio scomposta in moduli dedicati (Sprint 3.5–3.7):
+
+| Modulo | Responsabilità |
+|---|---|
+| `foliarium/ui/theme.py` | Funzioni pure di tema QSS: `apply_stylesheet`, `apply_auto_theme`, `apply_initial_theme_from_settings`, `is_win11_style_available` |
+| `foliarium/ui/login_flow.py` | `try_autoconnect_db`, `connect_db_with_dialog`, `ensure_db_connection`, `perform_user_login` |
+| `foliarium/ui/startup.py` | `show_splash_screen`, `ensure_eula_accepted`, `validate_license_and_acquire_seat` |
+| `foliarium/ui/top_bar.py` | `TopBarWidget` (header con titolo + chip licenza) |
+| `foliarium/ui/sidebar.py` | `SidebarWidget` (navigazione) |
+| `foliarium/ui/command_palette.py` | Palette comandi (Ctrl+K) |
+| `foliarium/ui/splash.py` | `FoliariumSplashScreen` |
+
+Widget UI raggruppati per dominio funzionale:
+
+| Sottocartella | Contenuto |
+|---|---|
+| `foliarium/ui/widgets/insertion.py` | `InserimentoComuneWidget`, `InserimentoPossessoreWidget`, `InserimentoLocalitaWidget`, `InserimentoPartitaWidget` |
+| `foliarium/ui/widgets/admin.py` | `GestioneUtentiWidget`, `AuditLogViewerWidget`, `BackupWidget`, `TipiPossessoWidget`, `ArchivioWidget`, `TabelleDiSistemaWidget` |
+| `foliarium/ui/widgets/reporting.py` | `RicercaDocumentiWidget`, `EsportazioniWidget`, `ReportisticaWidget`, `StatisticheWidget`, `RegistraConsultazioneWidget` |
+| `foliarium/ui/widgets/custom.py` | `LazyLoadedWidget`, `QPasswordLineEdit`, `StatCard`, `show_status_message`, helper condivisi |
+| `foliarium/ui/widgets/search/` | `partite.py`, `immobili.py`, `fuzzy.py` — un file per famiglia di ricerca (Sprint 3.4) |
+| `foliarium/ui/widgets/workflow/` | `registrazione_proprieta.py`, `nuova_partita_wizard.py`, `operazioni_partita.py` (Sprint 3.3) |
+| `foliarium/ui/dialogs/` | `entity.py`, `admin.py`, `partita.py`, `import_.py`, `export_.py` |
+
+### Reportistica e export
+
+- `foliarium/reporting/pdf.py` — classi PDF: `ModernCatastoPDF` (base con palette istituzionale, header banda blu, footer paginazione, `cover_block`, `section_title`, `info_block`, `styled_table`), `PDFPartita`, `PDFPossessore`, `GenericTextReportPDF` (Courier), `BulkReportPDF` (landscape, header ripetuto).
+- `foliarium/ui/export/partita.py` — wrapper GUI: `gui_esporta_partita_{json,csv,pdf}` con dialog di anteprima.
+- `foliarium/ui/export/possessore.py` — analoghi per i possessori.
+
+### Servizi (`foliarium/core/services/`)
+
+| Modulo | Ruolo |
+|---|---|
+| `license.py` | `LicenseManager`: validazione file `.license` HMAC-SHA256, hardware fingerprint, gestione seat di rete con TTL |
+| `email.py` | Notifiche SMTP (creazione/modifica utenti, login) |
+| `update_checker.py` | Verifica aggiornamenti remoti |
+| `demo_launcher.py` | Avvio PostgreSQL embedded portatile per modalità `--demo` |
+
+### REST API (opzionale, `api/`)
+
+API FastAPI per integrazioni esterne: `api/main.py` espone la factory
+`create_app()`, `api/server_thread.py` permette di farla girare in un
+thread separato all'interno dell'app desktop. Routes in
+`api/routes/`: `comuni`, `partite`, `possessori`, `audit`,
+`genealogia`, ecc.
 
 ## Schema del database
 
-Lo schema risiede nello schema PostgreSQL `catasto` e comprende le seguenti tabelle principali:
+Lo schema risiede nello schema PostgreSQL `catasto` (configurabile via
+`SETTINGS_DB_SCHEMA`) e comprende le seguenti tabelle principali:
 
 ```
 periodo_storico          Periodi storici (Regno di Sardegna, Regno d'Italia, Repubblica)
@@ -107,12 +141,51 @@ utente_permesso          Associazione utenti-permessi
 
 ## Sicurezza
 
-- Le password degli utenti applicativi sono memorizzate con hash **bcrypt**
-- Il salvataggio delle password di connessione al database è gestito tramite **keyring** del sistema operativo
+- Le password degli utenti applicativi sono memorizzate con hash **bcrypt** (cost 12)
+- `AuthManager` implementa **rate-limit in-memory** (5 tentativi → lockout 15 minuti) e usa un **hash dummy precomputato** per normalizzare i tempi di risposta del login e prevenire user enumeration tramite timing attack
+- Il salvataggio delle password di connessione al database è gestito tramite **keyring** del sistema operativo; **mai** persistite in QSettings
 - Il file `config.ini` (con credenziali) è escluso dal repository tramite `.gitignore`
+- Se la password DB manca in produzione, `config.assert_db_password_configured()` solleva `RuntimeError` invece di tentare un login silenzioso con password vuota
 - L'audit log registra automaticamente tutte le modifiche ai dati con utente, timestamp e IP
 - Il sistema di permessi consente di limitare l'accesso alle funzionalità per ruolo
+- Il file `.license` è firmato con **HMAC-SHA256**; la chiave non è hardcoded ma letta da `FOLIARIUM_LICENSE_KEY` o da un file `foliarium.key` in `EXE_DIR`
+
+## Backward compatibility (post-refactor Sprint 3)
+
+Alcuni moduli root sono diventati facade thin che re-esportano dai
+nuovi package. **Tutti gli import storici continuano a funzionare**:
+
+```python
+# Equivalenti (entrambi validi)
+from search_widgets import RicercaPartiteWidget
+from foliarium.ui.widgets.search import RicercaPartiteWidget
+
+from partita_workflow_widgets import NuovaPartitaWizardWidget
+from foliarium.ui.widgets.workflow import NuovaPartitaWizardWidget
+
+from app_utils import PDFPartita, gui_esporta_partita_pdf
+from foliarium.reporting.pdf import PDFPartita
+from foliarium.ui.export import gui_esporta_partita_pdf
+```
+
+I nuovi import sono preferiti per nuovo codice. I facade sono mantenuti
+per evitare PR ad alto blast-radius sui consumer storici.
 
 ## Compatibilità PyInstaller
 
-Il modulo `app_paths.py` gestisce la risoluzione dei percorsi sia in ambiente di sviluppo che all'interno di un eseguibile creato con PyInstaller (`sys._MEIPASS`), rendendo possibile la distribuzione come singolo file eseguibile.
+Il modulo `app_paths.py` gestisce la risoluzione dei percorsi sia in
+ambiente di sviluppo che all'interno di un eseguibile creato con
+PyInstaller. Distingue tre directory:
+
+| Tipo file | Posizione | Costante |
+|---|---|---|
+| Risorse bundled (icone, .qss, .md, .svg) | `_internal/` | `BASE_DIR` |
+| File utente / installer (`config.ini`, `.license`, `foliarium.key`) | Accanto all'exe | `EXE_DIR` |
+| Dati scrivibili (log, cache, esportazioni) | `%LOCALAPPDATA%\Foliarium` | `APP_DATA_DIR` |
+
+`app_paths.get_exe_dir()` ritorna `Path(sys.executable).parent` quando
+l'app è frozen (PyInstaller), `Path(__file__).parent` altrimenti.
+
+Lo spec `foliarium.spec` produce un bundle **onedir** standard; lo spec
+`foliarium_demo.spec` include anche PostgreSQL portatile per la
+modalità demo (`Foliarium.exe --demo`).
