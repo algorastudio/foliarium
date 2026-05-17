@@ -185,7 +185,9 @@ def test_golden_path_partita_variazione_export_pdf(clean_db, tmp_path):
     assert dettagli_nuova is not None
     assert dettagli_orig["stato"] in ("inattiva", "chiusa")
     assert dettagli_nuova["stato"] == "attiva"
-    assert dettagli_nuova.get("numero_provenienza") == 2001
+    # numero_provenienza puo' essere serializzato come stringa (TEXT) o int
+    # a seconda della versione dello schema (v1.6+ usa TEXT)
+    assert str(dettagli_nuova.get("numero_provenienza")) == "2001"
     assert len(dettagli_nuova.get("possessori", [])) == 1
     assert dettagli_nuova["possessori"][0]["id"] == acquirente_id
 
