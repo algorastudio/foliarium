@@ -47,7 +47,7 @@ from gui_widgets import (
     InserimentoPossessoreWidget, InserimentoLocalitaWidget, RegistrazioneProprietaWidget,
     OperazioniPartitaWidget, EsportazioniWidget, ReportisticaWidget, StatisticheWidget,
     GestioneUtentiWidget, AuditLogViewerWidget, BackupWidget, ArchivioWidget,
-    RegistraConsultazioneWidget, WelcomeScreen, GestionePeriodiStoriciWidget,
+    RegistraConsultazioneWidget, GestionePeriodiStoriciWidget,
     GestioneTipiLocalitaWidget, TipiPossessoWidget, NuovaPartitaWizardWidget,
     DBConfigDialog, InserimentoPartitaWidget, RicercaDocumentiWidget)
 from foliarium.ui.widgets.admin import TabelleDiSistemaWidget
@@ -63,7 +63,6 @@ from config import (
     SETTINGS_UI_CURRENT_STYLE, SETTINGS_UI_AUTO_THEME, SETTINGS_UI_WIN11_STYLE,
     AUTO_THEME_LIGHT,
     IS_TEST_ENV, SETTINGS_SESSION_TIMEOUT,
-    EULA_VERSION, SETTINGS_EULA_ACCEPTED,
     IS_DEMO_MODE,
     DEMO_DB_HOST, DEMO_DB_NAME, DEMO_DB_USER, DEMO_DB_PASS, DEMO_DB_PORT,
     DEMO_LOGIN_USER, DEMO_LOGIN_PASS,
@@ -108,7 +107,6 @@ except ImportError:
                              "Non è possibile importare CatastoDBManager. "
                              "Assicurati che catasto_db_manager.py sia accessibile.")
         sys.exit(1)
-from foliarium.ui.splash import FoliariumSplashScreen  # noqa: F401
 from foliarium.ui.dialogs.admin import LoginDialog       # noqa: F401
 
 
@@ -1762,17 +1760,8 @@ def run_gui_app():
         QCoreApplication.setApplicationName("Foliarium")
 
         # Splash screen (saltata in ambiente CI/test)
-        _splash = None
-        if not IS_TEST_ENV:
-            _splash = FoliariumSplashScreen()
-            _splash.show()
-            # Mostra la splash per 2.5 secondi poi la chiude automaticamente
-            import time
-            app.processEvents()
-            time.sleep(2.5)
-            app.processEvents()
-            _splash.close()
-            _splash = None
+        from foliarium.ui.startup import show_splash_screen
+        show_splash_screen(app)
 
         # --- CHIAMATA ALLA NUOVA FUNZIONE QUI ---
         # Questo imposta il logging per l'intera applicazione prima che qualsiasi
@@ -1789,50 +1778,14 @@ def run_gui_app():
 
         from foliarium.ui import theme as _theme
         _theme.apply_initial_theme_from_settings(app, logger=gui_logger)
-        # --- CONTROLLO EULA / WELCOME SCREEN ---
-        settings = QSettings()
-        accepted_version = settings.value(SETTINGS_EULA_ACCEPTED, "", type=str)
-        if accepted_version != EULA_VERSION:
-            welcome = WelcomeScreen(parent=None)
-            if welcome.exec() != QDialog.DialogCode.Accepted:
-                gui_logger.info("EULA non accettata. Uscita.")
-                sys.exit(0)
-            settings.setValue(SETTINGS_EULA_ACCEPTED, EULA_VERSION)
-            settings.sync()
-        # --- FINE CONTROLLO EULA ---
 
-        # --- VERIFICA LICENZA ---
-        from foliarium.core.services.license import LicenseManager
-        _license_mgr = LicenseManager()
-        _license_info = _license_mgr.validate()
-        if not _license_info.is_valid:
-            QMessageBox.critical(
-                None,
-                "Licenza non valida",
-                f"<b>Foliarium non può essere avviato.</b><br><br>"
-                f"{_license_info.error_message}<br><br>"
-                "Contatta il tuo amministratore per ottenere una licenza valida."
-            )
-            gui_logger.error(f"Licenza non valida: {_license_info.error_message}")
-            sys.exit(1)
-
-        # Controllo seat di rete (skip per demo — max_seats=1 e no share)
-        _allowed, _seats, _max = _license_mgr.acquire_seat()
-        if not _allowed:
-            QMessageBox.critical(
-                None,
-                "Numero di licenze esaurito",
-                f"<b>Impossibile avviare Foliarium.</b><br><br>"
-                f"Sono già attive <b>{_seats - 1}</b> istanze su {_max} consentite dalla licenza.<br>"
-                "Chiudi un'altra sessione e riprova."
-            )
-            gui_logger.error(f"Seat di rete esauriti ({_seats}/{_max})")
-            sys.exit(1)
-        gui_logger.info(
-            f"Licenza OK — intestata a: {_license_info.licensed_to} "
-            f"| tipo: {_license_info.license_type} | seat: {_seats}/{_max}"
+        from foliarium.ui.startup import (
+            ensure_eula_accepted,
+            validate_license_and_acquire_seat,
         )
-        # --- FINE VERIFICA LICENZA ---
+        ensure_eula_accepted(gui_logger)
+        _license_mgr = validate_license_and_acquire_seat(gui_logger)
+        settings = QSettings()
 
         gui_logger.info("Avvio dell'applicazione GUI Catasto Storico...")
         db_manager_gui: Optional[CatastoDBManager] = None
