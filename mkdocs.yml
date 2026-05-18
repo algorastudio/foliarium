@@ -1,4 +1,4 @@
-site_name: Manuale Foliarium 1.0.0
+site_name: Manuale Foliarium 1.0.1
 site_description: Manuale utente Foliarium — Sistema di gestione digitale dell'Archivio Catastale Storico
 site_author: Marco Santoro
 
@@ -33,6 +33,7 @@ nav:
       - Gestione Utenti: admin/gestione-utenti.md
       - Backup e Ripristino: admin/backup.md
       - Import Massivo: admin/import-massivo.md
+      - Migrazioni Schema: admin/migrazioni.md
   - Riferimento:
       - FAQ: riferimento/faq.md
       - Changelog: riferimento/changelog.md
