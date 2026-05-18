@@ -9,6 +9,8 @@ pytest-mock>=3.10.0
 # Database (se disponibile)
 psycopg2-binary>=2.9.0
 
-# GUI (opzionale per ora)
-# PyQt5>=5.15.0
-# pytest-qt>=4.2.0
+# GUI smoke test (Sprint 3.9 — opzione "smoke test GUI"):
+# pytest-qt fornisce la fixture qtbot per istanziare widget PyQt6 in
+# test headless (offscreen via QT_QPA_PLATFORM=offscreen).
+# PyQt6 stesso e' gia' nel requirements.txt principale.
+pytest-qt>=4.2.0

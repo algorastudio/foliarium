@@ -271,3 +271,111 @@ class TestRicercaAvanzata:
         # Senza filtri: deve restituire una lista (eventualmente limitata da LIMIT interno)
         risultati = db.ricerca_avanzata_immobili_gui()
         assert isinstance(risultati, list)
+
+
+# ---------------------------------------------------------------------------
+# 6. Unique constraints — equivalente di TestComune/PossessoreOperations
+#    duplicate del vecchio test_database_manager.py (skippato per drift).
+# ---------------------------------------------------------------------------
+
+class TestUniqueConstraints:
+    """Verifica che gli insert duplicati sollevino DBUniqueConstraintError."""
+
+    def test_aggiungi_comune_duplicato(self, clean_db):
+        from catasto_exceptions import DBUniqueConstraintError
+
+        clean_db.aggiungi_comune("DupComune", "PV", "Test")
+        with pytest.raises(DBUniqueConstraintError):
+            clean_db.aggiungi_comune("DupComune", "PV", "Test")
+
+    def test_create_possessore_duplicato(self, sample_data):
+        from catasto_exceptions import DBUniqueConstraintError
+
+        db = sample_data["db"]
+        comune_id = sample_data["comune_id"]
+        db.create_possessore(
+            nome_completo="DUPLICATO TEST E2E",
+            comune_riferimento_id=comune_id,
+        )
+        with pytest.raises(DBUniqueConstraintError):
+            db.create_possessore(
+                nome_completo="DUPLICATO TEST E2E",
+                comune_riferimento_id=comune_id,
+            )
+
+
+# ---------------------------------------------------------------------------
+# 7. Error raising — equivalente di TestErrorHandling skippato
+# ---------------------------------------------------------------------------
+
+class TestErrorRaising:
+    """Le exceptions custom in catasto_exceptions devono propagare correttamente."""
+
+    def test_data_error_su_id_invalido(self, clean_db):
+        """ID negativo / non int → DBDataError."""
+        from catasto_exceptions import DBDataError
+
+        with pytest.raises(DBDataError):
+            clean_db.get_localita_by_comune(comune_id=-1)
+        with pytest.raises(DBDataError):
+            clean_db.create_possessore(
+                nome_completo="X",
+                comune_riferimento_id=0,  # non valido (>0 richiesto)
+            )
+
+    def test_update_possessore_id_inesistente(self, clean_db):
+        """update_possessore su ID inesistente: ritorna senza errore
+        (no rows affected, log info, ritorno None implicito)."""
+        # Non deve sollevare — il design di update_possessore loggar e basta
+        result = clean_db.update_possessore(
+            possessore_id=99999999,
+            dati_modificati={"paternita": "test"},
+        )
+        # Comportamento documentato: ritorna senza crash
+        assert result is None or result is False
+
+
+# ---------------------------------------------------------------------------
+# 8. Transaction management via context manager — equivalente di
+#    TestTransactionManagement skippato. begin/commit/rollback come metodi
+#    top-level non esistono in v1.5.0+; le transazioni si fanno sulla
+#    connessione ottenuta via context manager.
+# ---------------------------------------------------------------------------
+
+class TestTransactionContextManager:
+    """Verifica le semantiche di commit/rollback sulla connessione."""
+
+    def test_commit_persiste_dopo_uscita_context(self, clean_db):
+        """conn.commit() esplicito + uscita pulita → dato persiste."""
+        with clean_db._get_connection() as conn:
+            with conn.cursor() as cur:
+                cur.execute(
+                    "INSERT INTO catasto.comune (nome, provincia, regione) "
+                    "VALUES (%s, %s, %s) RETURNING id",
+                    ("CommitTest", "PV", "Test"),
+                )
+                new_id = cur.fetchone()[0]
+                conn.commit()
+
+        # Dato visibile dopo l'uscita del context
+        dettagli = clean_db.get_comune_by_id(new_id)
+        assert dettagli is not None
+        assert dettagli["nome_comune"] == "CommitTest"
+
+    def test_rollback_esplicito_annulla(self, clean_db):
+        """conn.rollback() prima dell'uscita → dato NON persiste."""
+        new_id = None
+        with clean_db._get_connection() as conn:
+            with conn.cursor() as cur:
+                cur.execute(
+                    "INSERT INTO catasto.comune (nome, provincia, regione) "
+                    "VALUES (%s, %s, %s) RETURNING id",
+                    ("RollbackTest", "PV", "Test"),
+                )
+                new_id = cur.fetchone()[0]
+                conn.rollback()
+
+        # Dato NON visibile (rollback ha annullato l'insert)
+        if new_id is not None:
+            dettagli = clean_db.get_comune_by_id(new_id)
+            assert dettagli is None
