@@ -154,3 +154,42 @@ script causa problemi:
 Per scenari più complessi (DB di produzione, dati a rischio): backup
 prima della migration via *Sistema → Backup* nell'applicazione, poi
 restore se la migrazione causa problemi.
+
+---
+
+## Release tag-based
+
+Foliarium pubblica le release in modo automatico quando viene
+**pushato un tag** `X.Y.Z` o `vX.Y.Z` (vedi
+`.github/workflows/pipeline_foliarium.yml`, job `create-release`).
+
+Il flusso completo è:
+
+1. **Preparazione changelog** — `python bin/release.py draft` genera
+   la bozza della nuova sezione dal git log (commit dall'ultimo tag
+   raggruppati per tipo: feat/fix/refactor/test/docs/ci/chore).
+   Copiare la bozza in `docs/riferimento/changelog.md`, editare e
+   accorpare.
+
+2. **Bump versione** — aggiornare `APP_VERSION` in `config.py`.
+
+3. **Commit** delle modifiche al changelog + config.py
+   (es. `git commit -am "release: v1.0.2"`).
+
+4. **Tag locale** — `python bin/release.py tag 1.0.2` crea il tag
+   annotato dopo verifiche di coerenza (branch, APP_VERSION).
+
+5. **Push del tag** — `git push origin 1.0.2` triggera il job
+   `create-release` che:
+   - aspetta i build job (windows/demo/unified/linux/macos);
+   - estrae la sezione `## v1.0.2` dal changelog come note di release;
+   - calcola SHA-256 di tutti gli asset;
+   - crea/aggiorna la GitHub Release con asset + checksum.
+
+### Comandi `bin/release.py`
+
+| Comando | Scopo |
+|---|---|
+| `release.py version` | mostra versione attuale + suggerita |
+| `release.py draft [--version X] [--force]` | stampa bozza changelog |
+| `release.py tag X.Y.Z [--yes]` | crea il tag git locale |
