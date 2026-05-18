@@ -293,14 +293,17 @@ class TestUniqueConstraints:
 
         db = sample_data["db"]
         comune_id = sample_data["comune_id"]
+        # cognome_nome e' NOT NULL nello schema — sempre passarlo esplicito
         db.create_possessore(
             nome_completo="DUPLICATO TEST E2E",
             comune_riferimento_id=comune_id,
+            cognome_nome="DUPLICATO",
         )
         with pytest.raises(DBUniqueConstraintError):
             db.create_possessore(
                 nome_completo="DUPLICATO TEST E2E",
                 comune_riferimento_id=comune_id,
+                cognome_nome="DUPLICATO",
             )
 
 
@@ -312,27 +315,36 @@ class TestErrorRaising:
     """Le exceptions custom in catasto_exceptions devono propagare correttamente."""
 
     def test_data_error_su_id_invalido(self, clean_db):
-        """ID negativo / non int → DBDataError."""
+        """ID negativo / non int → DBDataError.
+
+        Verifica solo le validazioni client-side esplicite, non quelle
+        delegate al DB (es. FK violation). Per le seconde si usa
+        DBMError / DBNotFoundError (vedi sotto).
+        """
         from catasto_exceptions import DBDataError
 
         with pytest.raises(DBDataError):
             clean_db.get_localita_by_comune(comune_id=-1)
+        # update_possessore valida possessore_id <= 0 client-side
         with pytest.raises(DBDataError):
-            clean_db.create_possessore(
-                nome_completo="X",
-                comune_riferimento_id=0,  # non valido (>0 richiesto)
+            clean_db.update_possessore(
+                possessore_id=-1,
+                dati_modificati={"paternita": "x"},
             )
 
     def test_update_possessore_id_inesistente(self, clean_db):
-        """update_possessore su ID inesistente: ritorna senza errore
-        (no rows affected, log info, ritorno None implicito)."""
-        # Non deve sollevare — il design di update_possessore loggar e basta
-        result = clean_db.update_possessore(
-            possessore_id=99999999,
-            dati_modificati={"paternita": "test"},
-        )
-        # Comportamento documentato: ritorna senza crash
-        assert result is None or result is False
+        """update_possessore su ID > 0 ma inesistente → DBNotFoundError.
+
+        Il metodo distingue "ID invalido" (DBDataError, validazione)
+        da "ID valido ma nessun record" (DBNotFoundError, lookup).
+        """
+        from catasto_exceptions import DBNotFoundError
+
+        with pytest.raises(DBNotFoundError):
+            clean_db.update_possessore(
+                possessore_id=99999999,
+                dati_modificati={"paternita": "test"},
+            )
 
 
 # ---------------------------------------------------------------------------
@@ -363,7 +375,14 @@ class TestTransactionContextManager:
         assert dettagli["nome_comune"] == "CommitTest"
 
     def test_rollback_esplicito_annulla(self, clean_db):
-        """conn.rollback() prima dell'uscita → dato NON persiste."""
+        """conn.rollback() prima dell'uscita → dato NON persiste.
+
+        get_comune_by_id solleva DBNotFoundError quando l'ID non esiste
+        (non ritorna None). Verifichiamo l'assenza del record via
+        eccezione.
+        """
+        from catasto_exceptions import DBNotFoundError
+
         new_id = None
         with clean_db._get_connection() as conn:
             with conn.cursor() as cur:
@@ -376,6 +395,6 @@ class TestTransactionContextManager:
                 conn.rollback()
 
         # Dato NON visibile (rollback ha annullato l'insert)
-        if new_id is not None:
-            dettagli = clean_db.get_comune_by_id(new_id)
-            assert dettagli is None
+        assert new_id is not None
+        with pytest.raises(DBNotFoundError):
+            clean_db.get_comune_by_id(new_id)
