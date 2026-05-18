@@ -78,9 +78,24 @@ Widget UI raggruppati per dominio funzionale:
 | `foliarium/ui/widgets/admin.py` | `GestioneUtentiWidget`, `AuditLogViewerWidget`, `BackupWidget`, `TipiPossessoWidget`, `ArchivioWidget`, `TabelleDiSistemaWidget` |
 | `foliarium/ui/widgets/reporting.py` | `RicercaDocumentiWidget`, `EsportazioniWidget`, `ReportisticaWidget`, `StatisticheWidget`, `RegistraConsultazioneWidget` |
 | `foliarium/ui/widgets/custom.py` | `LazyLoadedWidget`, `QPasswordLineEdit`, `StatCard`, `show_status_message`, helper condivisi |
+| `foliarium/ui/widgets/comuni.py` | `ElencoComuniWidget`, `ComuniTableModel`, `_ComuniLoaderWorker` (Sprint 3.8) |
+| `foliarium/ui/widgets/dashboard.py` | `DashboardWidget`, `_DashboardLoaderWorker` (Sprint 3.8) |
+| `foliarium/ui/widgets/welcome.py` | `WelcomeScreen` — EULA splash (Sprint 3.8) |
 | `foliarium/ui/widgets/search/` | `partite.py`, `immobili.py`, `fuzzy.py` — un file per famiglia di ricerca (Sprint 3.4) |
 | `foliarium/ui/widgets/workflow/` | `registrazione_proprieta.py`, `nuova_partita_wizard.py`, `operazioni_partita.py` (Sprint 3.3) |
+| `foliarium/ui/csv_export.py` | 5 helper di export CSV (Sprint 3.9) |
 | `foliarium/ui/dialogs/` | `entity.py`, `admin.py`, `partita.py`, `import_.py`, `export_.py` |
+
+### API contract — `foliarium/protocols.py`
+
+Sette `typing.Protocol` `@runtime_checkable` che descrivono la superficie d'uso di `CatastoDBManager` dal punto di vista dei consumer (widget + test): `ComuneOpsProtocol`, `PossessoreOpsProtocol`, `PartitaOpsProtocol`, `ImmobileOpsProtocol`, `LocalitaOpsProtocol`, `AuditOpsProtocol` + `DBManagerProtocol` (unione). I widget possono annotare `db: DBManagerProtocol` senza importare `CatastoDBManager` (rompe i cicli di import e permette type checking dei consumer).
+
+### Tooling sviluppatore — `bin/`
+
+| Script | Ruolo |
+|---|---|
+| `bin/check_api_drift.py` | Gate anti-drift: incrocia metodi DB definiti con chiamate `db.X()` nei consumer. Exit 1 se trova metodi chiamati ma non definiti. Pensato per pre-commit hook o CI gate. |
+| `bin/migrate.py` | CLI minimale per applicare/ispezionare migrazioni SQL. Comandi: `status`, `up`, `up --dry-run`, `up --file <X>`. Usa la tabella `catasto.schema_version` per tracking. Vedi *Migrazioni Schema*. |
 
 ### Reportistica e export
 

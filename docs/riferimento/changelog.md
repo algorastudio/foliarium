@@ -40,6 +40,75 @@ facade thin di re-export.
 ### Unit test sui nuovi moduli
 
 - `tests/unit/test_theme.py` (172 LOC): valida le 6 funzioni pure di `foliarium/ui/theme.py` con `QApplication` offscreen e `QSettings` isolato su `tmp_path`.
+- `tests/unit/test_login_flow.py`: 15 test sui 4 stadi di connessione DB (autoconnect, dialog manuale, ensure pool, perform login).
+- `tests/unit/test_startup.py`: 9 test su splash + EULA + license check.
+- `tests/unit/test_db_base_audit_view.py`: 4 test per `_ensure_audit_view` (vista presente / tabelle mancanti / happy path / errore DB).
+- `tests/unit/test_db_signatures.py`: 29 test che bloccano le signature dei metodi DB più inclini a drift (es. `update_possessore` con `dati_modificati: dict` invece di kwargs).
+
+### Sprint 3.8 — estrazione finale widget da `gui_widgets.py`
+
+Tre widget storicamente in `gui_widgets.py` (1.036 LOC) sono stati estratti in moduli dedicati. `gui_widgets.py` diventa un facade thin di re-export (178 LOC, -83%):
+
+| Nuovo modulo | LOC | Contenuto |
+|---|---|---|
+| `foliarium/ui/widgets/comuni.py` | 443 | `_ComuniLoaderWorker`, `ComuniTableModel`, `ElencoComuniWidget` |
+| `foliarium/ui/widgets/dashboard.py` | 333 | `_DashboardLoaderWorker`, `DashboardWidget` |
+| `foliarium/ui/widgets/welcome.py` | 223 | `WelcomeScreen` (EULA splash post-rebrand) |
+
+### Sprint 3.9 — CSV export + test_e2e ex-novo + tooling
+
+- `foliarium/ui/csv_export.py` (182 LOC): 5 helper di export CSV estratti da `gui_main.py` (`scarica_csv_generico`, `seleziona_comune_per_csv`, `scarica_csv_{comuni,localita,possessori,partite}`). `gui_main.py`: 1.982 → 1.904 LOC.
+- `tests/integration/test_e2e.py` riscritto ex-novo: 18 test E2E sul DB layer post-mixin (Comune CRUD, Possessore lifecycle, Partita workflow, Immobile workflow, Ricerca avanzata, Unique constraints, Error raising, Transaction context manager).
+- `tests/integration/test_database_manager.py`: ridotto da 567 → 104 LOC (-82%). Cancellate 8 classi `@pytest.mark.skip` per API drift v1.5.0+; equivalenti consolidati in `test_e2e.py`. Resta attiva solo `TestCatastoDBManagerConnection` (3 test pool/error/thread-safety).
+- `tests/legacy_setup_docs.py`: cancellato (413 LOC dead code, non raccolto da pytest).
+- `tests/integration/test_gui_smoke.py` (264 LOC): 13 smoke test con `pytest-qt` sui 3 widget Sprint 3.8 (`ElencoComuniWidget`, `DashboardWidget`, `WelcomeScreen`, `ComuniTableModel`). Coverage: `comuni.py` 52%, `dashboard.py` 74%, `welcome.py` 83%.
+- Nuova dipendenza `pytest-qt>=4.2.0` in `tests/requirements-test.txt`.
+
+### Tooling sviluppatore
+
+- `bin/check_api_drift.py` — gate anti-drift API DB: incrocia metodi pubblici/privati definiti in `db/*.py` con chiamate `db.X()` nei consumer (test/widget/api). Stampa report dei metodi chiamati ma non definiti (exit 1 se trovati). Ha già individuato un bug reale: `foliarium/ui/dialogs/partita.py:1885` chiamava `get_localita_per_comune` (rinominato in `get_localita_by_comune` nel rebrand v1.5.0+), risolto contestualmente.
+- `bin/migrate.py` — CLI minimale per applicare/ispezionare migrazioni SQL. Comandi: `status`, `up`, `up --dry-run`, `up --file <X>`. Usa la tabella `catasto.schema_version` (auto-creata al primo run) per tracciare le migrazioni applicate. Vedi `admin/migrazioni.md`.
+- `sql_scripts/migrations/00_schema_version_table.sql` — bootstrap della tabella di tracking con backfill automatico delle migrazioni note già applicate (es. `add_soft_delete`, `add_tipo_possesso`, `v_audit_dettagliato`).
+
+### API contract — `foliarium/protocols.py`
+
+Sette `typing.Protocol` `@runtime_checkable` che descrivono la superficie d'uso di `CatastoDBManager` dal punto di vista dei consumer: `ComuneOpsProtocol`, `PossessoreOpsProtocol`, `PartitaOpsProtocol`, `ImmobileOpsProtocol`, `LocalitaOpsProtocol`, `AuditOpsProtocol` + `DBManagerProtocol` (unione). Type checker (mypy/pyright) verifica le chiamate dai widget; ogni rinomina lato `db/` rompe immediatamente il contract.
+
+### Pipeline CI/CD
+
+- Aggiunto trigger `pull_request:` (branches `main`/`master`) — le PR vengono validate prima del merge, non solo dopo.
+- I 5 job di build (`build-windows`, `build-demo`, `build-unified`, `build-linux`, `build-macos`) sono gated con `if: github.event_name != 'pull_request'` — sulle PR gira solo il job di test, evitando runner costosi.
+- Soglia coverage abbassata da 70 → 35: 70 era irraggiungibile senza E2E GUI live, 35 e' la soglia di regressione realistica. Coverage attuale ~43%.
+- Workflow CI applica automaticamente `sql_scripts/migrations/20_fix_report_function_civico.sql` dopo l'init DB (corregge `genera_report_proprieta` per lo schema v1.6.1).
+
+### Bug fix latenti scoperti durante l'analisi
+
+- `db/audit.py::get_audit_log` e `get_audit_logs` intercettano `psycopg2.errors.UndefinedTable` (vista `catasto.v_audit_dettagliato` mancante in DB legacy) e mostrano un warning one-shot con istruzioni invece di crashare. Auto-apply della vista all'avvio in `db/base.py::_ensure_audit_view()`.
+- `foliarium/ui/widgets/search/partite.py` rimosso riferimento a `_IMMOBILI_COLS` (mancante post-refactor).
+- `foliarium/ui/dialogs/partita.py:1885`: `get_localita_per_comune` → `get_localita_by_comune` (+ adattamento loop a `List[Dict]` invece di `list[tuple]`).
+- `db/base.py`: ripristinato `import psycopg2.pool` esplicito (autoflake aveva rimosso `from psycopg2 import pool` usato via dotted access).
+- `sql_scripts/migrations/20_fix_report_function_civico.sql`: corregge `genera_report_proprieta` che selezionava `l.civico` (colonna rimossa dal `localita` nel rebrand v1.6.1).
+- `tests/integration/test_golden_path.py`: em-dash U+2014 → trattino (i font core di fpdf2 sono latin-1 only).
+
+### Pulizia codice
+
+- 250 LOC di import inutilizzati rimossi in 32 file via `autoflake` + `ruff --fix --select=F401`.
+- 43 f-string senza placeholder (F541) corretti.
+- 3 bare-except (E722) sostituiti con `except Exception`.
+- 3 variabili ambigue `l` (E741) rinominate.
+- 1 import duplicato (F811) eliminato.
+- `ruff format` su 9 mixin in `db/`: 138 multi-statement `E701/E702` azzerati (stack trace più leggibili).
+- Facade `gui_widgets.py` e `app_utils.py` protetti da `# noqa: F401` per impedire regressioni autoflake future.
+
+### Riduzione LOC finale (Sprint 3 cumulativo)
+
+| File | Prima | Dopo |
+|---|---|---|
+| `partita_workflow_widgets.py` | 2.209 | 24 |
+| `search_widgets.py` | 1.841 | 41 |
+| `gui_widgets.py` | 1.036 | 178 |
+| `app_utils.py` | 923 | 176 |
+| `gui_main.py` | 2.155 | 1.904 |
 
 ---
 

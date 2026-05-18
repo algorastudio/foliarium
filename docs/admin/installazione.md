@@ -190,6 +190,25 @@ Eseguire gli script nella cartella `sql_scripts/` nell'ordine indicato:
 
 In pgAdmin: *Tools → Query Tool*, aprire ciascun file ed eseguire.
 
+### Migrazioni post-installazione
+
+Dopo aver eseguito gli script base, applicare le migrazioni pendenti:
+
+```bash
+python bin/migrate.py status   # mostra cosa e' applicato vs pendente
+python bin/migrate.py up       # applica tutte le pending
+```
+
+Vedi la guida dedicata *Migrazioni Schema* per il dettaglio (naming
+convention, tracking via `catasto.schema_version`, rollback).
+
+!!! info "Vista audit applicata automaticamente"
+    Dalla v1.0.1 la vista `catasto.v_audit_dettagliato` (necessaria al
+    visualizzatore Audit Log) viene **creata automaticamente** al primo
+    avvio se mancante (`db/base.py::_ensure_audit_view`). I DB
+    inizializzati prima dello script `18_funzioni_trigger_audit.sql`
+    non richiedono più migrazione manuale.
+
 ### Configurazione credenziali
 
 Foliarium legge le credenziali del database dalle **variabili d'ambiente** di Windows:
