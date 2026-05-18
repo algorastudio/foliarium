@@ -26,12 +26,9 @@ omit =
     prepare_demo_db.py
     migrate_database.py
     # File GUI esclusi: richiedono QApplication + DB live + interazione.
-    # I 3 widget Sprint 3.8 (comuni, dashboard, welcome) sono ora coperti
-    # da tests/integration/test_gui_smoke.py via pytest-qt, quindi NON
-    # vanno omessi (eccezioni elencate sotto).
-    foliarium/ui/widgets/admin.py
-    foliarium/ui/widgets/insertion.py
-    foliarium/ui/widgets/reporting.py
+    # Widget Sprint 3.8/3.9 con smoke test pytest-qt sono inclusi
+    # (foliarium/ui/widgets/{comuni,dashboard,welcome,insertion,admin,
+    # reporting}.py). Gli altri restano omessi finche' non hanno test.
     foliarium/ui/widgets/custom.py
     foliarium/ui/widgets/search/*
     foliarium/ui/widgets/workflow/*
