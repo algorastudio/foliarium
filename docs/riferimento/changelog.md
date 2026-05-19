@@ -1,6 +1,15 @@
 # Changelog
 
-## Unreleased — Sprint 3 six-hats — Refactoring strutturale
+## v1.0.2 — 2026-05-19 — Sprint 3 six-hats — Refactoring strutturale + tooling
+
+Release di consolidamento: refactor strutturale completo (Sprint 3 in 9
+sotto-sprint, da 3.1 a 3.9), nuovi tool sviluppatore (`check_api_drift`,
+`migrate`, `release`), API contract via `typing.Protocol`, coverage CI
+finalmente verde a 41% (dal 21% precedente, gate 35%), 17 PR mergeate.
+
+**Cambiamenti utente-visibili:** nessuno. Comportamento e dati identici
+a v1.0.1. Tutti gli import storici continuano a funzionare grazie alla
+struttura a facade.
 
 Tagliato il debito sui *god-file* identificati dall'analisi 6 cappelli di
 De Bono. **Nessuna modifica funzionale**: comportamento utente e dati
