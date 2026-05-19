@@ -40,13 +40,14 @@ from typing import Dict, Iterator, List, Set, Tuple
 
 
 # Alias dell'oggetto CatastoDBManager nei test/widget. Espandere se il
-# codebase introduce nuovi nomi standard.
+# codebase introduce nuovi nomi standard. Tenuti restrittivi per
+# minimizzare i falsi positivi: 'manager' e 'mgr' sono troppo ambigui
+# (vengono usati anche per LicenseManager, SessionManager, AuthManager...)
+# e li lasciamo fuori dell'inventario.
 DB_ALIASES: Set[str] = {
     "db",
     "db_manager",
     "clean_db",
-    "manager",
-    "mgr",
 }
 
 # File da scansionare per inventario API (sorgenti delle classi DB)

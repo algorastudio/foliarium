@@ -193,3 +193,40 @@ Il flusso completo è:
 | `release.py version` | mostra versione attuale + suggerita |
 | `release.py draft [--version X] [--force]` | stampa bozza changelog |
 | `release.py tag X.Y.Z [--yes]` | crea il tag git locale |
+
+---
+
+## Pre-commit hooks
+
+Foliarium include un `.pre-commit-config.yaml` che attiva tre gate
+locali, allineati alla CI:
+
+| Hook | Scope |
+|---|---|
+| `ruff` (F821/E9/F811) | nomi non definiti, errori di sintassi, redefinition |
+| `check-api-drift` | confronto fra metodi `db/*.py` e chiamanti |
+| `no-trailing-whitespace-py` | trailing whitespace sui `.py` |
+
+### Setup
+
+```bash
+pip install pre-commit
+pre-commit install
+```
+
+Da qui in poi ogni `git commit` esegue i hook sui file modificati.
+
+### Esecuzione manuale
+
+```bash
+pre-commit run --all-files       # tutti i file del repo
+pre-commit run --files db/comuni.py   # solo un file specifico
+```
+
+### Disattivazione temporanea
+
+```bash
+git commit --no-verify -m "..."
+```
+
+Da usare solo in emergenza; la CI eseguirà comunque gli stessi gate.
