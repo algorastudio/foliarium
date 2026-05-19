@@ -288,11 +288,15 @@ class TestDashboardWidgetSmoke:
 # Aggiungerli individualmente se diventa rilevante coprirli.
 # ---------------------------------------------------------------------------
 
+_USER_INFO = {
+    "id": 1, "username": "admin", "nome_completo": "Admin", "ruolo": "admin",
+}
+
+
 @pytest.mark.parametrize("module_path,class_name,extra_args", [
     # Widget di inserimento (foliarium/ui/widgets/insertion.py)
     # InserimentoComuneWidget richiede utente_attuale_info dict
-    ("foliarium.ui.widgets.insertion", "InserimentoComuneWidget",
-     {"id": 1, "username": "admin", "nome_completo": "Admin", "ruolo": "admin"}),
+    ("foliarium.ui.widgets.insertion", "InserimentoComuneWidget", _USER_INFO),
     ("foliarium.ui.widgets.insertion", "InserimentoPossessoreWidget", None),
     ("foliarium.ui.widgets.insertion", "InserimentoLocalitaWidget", None),
     ("foliarium.ui.widgets.insertion", "InserimentoPartitaWidget", None),
@@ -306,8 +310,20 @@ class TestDashboardWidgetSmoke:
     # Widget reporting (foliarium/ui/widgets/reporting.py)
     ("foliarium.ui.widgets.reporting", "EsportazioniWidget", None),
     # RegistraConsultazioneWidget richiede current_user_info dict
-    ("foliarium.ui.widgets.reporting", "RegistraConsultazioneWidget",
-     {"id": 1, "username": "admin", "nome_completo": "Admin", "ruolo": "admin"}),
+    ("foliarium.ui.widgets.reporting", "RegistraConsultazioneWidget", _USER_INFO),
+
+    # Widget workflow partite (Sprint 3.3, foliarium/ui/widgets/workflow/*)
+    ("foliarium.ui.widgets.workflow.nuova_partita_wizard",
+     "NuovaPartitaWizardWidget", None),
+    ("foliarium.ui.widgets.workflow.registrazione_proprieta",
+     "RegistrazioneProprietaWidget", None),
+    ("foliarium.ui.widgets.workflow.operazioni_partita",
+     "OperazioniPartitaWidget", None),
+
+    # Widget ricerca (Sprint 3.4, foliarium/ui/widgets/search/*)
+    ("foliarium.ui.widgets.search.partite", "RicercaPartiteWidget", None),
+    ("foliarium.ui.widgets.search.immobili", "RicercaAvanzataImmobiliWidget", None),
+    ("foliarium.ui.widgets.search.fuzzy", "UnifiedFuzzySearchWidget", None),
 ])
 class TestWidgetCanInstantiate:
     """Smoke: ogni widget si istanzia con mock_db senza exception.
