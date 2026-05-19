@@ -111,10 +111,7 @@ foliarium/
 ├── .devcontainer/                # Dev container per VS Code / Codespaces
 ├── .github/workflows/            # CI/CD GitHub Actions
 ├── foliarium.spec                # PyInstaller spec (build produzione)
-├── foliarium_demo.spec           # PyInstaller spec (build demo portabile)
-├── Foliarium_Unified_Installer.iss  # Installer Inno Setup
 ├── setup_database.bat / .py      # Inizializzazione DB
-├── prepare_demo_db.py            # Script CI: initdb + schema + dati demo
 ├── generate_license.py           # CLI per generare/ispezionare file .license
 ├── generate_key.py               # CLI per generare la chiave HMAC di firma licenze
 └── requirements.txt              # Dipendenze Python (versioni pinnate)
@@ -223,7 +220,6 @@ python generate_key.py --env-var        # stampa solo l'HEX per FOLIARIUM_LICENS
 
 # Build dell'eseguibile Windows
 pyinstaller foliarium.spec               # build produzione
-pyinstaller foliarium_demo.spec          # build demo portabile
 
 # Documentazione
 mkdocs serve                             # anteprima locale

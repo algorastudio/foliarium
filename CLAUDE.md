@@ -104,12 +104,8 @@ foliarium/
 ├── .devcontainer/                # Dev container config (VS Code / Codespaces)
 ├── .github/workflows/            # CI/CD pipeline
 ├── foliarium.spec                # PyInstaller build spec (produzione)
-├── foliarium_demo.spec           # PyInstaller build spec (demo portabile)
-├── Foliarium_Unified_Installer.iss  # Inno Setup installer unificato
 ├── setup_database.bat / .py      # Init DB Windows / cross-platform
-├── prepare_demo_db.py            # Script CI: initdb + schema + dati demo
-├── generate_license.py           # CLI: genera/ispeziona file .license
-└── demo_config.ini               # Guida + credenziali DB demo
+└── generate_license.py           # CLI: genera/ispeziona file .license
 ```
 
 ### Convenzioni post-refactor (Sprint 3 — six-hats)
@@ -168,9 +164,6 @@ python generate_key.py                    # Interactive menu
 python generate_key.py --save-exe-dir     # Auto-save to EXE_DIR (next to Foliarium.exe)
 python generate_key.py --save-base-dir    # Auto-save to BASE_DIR (project root)
 python generate_key.py --env-var          # Print only HEX value (for environment variable)
-
-# Prepare demo_data/ locally (requires pgsql/ portable in project root)
-python prepare_demo_db.py --pgsql-dir pgsql
 
 # Run all tests
 pytest
@@ -299,8 +292,8 @@ tests/
 │   ├── test_demo_launcher.py, test_update_checker.py, test_email_service.py
 │   └── test_widget_modules.py          # smoke test re-export facade
 └── integration/                   # Integration tests (pytest -m integration)
-    ├── test_e2e.py                     # GUI E2E (richiede QApplication)
-    ├── test_database_manager.py
+    ├── test_e2e.py                     # E2E DB layer (richiede Postgres live)
+    ├── test_gui_smoke.py               # smoke widget GUI via pytest-qt
     ├── test_gui_widgets.py
     └── test_golden_path.py             # E2E headless del flusso critico
                                         # comune → possessore → partita →

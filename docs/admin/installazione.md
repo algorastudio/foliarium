@@ -306,29 +306,19 @@ pyinstaller foliarium.spec
 L'eseguibile viene generato in `dist/Foliarium/`. Per creare l'installer Windows usare
 **Inno Setup** con lo script `Foliarium_Installer.iss`.
 
-### Build Demo portabile
+### Piattaforme distribuite
 
-La build demo include PostgreSQL 14 portabile e i dati dimostrativi. Viene prodotta
-automaticamente dal pipeline CI (`build-demo`), ma può essere generata localmente:
+A partire dalla v1.0.2 il pipeline pubblica solo le 3 build effettivamente in uso:
 
-```bash
-# 1. Scarica e posiziona PostgreSQL 14 portabile in pgsql/
-#    (EnterpriseDB binaries: https://www.enterprisedb.com/download-postgresql-binaries)
+| Build | Artifact | Trigger |
+|---|---|---|
+| `build-windows` | `Foliarium_Portabile.zip` + Inno Setup `.exe` | tag `*.*.*` |
+| `build-linux` | tarball portabile | tag `*.*.*` |
+| `build-macos` | zip portabile | tag `*.*.*` |
 
-# 2. Prepara il database demo (initdb + schema + dati Savona)
-python prepare_demo_db.py --pgsql-dir pgsql
-
-# 3. Compila il bundle demo
-pyinstaller foliarium_demo.spec
-
-# 4. Crea lo ZIP portabile
-Compress-Archive -Path dist\Foliarium_Demo\* -DestinationPath Foliarium_Demo_Portabile.zip
-```
-
-Il bundle `dist/Foliarium_Demo/` contiene:
-- `Foliarium_Demo.exe` — eseguibile principale
-- `pgsql/` — binari PostgreSQL 14 portabili
-- `demo_data/` — cluster PostgreSQL pre-inizializzato con dati Savona
+Le precedenti varianti `build-demo` (con PostgreSQL portabile) e `build-unified` (installer
+combinato Foliarium+PostgreSQL+DB init in un singolo `.exe`) sono state rimosse: non erano
+in produzione e rallentavano il ciclo di release senza valore commerciale.
 
 ---
 
