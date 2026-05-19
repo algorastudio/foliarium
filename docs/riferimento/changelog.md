@@ -11,6 +11,21 @@ finalmente verde a 41% (dal 21% precedente, gate 35%), 17 PR mergeate.
 a v1.0.1. Tutti gli import storici continuano a funzionare grazie alla
 struttura a facade.
 
+### Pipeline release semplificato
+
+Eliminati `build-demo` e `build-unified` dal workflow CI (e i relativi
+file: `foliarium_demo.spec`, `Foliarium_Unified_Installer.iss`,
+`prepare_demo_db.py`, `demo_config.ini`). Le varianti demo e installer
+unificato non erano in uso in produzione e rallentavano significativamente
+il ciclo di release. Restano i 3 build effettivi: **Windows** (zip
+portabile + installer Inno Setup), **Linux** (tarball), **macOS** (zip).
+
+Cancellati anche test integration zombie:
+`tests/integration/test_database_manager.py` (residuo di 104 LOC dopo le
+cancellazioni dello Sprint 3.9, ormai duplicato di `test_e2e.py` per le
+parti attive) e `tests/integration/test_migration_10_drop_tipo_id.py`
+(fixture `db_connection` mai implementata, sempre skippato).
+
 Tagliato il debito sui *god-file* identificati dall'analisi 6 cappelli di
 De Bono. **Nessuna modifica funzionale**: comportamento utente e dati
 invariati. Tutti gli import storici continuano a funzionare grazie a

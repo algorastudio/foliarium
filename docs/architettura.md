@@ -201,6 +201,7 @@ PyInstaller. Distingue tre directory:
 `app_paths.get_exe_dir()` ritorna `Path(sys.executable).parent` quando
 l'app è frozen (PyInstaller), `Path(__file__).parent` altrimenti.
 
-Lo spec `foliarium.spec` produce un bundle **onedir** standard; lo spec
-`foliarium_demo.spec` include anche PostgreSQL portatile per la
-modalità demo (`Foliarium.exe --demo`).
+Lo spec `foliarium.spec` produce un bundle **onedir** standard. Dalla
+v1.0.2 il pipeline produce solo le 3 piattaforme principali (Windows
+con installer Inno Setup, Linux tarball, macOS zip); le varianti demo
+e unified sono state rimosse perché non in uso.
