@@ -252,6 +252,9 @@ echo   Esecuzione 07a_bootstrap_admin.sql con password dinamica... >> "%LOGFILE%
 REM Grant su tutte le tabelle create
 "%PG_BIN%\psql.exe" -h 127.0.0.1 -p %DB_PORT% -U postgres -d %DB_NAME% -c "GRANT USAGE ON SCHEMA catasto TO %DB_USER%; GRANT USAGE ON SCHEMA public TO %DB_USER%; GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA catasto TO %DB_USER%; GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA public TO %DB_USER%; GRANT USAGE ON ALL SEQUENCES IN SCHEMA catasto TO %DB_USER%; GRANT USAGE ON ALL SEQUENCES IN SCHEMA public TO %DB_USER%; ALTER DEFAULT PRIVILEGES IN SCHEMA catasto GRANT SELECT, INSERT, UPDATE, DELETE ON TABLES TO %DB_USER%; ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT SELECT, INSERT, UPDATE, DELETE ON TABLES TO %DB_USER%;" >> "%LOGFILE%" 2>&1
 
+REM Trasferimento proprieta' delle viste materializzate all'utente applicativo per consentirne il REFRESH
+"%PG_BIN%\psql.exe" -h 127.0.0.1 -p %DB_PORT% -U postgres -d %DB_NAME% -c "DO $$ DECLARE r RECORD; BEGIN FOR r IN (SELECT matviewname FROM pg_matviews WHERE schemaname = 'catasto') LOOP EXECUTE 'ALTER MATERIALIZED VIEW catasto.' || quote_ident(r.matviewname) || ' OWNER TO %DB_USER%'; END LOOP; END $$;" >> "%LOGFILE%" 2>&1
+
 REM ============================================================================
 REM 8. Scrittura config.ini
 REM ============================================================================

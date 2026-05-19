@@ -393,7 +393,9 @@ class RicercaPartiteWidget(QWidget):
         self._table.setEditTriggers(QAbstractItemView.EditTrigger.NoEditTriggers)
         self._table = QTableView()
         self._model = PartiteTableModel(self)
-        self._proxy = QSortFilterProxyModel(self)
+        #self._proxy = QSortFilterProxyModel(self)
+        self._proxy = _PartiteFilterProxy(self)
+
         self._proxy.setSourceModel(self._model)
         self._table.setModel(self._proxy)
         
