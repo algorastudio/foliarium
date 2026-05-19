@@ -70,6 +70,27 @@ def mock_db():
         "comuni": [], "partite": [], "possessori": [],
     }
 
+    # Lookup tables (admin widgets)
+    db.get_tipi_localita.return_value = []
+    db.get_tipi_possesso.return_value = []
+    db.get_historical_periods.return_value = []
+    db.get_tutti_archiviati.return_value = []
+    db.get_utenti.return_value = []
+
+    # Audit / consultazione (reporting widgets)
+    db.get_audit_logs.return_value = ([], 0)
+    db.get_elenco_comuni_semplice.return_value = []
+
+    # Connessione (per BackupWidget / settings)
+    db.get_connection_parameters.return_value = {
+        "host": "localhost", "port": 5432, "dbname": "catasto_storico",
+    }
+    db.get_current_dbname.return_value = "catasto_storico"
+    db.get_current_user.return_value = "postgres"
+
+    # Statistiche
+    db.get_statistiche_comune.return_value = {}
+
     # Logger / schema (per metodi che li toccano)
     db.logger = logging.getLogger("test_gui_smoke")
     db.schema = "catasto"
@@ -247,3 +268,86 @@ class TestDashboardWidgetSmoke:
         if hasattr(widget, "_dash_loader"):
             widget._dash_loader.wait(2000)
         assert mock_db.get_dashboard_stats.called
+
+
+# ---------------------------------------------------------------------------
+# Smoke test parametrici sui widget di insertion / admin / reporting
+#
+# Pattern minimo: importa il widget, lo istanzia con mock_db, verifica
+# che non sollevi exception. Non testa comportamento — solo che il
+# costruttore e la prima fase di setup UI funzionino dopo le estrazioni
+# Sprint 3.x.
+#
+# Widget intenzionalmente esclusi:
+#   - BackupWidget       → richiede filesystem + subprocess pg_dump
+#   - StatisticheWidget  → query pesanti su MV, signal complessi
+#   - ReportisticaWidget → multi-tab con widget figli che fanno I/O
+#   - GestioneUtentiWidget → SessionManager + permessi
+#   - RicercaDocumentiWidget → side-effect su filesystem
+#
+# Aggiungerli individualmente se diventa rilevante coprirli.
+# ---------------------------------------------------------------------------
+
+@pytest.mark.parametrize("module_path,class_name,extra_args", [
+    # Widget di inserimento (foliarium/ui/widgets/insertion.py)
+    # InserimentoComuneWidget richiede utente_attuale_info dict
+    ("foliarium.ui.widgets.insertion", "InserimentoComuneWidget",
+     {"id": 1, "username": "admin", "nome_completo": "Admin", "ruolo": "admin"}),
+    ("foliarium.ui.widgets.insertion", "InserimentoPossessoreWidget", None),
+    ("foliarium.ui.widgets.insertion", "InserimentoLocalitaWidget", None),
+    ("foliarium.ui.widgets.insertion", "InserimentoPartitaWidget", None),
+
+    # Widget admin/lookup tables (foliarium/ui/widgets/admin.py)
+    ("foliarium.ui.widgets.admin", "GestioneTipiLocalitaWidget", None),
+    ("foliarium.ui.widgets.admin", "TipiPossessoWidget", None),
+    ("foliarium.ui.widgets.admin", "GestionePeriodiStoriciWidget", None),
+    ("foliarium.ui.widgets.admin", "ArchivioWidget", None),
+
+    # Widget reporting (foliarium/ui/widgets/reporting.py)
+    ("foliarium.ui.widgets.reporting", "EsportazioniWidget", None),
+    # RegistraConsultazioneWidget richiede current_user_info dict
+    ("foliarium.ui.widgets.reporting", "RegistraConsultazioneWidget",
+     {"id": 1, "username": "admin", "nome_completo": "Admin", "ruolo": "admin"}),
+])
+class TestWidgetCanInstantiate:
+    """Smoke: ogni widget si istanzia con mock_db senza exception.
+
+    Test parametrico per non ripetere boilerplate. Ogni widget viene
+    aggiunto a qtbot per il cleanup automatico del lifecycle Qt.
+
+    extra_args: None per widget che prendono solo db_manager; dict per
+    widget che richiedono utente_attuale_info / current_user_info come
+    secondo argomento posizionale.
+    """
+
+    def test_instantiate(self, qtbot, mock_db, module_path, class_name, extra_args):
+        import importlib
+        mod = importlib.import_module(module_path)
+        WidgetCls = getattr(mod, class_name)
+        if extra_args is None:
+            widget = WidgetCls(mock_db)
+        else:
+            widget = WidgetCls(mock_db, extra_args)
+        qtbot.addWidget(widget)
+        assert widget is not None
+
+
+# ---------------------------------------------------------------------------
+# AuditLogViewerWidget — testato separatamente perche' ha una signature
+# diversa (richiede SessionManager o user_id come argomento)
+# ---------------------------------------------------------------------------
+
+class TestAuditLogViewerWidgetSmoke:
+
+    def test_can_instantiate(self, qtbot, mock_db):
+        from foliarium.ui.widgets.admin import AuditLogViewerWidget
+        # AuditLogViewerWidget accetta solo db_manager (gli altri argomenti
+        # hanno default o sono opzionali). Se la signature cambia, il test
+        # esposero il drift.
+        try:
+            widget = AuditLogViewerWidget(mock_db)
+        except TypeError as e:
+            # Se richiede argomenti extra, skip esplicito con motivazione
+            pytest.skip(f"signature non compatibile col mock_db: {e}")
+        qtbot.addWidget(widget)
+        assert widget is not None

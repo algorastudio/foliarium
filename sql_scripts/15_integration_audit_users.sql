@@ -230,13 +230,27 @@ DO $$ BEGIN RAISE NOTICE '---------------------------------'; END $$;
 -- ================================================
 -- TEST 11: Ricerca Avanzata Possessori (pg_trgm)
 -- ================================================
+-- NOTA: la funzione catasto.ricerca_avanzata_possessori e' definita in
+-- 16_advanced_search.sql, che viene eseguito DOPO questo file. Wrappiamo
+-- il test in un DO block che lo skippa se la funzione non esiste, cosi'
+-- evitiamo l'errore 'function does not exist' nei log di CI / install.
 DO $$ BEGIN RAISE NOTICE '--- TEST 11: Ricerca avanzata possessore ---'; END $$;
--- Assumiamo che la funzione sia stata corretta in 16_advanced_search.sql per includere comune_nome
-DO $$ BEGIN RAISE NOTICE '  -> Ricerca "Angelo Fosati" (typo)'; END $$;
-SELECT * FROM catasto.ricerca_avanzata_possessori('Angelo Fosati'::TEXT, 0.2::REAL);
-
-DO $$ BEGIN RAISE NOTICE '  -> Ricerca "Rossi A"'; END $$;
-SELECT * FROM catasto.ricerca_avanzata_possessori('Rossi A'::TEXT, 0.3::REAL);
+DO $$
+BEGIN
+    IF EXISTS (
+        SELECT 1 FROM pg_proc p
+        JOIN pg_namespace n ON p.pronamespace = n.oid
+        WHERE n.nspname = 'catasto'
+          AND p.proname = 'ricerca_avanzata_possessori'
+    ) THEN
+        RAISE NOTICE '  -> Ricerca "Angelo Fosati" (typo)';
+        PERFORM * FROM catasto.ricerca_avanzata_possessori('Angelo Fosati'::TEXT, 0.2::REAL);
+        RAISE NOTICE '  -> Ricerca "Rossi A"';
+        PERFORM * FROM catasto.ricerca_avanzata_possessori('Rossi A'::TEXT, 0.3::REAL);
+    ELSE
+        RAISE NOTICE '  (skip: catasto.ricerca_avanzata_possessori non ancora definita — sara'' creata da 16_advanced_search.sql)';
+    END IF;
+END $$;
 
 DO $$ BEGIN RAISE NOTICE '---------------------------------'; END $$;
 
