@@ -279,7 +279,13 @@ class TestRicercaAvanzata:
 # ---------------------------------------------------------------------------
 
 class TestUniqueConstraints:
-    """Verifica che gli insert duplicati sollevino DBUniqueConstraintError."""
+    """Verifica che gli insert duplicati sollevino DBUniqueConstraintError.
+
+    Nota: la tabella `possessore` NON ha unique constraint per design
+    (storicamente Foliarium permette omonimi in epoche/comuni diversi),
+    quindi NON c'e' un test_create_possessore_duplicato. La constraint
+    esiste invece sul nome del comune.
+    """
 
     def test_aggiungi_comune_duplicato(self, clean_db):
         from catasto_exceptions import DBUniqueConstraintError
@@ -287,24 +293,6 @@ class TestUniqueConstraints:
         clean_db.aggiungi_comune("DupComune", "PV", "Test")
         with pytest.raises(DBUniqueConstraintError):
             clean_db.aggiungi_comune("DupComune", "PV", "Test")
-
-    def test_create_possessore_duplicato(self, sample_data):
-        from catasto_exceptions import DBUniqueConstraintError
-
-        db = sample_data["db"]
-        comune_id = sample_data["comune_id"]
-        # cognome_nome e' NOT NULL nello schema — sempre passarlo esplicito
-        db.create_possessore(
-            nome_completo="DUPLICATO TEST E2E",
-            comune_riferimento_id=comune_id,
-            cognome_nome="DUPLICATO",
-        )
-        with pytest.raises(DBUniqueConstraintError):
-            db.create_possessore(
-                nome_completo="DUPLICATO TEST E2E",
-                comune_riferimento_id=comune_id,
-                cognome_nome="DUPLICATO",
-            )
 
 
 # ---------------------------------------------------------------------------
