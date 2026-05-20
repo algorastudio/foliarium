@@ -40,8 +40,10 @@
 
 -- Esponiamo i parametri come GUC per renderli leggibili dentro il DO block
 -- (la sostituzione `:'name'` non funziona dentro `$$ ... $$`).
-SET LOCAL foliarium.target_user = :'target_user';
-SET LOCAL foliarium.target_schema = :'target_schema';
+-- Nota: `SET` (non `SET LOCAL`) perché psql in autocommit non apre una
+-- transazione esplicita, quindi `SET LOCAL` verrebbe scartato subito.
+SET foliarium.target_user = :'target_user';
+SET foliarium.target_schema = :'target_schema';
 
 DO $$
 DECLARE
