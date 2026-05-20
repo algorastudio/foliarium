@@ -157,6 +157,39 @@ restore se la migrazione causa problemi.
 
 ---
 
+## Script admin manuali
+
+Gli script in `sql_scripts/admin/` **non** sono auto-applicati e vanno
+eseguiti dal superuser quando serve (non sono migrazioni versionate).
+
+### `05_fix_mv_ownership.sql` — ownership materialized view
+
+PostgreSQL ≤ 16 richiede che `REFRESH MATERIALIZED VIEW` sia eseguito
+dal **proprietario** della MV (non basta `GRANT`). Se le MV sono state
+create da `postgres` durante il setup iniziale, ma la GUI si connette
+con un utente applicativo dedicato, ogni refresh fallisce con
+`InsufficientPrivilege`:
+
+```
+psycopg2.errors.InsufficientPrivilege:
+permesso negato per la vista materializzata mv_immobili_per_tipologia
+```
+
+**Fix:** trasferire l'ownership di tutte le MV dello schema applicativo
+all'utente che la GUI userà:
+
+```bash
+psql -U postgres -d catasto_storico \
+     -v target_user=foliarium_app \
+     -f sql_scripts/admin/05_fix_mv_ownership.sql
+```
+
+Variabile opzionale: `target_schema` (default `catasto`). Lo script è
+idempotente: salta le MV già di proprietà dell'utente target e stampa
+un report `MOVE`/`OK` per ognuna.
+
+---
+
 ## Release tag-based
 
 Foliarium pubblica le release in modo automatico quando viene
