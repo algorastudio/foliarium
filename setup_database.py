@@ -479,12 +479,20 @@ def _setup_on_external_pg(
                  f"GRANT USAGE ON SCHEMA public TO {db_user}; "
                  f"GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA catasto TO {db_user}; "
                  f"GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA public TO {db_user}; "
-                 f"GRANT USAGE ON ALL SEQUENCES IN SCHEMA catasto TO {db_user}; "
-                 f"GRANT USAGE ON ALL SEQUENCES IN SCHEMA public TO {db_user}; "
+                 f"GRANT USAGE, SELECT, UPDATE ON ALL SEQUENCES IN SCHEMA catasto TO {db_user}; "
+                 f"GRANT USAGE, SELECT, UPDATE ON ALL SEQUENCES IN SCHEMA public TO {db_user}; "
                  f"ALTER DEFAULT PRIVILEGES IN SCHEMA catasto "
                  f"GRANT SELECT, INSERT, UPDATE, DELETE ON TABLES TO {db_user}; "
                  f"ALTER DEFAULT PRIVILEGES IN SCHEMA public "
-                 f"GRANT SELECT, INSERT, UPDATE, DELETE ON TABLES TO {db_user};",
+                 f"GRANT SELECT, INSERT, UPDATE, DELETE ON TABLES TO {db_user}; "
+                 f"ALTER DEFAULT PRIVILEGES IN SCHEMA catasto "
+                 f"GRANT USAGE, SELECT, UPDATE ON SEQUENCES TO {db_user}; "
+                 f"ALTER DEFAULT PRIVILEGES IN SCHEMA public "
+                 f"GRANT USAGE, SELECT, UPDATE ON SEQUENCES TO {db_user}; "
+                 f"ALTER DEFAULT PRIVILEGES FOR ROLE postgres IN SCHEMA catasto "
+                 f"GRANT SELECT, INSERT, UPDATE, DELETE ON TABLES TO {db_user}; "
+                 f"ALTER DEFAULT PRIVILEGES FOR ROLE postgres IN SCHEMA catasto "
+                 f"GRANT USAGE, SELECT, UPDATE ON SEQUENCES TO {db_user};",
                  dbname=db_name, password=postgres_password)
 
     except subprocess.CalledProcessError as e:
@@ -747,12 +755,20 @@ def setup(
                  f"GRANT USAGE ON SCHEMA public TO {DB_USER}; "
                  f"GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA catasto TO {DB_USER}; "
                  f"GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA public TO {DB_USER}; "
-                 f"GRANT USAGE ON ALL SEQUENCES IN SCHEMA catasto TO {DB_USER}; "
-                 f"GRANT USAGE ON ALL SEQUENCES IN SCHEMA public TO {DB_USER}; "
+                 f"GRANT USAGE, SELECT, UPDATE ON ALL SEQUENCES IN SCHEMA catasto TO {DB_USER}; "
+                 f"GRANT USAGE, SELECT, UPDATE ON ALL SEQUENCES IN SCHEMA public TO {DB_USER}; "
                  f"ALTER DEFAULT PRIVILEGES IN SCHEMA catasto "
                  f"GRANT SELECT, INSERT, UPDATE, DELETE ON TABLES TO {DB_USER}; "
                  f"ALTER DEFAULT PRIVILEGES IN SCHEMA public "
-                 f"GRANT SELECT, INSERT, UPDATE, DELETE ON TABLES TO {DB_USER};",
+                 f"GRANT SELECT, INSERT, UPDATE, DELETE ON TABLES TO {DB_USER}; "
+                 f"ALTER DEFAULT PRIVILEGES IN SCHEMA catasto "
+                 f"GRANT USAGE, SELECT, UPDATE ON SEQUENCES TO {DB_USER}; "
+                 f"ALTER DEFAULT PRIVILEGES IN SCHEMA public "
+                 f"GRANT USAGE, SELECT, UPDATE ON SEQUENCES TO {DB_USER}; "
+                 f"ALTER DEFAULT PRIVILEGES FOR ROLE postgres IN SCHEMA catasto "
+                 f"GRANT SELECT, INSERT, UPDATE, DELETE ON TABLES TO {DB_USER}; "
+                 f"ALTER DEFAULT PRIVILEGES FOR ROLE postgres IN SCHEMA catasto "
+                 f"GRANT USAGE, SELECT, UPDATE ON SEQUENCES TO {DB_USER};",
                  dbname=DB_NAME, password=db_password)
 
     finally:
