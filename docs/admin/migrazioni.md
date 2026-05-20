@@ -188,6 +188,32 @@ Variabile opzionale: `target_schema` (default `catasto`). Lo script è
 idempotente: salta le MV già di proprietà dell'utente target e stampa
 un report `MOVE`/`OK` per ognuna.
 
+### `06_grant_app_user_privileges.sql` — privilegi utente applicativo
+
+Le migrazioni successive al setup iniziale possono creare nuove tabelle
+o sequenze senza riapplicare i `GRANT`. Il sintomo tipico è il fallimento
+di pg_dump durante il backup:
+
+```
+pg_dump: errore: query fallita:
+ERRORE: permesso negato per la sequenza audit_log_id_seq
+```
+
+**Fix:** concedere all'utente applicativo i privilegi su tutti gli
+oggetti dello schema (esistenti) e impostare `ALTER DEFAULT PRIVILEGES`
+per coprire quelli futuri:
+
+```bash
+psql -U postgres -d catasto_storico \
+     -v target_user=foliarium \
+     -f sql_scripts/admin/06_grant_app_user_privileges.sql
+```
+
+Lo script copre: schema (USAGE), tabelle (SELECT/INSERT/UPDATE/DELETE),
+sequenze (USAGE/SELECT/UPDATE), funzioni (EXECUTE) — sia per l'utente
+corrente che per `postgres` come role-creatore delle migrazioni future.
+Stampa al termine una tabella di verifica dei privilegi sulle sequenze.
+
 ---
 
 ## Release tag-based
