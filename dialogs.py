@@ -57,6 +57,7 @@ from foliarium.ui.dialogs.entity import (                       # noqa: F401
     ComuneSelectionDialog,
     PartitaSearchDialog,
     CreatePossessoreDialog,
+    CreateLocalitaDialog,
     LocalitaSelectionDialog,
     PeriodoStoricoEditDialog,
 )

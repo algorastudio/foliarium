@@ -5,7 +5,8 @@ Classi estratte da dialogs.py:
   DettagliLegamePossessoreDialog, ModificaPossessoreDialog, ModificaComuneDialog,
   PossessoriComuneDialog, PartiteComuneDialog, ModificaLocalitaDialog,
   PeriodoStoricoDetailsDialog, ComuneSelectionDialog, PartitaSearchDialog,
-  CreatePossessoreDialog, LocalitaSelectionDialog, PeriodoStoricoEditDialog
+  CreatePossessoreDialog, CreateLocalitaDialog, LocalitaSelectionDialog,
+  PeriodoStoricoEditDialog
 """
 from __future__ import annotations
 
@@ -1435,6 +1436,85 @@ class CreatePossessoreDialog(QDialog):
             self.accept()
         except (DBMError, DBUniqueConstraintError) as e:
             QMessageBox.critical(self, "Errore Creazione", str(e))
+
+
+class CreateLocalitaDialog(QDialog):
+    """Dialog inline per aggiungere una località a un comune già noto.
+
+    Pensato per il quick-add da Registrazione Proprietà / Inserimento Immobile:
+    il comune è fissato dal chiamante e mostrato in sola lettura.
+    """
+
+    def __init__(self, db_manager: 'CatastoDBManager', comune_id: int,
+                 comune_nome: str, parent=None):
+        super().__init__(parent)
+        self.db_manager = db_manager
+        self.comune_id = comune_id
+        self.comune_nome = comune_nome
+        self.nuova_localita_id: Optional[int] = None
+        self.nuova_localita_nome: str = ""
+        self.nuova_tipologia_stradale: str = ""
+
+        self.setWindowTitle(f"Nuova Località — {comune_nome}")
+        self.setMinimumWidth(420)
+        self.setModal(True)
+
+        layout = QFormLayout(self)
+
+        comune_lbl = QLabel(f"<b>{comune_nome}</b>")
+        layout.addRow("Comune:", comune_lbl)
+
+        self.nome_edit = QLineEdit()
+        self.nome_edit.setPlaceholderText("Es. Roma, Garibaldi, Pianello (senza tipologia)")
+        layout.addRow("Nome (*):", self.nome_edit)
+
+        self.tipo_combo = QComboBox()
+        self.tipo_combo.addItem("--- Seleziona ---", None)
+        layout.addRow("Tipologia (*):", self.tipo_combo)
+
+        hint = QLabel("Il civico non si inserisce qui: andrà nel singolo immobile.")
+        hint.setStyleSheet("color: #666; font-size: 11px;")
+        layout.addRow(hint)
+
+        self.button_box = QDialogButtonBox(
+            QDialogButtonBox.StandardButton.Ok | QDialogButtonBox.StandardButton.Cancel
+        )
+        layout.addRow(self.button_box)
+
+        self.button_box.accepted.connect(self._salva_e_accetta)
+        self.button_box.rejected.connect(self.reject)
+        self.nome_edit.returnPressed.connect(self._salva_e_accetta)
+
+        self._carica_tipologie()
+        self.nome_edit.setFocus()
+
+    def _carica_tipologie(self):
+        try:
+            tipi = self.db_manager.get_tipi_localita()
+            for tipo in tipi or []:
+                self.tipo_combo.addItem(tipo['nome'], tipo['nome'])
+        except DBMError as e:
+            QMessageBox.critical(self, "Errore",
+                                 f"Impossibile caricare le tipologie di località:\n{e}")
+
+    def _salva_e_accetta(self):
+        nome = self.nome_edit.text().strip()
+        tipologia = self.tipo_combo.currentData()
+
+        if not nome or not tipologia:
+            QMessageBox.warning(self, "Dati Mancanti",
+                                "Nome e Tipologia sono obbligatori.")
+            return
+
+        try:
+            self.nuova_localita_id = self.db_manager.insert_localita(
+                self.comune_id, nome, tipologia
+            )
+            self.nuova_localita_nome = nome
+            self.nuova_tipologia_stradale = tipologia
+            self.accept()
+        except (DBMError, DBDataError, DBUniqueConstraintError) as e:
+            QMessageBox.critical(self, "Errore Inserimento", str(e))
 
 
 class LocalitaSelectionDialog(QDialog):
