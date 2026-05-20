@@ -28,7 +28,8 @@ from foliarium.ui.widgets.custom import (
     LazyLoadedWidget,
 )
 from dialogs import (
-    ComuneSelectionDialog, CreatePossessoreDialog, DettagliLegamePossessoreDialog,
+    ComuneSelectionDialog, CreateLocalitaDialog, CreatePossessoreDialog,
+    DettagliLegamePossessoreDialog,
 )
 
 try:
@@ -265,8 +266,17 @@ class RegistrazioneProprietaWidget(LazyLoadedWidget):
         self._s3_localita_combo = QComboBox()
         self._s3_localita_combo.setPlaceholderText("Seleziona prima un comune...")
         self._s3_localita_combo.setEnabled(False)
+        self._s3_new_localita_btn = QPushButton("+ Nuova...")
+        self._s3_new_localita_btn.setObjectName("secondaryButton")
+        self._s3_new_localita_btn.setToolTip("Crea una nuova località per il comune selezionato")
+        self._s3_new_localita_btn.setEnabled(False)
+        self._s3_new_localita_btn.clicked.connect(self._s3_create_localita)
+        loc_row = QHBoxLayout()
+        loc_row.setContentsMargins(0, 0, 0, 0)
+        loc_row.addWidget(self._s3_localita_combo, 1)
+        loc_row.addWidget(self._s3_new_localita_btn)
         new_layout.addWidget(QLabel("Località (*):"), 0, 2)
-        new_layout.addWidget(self._s3_localita_combo, 0, 3)
+        new_layout.addLayout(loc_row, 0, 3)
 
         self._s3_class_edit = QLineEdit()
         new_layout.addWidget(QLabel("Classificazione:"), 1, 0)
@@ -435,6 +445,7 @@ class RegistrazioneProprietaWidget(LazyLoadedWidget):
     def _load_localita_cache(self):
         self._s3_localita_combo.clear()
         self._s3_localita_combo.setEnabled(False)
+        self._s3_new_localita_btn.setEnabled(bool(self._comune_id))
         if not self._comune_id:
             return
         try:
@@ -442,13 +453,29 @@ class RegistrazioneProprietaWidget(LazyLoadedWidget):
             if self._localita_cache:
                 self._s3_localita_combo.addItem("--- Seleziona Località ---", None)
                 for loc in self._localita_cache:
+                    tipo = loc.get('tipologia_stradale') or 'N/D'
                     self._s3_localita_combo.addItem(
-                        f"{loc['nome']} ({loc.get('tipo', 'N/D')})", loc['id'])
+                        f"{loc['nome']} ({tipo})", loc['id'])
                 self._s3_localita_combo.setEnabled(True)
             else:
-                self._s3_localita_combo.addItem("Nessuna località per questo comune", None)
+                self._s3_localita_combo.addItem(
+                    "Nessuna località — usa '+ Nuova...' per crearne una", None)
         except Exception as e:
             self.logger.error(f"Errore caricamento località: {e}")
+
+    def _s3_create_localita(self):
+        if not self._comune_id:
+            QMessageBox.warning(self, "Comune mancante",
+                                "Seleziona prima un comune al Passo 1.")
+            return
+        dlg = CreateLocalitaDialog(
+            self.db_manager, self._comune_id, self._comune_nome, self)
+        if dlg.exec() != QDialog.DialogCode.Accepted or not dlg.nuova_localita_id:
+            return
+        self._load_localita_cache()
+        idx = self._s3_localita_combo.findData(dlg.nuova_localita_id)
+        if idx >= 0:
+            self._s3_localita_combo.setCurrentIndex(idx)
 
     def _load_immobili_cache(self):
         self._s3_exist_combo.clear()
