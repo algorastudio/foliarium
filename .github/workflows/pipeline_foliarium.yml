@@ -8,7 +8,7 @@ on:
       - 'v*.*.*'       # es. v1.0.0
   pull_request:
     branches: [ "main", "master" ]
-    # I job di build (Windows/Linux/macOS) sono skippati sulle PR via
+    # Il job di build Windows e' skippato sulle PR via
     # `if: github.event_name != 'pull_request'`: solo il test job gira,
     # cosi' otteniamo feedback rapido senza pagare i runner pesanti.
   workflow_dispatch: # Permette di avviare l'azione manualmente da GitHub
@@ -169,20 +169,6 @@ jobs:
     - name: Compilazione Eseguibile con PyInstaller
       run: pyinstaller foliarium.spec
 
-    # ----------------------------------------------------------
-    # BUILD PORTABILE: zip della cartella dist\Foliarium
-    # Estraibile ed eseguibile senza installazione (no admin)
-    # ----------------------------------------------------------
-    - name: Creazione Build Portabile (ZIP)
-      run: |
-        Compress-Archive -Path dist\Foliarium\* -DestinationPath Foliarium_Portabile.zip
-
-    - name: Caricamento Build Portabile
-      uses: actions/upload-artifact@v4
-      with:
-        name: Foliarium-Portabile-Windows
-        path: Foliarium_Portabile.zip
-
     - name: Compilazione Installer con Inno Setup
       run: iscc Foliarium_Installer.iss
 
@@ -193,172 +179,16 @@ jobs:
         path: Installer\*.exe
 
   # ==========================================
-  # Build-demo e build-unified sono stati eliminati dal pipeline:
-  # la versione demo + l'installer unificato non erano in uso, e i
-  # build su windows-latest rallentavano il ciclo di release senza
-  # valore. Le release pubblicano solo: Windows (installer Inno),
-  # Linux (tarball), macOS (zip).
-  # ==========================================
-
-  # ==========================================
-  # FASE 5: BUILD LINUX (tarball portabile)
-  # Include PostgreSQL + script di setup
-  # ==========================================
-  build-linux:
-    needs: test-database-and-code
-    if: github.event_name != 'pull_request'
-    runs-on: ubuntu-latest
-
-    steps:
-    - name: Checkout del codice
-      uses: actions/checkout@v4
-
-    - name: Setup Python
-      uses: actions/setup-python@v5
-      with:
-        python-version: '3.12'
-
-    - name: Installazione Dipendenze
-      run: |
-        python -m pip install --upgrade pip
-        pip install -r requirements.txt
-        pip install pyinstaller
-
-    - name: Compilazione con PyInstaller (Linux)
-      run: pyinstaller foliarium.spec
-
-    - name: Download PostgreSQL 14 portabile (Linux)
-      run: |
-        PG_URL="https://get.enterprisedb.com/postgresql/postgresql-14.13-1-linux-x64-binaries.tar.gz"
-        echo "Download PostgreSQL portabile..."
-        wget -q "$PG_URL" -O pg_portable.tar.gz
-        tar xzf pg_portable.tar.gz
-        rm pg_portable.tar.gz
-        # Pulizia componenti non necessari
-        rm -rf pgsql/pgAdmin\ 4 pgsql/include pgsql/doc pgsql/symbols
-        ls -la pgsql/bin/pg_ctl && echo "PostgreSQL pronto."
-
-    - name: Assemblaggio pacchetto Linux
-      run: |
-        BUNDLE="Foliarium_Linux"
-        mkdir -p "$BUNDLE"
-        # App
-        cp -r dist/Foliarium/* "$BUNDLE/"
-        # PostgreSQL
-        cp -r pgsql "$BUNDLE/pgsql"
-        # Script SQL
-        cp -r sql_scripts "$BUNDLE/sql_scripts"
-        # Script di setup
-        cp setup_database.py "$BUNDLE/"
-        cp install.sh "$BUNDLE/"
-        chmod +x "$BUNDLE/install.sh"
-        chmod +x "$BUNDLE/Foliarium"
-        # README
-        cat > "$BUNDLE/LEGGIMI.txt" << 'EOFREADME'
-        Foliarium — Archivio Catastale Storico
-        =======================================
-
-        Installazione:
-          1. Estrarre l'archivio in una cartella a scelta
-          2. Eseguire: sudo ./install.sh
-          3. Avviare: ./Foliarium
-
-        Il database PostgreSQL viene configurato automaticamente.
-        Credenziali admin: admin / admin123 (cambiare al primo accesso)
-
-        Disinstallazione:
-          sudo ./install.sh --uninstall
-        EOFREADME
-
-    - name: Creazione tarball Linux
-      run: |
-        VERSION=$(python -c "from config import APP_VERSION; print(APP_VERSION)" 2>/dev/null || echo "1.6.0")
-        TARBALL="Foliarium_${VERSION}_Linux_x64.tar.gz"
-        tar czf "$TARBALL" Foliarium_Linux/
-        SIZE=$(du -h "$TARBALL" | cut -f1)
-        echo "Tarball creato: $TARBALL ($SIZE)"
-
-    - name: Caricamento Build Linux
-      uses: actions/upload-artifact@v4
-      with:
-        name: Foliarium-Linux-x64
-        path: Foliarium_*_Linux_x64.tar.gz
-
-  # ==========================================
-  # FASE 6: BUILD macOS (tarball portabile)
-  # Include PostgreSQL + script di setup
-  # ==========================================
-  build-macos:
-    needs: test-database-and-code
-    if: github.event_name != 'pull_request'
-    runs-on: macos-latest
-
-    steps:
-    - name: Checkout del codice
-      uses: actions/checkout@v4
-
-    - name: Setup Python
-      uses: actions/setup-python@v5
-      with:
-        python-version: '3.12'
-
-    - name: Installazione Dipendenze
-      run: |
-        python -m pip install --upgrade pip
-        pip install -r requirements.txt
-        pip install pyinstaller
-
-    - name: Compilazione con PyInstaller (macOS)
-      run: pyinstaller foliarium.spec
-
-    - name: Installazione PostgreSQL 14 via Homebrew
-      run: |
-        brew install postgresql@14
-        PG_PREFIX="$(brew --prefix postgresql@14)"
-        echo "PostgreSQL installato in: $PG_PREFIX"
-        # Copia i binari in pgsql/ per il bundle
-        mkdir -p pgsql
-        cp -r "$PG_PREFIX/bin" pgsql/bin
-        cp -r "$PG_PREFIX/lib" pgsql/lib
-        cp -r "$PG_PREFIX/share" pgsql/share
-
-    - name: Assemblaggio pacchetto macOS
-      run: |
-        BUNDLE="Foliarium_macOS"
-        mkdir -p "$BUNDLE"
-        cp -r dist/Foliarium/* "$BUNDLE/"
-        cp -r pgsql "$BUNDLE/pgsql"
-        cp -r sql_scripts "$BUNDLE/sql_scripts"
-        cp setup_database.py "$BUNDLE/"
-        cp install.sh "$BUNDLE/"
-        chmod +x "$BUNDLE/install.sh"
-        chmod +x "$BUNDLE/Foliarium"
-
-    - name: Creazione tarball macOS
-      run: |
-        VERSION=$(python -c "from config import APP_VERSION; print(APP_VERSION)" 2>/dev/null || echo "1.6.0")
-        TARBALL="Foliarium_${VERSION}_macOS.tar.gz"
-        tar czf "$TARBALL" Foliarium_macOS/
-        SIZE=$(du -h "$TARBALL" | cut -f1)
-        echo "Tarball creato: $TARBALL ($SIZE)"
-
-    - name: Caricamento Build macOS
-      uses: actions/upload-artifact@v4
-      with:
-        name: Foliarium-macOS
-        path: Foliarium_*_macOS.tar.gz
-
-  # ==========================================
-  # FASE 7: PUBBLICA RELEASE GITHUB
+  # FASE 3: PUBBLICA RELEASE GITHUB
   # Si attiva SOLO quando viene pushato un tag tipo 1.6.0 o v1.6.0.
-  # Scarica gli artefatti di tutti i job di build, calcola i checksum
-  # SHA-256 (l'auto-updater li verifica) e crea/aggiorna la release.
+  # Scarica l'installer Windows, calcola il checksum SHA-256
+  # (l'auto-updater lo verifica) e crea/aggiorna la release.
+  # I build Linux/macOS e la versione portabile sono stati accantonati:
+  # il pipeline pubblica solo l'installer Windows (Inno Setup).
   # ==========================================
   create-release:
     needs:
       - build-windows
-      - build-linux
-      - build-macos
     runs-on: ubuntu-latest
     if: startsWith(github.ref, 'refs/tags/')
 
