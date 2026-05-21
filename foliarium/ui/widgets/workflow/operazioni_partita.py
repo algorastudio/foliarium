@@ -7,6 +7,7 @@ preservare la backward compatibility con i consumer esistenti.
 """
 
 import logging
+from foliarium.ui.widgets.genealogia_widget import GenealogiaTimelineWidget
 from typing import Any, Dict, List, Optional, TYPE_CHECKING
 
 from PyQt6.QtCore import (
