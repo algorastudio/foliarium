@@ -5,7 +5,6 @@ Estratto da partita_workflow_widgets.py (Sprint 3 refactor — six-hats).
 La classe e' anche re-esportata da partita_workflow_widgets per
 preservare la backward compatibility con i consumer esistenti.
 """
-from __future__ import annotations
 
 import logging
 from typing import Any, Dict, List, Optional, TYPE_CHECKING
@@ -47,7 +46,7 @@ logger = logging.getLogger("CatastoGUI.operazioni_partita")
 
 class OperazioniPartitaWidget(QWidget):
     # Aggiungi questo __init__ se non c'è
-    def __init__(self, db_manager: CatastoDBManager, parent=None):
+    def __init__(self, db_manager: 'CatastoDBManager', parent=None):
         super().__init__(parent)
         self.logger = logging.getLogger(f"CatastoGUI.{self.__class__.__name__}") # AGGIUNGI QUESTA RIGA
         self.db_manager = db_manager
@@ -108,6 +107,7 @@ class OperazioniPartitaWidget(QWidget):
         self._crea_tab_duplica_partita()
         self._crea_tab_trasferisci_immobile()
         self._crea_tab_passaggio_proprieta()
+        self._crea_tab_genealogia()
 
         self.setLayout(main_layout)
 
