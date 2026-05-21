@@ -43,9 +43,6 @@ from catasto_exceptions import DBMError, DBUniqueConstraintError, DBNotFoundErro
 from foliarium.ui.widgets.custom import QPasswordLineEdit, show_status_message as _show_status_message
 from core.auth_manager import AuthManager as _AuthManager
 
-def _verify_password(stored_hash: str, provided_password: str) -> bool:
-    return _AuthManager._verify_password(stored_hash, provided_password)
-
 try:
     import keyring
 except ImportError:
@@ -699,7 +696,7 @@ class CreateUserDialog(QDialog):
             return
 
         try:
-            password_hash = _hash_password(password) # Assumendo _hash_password sia in common_utils o app_utils
+            password_hash = _hash_password(password)
 
             # La chiamata al db_manager è corretta
             if self.db_manager.create_user(username, password_hash, nome_completo, email, ruolo):
