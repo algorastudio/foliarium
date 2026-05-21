@@ -29,6 +29,7 @@ from foliarium.ui.widgets.custom import (
 from dialogs import (
     DettagliLegamePossessoreDialog, PartitaSearchDialog, PossessoreSelectionDialog,
 )
+from foliarium.ui.widgets.genealogia_widget import GenealogiaTimelineWidget
 
 try:
     from catasto_db_manager import (
@@ -113,8 +114,8 @@ class OperazioniPartitaWidget(QWidget):
 
 
     def _crea_tab_genealogia(self):
-        self.genealogia_widget = GenealogiaTimelineWidget(self.db)
-        self.genealogia_widget.navigate_to_partita.connect(self.carica_partita)
+        self.genealogia_widget = GenealogiaTimelineWidget(self.db_manager)
+        self.genealogia_widget.navigate_to_partita.connect(self.seleziona_e_carica_partita_sorgente)
         self.operazioni_tabs.addTab(self.genealogia_widget, "Timeline e Genealogia")
 
     def _crea_tab_duplica_partita(self):
