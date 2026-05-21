@@ -111,6 +111,12 @@ class OperazioniPartitaWidget(QWidget):
 
         self.setLayout(main_layout)
 
+
+    def _crea_tab_genealogia(self):
+        self.genealogia_widget = GenealogiaTimelineWidget(self.db)
+        self.genealogia_widget.navigate_to_partita.connect(self.carica_partita)
+        self.operazioni_tabs.addTab(self.genealogia_widget, "Timeline e Genealogia")
+
     def _crea_tab_duplica_partita(self):
         duplica_widget = QWidget()
         duplica_main_layout = QVBoxLayout(duplica_widget)
