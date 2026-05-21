@@ -495,6 +495,15 @@ def _setup_on_external_pg(
                  f"GRANT USAGE, SELECT, UPDATE ON SEQUENCES TO {db_user};",
                  dbname=db_name, password=postgres_password)
 
+        # Le materialized view ereditano postgres come owner; il REFRESH
+        # richiede l'ownership, quindi le trasferiamo all'utente applicativo.
+        run_psql(pg_bin, port,
+                 "DO $$ DECLARE r RECORD; BEGIN "
+                 "FOR r IN (SELECT matviewname FROM pg_matviews WHERE schemaname = 'catasto') "
+                 "LOOP EXECUTE 'ALTER MATERIALIZED VIEW catasto.' || quote_ident(r.matviewname) "
+                 f"|| ' OWNER TO {db_user}'; END LOOP; END $$;",
+                 dbname=db_name, password=postgres_password)
+
     except subprocess.CalledProcessError as e:
         log(f"ERRORE nell'esecuzione degli script SQL: {e}")
         return False
@@ -769,6 +778,15 @@ def setup(
                  f"GRANT SELECT, INSERT, UPDATE, DELETE ON TABLES TO {DB_USER}; "
                  f"ALTER DEFAULT PRIVILEGES FOR ROLE postgres IN SCHEMA catasto "
                  f"GRANT USAGE, SELECT, UPDATE ON SEQUENCES TO {DB_USER};",
+                 dbname=DB_NAME, password=db_password)
+
+        # Le materialized view ereditano postgres come owner; il REFRESH
+        # richiede l'ownership, quindi le trasferiamo all'utente applicativo.
+        run_psql(pg_bin, port,
+                 "DO $$ DECLARE r RECORD; BEGIN "
+                 "FOR r IN (SELECT matviewname FROM pg_matviews WHERE schemaname = 'catasto') "
+                 "LOOP EXECUTE 'ALTER MATERIALIZED VIEW catasto.' || quote_ident(r.matviewname) "
+                 f"|| ' OWNER TO {DB_USER}'; END LOOP; END $$;",
                  dbname=DB_NAME, password=db_password)
 
     finally:
