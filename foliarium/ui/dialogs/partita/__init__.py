@@ -9,6 +9,7 @@ Suddiviso per concetto:
   selezione.py   — PossessoreSelectionDialog
   documento.py   — AggiungiDocumentoDialog
   genealogia.py  — AlberoGeneralogicoDialog, ConfrontoPartiteDialog
+  bozze.py       — BozzePartitaDialog
 
 Questo __init__ re-esporta tutte le classi: gli import esistenti
 (`from foliarium.ui.dialogs.partita import ...`) restano invariati.
@@ -29,6 +30,7 @@ from foliarium.ui.dialogs.partita.genealogia import (                        # n
     AlberoGeneralogicoDialog,
     ConfrontoPartiteDialog,
 )
+from foliarium.ui.dialogs.partita.bozze import BozzePartitaDialog            # noqa: F401
 
 __all__ = [
     "PartitaDetailsDialog",
@@ -40,4 +42,5 @@ __all__ = [
     "AggiungiDocumentoDialog",
     "AlberoGeneralogicoDialog",
     "ConfrontoPartiteDialog",
+    "BozzePartitaDialog",
 ]

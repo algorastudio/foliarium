@@ -4,21 +4,28 @@ nuova_partita_wizard.py — Wizard a 4 step per la creazione guidata di una nuov
 Estratto da partita_workflow_widgets.py (Sprint 3 refactor — six-hats).
 La classe e' anche re-esportata da partita_workflow_widgets per
 preservare la backward compatibility con i consumer esistenti.
+
+Sprint 4 — Salvataggio in bozza:
+  - Persistenza su DB (catasto.partita_draft) dello stato wizard come JSONB
+  - Pulsanti "Salva bozza" e "Riprendi bozza..." nella nav-bar
+  - Autosave ogni 60s una volta che lo stato è "sporco" (dirty)
+  - Eliminazione automatica della bozza dopo registrazione riuscita
 """
 from __future__ import annotations
 
 import logging
-from datetime import date
-from typing import Optional
+from datetime import date, datetime
+from typing import Any, Dict, Optional
 
 from PyQt6.QtCore import (
-    QDate, Qt,
+    QDate, Qt, QTimer,
 )
 from PyQt6.QtWidgets import (
     QComboBox, QDateEdit, QDialog, QFormLayout, QFrame,
-    QGroupBox, QHBoxLayout, QHeaderView, QLabel, QLineEdit, QListWidget,
-    QListWidgetItem, QMessageBox, QPushButton, QSpinBox, QStackedWidget, QTableWidget,
-    QTableWidgetItem, QTextBrowser, QVBoxLayout, QWidget,
+    QGroupBox, QHBoxLayout, QHeaderView, QInputDialog, QLabel, QLineEdit,
+    QListWidget, QListWidgetItem, QMessageBox, QPushButton, QSpinBox,
+    QStackedWidget, QTableWidget, QTableWidgetItem, QTextBrowser, QVBoxLayout,
+    QWidget,
 )
 
 from foliarium.ui.widgets.custom import (
@@ -27,6 +34,7 @@ from foliarium.ui.widgets.custom import (
 from dialogs import (
     ComuneSelectionDialog, CreateLocalitaDialog, CreatePossessoreDialog,
 )
+from foliarium.ui.dialogs.partita.bozze import BozzePartitaDialog
 
 try:
     from catasto_db_manager import (
@@ -36,21 +44,59 @@ except ImportError:
     class DBMError(Exception):
         pass
 
+try:
+    from config import APP_VERSION as _APP_VERSION
+except Exception:
+    _APP_VERSION = None
+
 
 logger = logging.getLogger("CatastoGUI.nuova_partita_wizard")
 
+# Intervallo autosave in millisecondi (60s).
+AUTOSAVE_INTERVAL_MS = 60_000
+
 
 class NuovaPartitaWizardWidget(QWidget):
-    """Wizard a 4 step per la creazione guidata di una nuova partita."""
+    """Wizard a 4 step per la creazione guidata di una nuova partita.
 
-    def __init__(self, db_manager, utente_info=None, parent=None):
+    Supporta il salvataggio in bozza (manuale e autosave) tramite
+    serializzazione dello stato in JSONB nella tabella
+    ``catasto.partita_draft``.
+    """
+
+    def __init__(self, db_manager, utente_info=None, parent=None,
+                 utente_id: Optional[int] = None):
         super().__init__(parent)
         self.db_manager = db_manager
         self.utente_info = utente_info or {}
+        # utente_id viene passato esplicitamente da gui_main.py; per
+        # backward compat con costruzioni manuali, tentiamo il fallback
+        # da utente_info se non fornito.
+        self.utente_id: Optional[int] = (
+            utente_id if utente_id is not None
+            else self.utente_info.get("id") if isinstance(self.utente_info, dict)
+            else None
+        )
         self._step = 0
         self._comune_id: Optional[int] = None
         self._comune_nome: str = ""
+
+        # Stato bozza
+        self._current_draft_id: Optional[int] = None
+        self._dirty: bool = False
+        self._restoring: bool = False  # disattiva dirty-tracking durante restore
+
         self._build_ui()
+
+        # Autosave timer (60s, monoshot ripetitivo)
+        self._autosave_timer = QTimer(self)
+        self._autosave_timer.setInterval(AUTOSAVE_INTERVAL_MS)
+        self._autosave_timer.timeout.connect(self._on_autosave_tick)
+        self._autosave_timer.start()
+
+    # ──────────────────────────────────────────────────────────────────
+    # UI BUILD
+    # ──────────────────────────────────────────────────────────────────
 
     def _build_ui(self):
         main_layout = QVBoxLayout(self)
@@ -72,6 +118,11 @@ class NuovaPartitaWizardWidget(QWidget):
             step_layout.addWidget(w)
 
         step_layout.addStretch()
+
+        self._draft_status_label = QLabel("")
+        self._draft_status_label.setProperty("muted", "true")
+        step_layout.addWidget(self._draft_status_label)
+
         main_layout.addWidget(step_bar)
 
         # Content area
@@ -93,6 +144,18 @@ class NuovaPartitaWizardWidget(QWidget):
         self._btn_back.setEnabled(False)
         self._btn_back.clicked.connect(self._go_back)
         nav_layout.addWidget(self._btn_back)
+
+        self._btn_resume = QPushButton("Riprendi bozza...")
+        self._btn_resume.setObjectName("secondaryButton")
+        self._btn_resume.setToolTip("Apri l'elenco delle bozze salvate")
+        self._btn_resume.clicked.connect(self._resume_draft)
+        nav_layout.addWidget(self._btn_resume)
+
+        self._btn_save_draft = QPushButton("Salva bozza")
+        self._btn_save_draft.setObjectName("secondaryButton")
+        self._btn_save_draft.setToolTip("Salva lo stato corrente come bozza riprendibile")
+        self._btn_save_draft.clicked.connect(self._save_draft_clicked)
+        nav_layout.addWidget(self._btn_save_draft)
 
         nav_layout.addStretch()
 
@@ -135,24 +198,29 @@ class NuovaPartitaWizardWidget(QWidget):
         self._s1_numero.setMinimum(1)
         self._s1_numero.setMaximum(99999)
         self._s1_numero.setValue(1)
+        self._s1_numero.valueChanged.connect(self._mark_dirty)
         form_layout.addRow("Numero Partita: *", self._s1_numero)
 
         self._s1_suffisso = QLineEdit()
         self._s1_suffisso.setPlaceholderText("Es. A, B, bis (opzionale)")
+        self._s1_suffisso.textChanged.connect(self._mark_dirty)
         form_layout.addRow("Suffisso:", self._s1_suffisso)
 
         self._s1_data_imp = QDateEdit()
         self._s1_data_imp.setCalendarPopup(True)
         self._s1_data_imp.setDate(QDate.currentDate())
         self._s1_data_imp.setDisplayFormat("dd/MM/yyyy")
+        self._s1_data_imp.dateChanged.connect(self._mark_dirty)
         form_layout.addRow("Data Impianto: *", self._s1_data_imp)
 
         self._s1_tipo = QComboBox()
         self._s1_tipo.addItems(["Principale", "Secondaria", "Enfiteusi", "Usufrutto"])
+        self._s1_tipo.currentIndexChanged.connect(self._mark_dirty)
         form_layout.addRow("Tipo:", self._s1_tipo)
 
         self._s1_stato = QComboBox()
         self._s1_stato.addItems(["Attiva", "Inattiva"])
+        self._s1_stato.currentIndexChanged.connect(self._mark_dirty)
         form_layout.addRow("Stato:", self._s1_stato)
 
         layout.addWidget(form_group)
@@ -167,6 +235,7 @@ class NuovaPartitaWizardWidget(QWidget):
             self._comune_nome = dialog.selected_comune_name
             self._s1_comune_label.setText(self._comune_nome)
             self._s1_comune_label.setProperty("muted", "false"); self._s1_comune_label.style().unpolish(self._s1_comune_label); self._s1_comune_label.style().polish(self._s1_comune_label)
+            self._mark_dirty()
 
     def _build_step2(self) -> QWidget:
         w = QWidget()
@@ -231,7 +300,7 @@ class NuovaPartitaWizardWidget(QWidget):
             return
         self._s2_append_possessore(poss_id, item.text().split(" — ")[0])
 
-    def _s2_append_possessore(self, poss_id: int, nome: str):
+    def _s2_append_possessore(self, poss_id: int, nome: str, titolo: str = "Proprietario"):
         """Aggiunge un possessore alla tabella dei selezionati (se non già presente)."""
         for r in range(self._s2_table.rowCount()):
             it = self._s2_table.item(r, 0)
@@ -245,12 +314,13 @@ class NuovaPartitaWizardWidget(QWidget):
         nome_item = QTableWidgetItem(nome)
         nome_item.setData(Qt.ItemDataRole.UserRole, poss_id)
         self._s2_table.setItem(row, 0, nome_item)
-        self._s2_table.setItem(row, 1, QTableWidgetItem("Proprietario"))
+        self._s2_table.setItem(row, 1, QTableWidgetItem(titolo))
 
         del_btn = QPushButton("✕")
         del_btn.clicked.connect(
-            lambda: self._remove_row(self._s2_table, del_btn))
+            lambda: (self._remove_row(self._s2_table, del_btn), self._mark_dirty()))
         self._s2_table.setCellWidget(row, 2, del_btn)
+        self._mark_dirty()
 
     @staticmethod
     def _remove_row(table: QTableWidget, btn: QPushButton):
@@ -366,21 +436,31 @@ class NuovaPartitaWizardWidget(QWidget):
                                 "Località obbligatoria. Selezionane una o creane una nuova.")
             return
 
+        self._s3_append_immobile(
+            natura=natura,
+            localita_id=localita_id,
+            localita_text=self._s3_localita.currentText(),
+            classif=self._s3_classif.text().strip(),
+        )
+
+        self._s3_natura.clear()
+        self._s3_classif.clear()
+
+    def _s3_append_immobile(self, natura: str, localita_id: int,
+                            localita_text: str, classif: str = ""):
         row = self._s3_table.rowCount()
         self._s3_table.insertRow(row)
         natura_item = QTableWidgetItem(natura)
         natura_item.setData(Qt.ItemDataRole.UserRole, localita_id)
         self._s3_table.setItem(row, 0, natura_item)
-        self._s3_table.setItem(row, 1, QTableWidgetItem(self._s3_localita.currentText()))
-        self._s3_table.setItem(row, 2, QTableWidgetItem(self._s3_classif.text().strip()))
+        self._s3_table.setItem(row, 1, QTableWidgetItem(localita_text))
+        self._s3_table.setItem(row, 2, QTableWidgetItem(classif))
 
         del_btn = QPushButton("✕")
         del_btn.clicked.connect(
-            lambda: self._remove_row(self._s3_table, del_btn))
+            lambda: (self._remove_row(self._s3_table, del_btn), self._mark_dirty()))
         self._s3_table.setCellWidget(row, 3, del_btn)
-
-        self._s3_natura.clear()
-        self._s3_classif.clear()
+        self._mark_dirty()
 
     def _build_step4(self) -> QWidget:
         w = QWidget()
@@ -476,16 +556,27 @@ td {{ padding:4px 8px; border-bottom:1px solid #EEE; }}
         self._stack.setCurrentIndex(self._step)
         self._btn_back.setEnabled(self._step > 0)
 
-    def _reset_wizard(self):
-        reply = QMessageBox.question(
-            self, "Ricomincia", "Ricominciare il wizard?",
-            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No)
-        if reply == QMessageBox.StandardButton.Yes:
+    def _reset_wizard(self, *, confirm: bool = True):
+        if confirm:
+            reply = QMessageBox.question(
+                self, "Ricomincia", "Ricominciare il wizard?",
+                QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No)
+            if reply != QMessageBox.StandardButton.Yes:
+                return
+        self._restoring = True
+        try:
             self._step = 0
             self._comune_id = None
+            self._comune_nome = ""
+            self._s1_comune_label.setText("Nessun comune selezionato")
+            self._s1_comune_label.setProperty("muted", "true")
+            self._s1_comune_label.style().unpolish(self._s1_comune_label)
+            self._s1_comune_label.style().polish(self._s1_comune_label)
             self._s1_numero.setValue(1)
             self._s1_suffisso.clear()
             self._s1_data_imp.setDate(QDate.currentDate())
+            self._s1_tipo.setCurrentIndex(0)
+            self._s1_stato.setCurrentIndex(0)
             self._s2_search.clear()
             self._s2_results.clear()
             self._s2_table.setRowCount(0)
@@ -495,6 +586,11 @@ td {{ padding:4px 8px; border-bottom:1px solid #EEE; }}
             self._s3_table.setRowCount(0)
             self._stack.setCurrentIndex(0)
             self._btn_back.setEnabled(False)
+            self._current_draft_id = None
+            self._dirty = False
+            self._update_draft_status()
+        finally:
+            self._restoring = False
 
     def _registra_tutto(self):
         if not self._comune_id:
@@ -575,6 +671,254 @@ td {{ padding:4px 8px; border-bottom:1px solid #EEE; }}
         else:
             _show_status_message(
                 f"Partita N.{numero} registrata con successo (ID: {partita_id}).", 5000)
-        self._reset_wizard()
 
+        # Bozza completata: rimuovila silenziosamente dal DB
+        if self._current_draft_id is not None:
+            try:
+                self.db_manager.delete_partita_draft(
+                    self._current_draft_id, utente_id=self.utente_id)
+            except Exception as e:
+                logger.debug(f"Eliminazione bozza post-registrazione fallita: {e}")
+            self._current_draft_id = None
 
+        self._reset_wizard(confirm=False)
+
+    # ──────────────────────────────────────────────────────────────────
+    # BOZZE — serializzazione, salvataggio, ripresa, autosave
+    # ──────────────────────────────────────────────────────────────────
+
+    def _serialize_state(self) -> Dict[str, Any]:
+        """Snapshot serializzabile (JSON) dello stato corrente del wizard."""
+        possessori = []
+        for r in range(self._s2_table.rowCount()):
+            nome_item = self._s2_table.item(r, 0)
+            tit_item = self._s2_table.item(r, 1)
+            if not nome_item:
+                continue
+            possessori.append({
+                "id": nome_item.data(Qt.ItemDataRole.UserRole),
+                "nome": nome_item.text(),
+                "titolo": tit_item.text() if tit_item else "Proprietario",
+            })
+
+        immobili = []
+        for r in range(self._s3_table.rowCount()):
+            natura_item = self._s3_table.item(r, 0)
+            loc_item = self._s3_table.item(r, 1)
+            classif_item = self._s3_table.item(r, 2)
+            if not natura_item:
+                continue
+            immobili.append({
+                "natura": natura_item.text(),
+                "localita_id": natura_item.data(Qt.ItemDataRole.UserRole),
+                "localita_text": loc_item.text() if loc_item else "",
+                "classificazione": classif_item.text() if classif_item else "",
+            })
+
+        return {
+            "schema_version": 1,
+            "step": self._step,
+            "comune": {
+                "id": self._comune_id,
+                "nome": self._comune_nome,
+            },
+            "partita": {
+                "numero": self._s1_numero.value(),
+                "suffisso": self._s1_suffisso.text().strip(),
+                "data_impianto": self._s1_data_imp.date().toString("yyyy-MM-dd"),
+                "tipo": self._s1_tipo.currentText(),
+                "stato": self._s1_stato.currentText(),
+            },
+            "possessori": possessori,
+            "immobili": immobili,
+        }
+
+    def _restore_state(self, payload: Dict[str, Any]) -> None:
+        """Ripristina lo stato del wizard da uno snapshot."""
+        self._restoring = True
+        try:
+            comune = payload.get("comune") or {}
+            self._comune_id = comune.get("id")
+            self._comune_nome = comune.get("nome") or ""
+            if self._comune_id:
+                self._s1_comune_label.setText(self._comune_nome or "(comune)")
+                self._s1_comune_label.setProperty("muted", "false")
+            else:
+                self._s1_comune_label.setText("Nessun comune selezionato")
+                self._s1_comune_label.setProperty("muted", "true")
+            self._s1_comune_label.style().unpolish(self._s1_comune_label)
+            self._s1_comune_label.style().polish(self._s1_comune_label)
+
+            partita = payload.get("partita") or {}
+            try:
+                self._s1_numero.setValue(int(partita.get("numero") or 1))
+            except (TypeError, ValueError):
+                self._s1_numero.setValue(1)
+            self._s1_suffisso.setText(partita.get("suffisso") or "")
+            data_str = partita.get("data_impianto")
+            if data_str:
+                qd = QDate.fromString(data_str, "yyyy-MM-dd")
+                if qd.isValid():
+                    self._s1_data_imp.setDate(qd)
+            tipo = partita.get("tipo") or ""
+            idx = self._s1_tipo.findText(tipo)
+            if idx >= 0:
+                self._s1_tipo.setCurrentIndex(idx)
+            stato = partita.get("stato") or ""
+            idx = self._s1_stato.findText(stato)
+            if idx >= 0:
+                self._s1_stato.setCurrentIndex(idx)
+
+            # Possessori
+            self._s2_table.setRowCount(0)
+            for p in payload.get("possessori") or []:
+                pid = p.get("id")
+                nome = p.get("nome") or ""
+                titolo = p.get("titolo") or "Proprietario"
+                if pid is None:
+                    continue
+                self._s2_append_possessore(int(pid), nome, titolo=titolo)
+
+            # Immobili — ricarica la combo località prima di restituire
+            self._s3_table.setRowCount(0)
+            if self._comune_id:
+                self._load_localita()
+            for im in payload.get("immobili") or []:
+                loc_id = im.get("localita_id")
+                if loc_id is None:
+                    continue
+                self._s3_append_immobile(
+                    natura=im.get("natura") or "",
+                    localita_id=int(loc_id),
+                    localita_text=im.get("localita_text") or "",
+                    classif=im.get("classificazione") or "",
+                )
+
+            # Ripristina lo step e i bottoni di navigazione
+            step = int(payload.get("step") or 0)
+            self._step = max(0, min(step, 3))
+            self._stack.setCurrentIndex(self._step)
+            self._btn_back.setEnabled(self._step > 0)
+            if self._step == 3:
+                self._render_riepilogo()
+        finally:
+            self._restoring = False
+            self._dirty = False
+            self._update_draft_status()
+
+    def _default_draft_title(self) -> str:
+        n = self._s1_numero.value()
+        suf = self._s1_suffisso.text().strip()
+        suf_disp = f"/{suf}" if suf else ""
+        comune = self._comune_nome or "senza comune"
+        return f"{comune} N.{n}{suf_disp} — {datetime.now():%d/%m/%Y %H:%M}"
+
+    def _mark_dirty(self):
+        if self._restoring:
+            return
+        self._dirty = True
+        self._update_draft_status()
+
+    def _update_draft_status(self):
+        parts: list[str] = []
+        if self._current_draft_id is not None:
+            parts.append(f"Bozza #{self._current_draft_id}")
+        if self._dirty:
+            parts.append("• modifiche non salvate")
+        self._draft_status_label.setText("  ".join(parts))
+
+    def _save_draft_clicked(self):
+        """Salva manualmente la bozza. Se non c'è ancora un draft_id, chiede il titolo."""
+        if self._current_draft_id is None:
+            default_title = self._default_draft_title()
+            title, ok = QInputDialog.getText(
+                self, "Salva bozza",
+                "Titolo della bozza:",
+                text=default_title,
+            )
+            if not ok:
+                return
+            title = (title or "").strip() or default_title
+            saved_id = self._persist_draft(title=title)
+            if saved_id is not None:
+                _show_status_message(f"Bozza salvata (id {saved_id}).", 4000)
+        else:
+            saved_id = self._persist_draft(title=None)
+            if saved_id is not None:
+                _show_status_message(f"Bozza aggiornata (id {saved_id}).", 4000)
+
+    def _persist_draft(self, title: Optional[str]) -> Optional[int]:
+        """Effettua INSERT o UPDATE della bozza. Ritorna l'id (o None se errore)."""
+        try:
+            payload = self._serialize_state()
+            effective_title = title or self._default_draft_title()
+            saved_id = self.db_manager.save_partita_draft(
+                utente_id=self.utente_id,
+                titolo=effective_title,
+                payload=payload,
+                draft_id=self._current_draft_id,
+                app_version=_APP_VERSION,
+            )
+            self._current_draft_id = int(saved_id)
+            self._dirty = False
+            self._update_draft_status()
+            return self._current_draft_id
+        except Exception as e:
+            logger.error(f"Errore salvataggio bozza: {e}", exc_info=True)
+            QMessageBox.critical(
+                self, "Errore", f"Impossibile salvare la bozza:\n{e}")
+            return None
+
+    def _on_autosave_tick(self):
+        """Salva la bozza periodicamente se ci sono modifiche pendenti.
+
+        Non crea bozze "vuote": l'autosave si attiva solo se l'utente ha
+        già modificato qualcosa (self._dirty) e c'è almeno un dato utile
+        (comune selezionato o numero != 1).
+        """
+        if not self._dirty:
+            return
+        if not self._has_meaningful_content():
+            return
+        title = None  # mantiene il titolo se la bozza esiste già
+        if self._current_draft_id is None:
+            title = self._default_draft_title()
+        saved_id = self._persist_draft(title=title)
+        if saved_id is not None:
+            logger.debug(f"Autosave bozza completato (id {saved_id}).")
+
+    def _has_meaningful_content(self) -> bool:
+        if self._comune_id is not None:
+            return True
+        if self._s2_table.rowCount() > 0 or self._s3_table.rowCount() > 0:
+            return True
+        if self._s1_suffisso.text().strip():
+            return True
+        return False
+
+    def _resume_draft(self):
+        """Apre il dialog di selezione bozze e ne carica una nel wizard."""
+        if self._dirty and self._current_draft_id is None:
+            reply = QMessageBox.question(
+                self, "Modifiche non salvate",
+                "Ci sono modifiche non salvate. Caricare un'altra bozza "
+                "le scarterà. Continuare?",
+                QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+                QMessageBox.StandardButton.No)
+            if reply != QMessageBox.StandardButton.Yes:
+                return
+
+        dlg = BozzePartitaDialog(self.db_manager, self.utente_id, self)
+        if dlg.exec() != QDialog.DialogCode.Accepted:
+            return
+        if dlg.selected_draft_id is None or dlg.selected_draft_payload is None:
+            return
+
+        # Reset preventivo (senza conferma) e poi restore
+        self._reset_wizard(confirm=False)
+        self._restore_state(dlg.selected_draft_payload)
+        self._current_draft_id = dlg.selected_draft_id
+        self._dirty = False
+        self._update_draft_status()
+        _show_status_message(
+            f"Bozza #{dlg.selected_draft_id} ripresa.", 4000)

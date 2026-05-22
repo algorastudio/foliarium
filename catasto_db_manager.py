@@ -50,6 +50,7 @@ from db.documenti  import DBDocumentiMixin
 from db.stats      import DBStatsMixin
 from db.io         import DBIOMixin
 from db.archivio   import DBArchiviaMixin
+from db.drafts     import DBDraftsMixin
 
 
 class CatastoDBManager(
@@ -67,6 +68,7 @@ class CatastoDBManager(
     DBDocumentiMixin,
     DBStatsMixin,
     DBIOMixin,
+    DBDraftsMixin,
     DBConnectionBase,
 ):
     """

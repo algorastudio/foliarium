@@ -281,6 +281,71 @@ class DBConnectionBase:
         # audit log lancia UndefinedTable. CREATE OR REPLACE = idempotente.
         self._ensure_audit_view()
 
+        # Tabella partita_draft — bozze del wizard Nuova Partita.
+        # Idempotente: CREATE TABLE IF NOT EXISTS.
+        self._ensure_partita_draft_table()
+
+    def _ensure_partita_draft_table(self):
+        """Crea la tabella catasto.partita_draft se mancante.
+
+        Equivale alla migrazione `migrations/21_create_partita_draft.sql`
+        ma applicata automaticamente all'avvio. Best-effort: non blocca
+        l'avvio.
+        """
+        try:
+            with self._get_connection() as conn:
+                with conn.cursor() as cur:
+                    cur.execute(
+                        "SELECT 1 FROM information_schema.tables "
+                        "WHERE table_schema = %s AND table_name = 'partita_draft'",
+                        (self.schema,)
+                    )
+                    if cur.fetchone():
+                        return  # tabella già presente
+                    # Verifica che la tabella utente esista per la FK
+                    cur.execute(
+                        "SELECT 1 FROM information_schema.tables "
+                        "WHERE table_schema = %s AND table_name = 'utente'",
+                        (self.schema,)
+                    )
+                    has_utente = cur.fetchone() is not None
+                    fk_clause = (
+                        f"REFERENCES {self.schema}.utente(id) ON DELETE SET NULL"
+                        if has_utente else ""
+                    )
+                    try:
+                        cur.execute(
+                            f"CREATE TABLE IF NOT EXISTS {self.schema}.partita_draft ("
+                            f"  id          SERIAL PRIMARY KEY,"
+                            f"  utente_id   INTEGER NULL {fk_clause},"
+                            f"  titolo      VARCHAR(255) NOT NULL,"
+                            f"  payload     JSONB NOT NULL,"
+                            f"  app_version VARCHAR(32),"
+                            f"  created_at  TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,"
+                            f"  updated_at  TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP"
+                            f")"
+                        )
+                        cur.execute(
+                            f"CREATE INDEX IF NOT EXISTS idx_partita_draft_utente "
+                            f"ON {self.schema}.partita_draft(utente_id, updated_at DESC)"
+                        )
+                        self.logger.info(
+                            "Tabella %s.partita_draft creata automaticamente all'avvio.",
+                            self.schema,
+                        )
+                    except psycopg2.Error as e:
+                        conn.rollback()
+                        self.logger.warning(
+                            "Impossibile creare la tabella %s.partita_draft "
+                            "(%s). Applicare come superuser "
+                            "sql_scripts/migrations/21_create_partita_draft.sql; "
+                            "fino ad allora la funzione 'Salva bozza' del "
+                            "wizard Nuova Partita non sarà disponibile.",
+                            self.schema, e
+                        )
+        except Exception as e:
+            self.logger.debug(f"_ensure_partita_draft_table: {e}")
+
     def _ensure_audit_view(self):
         """Crea la vista catasto.v_audit_dettagliato se mancante.
 
