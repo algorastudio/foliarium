@@ -266,6 +266,11 @@ class DBConnectionBase:
         except Exception as e:
             self.logger.warning(f"Migrazione schema automatica saltata (non bloccante): {e}")
 
+        # Ownership delle MV — REFRESH MATERIALIZED VIEW richiede di esserne
+        # proprietari. Va eseguito prima di creare gli indici (anche CREATE
+        # INDEX richiede l'ownership). Best-effort, non bloccante.
+        self._ensure_mv_ownership()
+
         # Indici UNIQUE sulle MV — richiesti per REFRESH ... CONCURRENTLY.
         # Idempotente: ogni CREATE è IF NOT EXISTS, l'esistenza della MV
         # è verificata prima per evitare errori se la MV non è stata creata.
@@ -318,6 +323,55 @@ class DBConnectionBase:
                     )
         except Exception as e:
             self.logger.debug(f"_ensure_audit_view: {e}")
+
+    def _ensure_mv_ownership(self):
+        """Allinea all'utente connesso l'ownership delle viste materializzate.
+
+        `REFRESH MATERIALIZED VIEW` richiede di essere proprietari della MV:
+        PostgreSQL non offre un GRANT equivalente. Se le MV sono di un altro
+        ruolo — tipicamente `postgres`, che le crea durante il setup — il
+        refresh dalla GUI fallisce con InsufficientPrivilege. Equivale a
+        `sql_scripts/admin/05_fix_mv_ownership.sql` applicato all'avvio
+        (best-effort, non bloccante).
+
+        Riesce solo se l'utente connesso è superuser o proprietario corrente
+        delle MV; altrimenti lo script admin va eseguito come superuser.
+        """
+        try:
+            with self._get_connection() as conn:
+                with conn.cursor() as cur:
+                    cur.execute(
+                        "SELECT matviewname FROM pg_matviews "
+                        "WHERE schemaname = %s AND matviewowner <> current_user",
+                        (self.schema,)
+                    )
+                    pending = [row[0] for row in cur.fetchall()]
+                    if not pending:
+                        return
+                    for mv_name in pending:
+                        try:
+                            cur.execute(
+                                f"ALTER MATERIALIZED VIEW {self.schema}.{mv_name} "
+                                f"OWNER TO CURRENT_USER"
+                            )
+                        except psycopg2.Error as e:
+                            conn.rollback()
+                            self.logger.warning(
+                                "Impossibile allineare l'ownership delle viste "
+                                "materializzate: l'utente del database non è "
+                                "superuser né proprietario. Il refresh delle "
+                                "statistiche resta disabilitato finché un "
+                                "amministratore non esegue "
+                                "sql_scripts/admin/05_fix_mv_ownership.sql. "
+                                f"Dettaglio: {e}"
+                            )
+                            return  # stesso esito per le altre MV: inutile ritentare
+                    self.logger.info(
+                        f"Ownership di {len(pending)} vista/e materializzata/e "
+                        f"allineata all'utente connesso."
+                    )
+        except Exception as e:
+            self.logger.debug(f"_ensure_mv_ownership: {e}")
 
     def _ensure_mv_unique_indexes(self):
         """Crea gli indici UNIQUE mancanti sulle viste materializzate.

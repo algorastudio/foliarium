@@ -241,6 +241,26 @@ class DBStatsMixin:
 
         except psycopg2.Error as db_err:
             progress_dialog.close()
+            # 42501 = insufficient_privilege: l'utente DB non è proprietario
+            # delle MV. REFRESH richiede l'ownership (nessun GRANT lo concede).
+            # Non è un errore fatale: il refresh è un'ottimizzazione e le
+            # statistiche restano consultabili (eventualmente non aggiornate).
+            if getattr(db_err, "pgcode", None) == "42501":
+                self.logger.warning(
+                    "Refresh viste materializzate non eseguito: l'utente del "
+                    "database non ne è proprietario. Un amministratore deve "
+                    "eseguire 'sql_scripts/admin/05_fix_mv_ownership.sql' come "
+                    "superuser per abilitarlo."
+                )
+                if show_success_message:
+                    QMessageBox.warning(
+                        None, "Aggiornamento non disponibile",
+                        "Le viste materializzate non possono essere aggiornate: "
+                        "l'utente del database non ne è proprietario.\n\n"
+                        "Un amministratore deve eseguire lo script di correzione "
+                        "sql_scripts/admin/05_fix_mv_ownership.sql."
+                    )
+                return False
             if "CONCURRENTLY" in str(db_err) and concurrent:
                 self.logger.warning("CONCURRENTLY non supportato; retry senza...")
                 return self.refresh_materialized_views(show_success_message, force=True, concurrent=False)
