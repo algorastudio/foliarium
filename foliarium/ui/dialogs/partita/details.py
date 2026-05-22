@@ -20,6 +20,7 @@ from PyQt6.QtWidgets import (QAbstractItemView, QApplication,
 
 from catasto_db_manager import CatastoDBManager
 from foliarium.ui.widgets.custom import ImmobiliTableWidget
+from foliarium.ui.widgets.timeline_partita import TimelinePartitaWidget
 
 from app_utils import (GenericTextReportPDF, FPDF_AVAILABLE, prompt_to_open_file)
 from foliarium.ui.dialogs.export_ import PDFApreviewDialog
@@ -139,58 +140,15 @@ class PartitaDetailsDialog(QDialog):
         immobili_layout.addWidget(immobili_table)
         self.tabs.addTab(immobili_tab, "Immobili")
 
-        # Tab Variazioni
+        # Tab Variazioni — Timeline cronologica
         variazioni_tab = QWidget()
-        variazioni_layout = QVBoxLayout()
-
-        variazioni_table = QTableWidget()
-        # Aumenta il numero di colonne per includere origine e destinazione per esteso
-        variazioni_table.setColumnCount(6) # Ad es., ID, Tipo, Data, Partita Origine, Partita Destinazione, Contratto
-        variazioni_table.setHorizontalHeaderLabels([
-            "ID Var.", "Tipo", "Data Var.", "Partita Origine", "Partita Destinazione", "Contratto" # Etichette aggiornate
-        ])
-        variazioni_table.setAlternatingRowColors(True)
-        variazioni_table.horizontalHeader().setStretchLastSection(True) # Per far espandere l'ultima colonna
-        variazioni_table.setEditTriggers(QAbstractItemView.EditTrigger.NoEditTriggers)
-
-        if self.partita.get('variazioni'):
-            variazioni_table.setRowCount(len(self.partita['variazioni']))
-            for i, var in enumerate(self.partita['variazioni']):
-                col = 0
-                variazioni_table.setItem(i, col, QTableWidgetItem(str(var.get('id', '')))); col += 1
-                variazioni_table.setItem(i, col, QTableWidgetItem(var.get('tipo', ''))); col += 1
-                variazioni_table.setItem(i, col, QTableWidgetItem(str(var.get('data_variazione', '')))); col += 1
-
-                # Informazioni Partita Origine
-                origine_text = ""
-                if var.get('partita_origine_id'): # Solo se l'ID esiste
-                    num_orig = var.get('origine_numero_partita', 'N/D')
-                    com_orig = var.get('origine_comune_nome', 'N/D')
-                    origine_text = f"N.{num_orig} ({com_orig})"
-                else:
-                    origine_text = "-" # O "N/A"
-                variazioni_table.setItem(i, col, QTableWidgetItem(origine_text)); col += 1
-
-                # Informazioni Partita Destinazione
-                dest_text = ""
-                if var.get('partita_destinazione_id'): # Solo se l'ID esiste
-                    num_dest = var.get('destinazione_numero_partita', 'N/D')
-                    com_dest = var.get('destinazione_comune_nome', 'N/D')
-                    dest_text = f"N.{num_dest} ({com_dest})"
-                else:
-                    dest_text = "-" # O "N/A"
-                variazioni_table.setItem(i, col, QTableWidgetItem(dest_text)); col += 1
-
-                # Contratto info (come prima)
-                contratto_text = ""
-                if var.get('tipo_contratto'):
-                    contratto_text = f"{var['tipo_contratto']} del {var.get('data_contratto', '')}"
-                    if var.get('notaio'):
-                        contratto_text += f" - {var['notaio']}"
-                variazioni_table.setItem(i, col, QTableWidgetItem(contratto_text)); col += 1
-
-        variazioni_layout.addWidget(variazioni_table)
-        variazioni_tab.setLayout(variazioni_layout)
+        variazioni_layout = QVBoxLayout(variazioni_tab)
+        variazioni_layout.setContentsMargins(0, 0, 0, 0)
+        self.timeline_widget = TimelinePartitaWidget(
+            variazioni=self.partita.get('variazioni') or [],
+            current_partita_id=self.partita.get('id'),
+        )
+        variazioni_layout.addWidget(self.timeline_widget)
         self.tabs.addTab(variazioni_tab, "Variazioni")
 
 
