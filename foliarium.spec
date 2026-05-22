@@ -31,6 +31,11 @@ a = Analysis(
         'foliarium.ui.top_bar',
         'foliarium.ui.sidebar',
         'foliarium.ui.command_palette',
+        # Grafici dashboard (matplotlib + Qt backend)
+        'foliarium.ui.widgets.dashboard_charts',
+        'matplotlib.backends.backend_qtagg',
+        # Timeline cronologica variazioni partita
+        'foliarium.ui.widgets.timeline_partita',
     ],
     hookspath=[],
     hooksconfig={},
