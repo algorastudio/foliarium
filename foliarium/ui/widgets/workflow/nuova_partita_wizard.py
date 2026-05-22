@@ -25,7 +25,7 @@ from foliarium.ui.widgets.custom import (
     show_status_message as _show_status_message,
 )
 from dialogs import (
-    ComuneSelectionDialog,
+    ComuneSelectionDialog, CreateLocalitaDialog, CreatePossessoreDialog,
 )
 
 try:
@@ -187,6 +187,12 @@ class NuovaPartitaWizardWidget(QWidget):
         search_btn.clicked.connect(self._s2_search_possessore)
         search_row.addWidget(search_btn)
 
+        create_btn = QPushButton("Crea Nuovo...")
+        create_btn.setObjectName("secondaryButton")
+        create_btn.setToolTip("Crea un nuovo possessore e aggiungilo alla partita")
+        create_btn.clicked.connect(self._s2_create_possessore)
+        search_row.addWidget(create_btn)
+
         layout.addLayout(search_row)
 
         layout.addWidget(QLabel("Risultati:"))
@@ -223,16 +229,44 @@ class NuovaPartitaWizardWidget(QWidget):
         poss_id = item.data(Qt.ItemDataRole.UserRole)
         if not poss_id:
             return
+        self._s2_append_possessore(poss_id, item.text().split(" — ")[0])
+
+    def _s2_append_possessore(self, poss_id: int, nome: str):
+        """Aggiunge un possessore alla tabella dei selezionati (se non già presente)."""
+        for r in range(self._s2_table.rowCount()):
+            it = self._s2_table.item(r, 0)
+            if it and it.data(Qt.ItemDataRole.UserRole) == poss_id:
+                QMessageBox.information(self, "Già presente",
+                                        "Questo possessore è già nella lista.")
+                return
 
         row = self._s2_table.rowCount()
         self._s2_table.insertRow(row)
-        self._s2_table.setItem(row, 0, QTableWidgetItem(item.text().split(" — ")[0]))
+        nome_item = QTableWidgetItem(nome)
+        nome_item.setData(Qt.ItemDataRole.UserRole, poss_id)
+        self._s2_table.setItem(row, 0, nome_item)
         self._s2_table.setItem(row, 1, QTableWidgetItem("Proprietario"))
-        self._s2_table.item(row, 0).setData(Qt.ItemDataRole.UserRole, poss_id)
 
         del_btn = QPushButton("✕")
-        del_btn.clicked.connect(lambda: self._s2_table.removeRow(row))
+        del_btn.clicked.connect(
+            lambda: self._remove_row(self._s2_table, del_btn))
         self._s2_table.setCellWidget(row, 2, del_btn)
+
+    @staticmethod
+    def _remove_row(table: QTableWidget, btn: QPushButton):
+        """Rimuove la riga che contiene il pulsante dato (indice sempre corretto
+        anche dopo rimozioni precedenti)."""
+        for r in range(table.rowCount()):
+            if table.cellWidget(r, table.columnCount() - 1) is btn:
+                table.removeRow(r)
+                return
+
+    def _s2_create_possessore(self):
+        """Apre il dialog di creazione possessore e lo aggiunge alla partita."""
+        dialog = CreatePossessoreDialog(self.db_manager, self)
+        if dialog.exec() == QDialog.DialogCode.Accepted and dialog.nuovo_possessore_dati:
+            info = dialog.nuovo_possessore_dati
+            self._s2_append_possessore(info["id"], info.get("nome_completo", ""))
 
     def _build_step3(self) -> QWidget:
         w = QWidget()
@@ -249,7 +283,20 @@ class NuovaPartitaWizardWidget(QWidget):
 
         self._s3_natura = QLineEdit()
         self._s3_natura.setPlaceholderText("Es. Casa, Terreno")
-        add_layout.addRow("Natura:", self._s3_natura)
+        add_layout.addRow("Natura: *", self._s3_natura)
+
+        # La località è obbligatoria: immobile.localita_id è NOT NULL nel DB.
+        self._s3_localita = QComboBox()
+        self._s3_localita.setPlaceholderText("Seleziona prima un comune...")
+        self._s3_new_localita_btn = QPushButton("+ Nuova...")
+        self._s3_new_localita_btn.setObjectName("secondaryButton")
+        self._s3_new_localita_btn.setToolTip("Crea una nuova località per il comune selezionato")
+        self._s3_new_localita_btn.clicked.connect(self._s3_create_localita)
+        loc_row = QHBoxLayout()
+        loc_row.setContentsMargins(0, 0, 0, 0)
+        loc_row.addWidget(self._s3_localita, 1)
+        loc_row.addWidget(self._s3_new_localita_btn)
+        add_layout.addRow("Località: *", loc_row)
 
         self._s3_classif = QLineEdit()
         self._s3_classif.setPlaceholderText("Es. A/1, A/2")
@@ -263,28 +310,74 @@ class NuovaPartitaWizardWidget(QWidget):
 
         layout.addWidget(QLabel("Immobili:"))
         self._s3_table = QTableWidget()
-        self._s3_table.setColumnCount(3)
-        self._s3_table.setHorizontalHeaderLabels(["Natura", "Classificazione", ""])
+        self._s3_table.setColumnCount(4)
+        self._s3_table.setHorizontalHeaderLabels(["Natura", "Località", "Classificazione", ""])
         self._s3_table.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeMode.Interactive)
         self._s3_table.horizontalHeader().setStretchLastSection(True)
         layout.addWidget(self._s3_table, 1)
 
         return w
 
+    def _load_localita(self):
+        """Popola la combo delle località per il comune selezionato."""
+        self._s3_localita.clear()
+        if not self._comune_id:
+            self._s3_localita.setEnabled(False)
+            self._s3_new_localita_btn.setEnabled(False)
+            return
+        self._s3_new_localita_btn.setEnabled(True)
+        try:
+            localita = self.db_manager.get_localita_by_comune(self._comune_id) or []
+        except Exception as e:
+            logging.getLogger("CatastoGUI").error(f"Errore caricamento località: {e}")
+            localita = []
+        if localita:
+            self._s3_localita.addItem("--- Seleziona Località ---", None)
+            for loc in localita:
+                tipo = loc.get("tipologia_stradale") or "N/D"
+                self._s3_localita.addItem(f"{loc['nome']} ({tipo})", loc["id"])
+            self._s3_localita.setEnabled(True)
+        else:
+            self._s3_localita.addItem("Nessuna località — usa '+ Nuova...'", None)
+            self._s3_localita.setEnabled(False)
+
+    def _s3_create_localita(self):
+        if not self._comune_id:
+            QMessageBox.warning(self, "Comune mancante",
+                                "Seleziona prima un comune al Passo 1.")
+            return
+        dlg = CreateLocalitaDialog(
+            self.db_manager, self._comune_id, self._comune_nome, self)
+        if dlg.exec() != QDialog.DialogCode.Accepted or not dlg.nuova_localita_id:
+            return
+        self._load_localita()
+        idx = self._s3_localita.findData(dlg.nuova_localita_id)
+        if idx >= 0:
+            self._s3_localita.setCurrentIndex(idx)
+
     def _s3_add_immobile(self):
         natura = self._s3_natura.text().strip()
         if not natura:
             QMessageBox.warning(self, "Attenzione", "Natura obbligatoria.")
             return
+        localita_id = self._s3_localita.currentData()
+        if not localita_id:
+            QMessageBox.warning(self, "Attenzione",
+                                "Località obbligatoria. Selezionane una o creane una nuova.")
+            return
 
         row = self._s3_table.rowCount()
         self._s3_table.insertRow(row)
-        self._s3_table.setItem(row, 0, QTableWidgetItem(natura))
-        self._s3_table.setItem(row, 1, QTableWidgetItem(self._s3_classif.text().strip()))
+        natura_item = QTableWidgetItem(natura)
+        natura_item.setData(Qt.ItemDataRole.UserRole, localita_id)
+        self._s3_table.setItem(row, 0, natura_item)
+        self._s3_table.setItem(row, 1, QTableWidgetItem(self._s3_localita.currentText()))
+        self._s3_table.setItem(row, 2, QTableWidgetItem(self._s3_classif.text().strip()))
 
         del_btn = QPushButton("✕")
-        del_btn.clicked.connect(lambda: self._s3_table.removeRow(row))
-        self._s3_table.setCellWidget(row, 2, del_btn)
+        del_btn.clicked.connect(
+            lambda: self._remove_row(self._s3_table, del_btn))
+        self._s3_table.setCellWidget(row, 3, del_btn)
 
         self._s3_natura.clear()
         self._s3_classif.clear()
@@ -354,11 +447,12 @@ td {{ padding:4px 8px; border-bottom:1px solid #EEE; }}
         css_class = 'ok' if n_imm > 0 else 'warn'
         html += f'<h3>Immobili <span class="{css_class}">[{n_imm}]</span></h3>'
         if n_imm > 0:
-            html += '<table><tr><th>Natura</th><th>Classificazione</th></tr>'
+            html += '<table><tr><th>Natura</th><th>Località</th><th>Classificazione</th></tr>'
             for row in range(n_imm):
                 natura = self._s3_table.item(row, 0).text() if self._s3_table.item(row, 0) else ""
-                classif = self._s3_table.item(row, 1).text() if self._s3_table.item(row, 1) else ""
-                html += f'<tr><td>{natura}</td><td>{classif}</td></tr>'
+                localita = self._s3_table.item(row, 1).text() if self._s3_table.item(row, 1) else ""
+                classif = self._s3_table.item(row, 2).text() if self._s3_table.item(row, 2) else ""
+                html += f'<tr><td>{natura}</td><td>{localita}</td><td>{classif}</td></tr>'
             html += '</table>'
 
         self._s4_browser.setHtml(html)
@@ -371,6 +465,8 @@ td {{ padding:4px 8px; border-bottom:1px solid #EEE; }}
 
         self._step = min(self._step + 1, 3)
         self._stack.setCurrentIndex(self._step)
+        if self._step == 2:
+            self._load_localita()
         if self._step == 3:
             self._render_riepilogo()
         self._btn_back.setEnabled(self._step > 0)
@@ -390,7 +486,12 @@ td {{ padding:4px 8px; border-bottom:1px solid #EEE; }}
             self._s1_numero.setValue(1)
             self._s1_suffisso.clear()
             self._s1_data_imp.setDate(QDate.currentDate())
+            self._s2_search.clear()
+            self._s2_results.clear()
             self._s2_table.setRowCount(0)
+            self._s3_natura.clear()
+            self._s3_classif.clear()
+            self._s3_localita.clear()
             self._s3_table.setRowCount(0)
             self._stack.setCurrentIndex(0)
             self._btn_back.setEnabled(False)
@@ -417,27 +518,63 @@ td {{ padding:4px 8px; border-bottom:1px solid #EEE; }}
                 stato=stato,
                 numero_provenienza=None
             )
-
-            for row in range(self._s2_table.rowCount()):
-                poss_id = self._s2_table.item(row, 0).data(Qt.ItemDataRole.UserRole) if self._s2_table.item(row, 0) else None
-                titolo = self._s2_table.item(row, 1).text() if self._s2_table.item(row, 1) else ""
-                if poss_id:
-                    try:
-                        self.db_manager.aggiungi_possessore_a_partita(
-                            partita_id=partita_id,
-                            possessore_id=poss_id,
-                            tipo_partita_rel="proprietario",
-                            titolo=titolo,
-                            quota="1/1"
-                        )
-                    except Exception as e:
-                        logging.getLogger("CatastoGUI").warning(f"Errore aggiunta possessore: {e}")
-
-            _show_status_message(f"Partita N.{numero} registrata con successo (ID: {partita_id}).", 5000)
-            self._reset_wizard()
-
         except Exception as e:
             logging.getLogger("CatastoGUI").error(f"Errore registrazione partita: {e}", exc_info=True)
             QMessageBox.critical(self, "Errore", str(e))
+            return
+
+        # Possessori e immobili: la partita esiste già; eventuali errori qui
+        # vengono raccolti e mostrati, non silenziati.
+        errori: list[str] = []
+
+        for row in range(self._s2_table.rowCount()):
+            cell = self._s2_table.item(row, 0)
+            poss_id = cell.data(Qt.ItemDataRole.UserRole) if cell else None
+            titolo = self._s2_table.item(row, 1).text() if self._s2_table.item(row, 1) else ""
+            if not poss_id:
+                continue
+            try:
+                self.db_manager.aggiungi_possessore_a_partita(
+                    partita_id=partita_id,
+                    possessore_id=poss_id,
+                    # 'tipo_partita' ammette solo 'principale'/'secondaria'
+                    tipo_partita_rel="principale",
+                    titolo=titolo or "proprietà esclusiva",
+                    quota="1/1",
+                )
+            except Exception as e:
+                nome = cell.text() if cell else str(poss_id)
+                logging.getLogger("CatastoGUI").error(
+                    f"Errore aggiunta possessore '{nome}': {e}", exc_info=True)
+                errori.append(f"Possessore '{nome}': {e}")
+
+        for row in range(self._s3_table.rowCount()):
+            cell = self._s3_table.item(row, 0)
+            natura = cell.text() if cell else ""
+            localita_id = cell.data(Qt.ItemDataRole.UserRole) if cell else None
+            classif = self._s3_table.item(row, 2).text() if self._s3_table.item(row, 2) else ""
+            if not natura or not localita_id:
+                continue
+            try:
+                self.db_manager.inserisci_immobile(
+                    partita_id=partita_id,
+                    natura=natura,
+                    localita_id=localita_id,
+                    classificazione=classif or None,
+                )
+            except Exception as e:
+                logging.getLogger("CatastoGUI").error(
+                    f"Errore inserimento immobile '{natura}': {e}", exc_info=True)
+                errori.append(f"Immobile '{natura}': {e}")
+
+        if errori:
+            QMessageBox.warning(
+                self, "Registrazione parziale",
+                f"Partita N.{numero} creata (ID: {partita_id}), ma alcuni "
+                f"elementi non sono stati salvati:\n\n- " + "\n- ".join(errori))
+        else:
+            _show_status_message(
+                f"Partita N.{numero} registrata con successo (ID: {partita_id}).", 5000)
+        self._reset_wizard()
 
 
