@@ -193,8 +193,10 @@ REM ============================================================================
 echo [6/8] Creazione database e ruolo... >> "%LOGFILE%"
 set "PGPASSWORD=%DB_PASSWORD%"
 
-REM Crea il ruolo 'foliarium' se non esiste
-"%PG_BIN%\psql.exe" -h 127.0.0.1 -p %DB_PORT% -U postgres -d postgres -c "DO $$ BEGIN IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname='%DB_USER%') THEN CREATE ROLE %DB_USER% LOGIN PASSWORD '%DB_PASSWORD%'; END IF; END $$;" >> "%LOGFILE%" 2>&1
+REM Crea il ruolo 'foliarium' se non esiste.
+REM SUPERUSER: REFRESH MATERIALIZED VIEW, CREATE VIEW e le migrazioni di
+REM schema auto-applicate all'avvio richiedono privilegi DDL/ownership.
+"%PG_BIN%\psql.exe" -h 127.0.0.1 -p %DB_PORT% -U postgres -d postgres -c "DO $$ BEGIN IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname='%DB_USER%') THEN CREATE ROLE %DB_USER% LOGIN SUPERUSER PASSWORD '%DB_PASSWORD%'; END IF; END $$;" >> "%LOGFILE%" 2>&1
 
 REM Crea il database se non esiste
 "%PG_BIN%\psql.exe" -h 127.0.0.1 -p %DB_PORT% -U postgres -d postgres -tc "SELECT 1 FROM pg_database WHERE datname='%DB_NAME%'" | findstr "1" > nul 2>&1

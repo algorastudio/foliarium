@@ -420,10 +420,13 @@ def _setup_on_external_pg(
 
     print(f"\n[1/4] Creazione ruolo '{db_user}' e database '{db_name}'...")
     try:
+        # Il ruolo applicativo e' creato SUPERUSER: REFRESH MATERIALIZED VIEW,
+        # CREATE VIEW e le migrazioni di schema auto-applicate all'avvio
+        # richiedono privilegi DDL/ownership che un ruolo limitato non ha.
         run_psql(pg_bin, port,
                  f"DO $$ BEGIN "
                  f"IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname='{db_user}') THEN "
-                 f"CREATE ROLE {db_user} LOGIN PASSWORD '{db_password}'; "
+                 f"CREATE ROLE {db_user} LOGIN SUPERUSER PASSWORD '{db_password}'; "
                  f"END IF; END $$;",
                  password=postgres_password)
 
@@ -708,10 +711,13 @@ def setup(
         env = os.environ.copy()
         env["PGPASSWORD"] = db_password
 
+        # Il ruolo applicativo e' creato SUPERUSER: REFRESH MATERIALIZED VIEW,
+        # CREATE VIEW e le migrazioni di schema auto-applicate all'avvio
+        # richiedono privilegi DDL/ownership che un ruolo limitato non ha.
         run_psql(pg_bin, port,
                  f"DO $$ BEGIN "
                  f"IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname='{DB_USER}') THEN "
-                 f"CREATE ROLE {DB_USER} LOGIN PASSWORD '{db_password}'; "
+                 f"CREATE ROLE {DB_USER} LOGIN SUPERUSER PASSWORD '{db_password}'; "
                  f"END IF; END $$;",
                  password=db_password)
 
