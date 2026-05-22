@@ -14,14 +14,13 @@ from psycopg2.extras import DictCursor
 from catasto_exceptions import DBMError, DBDataError
 
 
-# Messaggio mostrato (una sola volta per processo) quando la vista
-# v_audit_dettagliato manca: indica come applicare la migrazione 19.
+# Messaggio mostrato (una sola volta per processo) quando le tabelle di
+# audit (audit_log / utente) mancano: indica di inizializzare lo schema.
 _MISSING_AUDIT_VIEW_MSG = (
-    "La vista 'catasto.v_audit_dettagliato' non esiste nel database. "
-    "Applica la migrazione sql_scripts/migrations/19_create_v_audit_dettagliato.sql "
-    "(es. `psql -U postgres -d catasto_storico "
-    "-f sql_scripts/migrations/19_create_v_audit_dettagliato.sql`). "
-    "Fino ad allora il visualizzatore audit log restituira' risultati vuoti."
+    "Le tabelle di audit ('catasto.audit_log' e/o 'catasto.utente') non "
+    "esistono nel database. Inizializzare lo schema con gli script in "
+    "sql_scripts/. Fino ad allora il visualizzatore audit log restituira' "
+    "risultati vuoti."
 )
 _audit_view_warning_logged = False
 
@@ -35,6 +34,24 @@ def _warn_missing_audit_view_once(logger: logging.Logger) -> None:
 
 class DBAuditMixin:
     """Mixin per audit, sessioni, log e consultazioni."""
+
+    def _audit_dettagliato_source(self) -> str:
+        """Derived table equivalente alla vista catasto.v_audit_dettagliato.
+
+        Interrogando direttamente audit_log + utente non si dipende da una
+        VISTA che dev'essere creata via DDL: i DB il cui ruolo applicativo
+        non ha privilegi di CREATE VIEW (o su cui la migrazione 19 non e'
+        stata applicata) funzionano comunque.
+        """
+        s = self.schema
+        return (
+            f"(SELECT al.id, CAST(al.timestamp AS TIMESTAMP(0)) AS timestamp, "
+            f"al.app_user_id, u.username, u.nome_completo, al.session_id, "
+            f"al.tabella, al.operazione, al.record_id, al.ip_address, "
+            f"al.utente AS db_user, al.dati_prima, al.dati_dopo "
+            f"FROM {s}.audit_log al "
+            f"LEFT JOIN {s}.utente u ON al.app_user_id = u.id) AS v_audit_dettagliato"
+        )
 
     def set_session_app_user(
         self, user_id: Optional[int], client_ip: Optional[str] = None
@@ -94,11 +111,11 @@ class DBAuditMixin:
         session_id: Optional[str] = None,
         limit: int = 100,
     ) -> List[Dict]:
-        """Recupera log di audit con filtri opzionali dalla vista v_audit_dettagliato."""
+        """Recupera log di audit con filtri opzionali da audit_log + utente."""
         try:
             conditions = []
             params = []
-            query = "SELECT * FROM v_audit_dettagliato"
+            query = f"SELECT * FROM {self._audit_dettagliato_source()}"
             if tabella:
                 conditions.append("tabella = %s")
                 params.append(tabella)
@@ -119,7 +136,7 @@ class DBAuditMixin:
                 conditions.append("db_user = %s")
                 params.append(utente_db)
             if app_user_id is not None:
-                conditions.append("al.app_user_id = %s")
+                conditions.append("app_user_id = %s")
                 params.append(app_user_id)
             if session_id:
                 conditions.append("session_id = %s")
@@ -171,7 +188,7 @@ class DBAuditMixin:
         sort_order: str = "DESC",
     ) -> Tuple[List[Dict[str, Any]], int]:
         """
-        Recupera i record dalla vista v_audit_dettagliato con filtri, paginazione e ordinamento.
+        Recupera i record di audit (audit_log + utente) con filtri, paginazione e ordinamento.
         """
         if filters is None:
             filters = {}
@@ -208,8 +225,8 @@ class DBAuditMixin:
         if query_conditions:
             where_clause = "WHERE " + " AND ".join(query_conditions)
 
-        # La query ora interroga la VISTA, non la tabella diretta
-        base_query = f"FROM {self.schema}.v_audit_dettagliato {where_clause}"
+        # Interroga direttamente audit_log + utente (vedi _audit_dettagliato_source)
+        base_query = f"FROM {self._audit_dettagliato_source()} {where_clause}"
         count_query = f"SELECT COUNT(*) {base_query};"
 
         # Validazione e costruzione ORDER BY (invariato)
