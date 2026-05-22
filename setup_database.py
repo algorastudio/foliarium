@@ -30,6 +30,16 @@ Uso (modalità bundle):
   python setup_database.py --db-password MyPass   # password specifica
   python setup_database.py --skip-service         # no servizio, solo DB
   python setup_database.py --uninstall            # rimuove servizio e dati
+  
+  # 1. (opzionale) elimina il DB vecchio per ripartire pulito
+psql -U postgres -c "DROP DATABASE IF EXISTS catasto_storico;"
+psql -U postgres -c "DROP ROLE IF EXISTS foliarium;"
+
+# 2. Setup completo in un colpo solo
+python setup_database.py --pg-bin "C:\Program Files\PostgreSQL\17\bin" --postgres-password <password_di_postgres> --admin-password <password_admin_app>
+
+# 3. Avvia l'app
+python gui_main.py
 """
 from __future__ import annotations
 
