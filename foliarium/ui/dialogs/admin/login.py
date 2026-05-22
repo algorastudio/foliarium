@@ -84,18 +84,40 @@ class LoginDialog(QDialog):
         banner_layout.setAlignment(Qt.AlignmentFlag.AlignCenter)
 
         try:
-            from PyQt6.QtSvgWidgets import QSvgWidget
             logo_path = get_logo_svg_path(dark=True)
-            if logo_path:
-                logo = QSvgWidget(str(logo_path))
-                logo.setFixedSize(48, 48)
-                logo_row = QHBoxLayout()
-                logo_row.addStretch()
-                logo_row.addWidget(logo)
-                logo_row.addStretch()
-                banner_layout.addLayout(logo_row)
+            if logo_path and os.path.exists(logo_path):
+                logo_widget = None
+                if str(logo_path).lower().endswith(".svg"):
+                    from PyQt6.QtSvgWidgets import QSvgWidget
+                    svg = QSvgWidget(str(logo_path))
+                    # QSvgWidget non renderizza file raster: se il file ha
+                    # estensione .svg ma e' in realta' un PNG/JPEG, ricade sotto.
+                    if not svg.renderer().isValid():
+                        svg.deleteLater()
+                    else:
+                        svg.setFixedSize(48, 48)
+                        logo_widget = svg
+                if logo_widget is None:
+                    pix = QPixmap(str(logo_path))
+                    if not pix.isNull():
+                        lbl = QLabel()
+                        lbl.setFixedSize(48, 48)
+                        lbl.setScaledContents(False)
+                        lbl.setAlignment(Qt.AlignmentFlag.AlignCenter)
+                        lbl.setPixmap(pix.scaled(
+                            48, 48,
+                            Qt.AspectRatioMode.KeepAspectRatio,
+                            Qt.TransformationMode.SmoothTransformation))
+                        logo_widget = lbl
+                if logo_widget is not None:
+                    logo_row = QHBoxLayout()
+                    logo_row.addStretch()
+                    logo_row.addWidget(logo_widget)
+                    logo_row.addStretch()
+                    banner_layout.addLayout(logo_row)
         except Exception:
-            pass
+            logging.getLogger(__name__).debug(
+                "Logo login non caricato", exc_info=True)
 
         title = QLabel("Foliarium")
         title.setObjectName("loginTitle")

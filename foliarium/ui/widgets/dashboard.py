@@ -87,15 +87,15 @@ class DashboardWidget(QWidget):
         nome_utente = self.current_user_info.get('nome_completo', 'Utente') if self.current_user_info else 'Utente'
         ruolo_utente = self.current_user_info.get('ruolo', '') if self.current_user_info else ''
         from datetime import datetime as _dt
-        try:
-            import locale
-            try:
-                locale.setlocale(locale.LC_TIME, "it_IT.UTF-8")
-            except locale.Error:
-                pass
-            data_str = _dt.now().strftime("%A %d %B %Y, %H:%M")
-        except Exception:
-            data_str = _dt.now().strftime("%d/%m/%Y, %H:%M")
+        # Nomi italiani espliciti: evita la dipendenza dal locale di sistema
+        # (su Windows "it_IT.UTF-8" non e' valido e %A/%B producono mojibake).
+        _GIORNI = ("lunedì", "martedì", "mercoledì", "giovedì",
+                   "venerdì", "sabato", "domenica")
+        _MESI = ("gennaio", "febbraio", "marzo", "aprile", "maggio", "giugno",
+                 "luglio", "agosto", "settembre", "ottobre", "novembre", "dicembre")
+        _now = _dt.now()
+        data_str = (f"{_GIORNI[_now.weekday()]} {_now.day} "
+                    f"{_MESI[_now.month - 1]} {_now.year}, {_now:%H:%M}")
 
         header_label = QLabel(f"Benvenuto, {nome_utente}")
         header_label.setObjectName("pageTitle")
