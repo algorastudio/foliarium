@@ -35,17 +35,20 @@ class BozzePartitaDialog(QDialog):
       - selected_draft_payload: dict | None — payload della bozza scelta
     """
 
-    def __init__(self, db_manager, utente_id: Optional[int], parent=None):
+    def __init__(self, db_manager, utente_id: Optional[int], parent=None,
+                 wizard_kind: Optional[str] = None,
+                 window_title: str = "Bozze salvate"):
         super().__init__(parent)
         self.db_manager = db_manager
         self.utente_id = utente_id
+        self.wizard_kind = wizard_kind
 
         self.selected_draft_id: Optional[int] = None
         self.selected_draft_payload: Optional[Dict[str, Any]] = None
 
         self._drafts: List[Dict[str, Any]] = []
 
-        self.setWindowTitle("Bozze salvate — Nuova Partita")
+        self.setWindowTitle(window_title)
         self.setMinimumSize(640, 360)
         self._build_ui()
         self._reload()
@@ -88,7 +91,8 @@ class BozzePartitaDialog(QDialog):
 
     def _reload(self):
         try:
-            self._drafts = self.db_manager.list_partita_drafts(self.utente_id) or []
+            self._drafts = self.db_manager.list_partita_drafts(
+                self.utente_id, wizard_kind=self.wizard_kind) or []
         except Exception as e:
             logger.error(f"Errore caricamento bozze: {e}", exc_info=True)
             QMessageBox.critical(
@@ -131,7 +135,8 @@ class BozzePartitaDialog(QDialog):
             return
         try:
             full = self.db_manager.load_partita_draft(
-                int(draft_id), utente_id=self.utente_id)
+                int(draft_id), utente_id=self.utente_id,
+                wizard_kind=self.wizard_kind)
         except Exception as e:
             logger.error(f"Errore caricamento bozza {draft_id}: {e}", exc_info=True)
             QMessageBox.critical(
@@ -155,7 +160,8 @@ class BozzePartitaDialog(QDialog):
             return
         try:
             self.db_manager.delete_partita_draft(
-                int(draft_id), utente_id=self.utente_id)
+                int(draft_id), utente_id=self.utente_id,
+                wizard_kind=self.wizard_kind)
         except Exception as e:
             logger.error(f"Errore eliminazione bozza {draft_id}: {e}", exc_info=True)
             QMessageBox.critical(

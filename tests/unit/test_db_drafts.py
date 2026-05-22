@@ -118,10 +118,12 @@ class TestSavePartitaDraft:
         executed = [c.args[0] for c in cur.execute.call_args_list]
         assert any("INSERT INTO catasto.partita_draft" in q for q in executed)
         # Il payload JSON deve essere passato come stringa serializzata
+        # Params: (utente_id, wizard_kind, titolo, payload_json, app_version)
         params = cur.execute.call_args_list[0].args[1]
         assert params[0] == 7
-        assert params[1] == "Test bozza"
-        payload_arg = json.loads(params[2])
+        assert params[1] == "nuova_partita_wizard"
+        assert params[2] == "Test bozza"
+        payload_arg = json.loads(params[3])
         assert payload_arg == {"a": 1, "b": [1, 2]}
 
     def test_update_when_draft_id_given(self, mgr):

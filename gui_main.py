@@ -679,7 +679,8 @@ class CatastoMainWindow(QMainWindow):
             utente_id=self.logged_in_user_id)
         _add_page("ins_wizard", self.nuova_partita_wizard_ref)
 
-        self.registrazione_proprieta_widget_ref = RegistrazioneProprietaWidget(self.db_manager)
+        self.registrazione_proprieta_widget_ref = RegistrazioneProprietaWidget(
+            self.db_manager, utente_id=self.logged_in_user_id)
         _add_page("reg_proprieta", self.registrazione_proprieta_widget_ref)
 
         self.operazioni_partita_widget_ref = OperazioniPartitaWidget(self.db_manager)

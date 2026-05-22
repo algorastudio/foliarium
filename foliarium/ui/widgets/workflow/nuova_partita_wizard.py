@@ -45,6 +45,11 @@ except ImportError:
         pass
 
 try:
+    from db.drafts import WIZARD_KIND_NUOVA_PARTITA
+except Exception:
+    WIZARD_KIND_NUOVA_PARTITA = "nuova_partita_wizard"
+
+try:
     from config import APP_VERSION as _APP_VERSION
 except Exception:
     _APP_VERSION = None
@@ -676,7 +681,8 @@ td {{ padding:4px 8px; border-bottom:1px solid #EEE; }}
         if self._current_draft_id is not None:
             try:
                 self.db_manager.delete_partita_draft(
-                    self._current_draft_id, utente_id=self.utente_id)
+                    self._current_draft_id, utente_id=self.utente_id,
+                    wizard_kind=WIZARD_KIND_NUOVA_PARTITA)
             except Exception as e:
                 logger.debug(f"Eliminazione bozza post-registrazione fallita: {e}")
             self._current_draft_id = None
@@ -858,6 +864,7 @@ td {{ padding:4px 8px; border-bottom:1px solid #EEE; }}
                 payload=payload,
                 draft_id=self._current_draft_id,
                 app_version=_APP_VERSION,
+                wizard_kind=WIZARD_KIND_NUOVA_PARTITA,
             )
             self._current_draft_id = int(saved_id)
             self._dirty = False
@@ -908,7 +915,10 @@ td {{ padding:4px 8px; border-bottom:1px solid #EEE; }}
             if reply != QMessageBox.StandardButton.Yes:
                 return
 
-        dlg = BozzePartitaDialog(self.db_manager, self.utente_id, self)
+        dlg = BozzePartitaDialog(
+            self.db_manager, self.utente_id, self,
+            wizard_kind=WIZARD_KIND_NUOVA_PARTITA,
+            window_title="Bozze salvate — Nuova Partita")
         if dlg.exec() != QDialog.DialogCode.Accepted:
             return
         if dlg.selected_draft_id is None or dlg.selected_draft_payload is None:

@@ -79,7 +79,7 @@ foliarium/
 │   ├── comuni.py, localita.py, possessori.py, partite.py, immobili.py
 │   ├── variazioni.py, documenti.py, audit.py, utenti.py
 │   ├── backup.py, stats.py, ricerca.py, io.py, archivio.py
-│   ├── drafts.py                 # DBDraftsMixin (bozze wizard Nuova Partita)
+│   ├── drafts.py                 # DBDraftsMixin (bozze wizard Nuova Partita + Registrazione Proprietà)
 │   └── models.py                 # Dataclass models
 │
 ├── core/                         # Gestione sessione e autenticazione

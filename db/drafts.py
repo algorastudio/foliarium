@@ -1,9 +1,13 @@
 """
-db/drafts.py — Mixin per bozze del wizard Nuova Partita.
+db/drafts.py — Mixin per bozze dei wizard partita.
 
 Le bozze salvano uno snapshot JSONB dello stato del wizard, legato
 all'utente che le ha create, per permettere di sospendere e riprendere
 inserimenti complessi anche da postazioni diverse.
+
+La colonna `wizard_kind` discrimina il wizard d'origine: i due flussi
+(`nuova_partita_wizard` e `registrazione_proprieta`) hanno schemi di
+payload diversi e non vanno mescolati nelle liste.
 
 Schema: catasto.partita_draft (auto-applicato in db/base.py).
 """
@@ -19,8 +23,13 @@ from catasto_exceptions import DBMError, DBNotFoundError
 from db.base import db_handle_errors
 
 
+# Costanti per i wizard supportati
+WIZARD_KIND_NUOVA_PARTITA = "nuova_partita_wizard"
+WIZARD_KIND_REGISTRAZIONE_PROPRIETA = "registrazione_proprieta"
+
+
 class DBDraftsMixin:
-    """CRUD per le bozze del wizard Nuova Partita."""
+    """CRUD per le bozze dei wizard partita."""
 
     @db_handle_errors
     def save_partita_draft(
@@ -30,8 +39,14 @@ class DBDraftsMixin:
         payload: Dict[str, Any],
         draft_id: Optional[int] = None,
         app_version: Optional[str] = None,
+        wizard_kind: str = WIZARD_KIND_NUOVA_PARTITA,
     ) -> int:
-        """Crea una nuova bozza o aggiorna quella indicata. Ritorna l'id."""
+        """Crea una nuova bozza o aggiorna quella indicata. Ritorna l'id.
+
+        Su UPDATE l'ownership è verificata sia per `utente_id` sia per
+        `wizard_kind` (non si può sovrascrivere una bozza di un altro
+        wizard).
+        """
         payload_json = json.dumps(payload, ensure_ascii=False, default=str)
 
         with self._get_connection() as conn:
@@ -43,9 +58,11 @@ class DBDraftsMixin:
                         f"    app_version = COALESCE(%s, app_version), "
                         f"    updated_at = CURRENT_TIMESTAMP "
                         f"WHERE id = %s "
+                        f"  AND wizard_kind = %s "
                         f"  AND (utente_id IS NOT DISTINCT FROM %s) "
                         f"RETURNING id",
-                        (titolo, payload_json, app_version, draft_id, utente_id),
+                        (titolo, payload_json, app_version, draft_id,
+                         wizard_kind, utente_id),
                     )
                     row = cur.fetchone()
                     if not row:
@@ -56,10 +73,10 @@ class DBDraftsMixin:
 
                 cur.execute(
                     f"INSERT INTO {self.schema}.partita_draft "
-                    f"  (utente_id, titolo, payload, app_version) "
-                    f"VALUES (%s, %s, %s::jsonb, %s) "
+                    f"  (utente_id, wizard_kind, titolo, payload, app_version) "
+                    f"VALUES (%s, %s, %s, %s::jsonb, %s) "
                     f"RETURNING id",
-                    (utente_id, titolo, payload_json, app_version),
+                    (utente_id, wizard_kind, titolo, payload_json, app_version),
                 )
                 row = cur.fetchone()
                 if not row:
@@ -71,30 +88,36 @@ class DBDraftsMixin:
         self,
         utente_id: Optional[int],
         limit: int = 50,
+        wizard_kind: Optional[str] = WIZARD_KIND_NUOVA_PARTITA,
     ) -> List[Dict[str, Any]]:
-        """Elenca le bozze dell'utente (più recenti prima).
+        """Elenca le bozze dell'utente per il wizard indicato (più recenti prima).
 
-        Se utente_id è None vengono elencate solo le bozze orfane
-        (utente_id IS NULL): non si mescolano bozze di utenti diversi.
+        Se `wizard_kind` è None vengono restituite le bozze di tutti i
+        wizard. Se `utente_id` è None vengono elencate solo le bozze
+        orfane (utente_id IS NULL): non si mescolano bozze di utenti diversi.
         """
+        conds: List[str] = []
+        params: List[Any] = []
+        if utente_id is None:
+            conds.append("utente_id IS NULL")
+        else:
+            conds.append("utente_id = %s")
+            params.append(utente_id)
+        if wizard_kind is not None:
+            conds.append("wizard_kind = %s")
+            params.append(wizard_kind)
+        where = " AND ".join(conds) if conds else "TRUE"
+        params.append(limit)
+
         with self._get_connection() as conn:
             with conn.cursor(cursor_factory=DictCursor) as cur:
-                if utente_id is None:
-                    cur.execute(
-                        f"SELECT id, titolo, app_version, created_at, updated_at "
-                        f"FROM {self.schema}.partita_draft "
-                        f"WHERE utente_id IS NULL "
-                        f"ORDER BY updated_at DESC LIMIT %s",
-                        (limit,),
-                    )
-                else:
-                    cur.execute(
-                        f"SELECT id, titolo, app_version, created_at, updated_at "
-                        f"FROM {self.schema}.partita_draft "
-                        f"WHERE utente_id = %s "
-                        f"ORDER BY updated_at DESC LIMIT %s",
-                        (utente_id, limit),
-                    )
+                cur.execute(
+                    f"SELECT id, wizard_kind, titolo, app_version, created_at, updated_at "
+                    f"FROM {self.schema}.partita_draft "
+                    f"WHERE {where} "
+                    f"ORDER BY updated_at DESC LIMIT %s",
+                    tuple(params),
+                )
                 return [dict(row) for row in cur.fetchall()]
 
     @db_handle_errors
@@ -102,26 +125,33 @@ class DBDraftsMixin:
         self,
         draft_id: int,
         utente_id: Optional[int] = None,
+        wizard_kind: Optional[str] = None,
     ) -> Dict[str, Any]:
-        """Carica una bozza completa. Se utente_id è fornito, verifica l'ownership."""
+        """Carica una bozza completa.
+
+        Se `utente_id` è fornito, verifica l'ownership.
+        Se `wizard_kind` è fornito, verifica anche il tipo wizard
+        (evita di caricare in un wizard un payload destinato all'altro).
+        """
+        conds: List[str] = ["id = %s"]
+        params: List[Any] = [draft_id]
+        if utente_id is not None:
+            conds.append("(utente_id IS NOT DISTINCT FROM %s)")
+            params.append(utente_id)
+        if wizard_kind is not None:
+            conds.append("wizard_kind = %s")
+            params.append(wizard_kind)
+        where = " AND ".join(conds)
+
         with self._get_connection() as conn:
             with conn.cursor(cursor_factory=DictCursor) as cur:
-                if utente_id is None:
-                    cur.execute(
-                        f"SELECT id, utente_id, titolo, payload, app_version, "
-                        f"       created_at, updated_at "
-                        f"FROM {self.schema}.partita_draft WHERE id = %s",
-                        (draft_id,),
-                    )
-                else:
-                    cur.execute(
-                        f"SELECT id, utente_id, titolo, payload, app_version, "
-                        f"       created_at, updated_at "
-                        f"FROM {self.schema}.partita_draft "
-                        f"WHERE id = %s "
-                        f"  AND (utente_id IS NOT DISTINCT FROM %s)",
-                        (draft_id, utente_id),
-                    )
+                cur.execute(
+                    f"SELECT id, utente_id, wizard_kind, titolo, payload, "
+                    f"       app_version, created_at, updated_at "
+                    f"FROM {self.schema}.partita_draft "
+                    f"WHERE {where}",
+                    tuple(params),
+                )
                 row = cur.fetchone()
                 if not row:
                     raise DBNotFoundError(
@@ -139,20 +169,23 @@ class DBDraftsMixin:
         self,
         draft_id: int,
         utente_id: Optional[int] = None,
+        wizard_kind: Optional[str] = None,
     ) -> bool:
         """Elimina una bozza. Ritorna True se è stata effettivamente cancellata."""
+        conds: List[str] = ["id = %s"]
+        params: List[Any] = [draft_id]
+        if utente_id is not None:
+            conds.append("(utente_id IS NOT DISTINCT FROM %s)")
+            params.append(utente_id)
+        if wizard_kind is not None:
+            conds.append("wizard_kind = %s")
+            params.append(wizard_kind)
+        where = " AND ".join(conds)
+
         with self._get_connection() as conn:
             with conn.cursor() as cur:
-                if utente_id is None:
-                    cur.execute(
-                        f"DELETE FROM {self.schema}.partita_draft WHERE id = %s",
-                        (draft_id,),
-                    )
-                else:
-                    cur.execute(
-                        f"DELETE FROM {self.schema}.partita_draft "
-                        f"WHERE id = %s "
-                        f"  AND (utente_id IS NOT DISTINCT FROM %s)",
-                        (draft_id, utente_id),
-                    )
+                cur.execute(
+                    f"DELETE FROM {self.schema}.partita_draft WHERE {where}",
+                    tuple(params),
+                )
                 return cur.rowcount > 0

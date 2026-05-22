@@ -189,5 +189,5 @@ class TestRegistrationDeletesDraft:
 
         mock_db.create_partita.assert_called_once()
         mock_db.delete_partita_draft.assert_called_once_with(
-            555, utente_id=7)
+            555, utente_id=7, wizard_kind="nuova_partita_wizard")
         assert wizard._current_draft_id is None
