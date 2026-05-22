@@ -9,16 +9,18 @@ from __future__ import annotations
 
 import json
 import logging
+from datetime import datetime
 from typing import Any, Dict, List, Optional, TYPE_CHECKING
 
 from PyQt6.QtCore import (
-    QDate, Qt, pyqtSignal,
+    QDate, Qt, QTimer, pyqtSignal,
 )
 from PyQt6.QtWidgets import (
     QAbstractItemView, QComboBox, QCompleter, QDateEdit, QDialog,
-    QFormLayout, QFrame, QGridLayout, QGroupBox, QHBoxLayout, QLabel,
-    QLineEdit, QMessageBox, QPushButton, QSpinBox, QStackedWidget, QTabWidget,
-    QTableWidget, QTableWidgetItem, QTextBrowser, QVBoxLayout, QWidget,
+    QFormLayout, QFrame, QGridLayout, QGroupBox, QHBoxLayout, QInputDialog,
+    QLabel, QLineEdit, QMessageBox, QPushButton, QSpinBox, QStackedWidget,
+    QTabWidget, QTableWidget, QTableWidgetItem, QTextBrowser, QVBoxLayout,
+    QWidget,
 )
 
 from app_utils import (
@@ -26,11 +28,13 @@ from app_utils import (
 )
 from foliarium.ui.widgets.custom import (
     LazyLoadedWidget,
+    show_status_message as _show_status_message,
 )
 from dialogs import (
     ComuneSelectionDialog, CreateLocalitaDialog, CreatePossessoreDialog,
     DettagliLegamePossessoreDialog,
 )
+from foliarium.ui.dialogs.partita.bozze import BozzePartitaDialog
 
 try:
     from catasto_db_manager import (
@@ -40,10 +44,22 @@ except ImportError:
     class DBMError(Exception):
         pass
 
+try:
+    from db.drafts import WIZARD_KIND_REGISTRAZIONE_PROPRIETA
+except Exception:
+    WIZARD_KIND_REGISTRAZIONE_PROPRIETA = "registrazione_proprieta"
+
+try:
+    from config import APP_VERSION as _APP_VERSION
+except Exception:
+    _APP_VERSION = None
+
 if TYPE_CHECKING:
     from catasto_db_manager import CatastoDBManager  # noqa: F401
 
 logger = logging.getLogger("CatastoGUI.registrazione_proprieta")
+
+AUTOSAVE_INTERVAL_MS = 60_000
 
 
 class RegistrazioneProprietaWidget(LazyLoadedWidget):
@@ -52,9 +68,11 @@ class RegistrazioneProprietaWidget(LazyLoadedWidget):
 
     partita_creata_per_operazioni_collegate = pyqtSignal(int, int)
 
-    def __init__(self, db_manager: 'CatastoDBManager', parent=None):
+    def __init__(self, db_manager: 'CatastoDBManager', parent=None,
+                 utente_id: Optional[int] = None):
         super().__init__(parent)
         self.db_manager = db_manager
+        self.utente_id = utente_id
         self._step = 0
         self._comune_id: Optional[int] = None
         self._comune_nome: str = ""
@@ -63,7 +81,18 @@ class RegistrazioneProprietaWidget(LazyLoadedWidget):
         self._localita_cache: List[Dict[str, Any]] = []
         self._possessori_cache: List[Dict[str, Any]] = []
         self._immobili_cache: List[Dict[str, Any]] = []
+
+        # Stato bozza
+        self._current_draft_id: Optional[int] = None
+        self._dirty: bool = False
+        self._restoring: bool = False
+
         self._build_ui()
+
+        self._autosave_timer = QTimer(self)
+        self._autosave_timer.setInterval(AUTOSAVE_INTERVAL_MS)
+        self._autosave_timer.timeout.connect(self._on_autosave_tick)
+        self._autosave_timer.start()
 
     # ── UI BUILD ─────────────────────────────────────────────────────────────
 
@@ -86,6 +115,11 @@ class RegistrazioneProprietaWidget(LazyLoadedWidget):
             self._step_labels.append(lbl)
             step_layout.addWidget(lbl)
         step_layout.addStretch()
+
+        self._draft_status_label = QLabel("")
+        self._draft_status_label.setProperty("muted", "true")
+        step_layout.addWidget(self._draft_status_label)
+
         main_layout.addWidget(step_bar)
 
         self._stack = QStackedWidget()
@@ -105,6 +139,19 @@ class RegistrazioneProprietaWidget(LazyLoadedWidget):
         self._btn_back.setEnabled(False)
         self._btn_back.clicked.connect(self._go_back)
         nav_layout.addWidget(self._btn_back)
+
+        self._btn_resume = QPushButton("Riprendi bozza...")
+        self._btn_resume.setObjectName("secondaryButton")
+        self._btn_resume.setToolTip("Apri l'elenco delle bozze salvate")
+        self._btn_resume.clicked.connect(self._resume_draft)
+        nav_layout.addWidget(self._btn_resume)
+
+        self._btn_save_draft = QPushButton("Salva bozza")
+        self._btn_save_draft.setObjectName("secondaryButton")
+        self._btn_save_draft.setToolTip("Salva lo stato corrente come bozza riprendibile")
+        self._btn_save_draft.clicked.connect(self._save_draft_clicked)
+        nav_layout.addWidget(self._btn_save_draft)
+
         nav_layout.addStretch()
 
         self._btn_reset = QPushButton("Ricomincia")
@@ -146,16 +193,19 @@ class RegistrazioneProprietaWidget(LazyLoadedWidget):
         self._s1_numero = QSpinBox()
         self._s1_numero.setMinimum(1)
         self._s1_numero.setMaximum(99999)
+        self._s1_numero.valueChanged.connect(self._mark_dirty)
         form_layout.addRow("Numero Partita: *", self._s1_numero)
 
         self._s1_suffisso = QLineEdit()
         self._s1_suffisso.setPlaceholderText("Es. A, B, bis (opzionale)")
+        self._s1_suffisso.textChanged.connect(self._mark_dirty)
         form_layout.addRow("Suffisso:", self._s1_suffisso)
 
         self._s1_data_imp = QDateEdit()
         self._s1_data_imp.setCalendarPopup(True)
         self._s1_data_imp.setDate(QDate.currentDate())
         self._s1_data_imp.setDisplayFormat("dd/MM/yyyy")
+        self._s1_data_imp.dateChanged.connect(self._mark_dirty)
         form_layout.addRow("Data Impianto: *", self._s1_data_imp)
 
         layout.addWidget(form_group)
@@ -381,35 +431,42 @@ class RegistrazioneProprietaWidget(LazyLoadedWidget):
         return True
 
     def _reset_wizard(self):
-        self._step = 0
-        self._comune_id = None
-        self._comune_nome = ""
-        self._possessori_data = []
-        self._immobili_data = []
-        self._localita_cache = []
-        self._possessori_cache = []
-        self._immobili_cache = []
-        self._s1_comune_label.setText("Nessun comune selezionato")
-        self._s1_comune_label.setProperty("muted", "true"); self._s1_comune_label.style().unpolish(self._s1_comune_label); self._s1_comune_label.style().polish(self._s1_comune_label)
-        self._s1_numero.setValue(1)
-        self._s1_suffisso.clear()
-        self._s1_data_imp.setDate(QDate.currentDate())
-        self._s2_poss_table.setRowCount(0)
-        self._s2_search_combo.clear()
-        self._s3_imm_table.setRowCount(0)
-        self._s3_exist_combo.clear()
-        self._s3_exist_combo.setEnabled(False)
-        self._s3_localita_combo.clear()
-        self._s3_localita_combo.setEnabled(False)
-        self._s3_natura_edit.clear()
-        self._s3_class_edit.clear()
-        self._s3_consist_edit.clear()
-        self._s3_piani_spin.setValue(0)
-        self._s3_vani_spin.setValue(0)
-        self._s3_civico_edit.clear()
-        self._s4_browser.clear()
-        self._stack.setCurrentIndex(0)
-        self._update_nav()
+        self._restoring = True
+        try:
+            self._step = 0
+            self._comune_id = None
+            self._comune_nome = ""
+            self._possessori_data = []
+            self._immobili_data = []
+            self._localita_cache = []
+            self._possessori_cache = []
+            self._immobili_cache = []
+            self._s1_comune_label.setText("Nessun comune selezionato")
+            self._s1_comune_label.setProperty("muted", "true"); self._s1_comune_label.style().unpolish(self._s1_comune_label); self._s1_comune_label.style().polish(self._s1_comune_label)
+            self._s1_numero.setValue(1)
+            self._s1_suffisso.clear()
+            self._s1_data_imp.setDate(QDate.currentDate())
+            self._s2_poss_table.setRowCount(0)
+            self._s2_search_combo.clear()
+            self._s3_imm_table.setRowCount(0)
+            self._s3_exist_combo.clear()
+            self._s3_exist_combo.setEnabled(False)
+            self._s3_localita_combo.clear()
+            self._s3_localita_combo.setEnabled(False)
+            self._s3_natura_edit.clear()
+            self._s3_class_edit.clear()
+            self._s3_consist_edit.clear()
+            self._s3_piani_spin.setValue(0)
+            self._s3_vani_spin.setValue(0)
+            self._s3_civico_edit.clear()
+            self._s4_browser.clear()
+            self._stack.setCurrentIndex(0)
+            self._update_nav()
+            self._current_draft_id = None
+            self._dirty = False
+            self._update_draft_status()
+        finally:
+            self._restoring = False
 
     # ── STEP 1 ───────────────────────────────────────────────────────────────
 
@@ -420,6 +477,7 @@ class RegistrazioneProprietaWidget(LazyLoadedWidget):
             self._comune_nome = dialog.selected_comune_name
             self._s1_comune_label.setText(self._comune_nome)
             self._s1_comune_label.setProperty("muted", "false"); self._s1_comune_label.style().unpolish(self._s1_comune_label); self._s1_comune_label.style().polish(self._s1_comune_label)
+            self._mark_dirty()
 
     def _load_comune_dependent_data(self):
         self._load_possessori_cache()
@@ -518,6 +576,7 @@ class RegistrazioneProprietaWidget(LazyLoadedWidget):
                 **dettagli,
             })
             self._refresh_poss_table()
+            self._mark_dirty()
 
     def _s2_create_and_add(self):
         dialog = CreatePossessoreDialog(self.db_manager, self)
@@ -533,6 +592,7 @@ class RegistrazioneProprietaWidget(LazyLoadedWidget):
                     **dettagli,
                 })
                 self._refresh_poss_table()
+            self._mark_dirty()
 
     def _s2_remove_possessore(self):
         rows = self._s2_poss_table.selectedIndexes()
@@ -543,6 +603,7 @@ class RegistrazioneProprietaWidget(LazyLoadedWidget):
         if 0 <= row < len(self._possessori_data):
             del self._possessori_data[row]
             self._refresh_poss_table()
+            self._mark_dirty()
 
     def _refresh_poss_table(self):
         self._s2_poss_table.setRowCount(len(self._possessori_data))
@@ -566,6 +627,7 @@ class RegistrazioneProprietaWidget(LazyLoadedWidget):
         if details:
             self._immobili_data.append(details)
             self._refresh_imm_table()
+            self._mark_dirty()
 
     def _s3_add_inline(self):
         natura = self._s3_natura_edit.text().strip()
@@ -584,6 +646,7 @@ class RegistrazioneProprietaWidget(LazyLoadedWidget):
             'numero_civico': self._s3_civico_edit.text().strip() or None,
         })
         self._refresh_imm_table()
+        self._mark_dirty()
         self._s3_natura_edit.clear()
         self._s3_class_edit.clear()
         self._s3_consist_edit.clear()
@@ -601,6 +664,7 @@ class RegistrazioneProprietaWidget(LazyLoadedWidget):
         if 0 <= row < len(self._immobili_data):
             del self._immobili_data[row]
             self._refresh_imm_table()
+            self._mark_dirty()
 
     def _refresh_imm_table(self):
         self._s3_imm_table.setRowCount(len(self._immobili_data))
@@ -705,6 +769,196 @@ class RegistrazioneProprietaWidget(LazyLoadedWidget):
         if reply == QMessageBox.StandardButton.Yes:
             self.partita_creata_per_operazioni_collegate.emit(nuova_partita_id, self._comune_id)
 
+        # Bozza completata: rimuovila silenziosamente dal DB
+        if self._current_draft_id is not None:
+            try:
+                self.db_manager.delete_partita_draft(
+                    self._current_draft_id, utente_id=self.utente_id,
+                    wizard_kind=WIZARD_KIND_REGISTRAZIONE_PROPRIETA)
+            except Exception as e:
+                logger.debug(f"Eliminazione bozza post-registrazione fallita: {e}")
+            self._current_draft_id = None
+
         self._reset_wizard()
+
+    # ── BOZZE — serializzazione, persistenza, autosave ─────────────────
+
+    def _serialize_state(self) -> Dict[str, Any]:
+        """Snapshot serializzabile (JSON) dello stato del wizard."""
+        return {
+            "schema_version": 1,
+            "step": self._step,
+            "comune": {
+                "id": self._comune_id,
+                "nome": self._comune_nome,
+            },
+            "partita": {
+                "numero": self._s1_numero.value(),
+                "suffisso": self._s1_suffisso.text().strip(),
+                "data_impianto": self._s1_data_imp.date().toString("yyyy-MM-dd"),
+            },
+            "possessori": list(self._possessori_data),
+            "immobili": list(self._immobili_data),
+        }
+
+    def _restore_state(self, payload: Dict[str, Any]) -> None:
+        """Ripristina lo stato del wizard da uno snapshot."""
+        self._restoring = True
+        try:
+            comune = payload.get("comune") or {}
+            self._comune_id = comune.get("id")
+            self._comune_nome = comune.get("nome") or ""
+            if self._comune_id:
+                self._s1_comune_label.setText(self._comune_nome or "(comune)")
+                self._s1_comune_label.setProperty("muted", "false")
+            else:
+                self._s1_comune_label.setText("Nessun comune selezionato")
+                self._s1_comune_label.setProperty("muted", "true")
+            self._s1_comune_label.style().unpolish(self._s1_comune_label)
+            self._s1_comune_label.style().polish(self._s1_comune_label)
+
+            partita = payload.get("partita") or {}
+            try:
+                self._s1_numero.setValue(int(partita.get("numero") or 1))
+            except (TypeError, ValueError):
+                self._s1_numero.setValue(1)
+            self._s1_suffisso.setText(partita.get("suffisso") or "")
+            data_str = partita.get("data_impianto")
+            if data_str:
+                qd = QDate.fromString(data_str, "yyyy-MM-dd")
+                if qd.isValid():
+                    self._s1_data_imp.setDate(qd)
+
+            # Possessori / immobili: i dict sono gia' nello schema interno
+            self._possessori_data = list(payload.get("possessori") or [])
+            self._immobili_data = list(payload.get("immobili") or [])
+            self._refresh_poss_table()
+            self._refresh_imm_table()
+
+            # Cache dipendenti dal comune
+            if self._comune_id:
+                self._load_comune_dependent_data()
+
+            step = int(payload.get("step") or 0)
+            self._step = max(0, min(step, self._stack.count() - 1))
+            self._stack.setCurrentIndex(self._step)
+            if self._step == self._stack.count() - 1:
+                self._render_riepilogo()
+            self._update_nav()
+        finally:
+            self._restoring = False
+            self._dirty = False
+            self._update_draft_status()
+
+    def _default_draft_title(self) -> str:
+        n = self._s1_numero.value()
+        suf = self._s1_suffisso.text().strip()
+        suf_disp = f"/{suf}" if suf else ""
+        comune = self._comune_nome or "senza comune"
+        return f"{comune} N.{n}{suf_disp} — {datetime.now():%d/%m/%Y %H:%M}"
+
+    def _mark_dirty(self):
+        if self._restoring:
+            return
+        self._dirty = True
+        self._update_draft_status()
+
+    def _update_draft_status(self):
+        parts: List[str] = []
+        if self._current_draft_id is not None:
+            parts.append(f"Bozza #{self._current_draft_id}")
+        if self._dirty:
+            parts.append("• modifiche non salvate")
+        self._draft_status_label.setText("  ".join(parts))
+
+    def _save_draft_clicked(self):
+        if self._current_draft_id is None:
+            default_title = self._default_draft_title()
+            title, ok = QInputDialog.getText(
+                self, "Salva bozza",
+                "Titolo della bozza:",
+                text=default_title,
+            )
+            if not ok:
+                return
+            title = (title or "").strip() or default_title
+            saved_id = self._persist_draft(title=title)
+            if saved_id is not None:
+                _show_status_message(f"Bozza salvata (id {saved_id}).", 4000)
+        else:
+            saved_id = self._persist_draft(title=None)
+            if saved_id is not None:
+                _show_status_message(f"Bozza aggiornata (id {saved_id}).", 4000)
+
+    def _persist_draft(self, title: Optional[str]) -> Optional[int]:
+        try:
+            payload = self._serialize_state()
+            effective_title = title or self._default_draft_title()
+            saved_id = self.db_manager.save_partita_draft(
+                utente_id=self.utente_id,
+                titolo=effective_title,
+                payload=payload,
+                draft_id=self._current_draft_id,
+                app_version=_APP_VERSION,
+                wizard_kind=WIZARD_KIND_REGISTRAZIONE_PROPRIETA,
+            )
+            self._current_draft_id = int(saved_id)
+            self._dirty = False
+            self._update_draft_status()
+            return self._current_draft_id
+        except Exception as e:
+            logger.error(f"Errore salvataggio bozza: {e}", exc_info=True)
+            QMessageBox.critical(
+                self, "Errore", f"Impossibile salvare la bozza:\n{e}")
+            return None
+
+    def _on_autosave_tick(self):
+        if not self._dirty:
+            return
+        if not self._has_meaningful_content():
+            return
+        title = None
+        if self._current_draft_id is None:
+            title = self._default_draft_title()
+        saved_id = self._persist_draft(title=title)
+        if saved_id is not None:
+            logger.debug(f"Autosave bozza completato (id {saved_id}).")
+
+    def _has_meaningful_content(self) -> bool:
+        if self._comune_id is not None:
+            return True
+        if self._possessori_data or self._immobili_data:
+            return True
+        if self._s1_suffisso.text().strip():
+            return True
+        return False
+
+    def _resume_draft(self):
+        if self._dirty and self._current_draft_id is None:
+            reply = QMessageBox.question(
+                self, "Modifiche non salvate",
+                "Ci sono modifiche non salvate. Caricare un'altra bozza "
+                "le scarterà. Continuare?",
+                QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+                QMessageBox.StandardButton.No)
+            if reply != QMessageBox.StandardButton.Yes:
+                return
+
+        dlg = BozzePartitaDialog(
+            self.db_manager, self.utente_id, self,
+            wizard_kind=WIZARD_KIND_REGISTRAZIONE_PROPRIETA,
+            window_title="Bozze salvate — Registrazione Proprietà")
+        if dlg.exec() != QDialog.DialogCode.Accepted:
+            return
+        if dlg.selected_draft_id is None or dlg.selected_draft_payload is None:
+            return
+
+        self._reset_wizard()
+        self._restore_state(dlg.selected_draft_payload)
+        self._current_draft_id = dlg.selected_draft_id
+        self._dirty = False
+        self._update_draft_status()
+        _show_status_message(
+            f"Bozza #{dlg.selected_draft_id} ripresa.", 4000)
 
 

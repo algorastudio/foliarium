@@ -74,11 +74,12 @@ foliarium/
 │               ├── immobili.py   # Model + RicercaAvanzataImmobiliWidget
 │               └── fuzzy.py      # UnifiedFuzzySearchWidget + thread + model
 │
-├── db/                           # Database layer — 14 mixin via ereditarietà multipla
+├── db/                           # Database layer — 15 mixin via ereditarietà multipla
 │   ├── base.py                   # DBConnectionBase: pool, _get_connection(), bulk_insert
 │   ├── comuni.py, localita.py, possessori.py, partite.py, immobili.py
 │   ├── variazioni.py, documenti.py, audit.py, utenti.py
 │   ├── backup.py, stats.py, ricerca.py, io.py, archivio.py
+│   ├── drafts.py                 # DBDraftsMixin (bozze wizard Nuova Partita + Registrazione Proprietà)
 │   └── models.py                 # Dataclass models
 │
 ├── core/                         # Gestione sessione e autenticazione
@@ -240,7 +241,7 @@ Always use the full three-part path `Module.EnumClass.Value`.
 - Passwords are **not** stored in QSettings — keyring is used for secure storage.
 - Init SQL scripts are in `sql_scripts/`; run in order for a fresh DB.
 - Upgrade scripts for existing DBs are in `sql_scripts/migrations/`.
-- **Auto-apply migrazioni idempotenti:** `db/base.py::_apply_pending_schema_migrations()` viene invocata a ogni init pool e applica silenziosamente migrazioni sicure (es. schema v1.6.1, indici UNIQUE sulle MV, vista `v_audit_dettagliato` — equivalente di `migrations/19_create_v_audit_dettagliato.sql`). Best-effort, non bloccante.
+- **Auto-apply migrazioni idempotenti:** `db/base.py::_apply_pending_schema_migrations()` viene invocata a ogni init pool e applica silenziosamente migrazioni sicure (es. schema v1.6.1, indici UNIQUE sulle MV, vista `v_audit_dettagliato` — equivalente di `migrations/19_create_v_audit_dettagliato.sql`, tabella `partita_draft` — equivalente di `migrations/21_create_partita_draft.sql`). Best-effort, non bloccante.
 - **Avvisi schema:** `db/base.py::check_missing_migrations()` rileva colonne / tabelle critiche mancanti (`soft_delete`, `tipo_possesso`) e `gui_main._check_db_schema_migrations` mostra un avviso non bloccante.
 
 ---
