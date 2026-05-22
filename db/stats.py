@@ -64,6 +64,102 @@ class DBStatsMixin:
             self.logger.error(f"Errore durante il recupero delle statistiche per la dashboard: {e}", exc_info=True)
             return stats # Restituisce il dizionario con gli zeri in caso di errore
 
+    def get_dashboard_charts_data(self, top_comuni_limit: int = 10) -> Dict[str, Any]:
+        """Aggrega i dati per i grafici della dashboard in un'unica chiamata.
+
+        Ritorna un dizionario con quattro serie:
+          - ``per_epoca``: distribuzione partite per epoca storica
+            (pre-1861 Regno di Sardegna, 1861-1946 Regno d'Italia,
+            1946+ Repubblica, "Sconosciuta" se data nulla)
+          - ``per_tipo``: distribuzione per ``partita.tipo``
+            (principale/secondaria/enfiteusi/usufrutto)
+          - ``per_stato``: attiva vs inattiva
+          - ``top_comuni``: top N comuni per numero di partite
+
+        Ogni serie è una lista di dict ``{"label": str, "value": int}``.
+        Best-effort: in caso di errore ritorna serie vuote.
+        """
+        result: Dict[str, List[Dict[str, Any]]] = {
+            "per_epoca": [],
+            "per_tipo": [],
+            "per_stato": [],
+            "top_comuni": [],
+        }
+        try:
+            with self._get_connection() as conn:
+                with conn.cursor(cursor_factory=DictCursor) as cur:
+                    # Per epoca storica: usiamo CASE su EXTRACT(YEAR FROM data_impianto)
+                    cur.execute(
+                        f"""
+                        SELECT epoca AS label, COUNT(*) AS value
+                        FROM (
+                          SELECT CASE
+                            WHEN data_impianto IS NULL THEN 'Sconosciuta'
+                            WHEN EXTRACT(YEAR FROM data_impianto) < 1861
+                              THEN 'Regno di Sardegna (pre-1861)'
+                            WHEN EXTRACT(YEAR FROM data_impianto) < 1946
+                              THEN 'Regno d''Italia (1861-1945)'
+                            ELSE 'Repubblica (1946+)'
+                          END AS epoca
+                          FROM {self.schema}.partita
+                        ) t
+                        GROUP BY epoca
+                        ORDER BY value DESC
+                        """
+                    )
+                    result["per_epoca"] = [
+                        {"label": r["label"], "value": int(r["value"])}
+                        for r in cur.fetchall()
+                    ]
+
+                    cur.execute(
+                        f"""
+                        SELECT tipo AS label, COUNT(*) AS value
+                        FROM {self.schema}.partita
+                        GROUP BY tipo
+                        ORDER BY value DESC
+                        """
+                    )
+                    result["per_tipo"] = [
+                        {"label": str(r["label"] or "N/D").capitalize(),
+                         "value": int(r["value"])}
+                        for r in cur.fetchall()
+                    ]
+
+                    cur.execute(
+                        f"""
+                        SELECT stato AS label, COUNT(*) AS value
+                        FROM {self.schema}.partita
+                        GROUP BY stato
+                        ORDER BY value DESC
+                        """
+                    )
+                    result["per_stato"] = [
+                        {"label": str(r["label"] or "N/D").capitalize(),
+                         "value": int(r["value"])}
+                        for r in cur.fetchall()
+                    ]
+
+                    cur.execute(
+                        f"""
+                        SELECT c.nome AS label, COUNT(p.id) AS value
+                        FROM {self.schema}.comune c
+                        LEFT JOIN {self.schema}.partita p ON p.comune_id = c.id
+                        GROUP BY c.nome
+                        HAVING COUNT(p.id) > 0
+                        ORDER BY value DESC
+                        LIMIT %s
+                        """,
+                        (top_comuni_limit,),
+                    )
+                    result["top_comuni"] = [
+                        {"label": r["label"], "value": int(r["value"])}
+                        for r in cur.fetchall()
+                    ]
+        except Exception as e:
+            self.logger.warning(f"get_dashboard_charts_data: {e}")
+        return result
+
     def get_ultimi_inserimenti_dashboard(self, limit: int = 3) -> Dict[str, List[Dict]]:
         """Recupera gli ultimi N record inseriti per comuni, partite e possessori."""
         result = {"comuni": [], "partite": [], "possessori": []}
