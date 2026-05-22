@@ -285,9 +285,9 @@ class DBConnectionBase:
         """Crea la vista catasto.v_audit_dettagliato se mancante.
 
         Equivale alla migrazione `migrations/19_create_v_audit_dettagliato.sql`
-        ma applicata automaticamente all'avvio. Best-effort: il fallimento
-        (es. tabella `utente` non esistente) viene loggato in debug e non
-        blocca l'avvio.
+        ma applicata automaticamente all'avvio. Best-effort: non blocca
+        l'avvio. Se la CREATE fallisce per privilegi insufficienti viene
+        loggato un warning che rimanda alla migrazione manuale.
         """
         try:
             with self._get_connection() as conn:
@@ -308,19 +308,33 @@ class DBConnectionBase:
                     # Devono esistere entrambe (audit_log + utente) per costruirla
                     if cur.rowcount < 2:
                         return
-                    cur.execute(
-                        f"CREATE OR REPLACE VIEW {self.schema}.v_audit_dettagliato AS "
-                        f"SELECT al.id, CAST(al.timestamp AS TIMESTAMP(0)) AS timestamp, "
-                        f"  al.app_user_id, u.username, u.nome_completo, al.session_id, "
-                        f"  al.tabella, al.operazione, al.record_id, al.ip_address, "
-                        f"  al.utente AS db_user, al.dati_prima, al.dati_dopo "
-                        f"FROM {self.schema}.audit_log al "
-                        f"LEFT JOIN {self.schema}.utente u ON al.app_user_id = u.id"
-                    )
-                    self.logger.info(
-                        "Vista %s.v_audit_dettagliato creata automaticamente all'avvio.",
-                        self.schema,
-                    )
+                    try:
+                        cur.execute(
+                            f"CREATE OR REPLACE VIEW {self.schema}.v_audit_dettagliato AS "
+                            f"SELECT al.id, CAST(al.timestamp AS TIMESTAMP(0)) AS timestamp, "
+                            f"  al.app_user_id, u.username, u.nome_completo, al.session_id, "
+                            f"  al.tabella, al.operazione, al.record_id, al.ip_address, "
+                            f"  al.utente AS db_user, al.dati_prima, al.dati_dopo "
+                            f"FROM {self.schema}.audit_log al "
+                            f"LEFT JOIN {self.schema}.utente u ON al.app_user_id = u.id"
+                        )
+                        self.logger.info(
+                            "Vista %s.v_audit_dettagliato creata automaticamente all'avvio.",
+                            self.schema,
+                        )
+                    except psycopg2.Error as e:
+                        # Tipicamente 42501 (insufficient_privilege): l'utente
+                        # del DB non può creare viste. L'audit viewer resterà
+                        # vuoto finché un amministratore non applica la
+                        # migrazione 19 come superuser.
+                        conn.rollback()
+                        self.logger.warning(
+                            "Impossibile creare la vista %s.v_audit_dettagliato "
+                            "(%s). Applicare come superuser "
+                            "sql_scripts/migrations/19_create_v_audit_dettagliato.sql; "
+                            "fino ad allora il visualizzatore audit log "
+                            "resterà vuoto.", self.schema, e
+                        )
         except Exception as e:
             self.logger.debug(f"_ensure_audit_view: {e}")
 
