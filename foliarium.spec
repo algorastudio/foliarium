@@ -36,6 +36,8 @@ a = Analysis(
         'matplotlib.backends.backend_qtagg',
         # Timeline cronologica variazioni partita
         'foliarium.ui.widgets.timeline_partita',
+        # Grafo genealogico interattivo
+        'foliarium.ui.widgets.genealogia_graph',
     ],
     hookspath=[],
     hooksconfig={},
