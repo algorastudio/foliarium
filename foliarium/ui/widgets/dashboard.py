@@ -35,7 +35,6 @@ from PyQt6.QtWidgets import (
 
 from config import APP_VERSION
 from foliarium.ui.widgets.custom import StatCard
-from foliarium.ui.widgets.dashboard_charts import DashboardChartsWidget
 
 if TYPE_CHECKING:
     from catasto_db_manager import CatastoDBManager  # noqa: F401
@@ -134,12 +133,7 @@ class DashboardWidget(QWidget):
             stats_layout.addWidget(card)
         main_layout.addLayout(stats_layout)
 
-        # 4. Grafici aggregati (matplotlib)
-        self.charts_widget = DashboardChartsWidget(self.db_manager, self)
-        self.charts_widget.setMinimumHeight(420)
-        main_layout.addWidget(self.charts_widget)
-
-        # 5. Ultimi Inserimenti
+        # 4. Ultimi Inserimenti
         recenti_group = QGroupBox("Ultimi Inserimenti")
         recenti_layout = QVBoxLayout(recenti_group)
         self.recenti_tabs = QTabWidget()
@@ -172,7 +166,7 @@ class DashboardWidget(QWidget):
         recenti_layout.addWidget(self.recenti_tabs)
         main_layout.addWidget(recenti_group)
 
-        # 6. Attività Recenti e Azioni Rapide
+        # 5. Attività Recenti e Azioni Rapide
         bottom_layout = QHBoxLayout()
 
         recent_activity_group = QGroupBox("Attività Utenti Recenti")
@@ -236,10 +230,6 @@ class DashboardWidget(QWidget):
             lambda msg: self.logger.warning("Errore caricamento dashboard: %s", msg)
         )
         self._dash_loader.start()
-
-        # I grafici hanno un loader dedicato (query aggregate diverse)
-        if hasattr(self, 'charts_widget'):
-            self.charts_widget.load_data()
 
     def _on_stats_ready(self, stats: dict):
         self.stat_comuni_card.setValue(stats.get('total_comuni', 0))
