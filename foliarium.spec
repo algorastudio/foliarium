@@ -38,6 +38,10 @@ a = Analysis(
         'foliarium.ui.widgets.timeline_partita',
         # Grafo genealogico interattivo
         'foliarium.ui.widgets.genealogia_graph',
+        # Visualizzatore documentale (PDF/immagini)
+        'foliarium.ui.widgets.document_viewer',
+        'PyQt6.QtPdf',
+        'PyQt6.QtPdfWidgets',
     ],
     hookspath=[],
     hooksconfig={},
