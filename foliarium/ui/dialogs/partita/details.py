@@ -21,6 +21,7 @@ from PyQt6.QtWidgets import (QAbstractItemView, QApplication,
 from catasto_db_manager import CatastoDBManager
 from foliarium.ui.widgets.custom import ImmobiliTableWidget
 from foliarium.ui.widgets.timeline_partita import TimelinePartitaWidget
+from foliarium.ui.widgets.document_viewer import DocumentViewerWidget
 
 from app_utils import (GenericTextReportPDF, FPDF_AVAILABLE, prompt_to_open_file)
 from foliarium.ui.dialogs.export_ import PDFApreviewDialog
@@ -152,9 +153,18 @@ class PartitaDetailsDialog(QDialog):
         self.tabs.addTab(variazioni_tab, "Variazioni")
 
 
-        # Tab Documenti (come prima)
+        # Tab Documenti Allegati — lista a sinistra, viewer integrato a destra
         self.documents_tab_widget = QWidget()
         self.documents_tab_layout = QVBoxLayout(self.documents_tab_widget)
+        self.documents_tab_layout.setContentsMargins(0, 0, 0, 0)
+
+        doc_splitter = QSplitter(Qt.Orientation.Horizontal)
+
+        # Pannello sinistro: tabella + pulsanti
+        left_panel = QWidget()
+        left_layout = QVBoxLayout(left_panel)
+        left_layout.setContentsMargins(4, 4, 4, 4)
+
         self.documents_table = QTableWidget()
         self.documents_table.setColumnCount(6)
         self.documents_table.setHorizontalHeaderLabels(["ID Doc.", "Titolo", "Tipo Doc.", "Anno", "Rilevanza", "Percorso"])
@@ -163,15 +173,30 @@ class PartitaDetailsDialog(QDialog):
         self.documents_table.horizontalHeader().setStretchLastSection(True)
         self.documents_table.setSortingEnabled(True)
         self.documents_table.itemSelectionChanged.connect(self._update_details_doc_buttons_state)
-        self.documents_tab_layout.addWidget(self.documents_table)
-        
+        self.documents_table.itemSelectionChanged.connect(self._on_document_selection_changed)
+        left_layout.addWidget(self.documents_table, 1)
+
         doc_buttons_layout = QHBoxLayout()
-        self.btn_apri_doc_details_dialog = QPushButton(QApplication.style().standardIcon(QStyle.StandardPixmap.SP_DialogOpenButton), "Apri Documento")
+        self.btn_apri_doc_details_dialog = QPushButton(QApplication.style().standardIcon(QStyle.StandardPixmap.SP_DialogOpenButton), "Apri Esternamente")
+        self.btn_apri_doc_details_dialog.setToolTip(
+            "Apri il documento con il programma associato dal sistema operativo.")
         self.btn_apri_doc_details_dialog.clicked.connect(self._apri_documento_selezionato_from_details_dialog)
         self.btn_apri_doc_details_dialog.setEnabled(False)
         doc_buttons_layout.addWidget(self.btn_apri_doc_details_dialog)
         doc_buttons_layout.addStretch()
-        self.documents_tab_layout.addLayout(doc_buttons_layout)
+        left_layout.addLayout(doc_buttons_layout)
+
+        doc_splitter.addWidget(left_panel)
+
+        # Pannello destro: viewer integrato
+        self.document_viewer = DocumentViewerWidget()
+        doc_splitter.addWidget(self.document_viewer)
+
+        doc_splitter.setStretchFactor(0, 1)
+        doc_splitter.setStretchFactor(1, 2)
+        doc_splitter.setSizes([320, 640])
+
+        self.documents_tab_layout.addWidget(doc_splitter)
         self.tabs.addTab(self.documents_tab_widget, "Documenti Allegati")
 
 
@@ -510,6 +535,24 @@ class PartitaDetailsDialog(QDialog):
         """Abilita/disabilita il pulsante 'Apri Documento' in base alla selezione."""
         has_selection = bool(self.documents_table.selectedItems())
         self.btn_apri_doc_details_dialog.setEnabled(has_selection)
+
+    def _on_document_selection_changed(self):
+        """Carica il documento selezionato nel viewer integrato."""
+        if not hasattr(self, "document_viewer"):
+            return
+        row = self.documents_table.currentRow()
+        if row < 0:
+            self.document_viewer.show_placeholder("Nessun documento selezionato.")
+            return
+        path_item = self.documents_table.item(row, 5)
+        if not path_item:
+            return
+        # Il percorso completo è memorizzato in UserRole; il testo visibile
+        # potrebbe essere troncato.
+        percorso = path_item.data(Qt.ItemDataRole.UserRole) or path_item.text()
+        title_item = self.documents_table.item(row, 1)
+        title = title_item.text() if title_item else None
+        self.document_viewer.load_document(percorso, title=title)
 
     def _apri_documento_selezionato_from_details_dialog(self):
         selected_items = self.documents_table.selectedItems()
