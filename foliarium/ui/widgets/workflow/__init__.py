@@ -14,9 +14,13 @@ from foliarium.ui.widgets.workflow.nuova_partita_wizard import (
 from foliarium.ui.widgets.workflow.operazioni_partita import (
     OperazioniPartitaWidget,
 )
+from foliarium.ui.widgets.workflow.bulk_successione import (
+    BulkSuccessioneWizard,
+)
 
 __all__ = [
     "RegistrazioneProprietaWidget",
     "NuovaPartitaWizardWidget",
     "OperazioniPartitaWidget",
+    "BulkSuccessioneWizard",
 ]

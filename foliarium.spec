@@ -42,6 +42,8 @@ a = Analysis(
         'foliarium.ui.widgets.document_viewer',
         'PyQt6.QtPdf',
         'PyQt6.QtPdfWidgets',
+        # Wizard operazioni massive (bulk successione/trasferimento)
+        'foliarium.ui.widgets.workflow.bulk_successione',
     ],
     hookspath=[],
     hooksconfig={},
