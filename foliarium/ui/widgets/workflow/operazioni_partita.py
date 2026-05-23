@@ -31,6 +31,7 @@ from dialogs import (
 )
 from foliarium.ui.widgets.genealogia_widget import GenealogiaTimelineWidget  # noqa: F401  backward compat
 from foliarium.ui.widgets.genealogia_graph import GenealogiaGraphWidget
+from foliarium.ui.widgets.workflow.bulk_successione import BulkSuccessioneWizard
 
 try:
     from catasto_db_manager import (
@@ -109,6 +110,7 @@ class OperazioniPartitaWidget(QWidget):
         self._crea_tab_duplica_partita()
         self._crea_tab_trasferisci_immobile()
         self._crea_tab_passaggio_proprieta()
+        self._crea_tab_operazione_massiva()
         self._crea_tab_genealogia()
 
         self.setLayout(main_layout)
@@ -118,6 +120,12 @@ class OperazioniPartitaWidget(QWidget):
         self.genealogia_widget = GenealogiaGraphWidget(self.db_manager)
         self.genealogia_widget.navigate_to_partita.connect(self.seleziona_e_carica_partita_sorgente)
         self.operazioni_tabs.addTab(self.genealogia_widget, "Grafo Genealogico")
+
+    def _crea_tab_operazione_massiva(self):
+        """Tab per il wizard di operazioni massive (successione, vendita
+        bulk con immobili multipli, eredi e quote frazionarie)."""
+        self.bulk_successione_widget = BulkSuccessioneWizard(self.db_manager)
+        self.operazioni_tabs.addTab(self.bulk_successione_widget, "Operazione Massiva")
 
     def _crea_tab_duplica_partita(self):
         duplica_widget = QWidget()
