@@ -641,6 +641,13 @@ class OperazioniPartitaWidget(QWidget):
             self._update_transfer_button_state_conditionally()
         # Aggiungere chiamate simili per aggiornare lo stato dei pulsanti negli altri sotto-tab se necessario
 
+        # Sincronizza il grafo genealogico con la partita sorgente corrente
+        if hasattr(self, 'genealogia_widget'):
+            try:
+                self.genealogia_widget.load_partita(self.selected_partita_id_source)
+            except Exception as e:
+                self.logger.warning(f"Errore aggiornamento grafo genealogico: {e}")
+
     def _esegui_duplicazione_partita(self):
         self.logger.info("Avvio _esegui_duplicazione_partita.")
 

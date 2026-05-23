@@ -223,11 +223,12 @@ class StatisticheWidget(LazyLoadedWidget):
                     if anno.isdigit():
                         anni[anno] = anni.get(anno, 0) + 1
                 if anni:
-                    anni_ord = sorted(anni.keys())
-                    ax3.bar(anni_ord, [anni[a] for a in anni_ord], color='darkorange')
+                    anni_ord = sorted(int(a) for a in anni.keys())
+                    ax3.bar(anni_ord, [anni[str(a)] for a in anni_ord], color='darkorange')
                     ax3.set_title('Variazioni per anno')
                     ax3.set_xlabel('Anno')
                     ax3.set_ylabel('N. variazioni')
+                    ax3.set_xticks(anni_ord)
                     ax3.tick_params(axis='x', rotation=45)
             except Exception:
                 ax3.set_title('Variazioni per anno (dati non disponibili)')
