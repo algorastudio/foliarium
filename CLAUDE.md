@@ -208,6 +208,7 @@ export QT_QPA_PLATFORM=offscreen
   - `foliarium/ui/widgets/reporting.py` — `RicercaDocumentiWidget`, `EsportazioniWidget`, `ReportisticaWidget`, `StatisticheWidget`
 - **Reporting:** classi PDF in `foliarium/reporting/pdf.py` (estratte da `app_utils.py` nello Sprint 3.1). Wrapper GUI di export in `foliarium/ui/export/{partita,possessore}.py`.
 - **Themes:** QSS stylesheets in `styles/`. Funzioni pure in `foliarium/ui/theme.py`: `apply_stylesheet`, `apply_auto_theme`, `apply_initial_theme_from_settings`, `is_win11_style_available`.
+- **Supporto/diagnostica:** menu **Help → Esporta log per supporto (.zip)...** invoca `gui_main.MainWindow._esporta_log_zip` che delega a `app_utils.create_logs_archive(destination_path) -> (n_file, size_bytes)`. La helper comprime ricorsivamente tutti i file presenti in `app_paths.LOG_DIR` (rotazioni incluse) in uno zip `ZIP_DEFLATED`, solleva `FileNotFoundError` se la cartella è vuota/inesistente.
 
 ---
 

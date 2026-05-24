@@ -44,7 +44,7 @@ Durante l'installazione vengono eseguite automaticamente tutte le fasi:
 | `config.ini` | `C:\Program Files (x86)\Foliarium\config.ini` |
 | `foliarium.license` (da fornire) | `C:\Program Files (x86)\Foliarium\foliarium.license` |
 | Dati DB | `C:\ProgramData\Foliarium\pg_data\` |
-| Log app | `%LOCALAPPDATA%\Foliarium\logs\` |
+| Log app | `%LOCALAPPDATA%\Foliarium\logs\` (esportabili in ZIP da *Help → Esporta log per supporto*) |
 | Log installer DB | `C:\Program Files (x86)\Foliarium\setup_database.log` |
 | Cache offline | `%LOCALAPPDATA%\Foliarium\cache\` |
 
