@@ -83,13 +83,32 @@ Il file `.xlsx` di destinazione è probabilmente aperto in Excel. Chiuderlo prim
 
 ---
 
+## Supporto tecnico
+
+### Come invio i log al supporto Algora?
+
+Dal menu in alto selezionare **Help → Esporta log per supporto (.zip)...**:
+viene chiesto dove salvare l'archivio (default: cartella Documenti, nome con
+timestamp). Il file `.zip` risultante contiene tutti i log applicativi (compresi
+i log ruotati) e può essere allegato direttamente a una mail per
+**info@algorastudio.it**.
+
+In alternativa i log sono leggibili manualmente in
+`%LOCALAPPDATA%\Foliarium\logs\`.
+
+!!! info "Cosa contiene l'archivio"
+    L'archivio include solo i log applicativi (`foliarium_gui.log*`). Non
+    contiene dati del database, credenziali o licenze.
+
+---
+
 ## Performance
 
 ### Foliarium è lenta ad avviarsi
 
 Il primo avvio può richiedere più tempo per inizializzare la connessione al database. Se il problema persiste:
 - Verificare le prestazioni del server PostgreSQL
-- Controllare i log (`config.py` → cartella log) per messaggi di errore
+- Esportare i log con **Help → Esporta log per supporto (.zip)...** e inviarli ad Algora Studio
 
 ### I grafici nella sezione Statistiche non si caricano
 

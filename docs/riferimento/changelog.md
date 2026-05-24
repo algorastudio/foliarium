@@ -7,9 +7,16 @@ sotto-sprint, da 3.1 a 3.9), nuovi tool sviluppatore (`check_api_drift`,
 `migrate`, `release`), API contract via `typing.Protocol`, coverage CI
 finalmente verde a 41% (dal 21% precedente, gate 35%), 17 PR mergeate.
 
-**Cambiamenti utente-visibili:** nessuno. Comportamento e dati identici
-a v1.0.1. Tutti gli import storici continuano a funzionare grazie alla
-struttura a facade.
+**Cambiamenti utente-visibili:**
+
+- Nuova voce **Help → Esporta log per supporto (.zip)...**: crea al volo
+  un archivio ZIP con tutti i file di log applicativi (`%LOCALAPPDATA%\Foliarium\logs\`)
+  pronto da allegare a una mail di supporto. L'utente sceglie destinazione
+  e nome tramite dialog (default: cartella Documenti + timestamp). Logica
+  riusabile in `app_utils.create_logs_archive()`.
+
+Comportamento e dati altrimenti identici a v1.0.1. Tutti gli import storici
+continuano a funzionare grazie alla struttura a facade.
 
 ### Pipeline release semplificato
 

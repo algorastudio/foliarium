@@ -172,6 +172,31 @@ ad Algora Studio e ricevere una licenza vincolata al PC.
 
 ---
 
+## Menu Help — Supporto e diagnostica
+
+Il menu **Help** in alto raccoglie tutte le funzioni di assistenza:
+
+| Voce | Funzione |
+|---|---|
+| **Visualizza Manuale Utente...** (F1) | Apre il manuale integrato (questo documento) |
+| **Esporta log per supporto (.zip)...** | Crea un archivio ZIP con tutti i log applicativi, pronto da allegare a una mail |
+| **Informazioni su Foliarium / EULA...** | Versione, licenza e contratto EULA |
+
+### Esportare i log per il supporto tecnico
+
+Quando il supporto Algora chiede di inviare i log, basta selezionare
+**Help → Esporta log per supporto (.zip)...**: viene proposto un nome
+predefinito con timestamp (es. `foliarium_logs_20260524_153012.zip`) e
+una destinazione nella cartella **Documenti**. Confermando, l'app
+comprime tutti i file di `%LOCALAPPDATA%\Foliarium\logs\` (incluse le
+rotazioni storiche) in un unico archivio da allegare a una mail per
+**info@algorastudio.it**.
+
+L'archivio contiene **solo** i log applicativi: nessun dato del
+database, nessuna credenziale, nessuna licenza.
+
+---
+
 ## Chiusura dell'applicazione
 
 Per chiudere Foliarium usare:
