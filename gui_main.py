@@ -504,6 +504,17 @@ class CatastoMainWindow(QMainWindow):
         help_menu.addAction(show_manual_action)
         help_menu.addSeparator()
 
+        esporta_log_action = QAction(
+            self.style().standardIcon(QStyle.StandardPixmap.SP_DialogSaveButton),
+            "Esporta &log per supporto (.zip)...", self
+        )
+        esporta_log_action.setStatusTip(
+            "Crea un archivio ZIP dei file di log da allegare a una mail di supporto"
+        )
+        esporta_log_action.triggered.connect(self._esporta_log_zip)
+        help_menu.addAction(esporta_log_action)
+        help_menu.addSeparator()
+
         show_eula_action = QAction("Informazioni su Foliarium / EULA...", self)
         show_eula_action.triggered.connect(self._show_about_eula_dialog)
         help_menu.addAction(show_eula_action)
@@ -597,6 +608,51 @@ class CatastoMainWindow(QMainWindow):
         """Apre la finestra di dialogo con le informazioni su versione e licenza (EULA)."""
         dialog = EulaDialog(self)
         dialog.exec()
+
+    def _esporta_log_zip(self):
+        """Comprime i file di log dell'applicazione in uno zip da inviare al supporto."""
+        from app_utils import create_logs_archive, prompt_to_open_file
+
+        default_name = f"foliarium_logs_{datetime.now().strftime('%Y%m%d_%H%M%S')}.zip"
+        documenti = QStandardPaths.writableLocation(QStandardPaths.StandardLocation.DocumentsLocation)
+        default_path = os.path.join(documenti or os.path.expanduser("~"), default_name)
+
+        destination, _ = QFileDialog.getSaveFileName(
+            self,
+            "Salva archivio dei log",
+            default_path,
+            "Archivio ZIP (*.zip)"
+        )
+        if not destination:
+            return
+
+        if not destination.lower().endswith(".zip"):
+            destination += ".zip"
+
+        try:
+            n_file, size_bytes = create_logs_archive(destination)
+        except FileNotFoundError as e:
+            QMessageBox.information(self, "Esporta Log", str(e))
+            return
+        except Exception as e:
+            self.logger.error(f"Errore durante l'esportazione dei log: {e}", exc_info=True)
+            QMessageBox.critical(
+                self, "Esporta Log",
+                f"Impossibile creare l'archivio dei log:\n{e}"
+            )
+            return
+
+        size_kb = max(1, size_bytes // 1024)
+        self.logger.info(
+            f"Archivio log creato: {destination} ({n_file} file, {size_kb} KB)"
+        )
+        QMessageBox.information(
+            self, "Esporta Log",
+            f"Archivio creato con {n_file} file ({size_kb} KB).\n\n"
+            f"Percorso:\n{destination}\n\n"
+            f"Puoi allegare questo file a una mail di supporto."
+        )
+        prompt_to_open_file(self, destination)
 
     def setup_pages(self):
         """Popola il QStackedWidget e la sidebar con tutte le pagine."""

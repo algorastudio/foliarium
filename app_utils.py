@@ -174,3 +174,32 @@ def get_alternative_filename(original_path):
     return f"{base}_{timestamp}{ext}"
 
 
+def create_logs_archive(destination_path: str) -> tuple[int, int]:
+    """Comprime tutti i file della cartella log applicativa in uno zip.
+
+    Returns:
+        Tupla (numero_file_inclusi, dimensione_zip_in_byte).
+
+    Raises:
+        FileNotFoundError: se la cartella log non esiste o è vuota.
+        OSError: per errori di IO durante la creazione dell'archivio.
+    """
+    import zipfile
+    from app_paths import LOG_DIR
+
+    log_dir = LOG_DIR
+    if not log_dir.exists():
+        raise FileNotFoundError(f"Cartella log non trovata: {log_dir}")
+
+    log_files = [p for p in log_dir.rglob("*") if p.is_file()]
+    if not log_files:
+        raise FileNotFoundError(f"Nessun file di log presente in: {log_dir}")
+
+    with zipfile.ZipFile(destination_path, "w", compression=zipfile.ZIP_DEFLATED) as zf:
+        for file_path in log_files:
+            arcname = file_path.relative_to(log_dir)
+            zf.write(file_path, arcname=str(arcname))
+
+    return len(log_files), os.path.getsize(destination_path)
+
+
