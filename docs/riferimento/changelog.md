@@ -20,6 +20,18 @@ finalmente verde a 41% (dal 21% precedente, gate 35%), 17 PR mergeate.
   (es. `windowsvista`, `windows11`) la palette nativa non "fora" più i
   widget non esplicitamente coperti dal foglio di stile — i temi
   risultano identici e leggibili su ogni macchina.
+- **Fix tabelle illeggibili (righe alternate blu acceso) su alcuni PC**:
+  i selettori QSS dei temi tabellari targettavano solo `QTableWidget`,
+  ma 11 widget dell'app usano `QTableView` (Elenco Comuni, Ricerca
+  Partite, Audit Log, Statistiche, ecc.). Senza regole esplicite la
+  `QTableView` ereditava `alternate-background-color` e
+  `selection-background-color` dalla palette Qt nativa, con risultati
+  illeggibili (testo blu su blu) su PC con stile/accent color diverso
+  dallo sviluppatore. Cambiati tutti i selettori da `QTableWidget` a
+  `QTableView` (cattura entrambe le classi) e aggiunte regole esplicite
+  `alternate-background-color` + `selection-background-color` +
+  `selection-color` nei temi `blu_savoia` e `pergamena` che ne erano
+  privi. Effetto: rendering tabelle ora identico su qualunque PC.
 - **Fix warning Qt `Unknown property text-shadow`**: rimosse 6 regole
   `text-shadow` non supportate da Qt QSS nei temi `purple_royal`,
   `ocean_blue`, `sunset_orange` (stesso intervento già fatto in v1.5.2

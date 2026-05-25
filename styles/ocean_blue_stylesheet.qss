@@ -112,7 +112,7 @@ QTabBar::tab:selected {
 }
 
 /* Table Widget */
-QTableWidget {
+QTableView {
     gridline-color: #BBDEFB;
     background-color: #FFFFFF;
     alternate-background-color: #E8F4FD;

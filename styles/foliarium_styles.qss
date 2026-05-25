@@ -208,7 +208,7 @@ QTabBar::tab:selected {
 QTabBar::tab:disabled { color: #B0B6C4; }
 
 /* ── Tables ── */
-QTableWidget, QTreeWidget, QListWidget {
+QTableView, QTreeWidget, QListWidget {
     gridline-color: #ECEEF5;
     background-color: #FFFFFF;
     alternate-background-color: #FAFBFE;
@@ -218,14 +218,14 @@ QTableWidget, QTreeWidget, QListWidget {
     border-radius: 6px;
     outline: none;
 }
-QTableWidget::item, QTreeWidget::item, QListWidget::item {
+QTableView::item, QTreeWidget::item, QListWidget::item {
     padding: 6px 8px;
     border: none;
 }
-QTableWidget::item:hover, QTreeWidget::item:hover, QListWidget::item:hover {
+QTableView::item:hover, QTreeWidget::item:hover, QListWidget::item:hover {
     background: #F3F4FD;
 }
-QTableWidget::item:selected, QTreeWidget::item:selected, QListWidget::item:selected {
+QTableView::item:selected, QTreeWidget::item:selected, QListWidget::item:selected {
     background: #C5CAE9;
     color: #1A237E;
 }

@@ -120,10 +120,14 @@ QTabBar::tab[text*="📤"] {
     padding-right: 15px;
 }
 
-QTableWidget {
+QTableView {
     border: 2px solid #8D6E63;
     gridline-color: #D7CCC8;
     background-color: #FFFEF7;
+    alternate-background-color: #F5EFE0;
+    color: #4E342E;
+    selection-background-color: #A1887F;
+    selection-color: #FFF8E1;
 }
 
 QHeaderView::section {
@@ -134,7 +138,7 @@ QHeaderView::section {
     color: #FFF8E1;
 }
 
-QTableWidget::item:selected {
+QTableView::item:selected {
     background-color: #A1887F;
     color: #FFF8E1;
 }
