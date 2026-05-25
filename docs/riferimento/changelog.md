@@ -14,6 +14,17 @@ finalmente verde a 41% (dal 21% precedente, gate 35%), 17 PR mergeate.
   pronto da allegare a una mail di supporto. L'utente sceglie destinazione
   e nome tramite dialog (default: cartella Documenti + timestamp). Logica
   riusabile in `app_utils.create_logs_archive()`.
+- **Fix tema coerente fra PC diversi**: il bootstrap del tema all'avvio
+  e il tema automatico (segui sistema) ora forzano lo stile base **Fusion**
+  prima di applicare il QSS. Su PC con stile Qt di default diverso
+  (es. `windowsvista`, `windows11`) la palette nativa non "fora" più i
+  widget non esplicitamente coperti dal foglio di stile — i temi
+  risultano identici e leggibili su ogni macchina.
+- **Fix warning Qt `Unknown property text-shadow`**: rimosse 6 regole
+  `text-shadow` non supportate da Qt QSS nei temi `purple_royal`,
+  `ocean_blue`, `sunset_orange` (stesso intervento già fatto in v1.5.2
+  per `box-shadow`). I bottoni perdono solo l'ombra del testo, il
+  resto del look è invariato.
 
 Comportamento e dati altrimenti identici a v1.0.1. Tutti gli import storici
 continuano a funzionare grazie alla struttura a facade.

@@ -82,6 +82,7 @@ def apply_auto_theme(app: Optional[QApplication] = None,
         log.warning("apply_auto_theme: impossibile caricare '%s'", theme_file)
         return None
 
+    reset_app_style(app)
     app.setStyleSheet(stylesheet)
     log.info("Tema automatico applicato: %s (schema OS: %s)", theme_file, scheme.name)
     return theme_file
@@ -133,6 +134,14 @@ def apply_initial_theme_from_settings(
     )
     stylesheet = load_stylesheet(current_style_file)
     if stylesheet:
+        # Forziamo lo stile Fusion come baseline: garantisce palette e
+        # rendering identici su qualunque PC, indipendentemente dallo
+        # stile Qt di default del sistema operativo (windowsvista,
+        # windows11, fusion, gtk, ecc.). Senza questo, i widget non
+        # esplicitamente coperti dal QSS ereditavano colori dalla
+        # palette dello stile nativo, con risultati illeggibili su PC
+        # con schema di sistema diverso da quello dello sviluppatore.
+        reset_app_style(app)
         app.setStyleSheet(stylesheet)
 
 
