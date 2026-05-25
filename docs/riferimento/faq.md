@@ -44,6 +44,19 @@ Menu **Impostazioni → Cambia Tema Grafico** → selezionare uno dei 16 temi di
 
 Alcune modifiche al tema richiedono il riavvio dell'applicazione. Chiudere e riaprire Foliarium.
 
+### Su un altro PC i colori del tema sono diversi o illeggibili
+
+Da v1.0.2 il tema viene applicato sopra lo stile base **Fusion** in modo
+forzato all'avvio: ciò garantisce che la palette risulti identica su
+qualunque PC, indipendentemente dallo stile Qt nativo del sistema
+(`windowsvista`, `windows11`, GTK, …). Se sei su una versione precedente
+e i colori risultano illeggibili, aggiorna a v1.0.2 o seleziona
+manualmente uno dei temi da **Impostazioni → Cambia Tema Grafico**.
+
+Se nei log compare l'avviso `Unknown property text-shadow`, anche questo
+è stato risolto in v1.0.2 con la pulizia di alcune regole QSS non
+supportate da Qt.
+
 ### Non vedo le tab "Gestione Utenti" e "Backup"
 
 Queste tab sono visibili solo agli utenti con ruolo **Amministratore**. Verificare il ruolo dell'account in uso con l'amministratore.
