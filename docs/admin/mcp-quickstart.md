@@ -37,22 +37,34 @@ e Claude risponderà con i dati veri del tuo archivio.
 Avvia Foliarium normalmente e fai login con un account che ha ruolo
 **Amministratore**. Solo gli admin possono generare chiavi API.
 
-!!! warning "Frontend integrato attivo"
-    Se Foliarium ti mostra **due modalità** all'avvio (classica /
-    React), scegli quella **React/Web**: è quella che fa partire il
-    server interno necessario a Claude. Quella classica funziona
-    benissimo per l'uso quotidiano ma non espone l'API.
+!!! tip "L'API parte da sola"
+    Dalla v1.0.2 il server API si avvia in background **automaticamente
+    dopo il login**, anche nella modalità classica. Non devi più
+    scegliere modalità diverse né lanciare comandi.
 
 ---
 
-## Passo 2 — Trova la porta del server
+## Passo 2 — Fissa la porta del server
 
-Quando il frontend integrato si avvia, Foliarium gli assegna una porta
-casuale (es. `8765`, `8766`, …). La vedi nella status bar in basso
-o nei log di avvio. Annotala — ti serve nel passo 4.
+Apri `config.ini` accanto a `Foliarium.exe` (o nella cartella del
+progetto se sviluppi da sorgente) e aggiungi/verifica:
 
-L'URL completo è: `http://localhost:<porta>`. Per esempio:
-`http://localhost:8765`.
+```ini
+[api]
+port = 8765
+```
+
+In alternativa puoi impostare la variabile d'ambiente
+`FOLIARIUM_API_PORT=8765`.
+
+!!! tip "Perché fissarla?"
+    Senza una porta fissa, Foliarium ne sceglie una libera a ogni avvio.
+    Se cambia, devi aggiornare manualmente il `claude_desktop_config.json`
+    del passo 6. Fissandola una volta sola eviti il problema.
+
+In alto a destra in Foliarium, dopo il login, vedi un piccolo indicatore
+**● API: on (porta 8765)** in verde. Cliccaci sopra per leggere
+l'URL completo. Ti serve nel passo 4.
 
 ---
 
