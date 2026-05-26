@@ -257,6 +257,7 @@ Always use the full three-part path `Module.EnumClass.Value`.
   - `create_api_key(name, scopes, created_by, expires_at=None, rate_limit_per_min=60) -> (id, plaintext)` — il plaintext (`flr_<32 hex>`) è restituito una sola volta; in DB si memorizza solo lo SHA-256 + prefix.
   - `validate_api_key(plaintext) -> Optional[dict]` — verifica hash, scadenza, revoca; aggiorna `last_used_at`.
   - `list_api_keys(include_revoked=False)`, `revoke_api_key(id)`.
+- **Admin UI** (`foliarium/ui/dialogs/admin/api_keys.py`): voce **Impostazioni → Gestione Chiavi API…** (solo admin) apre `ApiKeysDialog` (tabella chiavi con stati Attiva/Revocata/Scaduta), `CreateApiKeyDialog` (form con scope checkbox + scadenza opzionale), `NewKeyResultDialog` (mostra il plaintext una sola volta con bottone "Copia"). Slot in `gui_main.MainWindow._apri_gestione_api_keys` con guard ruolo admin.
 - **Avvisi schema:** `db/base.py::check_missing_migrations()` rileva colonne / tabelle critiche mancanti (`soft_delete`, `tipo_possesso`) e `gui_main._check_db_schema_migrations` mostra un avviso non bloccante.
 
 ---

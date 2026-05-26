@@ -38,6 +38,11 @@ from foliarium.ui.dialogs.admin.sistema import (        # noqa: F401
 from foliarium.ui.dialogs.admin.help_viewer import HelpViewerDialog     # noqa: F401
 from foliarium.ui.dialogs.admin.licenza import LicenseDialog            # noqa: F401
 from foliarium.ui.dialogs.admin.login import LoginDialog                # noqa: F401
+from foliarium.ui.dialogs.admin.api_keys import (                       # noqa: F401
+    ApiKeysDialog,
+    CreateApiKeyDialog,
+    NewKeyResultDialog,
+)
 
 __all__ = [
     "qdate_to_datetime",
@@ -55,4 +60,7 @@ __all__ = [
     "HelpViewerDialog",
     "LicenseDialog",
     "LoginDialog",
+    "ApiKeysDialog",
+    "CreateApiKeyDialog",
+    "NewKeyResultDialog",
 ]
