@@ -51,6 +51,7 @@ from db.stats      import DBStatsMixin
 from db.io         import DBIOMixin
 from db.archivio   import DBArchiviaMixin
 from db.drafts     import DBDraftsMixin
+from db.api_keys   import DBApiKeysMixin
 
 
 class CatastoDBManager(
@@ -69,6 +70,7 @@ class CatastoDBManager(
     DBStatsMixin,
     DBIOMixin,
     DBDraftsMixin,
+    DBApiKeysMixin,
     DBConnectionBase,
 ):
     """

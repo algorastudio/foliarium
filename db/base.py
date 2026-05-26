@@ -285,6 +285,54 @@ class DBConnectionBase:
         # Idempotente: CREATE TABLE IF NOT EXISTS.
         self._ensure_partita_draft_table()
 
+        # Tabella api_keys — chiavi API per integrazioni esterne.
+        # Idempotente: CREATE TABLE IF NOT EXISTS.
+        self._ensure_api_keys_table()
+
+    def _ensure_api_keys_table(self):
+        """Crea la tabella catasto.api_keys se mancante.
+
+        Equivale alla migrazione `migrations/22_create_api_keys.sql` ma
+        applicata automaticamente all'avvio. Best-effort: non blocca
+        l'avvio se fallisce (es. permessi DDL insufficienti).
+        """
+        try:
+            with self._get_connection() as conn:
+                with conn.cursor() as cur:
+                    cur.execute(
+                        f"CREATE TABLE IF NOT EXISTS {self.schema}.api_keys ("
+                        f"  id                 SERIAL PRIMARY KEY, "
+                        f"  name               VARCHAR(100) NOT NULL, "
+                        f"  key_hash           VARCHAR(64)  NOT NULL UNIQUE, "
+                        f"  prefix             VARCHAR(12)  NOT NULL, "
+                        f"  scopes             TEXT[]       NOT NULL "
+                        f"                     DEFAULT ARRAY[]::TEXT[], "
+                        f"  created_by         INTEGER      NULL "
+                        f"                     REFERENCES {self.schema}.utente(id) "
+                        f"                     ON DELETE SET NULL, "
+                        f"  created_at         TIMESTAMPTZ  NOT NULL DEFAULT NOW(), "
+                        f"  expires_at         TIMESTAMPTZ  NULL, "
+                        f"  revoked_at         TIMESTAMPTZ  NULL, "
+                        f"  last_used_at       TIMESTAMPTZ  NULL, "
+                        f"  rate_limit_per_min INTEGER      NOT NULL DEFAULT 60 "
+                        f")"
+                    )
+                    cur.execute(
+                        f"CREATE INDEX IF NOT EXISTS idx_api_keys_prefix "
+                        f"ON {self.schema}.api_keys(prefix)"
+                    )
+                    cur.execute(
+                        f"CREATE INDEX IF NOT EXISTS idx_api_keys_active "
+                        f"ON {self.schema}.api_keys(revoked_at, expires_at) "
+                        f"WHERE revoked_at IS NULL"
+                    )
+                conn.commit()
+        except Exception as e:
+            self.logger.warning(
+                f"_ensure_api_keys_table fallita (non bloccante): {e}. "
+                f"Applicare manualmente sql_scripts/migrations/22_create_api_keys.sql."
+            )
+
     def _ensure_partita_draft_table(self):
         """Crea (o aggiorna) la tabella catasto.partita_draft se mancante.
 
