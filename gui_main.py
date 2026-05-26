@@ -451,11 +451,22 @@ class CatastoMainWindow(QMainWindow):
         )
         license_action.triggered.connect(self._apri_gestione_licenza)
 
+        api_keys_action = QAction(
+            self.style().standardIcon(QStyle.StandardPixmap.SP_DriveNetIcon),
+            "Gestione &Chiavi API...", self
+        )
+        api_keys_action.setStatusTip(
+            "Crea e revoca chiavi API per integrazioni esterne (MCP, Zapier, script)"
+        )
+        api_keys_action.triggered.connect(self._apri_gestione_api_keys)
+        self._api_keys_action = api_keys_action  # ref per show/hide post-login
+
         settings_menu.addAction(config_db_action)
         settings_menu.addAction(config_refresh_action)
         settings_menu.addAction(email_action)
         settings_menu.addAction(timeout_action)
         settings_menu.addAction(license_action)
+        settings_menu.addAction(api_keys_action)
         settings_menu.addSeparator()
 
         # --- Menu dinamico per i temi ---
@@ -597,6 +608,32 @@ class CatastoMainWindow(QMainWindow):
         """Apre il dialogo di gestione licenza."""
         from dialogs import LicenseDialog
         dlg = LicenseDialog(self)
+        dlg.exec()
+
+    def _apri_gestione_api_keys(self):
+        """Apre il dialogo di gestione chiavi API (solo admin)."""
+        if not self.db_manager:
+            QMessageBox.warning(
+                self, "Database non disponibile",
+                "Connettersi al database prima di gestire le chiavi API.",
+            )
+            return
+        is_admin = (
+            self.logged_in_user_info is not None
+            and self.logged_in_user_info.get("ruolo") == "admin"
+        )
+        if not is_admin:
+            QMessageBox.warning(
+                self, "Accesso negato",
+                "La gestione delle chiavi API è riservata agli amministratori.",
+            )
+            return
+        from foliarium.ui.dialogs.admin import ApiKeysDialog
+        dlg = ApiKeysDialog(
+            db_manager=self.db_manager,
+            current_user_id=self.logged_in_user_id,
+            parent=self,
+        )
         dlg.exec()
 
     def _reset_app_style(self):
