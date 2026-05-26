@@ -65,9 +65,14 @@ pronto per **Claude Desktop**.
   mcp_server` (stdio mode, compatibile Claude Desktop). Configurazione
   via env `FOLIARIUM_API_BASE_URL` + `FOLIARIUM_API_KEY`.
 - **Documentazione utente**: nuove pagine `docs/admin/api.md` (REST API
-  con esempi `curl`, scope, error codes) e `docs/admin/mcp.md` (guida
+  con esempi `curl`, scope, error codes), `docs/admin/mcp.md` (guida
   Claude Desktop con esempio `claude_desktop_config.json` e
-  troubleshooting).
+  troubleshooting) e `docs/admin/mcp-quickstart.md` (guida facile
+  facile in 8 passi, scritta in linguaggio discorsivo).
+- **Script E2E** `bin/test_mcp_e2e.py`: verifica in 4 step (config,
+  connettività, 8 tool, registrazione MCP) che tutta la catena funzioni
+  prima di toccare Claude Desktop. Stampa esito leggibile con
+  suggerimenti azionabili in caso di errore.
 - **Test**: +74 unit test (chiavi DB, dual-auth, scope matching, MCP
   client/server) + 12 GUI test dei 3 dialog. Suite totale 562 verdi.
 

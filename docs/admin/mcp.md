@@ -4,6 +4,13 @@ Foliarium include un **MCP server** (Model Context Protocol) che espone
 l'archivio catastale come tool invocabili da **Claude Desktop** (e da
 qualunque altro client MCP compatibile).
 
+!!! tip "Prima volta? Usa la guida facile"
+    Questa pagina è il riferimento tecnico completo. Se è la tua
+    prima configurazione, segui prima la
+    [guida rapida passo-passo](mcp-quickstart.md): è scritta in modo
+    più discorsivo e include uno script di test che verifica la catena
+    prima di passare a Claude Desktop.
+
 Una volta configurato, puoi chiedere a Claude:
 
 > *"Cerca tutte le partite del Comune di Savona intestate a Rossi e mostra
