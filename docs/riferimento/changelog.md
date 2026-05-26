@@ -38,6 +38,39 @@ finalmente verde a 41% (dal 21% precedente, gate 35%), 17 PR mergeate.
   per `box-shadow`). I bottoni perdono solo l'ombra del testo, il
   resto del look è invariato.
 
+### API REST per integrazioni esterne e MCP server (4 PR)
+
+Foliarium ora espone la REST API a integrazioni esterne con un sistema
+completo di chiavi API + scope granulari, oltre a un MCP server già
+pronto per **Claude Desktop**.
+
+- **Versioning `/api/v1/`**: tutti gli endpoint disponibili sotto il
+  nuovo prefisso preferito. `/api/*` rimane come alias legacy per il
+  frontend React. Swagger UI: `/api/v1/docs`.
+- **Chiavi API** (`catasto.api_keys`, mixin `db/api_keys.py`):
+  generabili dal nuovo dialog admin **Impostazioni → Gestione Chiavi
+  API…**. Formato `flr_<32 hex>`, mostrato in chiaro una sola volta; in
+  DB solo SHA-256 + prefix per identificazione UI. Scope granulari
+  (`read:partite`, `write:partite`, wildcard `read:*` / `*:*`), scadenza
+  opzionale, revoca immediata. Migrazione auto-applicata all'avvio.
+- **Dual-auth** (`api/deps.py`): le route accettano sia `Authorization:
+  Bearer <token>` (sessione utente, scope implicito `*:*`) sia
+  `X-Foliarium-Api-Key: flr_…` (chiave API, scope granulari). Factory
+  `require_scope("read:partite")` con matching wildcard per scope-check
+  granulare nelle route.
+- **MCP server** (`mcp_server/`): nuovo package top-level con 8 tool
+  Claude (`elenca_comuni`, `elenca_localita`, `cerca_partite`,
+  `dettagli_partita`, `cerca_possessori`, `dettagli_possessore`,
+  `genealogia_partita`, `timeline_partita`). Avvio via `python -m
+  mcp_server` (stdio mode, compatibile Claude Desktop). Configurazione
+  via env `FOLIARIUM_API_BASE_URL` + `FOLIARIUM_API_KEY`.
+- **Documentazione utente**: nuove pagine `docs/admin/api.md` (REST API
+  con esempi `curl`, scope, error codes) e `docs/admin/mcp.md` (guida
+  Claude Desktop con esempio `claude_desktop_config.json` e
+  troubleshooting).
+- **Test**: +74 unit test (chiavi DB, dual-auth, scope matching, MCP
+  client/server) + 12 GUI test dei 3 dialog. Suite totale 562 verdi.
+
 Comportamento e dati altrimenti identici a v1.0.1. Tutti gli import storici
 continuano a funzionare grazie alla struttura a facade.
 
