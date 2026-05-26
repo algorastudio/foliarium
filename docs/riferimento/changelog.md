@@ -73,6 +73,29 @@ pronto per **Claude Desktop**.
   connettività, 8 tool, registrazione MCP) che tutta la catena funzioni
   prima di toccare Claude Desktop. Stampa esito leggibile con
   suggerimenti azionabili in caso di errore.
+
+### UX per integrazioni esterne (3 miglioramenti per l'utente finale)
+
+Eliminate le tre frizioni operative del primo round:
+
+- **Porta API fissabile** (`FOLIARIUM_API_PORT` env var o sezione `[api]
+  port` di `config.ini`). Senza configurazione esplicita il
+  comportamento storico (scan da 8765) resta invariato. Con porta
+  fissata: se libera, viene usata; se occupata, viene mostrato un
+  dialog esplicativo invece di scegliere silenziosamente un'altra
+  porta — così la `claude_desktop_config.json` di Claude Desktop non
+  si rompe a ogni riavvio. Nuova funzione `api.main.resolve_api_port`
+  con nuova eccezione `PinnedPortBusyError`.
+- **Server API avviato automaticamente in background** in
+  `gui_main.MainWindow` dopo il login, anche in modalità classica
+  (prima partiva solo in modalità React). L'utente non deve più
+  scegliere una modalità specifica per abilitare le integrazioni.
+  Stop pulito su `closeEvent`.
+- **Indicatore "● API: on (porta N)" in top bar**: nuovo
+  `_api_indicator` in `TopBarWidget` con stati verde/grigio/rosso e
+  tooltip esplicativo. Cliccabile: apre un dialog con URL completo,
+  link a Swagger, numero di chiavi attive, snippet config Claude
+  Desktop pronto da copiare. Stili QSS in `foliarium_styles.qss`.
 - **Test**: +74 unit test (chiavi DB, dual-auth, scope matching, MCP
   client/server) + 12 GUI test dei 3 dialog. Suite totale 562 verdi.
 

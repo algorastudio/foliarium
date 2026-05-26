@@ -177,7 +177,13 @@ class CatastoMainWindow(QMainWindow):
         # --- Top bar ---
         self.top_bar = TopBarWidget(self)
         self.top_bar.logout_requested.connect(self.handle_logout)
+        self.top_bar.api_status_clicked.connect(self._show_api_status_dialog)
         self.main_layout.addWidget(self.top_bar)
+
+        # Riferimento al thread API (avviato dopo login con
+        # _start_api_server_if_needed). None finché non parte.
+        self._api_thread = None
+        self._api_port = 0
 
         # --- Contenuto: sidebar sinistra + stack destra ---
         content_widget = QWidget()
@@ -286,6 +292,12 @@ class CatastoMainWindow(QMainWindow):
             self.statusBar().showMessage(
                 f"Login come {user_display} effettuato con successo.")
             self._start_inactivity_timer()
+
+            # --- Avvio in background del server API per integrazioni esterne ---
+            # (MCP / Claude Desktop / Zapier / script). Avviato solo se l'utente
+            # ha completato il login: senza login l'API non avrebbe il pool DB.
+            self._start_api_server_if_needed()
+
             # --- Notifica email login ---
             try:
                 from foliarium.core.services.email import EmailService, EmailWorker
@@ -609,6 +621,97 @@ class CatastoMainWindow(QMainWindow):
         from dialogs import LicenseDialog
         dlg = LicenseDialog(self)
         dlg.exec()
+
+    def _start_api_server_if_needed(self):
+        """Avvia il server API in background dopo login.
+
+        Idempotente: chiamate ripetute non riavviano un thread già attivo.
+        Aggiorna l'indicatore in top bar tramite i segnali del QThread.
+        """
+        if self._api_thread is not None and self._api_thread.isRunning():
+            return
+        if not self.db_manager or not getattr(self, "pool_initialized_successful", False):
+            self.logger.debug("API server: pool DB non pronto, avvio rimandato.")
+            return
+        try:
+            from api.server_thread import APIServerThread
+        except ImportError as e:
+            self.logger.warning(f"Server API non disponibile (import fallito): {e}")
+            return
+
+        self.logger.info("Avvio server API in background per integrazioni esterne...")
+        self._api_thread = APIServerThread(self.db_manager, parent=self)
+        self._api_thread.started_ok.connect(self._on_api_started)
+        self._api_thread.pinned_port_busy.connect(self._on_api_pinned_port_busy)
+        self._api_thread.start_error.connect(self._on_api_start_error)
+        self._api_thread.start()
+
+    @pyqtSlot(int)
+    def _on_api_started(self, port: int):
+        self._api_port = port
+        self.top_bar.set_api_status(running=True, port=port)
+        self.logger.info(f"Server API in ascolto su 127.0.0.1:{port}")
+
+    @pyqtSlot(int)
+    def _on_api_pinned_port_busy(self, port: int):
+        self._api_port = 0
+        self.top_bar.set_api_status(
+            running=False,
+            error=f"Porta {port} occupata. Cambia FOLIARIUM_API_PORT o libera la porta.",
+        )
+        QMessageBox.warning(
+            self,
+            "Porta API occupata",
+            f"<b>Il server API non è partito.</b><br><br>"
+            f"La porta <b>{port}</b> configurata in <code>FOLIARIUM_API_PORT</code> "
+            f"(env var o sezione <code>[api]</code> di <code>config.ini</code>) "
+            f"è già occupata da un altro processo.<br><br>"
+            f"<b>Cosa fare:</b><ul>"
+            f"<li>Chiudi l'applicazione che occupa la porta {port}, o</li>"
+            f"<li>Cambia <code>FOLIARIUM_API_PORT</code> in un valore libero "
+            f"(es. {port + 1}) e riavvia Foliarium, o</li>"
+            f"<li>Rimuovi la configurazione esplicita per tornare alla "
+            f"selezione automatica della porta.</li></ul>"
+            f"Le integrazioni MCP/Claude non funzioneranno finché l'API "
+            f"non parte."
+        )
+
+    @pyqtSlot(str)
+    def _on_api_start_error(self, msg: str):
+        self._api_port = 0
+        self.top_bar.set_api_status(running=False, error=msg)
+        self.logger.error(f"Errore avvio server API: {msg}")
+
+    @pyqtSlot()
+    def _show_api_status_dialog(self):
+        """Mostra dettagli dello stato API quando l'utente clicca l'indicatore."""
+        if self._api_port:
+            n_keys = 0
+            try:
+                if self.db_manager:
+                    n_keys = len(self.db_manager.list_api_keys(include_revoked=False))
+            except Exception:
+                pass
+            QMessageBox.information(
+                self,
+                "Server API",
+                f"<b>Server API attivo.</b><br><br>"
+                f"URL: <code>http://localhost:{self._api_port}</code><br>"
+                f"Swagger: <code>http://localhost:{self._api_port}/api/v1/docs</code><br>"
+                f"Chiavi API attive: <b>{n_keys}</b><br><br>"
+                f"Per integrare Claude Desktop, usa:<br>"
+                f"<code>FOLIARIUM_API_BASE_URL=http://localhost:{self._api_port}</code><br><br>"
+                f"Per gestire le chiavi: <i>Impostazioni → Gestione Chiavi API…</i>"
+            )
+        else:
+            QMessageBox.information(
+                self,
+                "Server API",
+                "<b>Server API non attivo.</b><br><br>"
+                "Le integrazioni esterne (MCP, Claude Desktop, Zapier) non "
+                "sono disponibili finché il server non parte. Di solito si avvia "
+                "automaticamente dopo il login: controlla i log per dettagli."
+            )
 
     def _apri_gestione_api_keys(self):
         """Apre il dialogo di gestione chiavi API (solo admin)."""
@@ -1260,6 +1363,15 @@ class CatastoMainWindow(QMainWindow):
     def closeEvent(self, event: QCloseEvent):
         logging.getLogger("CatastoGUI").info(
             "Evento closeEvent intercettato in CatastoMainWindow.")
+
+        # Stop pulito del thread API (se attivo)
+        api_thread = getattr(self, "_api_thread", None)
+        if api_thread is not None and api_thread.isRunning():
+            try:
+                api_thread.stop()
+                api_thread.wait(3000)
+            except Exception as e:
+                self.logger.warning(f"Stop server API: {e}")
 
         if hasattr(self, 'db_manager') and self.db_manager:
             pool_era_attivo = self.db_manager.pool is not None

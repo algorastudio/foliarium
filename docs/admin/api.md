@@ -5,6 +5,33 @@ sistemi esterni (MCP server per Claude, automazioni Zapier, script di
 backup/export, BI). L'API gira **localmente** sul PC dell'archivista
 (`127.0.0.1:8765+`) ed è esposta solo finché l'app desktop è in esecuzione.
 
+## Porta di ascolto
+
+L'API è in ascolto su `127.0.0.1:<porta>`. Per default Foliarium sceglie
+**dinamicamente** la prima porta libera a partire da 8765 — questo è
+comodo ma rompe la configurazione di Claude Desktop ogni volta che la
+porta cambia.
+
+Per evitarlo, **fissa la porta** in uno di questi due modi:
+
+=== "config.ini"
+
+    ```ini
+    [api]
+    port = 8765
+    ```
+
+=== "Variabile d'ambiente"
+
+    ```bash
+    export FOLIARIUM_API_PORT=8765
+    ```
+
+Quando la porta è fissata e risulta occupata da un altro processo,
+Foliarium **mostra un dialog** spiegando il problema invece di
+sceglierne un'altra silenziosamente. Così la `claude_desktop_config.json`
+non si rompe mai.
+
 ## Versioning
 
 Tutti gli endpoint sono disponibili con il prefisso versionato:

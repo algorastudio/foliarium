@@ -18,6 +18,7 @@ from config import APP_NAME, APP_SUBTITLE, IS_DEMO_MODE
 
 class TopBarWidget(QFrame):
     logout_requested = pyqtSignal()
+    api_status_clicked = pyqtSignal()
 
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -62,6 +63,20 @@ class TopBarWidget(QFrame):
         self._db_indicator.setObjectName("dbIndicator")
         layout.addWidget(self._db_indicator)
 
+        layout.addSpacing(8)
+
+        # Indicatore API (per integrazioni MCP/Claude). Cliccabile.
+        self._api_indicator = QLabel("● API: off")
+        self._api_indicator.setObjectName("apiIndicator")
+        self._api_indicator.setToolTip(
+            "Stato del server API per integrazioni esterne (MCP, Zapier, script).\n"
+            "Clicca per dettagli."
+        )
+        self._api_indicator.setCursor(Qt.CursorShape.PointingHandCursor)
+        self._api_indicator.setProperty("apiStatus", "off")
+        self._api_indicator.mousePressEvent = self._on_api_indicator_clicked
+        layout.addWidget(self._api_indicator)
+
         layout.addSpacing(12)
 
         # Avatar con iniziali utente
@@ -97,6 +112,33 @@ class TopBarWidget(QFrame):
         self._logout_btn.setEnabled(False)
         self._logout_btn.clicked.connect(self.logout_requested)
         layout.addWidget(self._logout_btn)
+
+    def _on_api_indicator_clicked(self, _event):
+        """Emette il segnale al click sull'indicatore API (per il MainWindow)."""
+        self.api_status_clicked.emit()
+
+    def set_api_status(self, running: bool, port: int = 0, error: str = ""):
+        """Aggiorna l'indicatore API in top bar.
+
+        Args:
+            running: True se uvicorn è in ascolto.
+            port: porta corrente (mostrata in label se >0).
+            error: messaggio breve in caso di stato di errore (es. "porta occupata").
+        """
+        if running and port:
+            text = f"● API: on (porta {port})"
+            self._api_indicator.setProperty("apiStatus", "running")
+        elif error:
+            text = f"● API: errore"
+            self._api_indicator.setProperty("apiStatus", "error")
+        else:
+            text = "● API: off"
+            self._api_indicator.setProperty("apiStatus", "off")
+        self._api_indicator.style().unpolish(self._api_indicator)
+        self._api_indicator.style().polish(self._api_indicator)
+        self._api_indicator.setText(text)
+        if error:
+            self._api_indicator.setToolTip(error)
 
     @staticmethod
     def _initials(nome: str) -> str:

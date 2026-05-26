@@ -496,6 +496,16 @@ QCalendarWidget QAbstractItemView {
     background: #F4F5FA;
     border-radius: 10px;
 }
+#apiIndicator {
+    font-size: 11px;
+    color: #5A6478;
+    padding: 2px 6px;
+    background: #F4F5FA;
+    border-radius: 10px;
+}
+#apiIndicator[apiStatus="running"] { color: #2E7D32; background: #E8F5E9; }
+#apiIndicator[apiStatus="error"]   { color: #B71C1C; background: #FFEBEE; }
+#apiIndicator[apiStatus="off"]     { color: #5A6478; background: #F4F5FA; }
 #userLabel   { font-size: 12px; color: #1F2330; font-weight: 600; }
 
 #avatarWidget {
