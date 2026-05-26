@@ -174,32 +174,119 @@ def get_alternative_filename(original_path):
     return f"{base}_{timestamp}{ext}"
 
 
+def _discover_log_directories() -> list:
+    """Restituisce le cartelle in cui Foliarium può aver scritto log.
+
+    L'app scrive log in due posti distinti a seconda del flusso di avvio:
+    - `gui_main.setup_global_logging` → `QStandardPaths.AppLocalDataLocation`
+      (es. `%LOCALAPPDATA%\\AlgoraStudio\\Foliarium\\foliarium_session.log`)
+    - `config.setup_global_logging` → stessa AppLocalDataLocation + `logs/`
+      (es. `…\\AlgoraStudio\\Foliarium\\logs\\foliarium_gui.log`)
+
+    Per retrocompatibilità includiamo anche `app_paths.LOG_DIR`
+    (`%LOCALAPPDATA%\\Foliarium\\logs\\`), usato da versioni precedenti.
+    """
+    from pathlib import Path
+    from app_paths import LOG_DIR
+
+    candidates = []
+    try:
+        from PyQt6.QtCore import QCoreApplication, QStandardPaths
+        # I metadati sono già stati impostati in gui_main.setup_global_logging
+        # ma li ribadiamo per essere robusti se l'helper viene invocata
+        # da contesti diversi (es. test).
+        if not QCoreApplication.organizationName():
+            QCoreApplication.setOrganizationName("AlgoraStudio")
+        if not QCoreApplication.applicationName():
+            QCoreApplication.setApplicationName("Foliarium")
+        qt_app_data = QStandardPaths.writableLocation(
+            QStandardPaths.StandardLocation.AppLocalDataLocation
+        )
+        if qt_app_data:
+            candidates.append(Path(qt_app_data))
+            candidates.append(Path(qt_app_data) / "logs")
+    except Exception:
+        pass
+
+    candidates.append(LOG_DIR)
+
+    # Dedup preservando l'ordine, solo cartelle esistenti
+    seen = set()
+    result = []
+    for c in candidates:
+        try:
+            resolved = c.resolve()
+        except Exception:
+            resolved = c
+        if resolved in seen or not c.exists() or not c.is_dir():
+            continue
+        seen.add(resolved)
+        result.append(c)
+    return result
+
+
 def create_logs_archive(destination_path: str) -> tuple[int, int]:
-    """Comprime tutti i file della cartella log applicativa in uno zip.
+    """Comprime tutti i file di log applicativi in uno zip.
+
+    Cerca i log in tutte le cartelle plausibili
+    (`QStandardPaths.AppLocalDataLocation`, eventuale sotto-cartella `logs/`,
+    e la cartella legacy `app_paths.LOG_DIR`). Include solo file con
+    estensione `.log` o rotazioni `.log.N`.
 
     Returns:
         Tupla (numero_file_inclusi, dimensione_zip_in_byte).
 
     Raises:
-        FileNotFoundError: se la cartella log non esiste o è vuota.
+        FileNotFoundError: se nessuna cartella log esiste o nessun file di
+            log è presente.
         OSError: per errori di IO durante la creazione dell'archivio.
     """
+    import re
     import zipfile
-    from app_paths import LOG_DIR
 
-    log_dir = LOG_DIR
-    if not log_dir.exists():
-        raise FileNotFoundError(f"Cartella log non trovata: {log_dir}")
+    log_dirs = _discover_log_directories()
+    if not log_dirs:
+        raise FileNotFoundError(
+            "Nessuna cartella di log Foliarium trovata sul sistema."
+        )
 
-    log_files = [p for p in log_dir.rglob("*") if p.is_file()]
-    if not log_files:
-        raise FileNotFoundError(f"Nessun file di log presente in: {log_dir}")
+    log_pattern = re.compile(r"\.log(\.\d+)?$", re.IGNORECASE)
 
+    files_to_archive: list = []
+    seen_resolved: set = set()
+    for log_dir in log_dirs:
+        for path in log_dir.rglob("*"):
+            if not (path.is_file() and log_pattern.search(path.name)):
+                continue
+            try:
+                key = path.resolve()
+            except Exception:
+                key = path
+            if key in seen_resolved:
+                continue
+            seen_resolved.add(key)
+            files_to_archive.append((log_dir, path))
+
+    if not files_to_archive:
+        dirs_str = ", ".join(str(d) for d in log_dirs)
+        raise FileNotFoundError(
+            f"Nessun file di log trovato nelle cartelle: {dirs_str}"
+        )
+
+    used_arcnames: set = set()
     with zipfile.ZipFile(destination_path, "w", compression=zipfile.ZIP_DEFLATED) as zf:
-        for file_path in log_files:
-            arcname = file_path.relative_to(log_dir)
-            zf.write(file_path, arcname=str(arcname))
+        for log_dir, file_path in files_to_archive:
+            arcname = file_path.relative_to(log_dir).as_posix()
+            # In caso due cartelle producano lo stesso arcname (es. legacy
+            # + standard), suffissiamo per evitare collisioni.
+            base_arcname = arcname
+            i = 1
+            while arcname in used_arcnames:
+                arcname = f"{base_arcname}.{i}"
+                i += 1
+            used_arcnames.add(arcname)
+            zf.write(file_path, arcname=arcname)
 
-    return len(log_files), os.path.getsize(destination_path)
+    return len(files_to_archive), os.path.getsize(destination_path)
 
 

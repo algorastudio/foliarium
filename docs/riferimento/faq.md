@@ -107,7 +107,8 @@ i log ruotati) e può essere allegato direttamente a una mail per
 **info@algorastudio.it**.
 
 In alternativa i log sono leggibili manualmente in
-`%LOCALAPPDATA%\Foliarium\logs\`.
+`%LOCALAPPDATA%\AlgoraStudio\Foliarium\` (file `foliarium_session.log` in
+radice, file `logs\foliarium_gui.log` + rotazioni nella sotto-cartella).
 
 !!! info "Cosa contiene l'archivio"
     L'archivio include solo i log applicativi (`foliarium_gui.log*`). Non

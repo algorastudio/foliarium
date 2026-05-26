@@ -188,9 +188,10 @@ Quando il supporto Algora chiede di inviare i log, basta selezionare
 **Help → Esporta log per supporto (.zip)...**: viene proposto un nome
 predefinito con timestamp (es. `foliarium_logs_20260524_153012.zip`) e
 una destinazione nella cartella **Documenti**. Confermando, l'app
-comprime tutti i file di `%LOCALAPPDATA%\Foliarium\logs\` (incluse le
-rotazioni storiche) in un unico archivio da allegare a una mail per
-**info@algorastudio.it**.
+comprime tutti i file di log applicativi (sia `foliarium_session.log`
+sia `foliarium_gui.log` con le rotazioni storiche, da
+`%LOCALAPPDATA%\AlgoraStudio\Foliarium\`) in un unico archivio da
+allegare a una mail per **info@algorastudio.it**.
 
 L'archivio contiene **solo** i log applicativi: nessun dato del
 database, nessuna credenziale, nessuna licenza.
