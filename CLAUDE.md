@@ -80,6 +80,7 @@ foliarium/
 │   ├── variazioni.py, documenti.py, audit.py, utenti.py
 │   ├── backup.py, stats.py, ricerca.py, io.py, archivio.py
 │   ├── drafts.py                 # DBDraftsMixin (bozze wizard Nuova Partita + Registrazione Proprietà)
+│   ├── api_keys.py               # DBApiKeysMixin (chiavi API per integrazioni esterne, MCP, ecc.)
 │   └── models.py                 # Dataclass models
 │
 ├── core/                         # Gestione sessione e autenticazione
@@ -242,7 +243,20 @@ Always use the full three-part path `Module.EnumClass.Value`.
 - Passwords are **not** stored in QSettings — keyring is used for secure storage.
 - Init SQL scripts are in `sql_scripts/`; run in order for a fresh DB.
 - Upgrade scripts for existing DBs are in `sql_scripts/migrations/`.
-- **Auto-apply migrazioni idempotenti:** `db/base.py::_apply_pending_schema_migrations()` viene invocata a ogni init pool e applica silenziosamente migrazioni sicure (es. schema v1.6.1, indici UNIQUE sulle MV, vista `v_audit_dettagliato` — equivalente di `migrations/19_create_v_audit_dettagliato.sql`, tabella `partita_draft` — equivalente di `migrations/21_create_partita_draft.sql`). Best-effort, non bloccante.
+- **Auto-apply migrazioni idempotenti:** `db/base.py::_apply_pending_schema_migrations()` viene invocata a ogni init pool e applica silenziosamente migrazioni sicure (es. schema v1.6.1, indici UNIQUE sulle MV, vista `v_audit_dettagliato` — equivalente di `migrations/19_create_v_audit_dettagliato.sql`, tabella `partita_draft` — equivalente di `migrations/21_create_partita_draft.sql`, tabella `api_keys` — equivalente di `migrations/22_create_api_keys.sql`). Best-effort, non bloccante.
+
+## REST API & integrazioni esterne
+
+- **FastAPI** in `api/` esposta con doppio prefisso: `/api/v1/*` (versione preferita, contratto stabile per integrazioni esterne) e `/api/*` (legacy, mantenuto per il frontend React esistente). Swagger UI: `/api/v1/docs`, OpenAPI JSON: `/api/v1/openapi.json`.
+- **Avvio:** `APIServerThread` in `api/server_thread.py` esegue `uvicorn` su `127.0.0.1:<porta-dinamica>` (default 8765+). Lanciato dal flusso WebViewWindow di `gui_main.py`.
+- **Dual auth** (`api/deps.py`):
+  - `Authorization: Bearer <token>` → sessione utente in-memory (TTL 120 min, `api/auth.py`). Implicitamente ha scope `*:*`.
+  - `X-Foliarium-Api-Key: flr_<32 hex>` → chiave API persistente in `catasto.api_keys`. Scope granulari (es. `read:partite`, `write:partite`, wildcard `read:*` / `*:*`).
+  - `get_current_session` (storica) accetta entrambi i metodi. Per scope-check granulare: `Depends(require_scope("read:partite"))`.
+- **Gestione chiavi API** (mixin `db/api_keys.py`):
+  - `create_api_key(name, scopes, created_by, expires_at=None, rate_limit_per_min=60) -> (id, plaintext)` — il plaintext (`flr_<32 hex>`) è restituito una sola volta; in DB si memorizza solo lo SHA-256 + prefix.
+  - `validate_api_key(plaintext) -> Optional[dict]` — verifica hash, scadenza, revoca; aggiorna `last_used_at`.
+  - `list_api_keys(include_revoked=False)`, `revoke_api_key(id)`.
 - **Avvisi schema:** `db/base.py::check_missing_migrations()` rileva colonne / tabelle critiche mancanti (`soft_delete`, `tipo_possesso`) e `gui_main._check_db_schema_migrations` mostra un avviso non bloccante.
 
 ---

@@ -82,7 +82,13 @@ def _init_db_from_config():
 
 
 def create_app(db_manager=None) -> FastAPI:
-    app = FastAPI(title="Foliarium API", version="1.0.0", docs_url="/api/docs")
+    app = FastAPI(
+        title="Foliarium API",
+        version="1.0.0",
+        docs_url="/api/v1/docs",
+        redoc_url="/api/v1/redoc",
+        openapi_url="/api/v1/openapi.json",
+    )
 
     app.add_middleware(
         CORSMiddleware,
@@ -97,14 +103,16 @@ def create_app(db_manager=None) -> FastAPI:
     else:
         _init_db_from_config()
 
-    app.include_router(auth.router, prefix="/api")
-    app.include_router(comuni.router, prefix="/api")
-    app.include_router(partite.router, prefix="/api")
-    app.include_router(possessori.router, prefix="/api")
-    app.include_router(dashboard.router, prefix="/api")
-    app.include_router(audit.router, prefix="/api")
-    app.include_router(genealogia.router, prefix="/api")
-    app.include_router(timeline.router, prefix="/api")
+    # Mount duale: /api/v1/* (preferito, contratto stabile per integrazioni
+    # esterne) + /api/* (legacy, mantenuto per il frontend React esistente).
+    # Quando il frontend sarà migrato, /api/* potrà essere rimosso.
+    _routers = (
+        auth.router, comuni.router, partite.router, possessori.router,
+        dashboard.router, audit.router, genealogia.router, timeline.router,
+    )
+    for r in _routers:
+        app.include_router(r, prefix="/api/v1")
+        app.include_router(r, prefix="/api", include_in_schema=False)
 
     # Serve il build React statico (frontend/dist/)
     dist_dir = Path(__file__).parent.parent / "frontend" / "dist"
