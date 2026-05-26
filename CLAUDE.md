@@ -258,6 +258,17 @@ Always use the full three-part path `Module.EnumClass.Value`.
   - `validate_api_key(plaintext) -> Optional[dict]` — verifica hash, scadenza, revoca; aggiorna `last_used_at`.
   - `list_api_keys(include_revoked=False)`, `revoke_api_key(id)`.
 - **Admin UI** (`foliarium/ui/dialogs/admin/api_keys.py`): voce **Impostazioni → Gestione Chiavi API…** (solo admin) apre `ApiKeysDialog` (tabella chiavi con stati Attiva/Revocata/Scaduta), `CreateApiKeyDialog` (form con scope checkbox + scadenza opzionale), `NewKeyResultDialog` (mostra il plaintext una sola volta con bottone "Copia"). Slot in `gui_main.MainWindow._apri_gestione_api_keys` con guard ruolo admin.
+
+## MCP server (`mcp_server/`)
+
+Package top-level che espone l'API REST come tool MCP (Model Context Protocol)
+invocabili da **Claude Desktop** e altri client MCP.
+
+- `mcp_server/server.py` — `FastMCP("foliarium")` con 8 tool: `elenca_comuni`, `elenca_localita`, `cerca_partite`, `dettagli_partita`, `cerca_possessori`, `dettagli_possessore`, `genealogia_partita`, `timeline_partita`.
+- `mcp_server/client.py` — `FoliariumApiClient` (httpx sync) con header `X-Foliarium-Api-Key`. Mappa 401/403/404/5xx in `FoliariumApiError` con messaggi umani (suggerisce "Genera nuova chiave da Gestione Chiavi API…", "Esporta log per supporto", ecc.).
+- `mcp_server/__main__.py` — entry point `python -m mcp_server`, stdio mode (default Claude Desktop).
+- Configurazione via env: `FOLIARIUM_API_BASE_URL` + `FOLIARIUM_API_KEY`.
+- Documentazione utente: `docs/admin/api.md` (REST API + esempi curl) e `docs/admin/mcp.md` (guida Claude Desktop con esempio `claude_desktop_config.json`).
 - **Avvisi schema:** `db/base.py::check_missing_migrations()` rileva colonne / tabelle critiche mancanti (`soft_delete`, `tipo_possesso`) e `gui_main._check_db_schema_migrations` mostra un avviso non bloccante.
 
 ---
