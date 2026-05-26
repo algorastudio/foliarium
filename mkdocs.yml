@@ -35,7 +35,8 @@ nav:
       - Import Massivo: admin/import-massivo.md
       - Migrazioni Schema: admin/migrazioni.md
       - REST API & Integrazioni: admin/api.md
-      - Integrazione Claude (MCP): admin/mcp.md
+      - "Claude + Foliarium (guida rapida)": admin/mcp-quickstart.md
+      - Integrazione Claude (MCP, dettagli): admin/mcp.md
   - Riferimento:
       - FAQ: riferimento/faq.md
       - Changelog: riferimento/changelog.md
