@@ -64,7 +64,7 @@ Aggiungi (o estendi) la sezione `mcpServers`:
 {
   "mcpServers": {
     "foliarium": {
-      "command": "python",
+      "command": "C:\\Path\\to\\foliarium\\.venv\\Scripts\\python.exe",
       "args": ["-m", "mcp_server"],
       "cwd": "C:\\Path\\to\\foliarium",
       "env": {
@@ -78,10 +78,16 @@ Aggiungi (o estendi) la sezione `mcpServers`:
 
 Sostituisci:
 
+- `command` con il percorso assoluto al Python della **venv** del progetto.
+  Su Windows è `<foliarium>\.venv\Scripts\python.exe`, su macOS/Linux
+  `<foliarium>/.venv/bin/python`. **Non usare `"python"` senza percorso**:
+  Claude Desktop userebbe il Python di sistema, che non ha installati
+  `mcp` e `httpx` (sono solo nella venv) — risultato:
+  `No module named mcp_server` o `No module named mcp`.
 - `cwd` con il percorso assoluto della cartella di Foliarium (quella che
   contiene il modulo `mcp_server/`).
-- `FOLIARIUM_API_BASE_URL` con l'URL corretto (porta dinamica della tua
-  installazione).
+- `FOLIARIUM_API_BASE_URL` con l'URL corretto (vedi sezione "Porta di
+  ascolto" in [api.md](api.md) per fissare la porta).
 - `FOLIARIUM_API_KEY` con il segreto copiato al punto 1.
 
 Riavvia Claude Desktop. Il tool icon (🔌) in basso a destra dovrebbe
@@ -119,21 +125,40 @@ partite compare come intestatario.
 
 ## Troubleshooting
 
+### `No module named mcp_server` / `No module named mcp`
+
+Il problema più comune al primo setup. Causa: il `command` nel JSON è
+`"python"` (Python di sistema) invece del Python della venv di
+progetto, dove sono installati `mcp` e `httpx`.
+
+**Fix:** punta `command` direttamente al `python.exe` della venv:
+
+```json
+"command": "C:\\Users\\TUO\\foliarium\\.venv\\Scripts\\python.exe"
+```
+
+Verifica veloce da terminale:
+
+```powershell
+C:\Users\TUO\foliarium\.venv\Scripts\python.exe -m mcp_server
+```
+
+Deve emettere su stderr un messaggio
+"Configurazione mancante: imposta FOLIARIUM_API_BASE_URL e
+FOLIARIUM_API_KEY…" (perché stiamo lanciando senza env var). Se invece
+dice `No module named mcp` esegui:
+
+```powershell
+C:\Users\TUO\foliarium\.venv\Scripts\pip install mcp httpx
+```
+
 ### Claude non vede il server "foliarium"
 
-- Verifica che `python -m mcp_server` parta correttamente da terminale:
-
-  ```bash
-  set FOLIARIUM_API_BASE_URL=http://localhost:8765
-  set FOLIARIUM_API_KEY=flr_xxxx
-  python -m mcp_server
-  ```
-
-  Se il server parte, vedrai un log "Foliarium MCP server avviato (stdio mode)"
-  su stderr. Premi Ctrl+C per uscire.
-
+- Verifica che il comando completo (con percorso venv) parta da
+  terminale come spiegato sopra.
 - Controlla che il `cwd` nel JSON punti alla cartella corretta (deve
   contenere la sotto-cartella `mcp_server/`).
+- Su Windows ricorda i doppi backslash (`\\`) nei percorsi del JSON.
 
 ### Tutti i tool restituiscono "Chiave API non valida"
 
@@ -142,9 +167,11 @@ partite compare come intestatario.
 
 ### "Impossibile contattare http://localhost:…"
 
-- L'app Foliarium non è in esecuzione, oppure il frontend integrato che
-  avvia l'API non è stato aperto.
-- La porta nel JSON è diversa da quella reale (la porta è dinamica).
+- L'app Foliarium non è in esecuzione (il server API parte solo dopo
+  il login).
+- La porta nel JSON è diversa da quella reale: se non hai fissato
+  `[api] port` in `config.ini`, viene scelta dinamicamente a ogni
+  riavvio. Vedi [api.md → Porta di ascolto](api.md#porta-di-ascolto).
 
 ### Un tool restituisce "Permesso negato (scope mancante)"
 
