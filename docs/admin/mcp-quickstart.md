@@ -181,9 +181,9 @@ Se il file è **vuoto / appena creato**, incolla tutto:
 {
   "mcpServers": {
     "foliarium": {
-      "command": "python",
+      "command": "C:\\Users\\TUO_UTENTE\\foliarium\\.venv\\Scripts\\python.exe",
       "args": ["-m", "mcp_server"],
-      "cwd": "C:\\Path\\to\\foliarium",
+      "cwd": "C:\\Users\\TUO_UTENTE\\foliarium",
       "env": {
         "FOLIARIUM_API_BASE_URL": "http://localhost:8765",
         "FOLIARIUM_API_KEY": "flr_la_tua_chiave_qui"
@@ -196,16 +196,42 @@ Se il file è **vuoto / appena creato**, incolla tutto:
 Se il file **c'era già** e aveva altri server MCP, aggiungi solo la
 voce `"foliarium": { … }` dentro `"mcpServers": { … }`.
 
-### Sostituisci 3 cose
+### Sostituisci 4 cose
 
-1. **`"cwd"`** → la cartella **dove hai Foliarium installato**.
+1. **`"command"`** → il percorso al Python della tua **venv** del progetto
+   (importante! Vedi sotto perché).
+   - Windows: `C:\\Users\\TUO\\foliarium\\.venv\\Scripts\\python.exe`
+   - macOS/Linux: `/home/tuo/foliarium/.venv/bin/python`
+2. **`"cwd"`** → la cartella **dove hai Foliarium installato** (quella che
+   contiene la sotto-cartella `mcp_server/`).
    Su Windows ricorda di mettere `\\` (doppia barra) al posto di `\`.
-   Esempio reale: `"C:\\Program Files\\Foliarium"` oppure
-   `"C:\\Users\\Marco\\foliarium-source"`.
-2. **`FOLIARIUM_API_BASE_URL`** → l'URL del passo 2 (la porta giusta!).
-3. **`FOLIARIUM_API_KEY`** → la chiave segreta del passo 3.
+   Esempio reale: `"C:\\Users\\Marco\\foliarium"`.
+3. **`FOLIARIUM_API_BASE_URL`** → l'URL del passo 2 (la porta giusta!).
+4. **`FOLIARIUM_API_KEY`** → la chiave segreta del passo 3.
 
 Salva il file.
+
+!!! warning "Perché il Python della venv e non solo `python`?"
+    Se metti `"command": "python"`, Claude Desktop usa il **Python di
+    sistema** (es. `C:\Program Files\Python313\python.exe`), che però
+    non ha installati i pacchetti `mcp` e `httpx` — quelli sono nella
+    venv del progetto. Risultato: errore
+    `No module named mcp_server` o `No module named mcp`.
+    Indicando direttamente il `python.exe` della venv, tutte le
+    dipendenze sono disponibili.
+
+!!! tip "Verifica veloce da terminale"
+    Prima di salvare e riavviare Claude Desktop, prova:
+
+    ```powershell
+    C:\Users\TUO\foliarium\.venv\Scripts\python.exe -m mcp_server
+    ```
+
+    Senza env var deve uscire con un messaggio
+    "Configurazione mancante: imposta FOLIARIUM_API_BASE_URL…". Se
+    invece dice `No module named mcp_server` sei nella cartella
+    sbagliata; se dice `No module named mcp` esegui dentro la venv:
+    `pip install mcp httpx`.
 
 ---
 
@@ -241,11 +267,13 @@ Altri prompt da provare:
 
 ## Se qualcosa non va
 
-| Sintomo | Cosa fare |
+| Sintomo nei log di Claude | Cosa fare |
 |---|---|
-| Claude non vede il server "foliarium" | Esegui di nuovo `python bin\test_mcp_e2e.py` — se passa, l'errore è nel `claude_desktop_config.json` (di solito il `cwd` o le virgolette). |
+| `No module named mcp_server` | Il `command` punta al Python sbagliato (di sistema) oppure il `cwd` non è la cartella di Foliarium. Usa il Python della **venv** (`.venv\Scripts\python.exe`) e controlla che `cwd` punti alla cartella che contiene la sotto-cartella `mcp_server/`. |
+| `No module named mcp` (o `httpx`) | Dipendenze MCP non installate nella venv. Esegui `<venv>\Scripts\pip install mcp httpx`. |
+| Claude non vede il server "foliarium" | Esegui `python bin\test_mcp_e2e.py` con il Python della venv — se passa, l'errore è nel `claude_desktop_config.json` (di solito virgolette o backslash singoli su Windows: ricorda `\\`). |
 | Tutti i tool dicono "Chiave API non valida" | La chiave è scaduta o l'hai revocata. Torna al passo 3 e generane una nuova. |
-| "Impossibile contattare http://localhost:…" | Foliarium non è aperto oppure la porta nel JSON non corrisponde a quella vera (cambia ad ogni avvio!). |
+| "Impossibile contattare http://localhost:…" | Foliarium non è aperto, oppure non hai fissato `[api] port` in `config.ini` e la porta dinamica è cambiata. |
 | "Permesso negato (scope mancante)" | La chiave non ha lo scope giusto. Revocala e creane una nuova con `read:*` spuntato. |
 
 Per problemi più seri: esporta i log da **Help → Esporta log per

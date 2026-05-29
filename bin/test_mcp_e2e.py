@@ -95,6 +95,29 @@ def step_config(args) -> tuple[str, str]:
 
     _ok(f"API base URL:  {base_url}")
     _ok(f"API key:       {api_key[:8]}...{api_key[-4:]}  (prefix + last 4)")
+
+    # Dipendenze MCP installate nel Python corrente?
+    # Se Claude Desktop fosse configurato col Python sbagliato, l'errore
+    # sarebbe "No module named mcp_server" / "No module named mcp".
+    # Qui controlliamo che il Python in uso (questo interprete) le abbia.
+    missing = []
+    try:
+        import mcp  # noqa: F401
+    except ImportError:
+        missing.append("mcp")
+    try:
+        import httpx  # noqa: F401
+    except ImportError:
+        missing.append("httpx")
+    if missing:
+        _fail(f"Dipendenze mancanti nel Python corrente: {', '.join(missing)}")
+        _info(f"Python in uso: {sys.executable}")
+        _info(f"Installa con: {sys.executable} -m pip install {' '.join(missing)}")
+        _info("Se hai una venv, attivala prima di rilanciare lo script.")
+        sys.exit(2)
+    _ok(f"Python corrente: {sys.executable}")
+    _ok("Dipendenze mcp + httpx presenti")
+
     return base_url, api_key
 
 

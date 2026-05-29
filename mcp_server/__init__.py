@@ -9,15 +9,18 @@ Configurazione via env var:
 * ``FOLIARIUM_API_KEY``      — chiave API (formato ``flr_<32 hex>``), generata
   dal dialog *Impostazioni → Gestione Chiavi API…* dell'app desktop.
 
-Esecuzione (Claude Desktop o compatibili):
+Esecuzione (Claude Desktop o compatibili). Usa SEMPRE il Python della
+venv del progetto, non il Python di sistema (che non ha installati
+``mcp`` e ``httpx``):
 
 .. code-block:: json
 
     {
       "mcpServers": {
         "foliarium": {
-          "command": "python",
+          "command": "C:\\\\Path\\\\to\\\\foliarium\\\\.venv\\\\Scripts\\\\python.exe",
           "args": ["-m", "mcp_server"],
+          "cwd": "C:\\\\Path\\\\to\\\\foliarium",
           "env": {
             "FOLIARIUM_API_BASE_URL": "http://localhost:8765",
             "FOLIARIUM_API_KEY": "flr_xxxxxxxx..."
