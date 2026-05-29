@@ -209,7 +209,47 @@ class DBConnectionBase:
         return missing
 
     def _apply_pending_schema_migrations(self):
-        """Applica migrazioni schema idempotenti all'avvio (silent best-effort)."""
+        """Applica migrazioni schema idempotenti all'avvio (silent best-effort).
+
+        Ogni step è isolato: il fallimento di uno non blocca gli altri. Tutti
+        gli step sono idempotenti (no-op se già applicati).
+        """
+        # Migrazione v1.6.1: rimuove tipo_id e incorpora civico nel nome località.
+        # Eseguita solo su DB pre-v1.6.1 (rilevamento via colonna tipo_id).
+        self._apply_v161_localita_migration()
+
+        # Ownership delle MV — REFRESH MATERIALIZED VIEW richiede di esserne
+        # proprietari. Va eseguito prima di creare gli indici (anche CREATE
+        # INDEX richiede l'ownership). Best-effort, non bloccante.
+        self._ensure_mv_ownership()
+
+        # Indici UNIQUE sulle MV — richiesti per REFRESH ... CONCURRENTLY.
+        # Idempotente: ogni CREATE è IF NOT EXISTS, l'esistenza della MV
+        # è verificata prima per evitare errori se la MV non è stata creata.
+        self._ensure_mv_unique_indexes()
+
+        # Vista v_audit_dettagliato — assente nei DB inizializzati prima di
+        # sql_scripts/18_funzioni_trigger_audit.sql; senza, il visualizzatore
+        # audit log lancia UndefinedTable. CREATE OR REPLACE = idempotente.
+        self._ensure_audit_view()
+
+        # Tabella partita_draft — bozze del wizard Nuova Partita.
+        # Idempotente: CREATE TABLE IF NOT EXISTS.
+        self._ensure_partita_draft_table()
+
+        # Tabella api_keys — chiavi API per integrazioni esterne.
+        # Idempotente: CREATE TABLE IF NOT EXISTS.
+        self._ensure_api_keys_table()
+
+    def _apply_v161_localita_migration(self):
+        """Migrazione v1.6.1: rimuove tipo_id da localita e incorpora civico.
+
+        Step isolato dagli altri ensure_*: un errore qui non blocca gli step
+        successivi (la separazione e' stata introdotta per fixare un bug in
+        cui il return early da questo metodo, quando inserito inline in
+        _apply_pending_schema_migrations, saltava silenziosamente tutti gli
+        ensure_* successivi su qualunque DB gia' aggiornato).
+        """
         try:
             with self._get_connection() as conn:
                 with conn.cursor() as cur:
@@ -264,30 +304,7 @@ class DBConnectionBase:
 
                     self.logger.info("Migrazione automatica schema v1.6.1 completata con successo.")
         except Exception as e:
-            self.logger.warning(f"Migrazione schema automatica saltata (non bloccante): {e}")
-
-        # Ownership delle MV — REFRESH MATERIALIZED VIEW richiede di esserne
-        # proprietari. Va eseguito prima di creare gli indici (anche CREATE
-        # INDEX richiede l'ownership). Best-effort, non bloccante.
-        self._ensure_mv_ownership()
-
-        # Indici UNIQUE sulle MV — richiesti per REFRESH ... CONCURRENTLY.
-        # Idempotente: ogni CREATE è IF NOT EXISTS, l'esistenza della MV
-        # è verificata prima per evitare errori se la MV non è stata creata.
-        self._ensure_mv_unique_indexes()
-
-        # Vista v_audit_dettagliato — assente nei DB inizializzati prima di
-        # sql_scripts/18_funzioni_trigger_audit.sql; senza, il visualizzatore
-        # audit log lancia UndefinedTable. CREATE OR REPLACE = idempotente.
-        self._ensure_audit_view()
-
-        # Tabella partita_draft — bozze del wizard Nuova Partita.
-        # Idempotente: CREATE TABLE IF NOT EXISTS.
-        self._ensure_partita_draft_table()
-
-        # Tabella api_keys — chiavi API per integrazioni esterne.
-        # Idempotente: CREATE TABLE IF NOT EXISTS.
-        self._ensure_api_keys_table()
+            self.logger.warning(f"Migrazione schema v1.6.1 saltata (non bloccante): {e}")
 
     def _ensure_api_keys_table(self):
         """Crea la tabella catasto.api_keys se mancante.
