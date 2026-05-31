@@ -583,7 +583,7 @@ class RicercaPartiteWidget(QWidget):
             return
         try:
             from foliarium.ui.dialogs.partita import AlberoGeneralogicoDialog
-            dlg = AlberoGeneralogicoDialog(self.db_manager, self._selected_partita_id, self)
+            dlg = AlberoGeneralogicoDialog(self._selected_partita_id, self.db_manager, self)
             dlg.exec()
         except Exception as e:
             QMessageBox.critical(self, "Errore", str(e))

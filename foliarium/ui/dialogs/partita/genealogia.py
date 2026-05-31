@@ -47,6 +47,18 @@ class AlberoGeneralogicoDialog(QDialog):
 
     def __init__(self, partita_id: int, db_manager, parent=None):
         super().__init__(parent)
+        # Guardia anti-scambio argomenti: la firma e' (partita_id, db_manager)
+        # ma altri dialog del progetto usano l'ordine opposto
+        # (db_manager, partita_id), inducendo facilmente in errore i
+        # chiamanti. Se db_manager arriva come int (cioe' qualcuno ha
+        # passato il partita_id al suo posto) falliamo subito con un
+        # messaggio chiaro, invece di un AttributeError oscuro a runtime.
+        if isinstance(db_manager, int):
+            raise TypeError(
+                "AlberoGeneralogicoDialog: ordine argomenti errato. "
+                "Firma corretta: (partita_id: int, db_manager, parent). "
+                f"Ricevuto db_manager di tipo {type(db_manager).__name__}."
+            )
         self.partita_id = partita_id
         self.db_manager = db_manager
         self.logger = logging.getLogger(f"CatastoGUI.{self.__class__.__name__}")
