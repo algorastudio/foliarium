@@ -6,13 +6,17 @@ Regressione per il bug "AttributeError: 'int' object has no attribute
 
 Causa originale: in foliarium/ui/widgets/search/partite.py::_apri_albero
 il dialog AlberoGeneralogicoDialog veniva costruito con gli argomenti
-invertiti — (db_manager, partita_id) invece di (partita_id, db_manager) —
-perche' altri dialog del progetto usano l'ordine opposto.
+invertiti rispetto alla firma di allora (partita_id, db_manager).
+
+Fix successivo: la firma di AlberoGeneralogicoDialog e' stata uniformata
+a (db_manager, partita_id, parent), coerente con gli altri dialog del
+progetto (ModificaPartitaDialog, AggiungiDocumentoDialog), per eliminare
+l'incoerenza alla radice.
 
 Questo test blocca due cose:
-1. La firma di AlberoGeneralogicoDialog resta (partita_id, db_manager, ...).
+1. La firma di AlberoGeneralogicoDialog resta (db_manager, partita_id, ...).
 2. La guardia anti-scambio solleva TypeError chiaro se db_manager arriva
-   come int.
+   come int (cioe' qualcuno usa ancora il vecchio ordine partita_id-first).
 
 Marker: gui (richiede QApplication, eseguito con QT_QPA_PLATFORM=offscreen).
 """
@@ -62,19 +66,20 @@ def mock_db():
     return db
 
 
-def test_signature_is_partita_id_first():
-    """La firma deve restare (partita_id, db_manager, parent)."""
+def test_signature_is_db_manager_first():
+    """La firma deve essere (db_manager, partita_id, parent), coerente con
+    gli altri dialog del progetto."""
     from foliarium.ui.dialogs.partita.genealogia import AlberoGeneralogicoDialog
     params = list(inspect.signature(AlberoGeneralogicoDialog.__init__).parameters)
-    # ['self', 'partita_id', 'db_manager', 'parent']
-    assert params[1] == "partita_id"
-    assert params[2] == "db_manager"
+    # ['self', 'db_manager', 'partita_id', 'parent']
+    assert params[1] == "db_manager"
+    assert params[2] == "partita_id"
 
 
 def test_correct_order_stores_manager(qapp, mock_db):
     """Con l'ordine corretto, self.db_manager espone get_genealogia_partita."""
     from foliarium.ui.dialogs.partita.genealogia import AlberoGeneralogicoDialog
-    dlg = AlberoGeneralogicoDialog(92, mock_db)
+    dlg = AlberoGeneralogicoDialog(mock_db, 92)
     assert dlg.partita_id == 92
     assert dlg.db_manager is mock_db
     mock_db.get_genealogia_partita.assert_called_once_with(92)
@@ -82,11 +87,12 @@ def test_correct_order_stores_manager(qapp, mock_db):
 
 
 def test_swapped_args_raise_typeerror(qapp, mock_db):
-    """Se db_manager arriva come int (argomenti scambiati) -> TypeError chiaro."""
+    """Se db_manager arriva come int (vecchio ordine partita_id-first) ->
+    TypeError chiaro."""
     from foliarium.ui.dialogs.partita.genealogia import AlberoGeneralogicoDialog
     with pytest.raises(TypeError, match="ordine argomenti"):
-        # Scambio: db_manager prima, partita_id dopo (il bug originale)
-        AlberoGeneralogicoDialog(mock_db, 92)
+        # Vecchio ordine: partita_id prima, db_manager dopo
+        AlberoGeneralogicoDialog(92, mock_db)
 
 
 def test_apri_albero_callsite_uses_correct_order(qapp, mock_db):

@@ -232,7 +232,7 @@ class ReportisticaWidget(LazyLoadedWidget):
         if partita_id <= 0:
             QMessageBox.warning(self, "ID Non Valido", "Selezionare un ID partita valido.")
             return
-        AlberoGeneralogicoDialog(partita_id, self.db_manager, self).exec()
+        AlberoGeneralogicoDialog(self.db_manager, partita_id, self).exec()
 
     def _apri_confronto_partite(self):
         id_a = self.partita_id_gen_edit.value()

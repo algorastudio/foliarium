@@ -235,7 +235,7 @@ class PartitaDetailsDialog(QDialog):
         if not self.db_manager:
             QMessageBox.warning(self, "DB non disponibile", "Database manager non disponibile.")
             return
-        AlberoGeneralogicoDialog(self.partita['id'], self.db_manager, self).exec()
+        AlberoGeneralogicoDialog(self.db_manager, self.partita['id'], self).exec()
 
     def _load_all_data(self):
         """Carica i dati per tutti i tab."""
