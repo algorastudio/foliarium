@@ -129,7 +129,7 @@ class TopBarWidget(QFrame):
             text = f"● API: on (porta {port})"
             self._api_indicator.setProperty("apiStatus", "running")
         elif error:
-            text = f"● API: errore"
+            text = "● API: errore"
             self._api_indicator.setProperty("apiStatus", "error")
         else:
             text = "● API: off"

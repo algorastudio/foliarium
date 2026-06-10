@@ -41,7 +41,7 @@ import sys
 from collections import defaultdict
 from datetime import date
 from pathlib import Path
-from typing import Dict, List, Optional, Tuple
+from typing import Dict, List, Optional
 
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
@@ -201,7 +201,7 @@ def cmd_draft(args) -> int:
     print(section)
     print("\n--- ISTRUZIONI ---")
     print(f"1. Copia il blocco sopra in {CHANGELOG.relative_to(PROJECT_ROOT)}")
-    print(f"2. Edita: accorpa item simili, scrivi note di alto livello")
+    print("2. Edita: accorpa item simili, scrivi note di alto livello")
     print(f"3. Aggiorna APP_VERSION in config.py a {version}")
     print(f"4. Commit + push:  git commit -am 'release: v{version}'")
     print(f"5. Crea il tag:    python bin/release.py tag {version}")
@@ -245,7 +245,7 @@ def cmd_tag(args) -> int:
     _run(["git", "tag", "-a", tag, "-m", message])
     print(f"\n✓ Tag '{tag}' creato.")
     print(f"\nProssimo step:  git push origin {tag}")
-    print(f"  → triggera il workflow create-release su GitHub Actions.\n")
+    print("  → triggera il workflow create-release su GitHub Actions.\n")
     return 0
 
 

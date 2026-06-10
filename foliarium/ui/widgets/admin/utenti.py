@@ -1,36 +1,26 @@
 """Gestione utenti: model + widget account (solo admin)."""
 from __future__ import annotations
 
-import csv
-import json
-import os
 import logging
-from datetime import date
 from typing import Optional, Dict, List, Any, TYPE_CHECKING
 
 from PyQt6.QtCore import (
-    QAbstractTableModel, QDateTime, QModelIndex, QPoint, QProcess, QProcessEnvironment,
-    QSettings, QSortFilterProxyModel, Qt, pyqtSlot,
+    QAbstractTableModel, QModelIndex, QPoint, QSettings, QSortFilterProxyModel, Qt,
 )
-from PyQt6.QtGui import QColor, QFont
 from PyQt6.QtWidgets import (
     QAbstractItemView, QApplication,
-    QComboBox, QDateTimeEdit, QDialog, QDialogButtonBox,
-    QFileDialog, QFormLayout, QFrame, QGroupBox, QHBoxLayout, QHeaderView,
+    QDialog, QHBoxLayout, QHeaderView,
     QInputDialog, QLabel, QLineEdit, QMenu,
-    QMessageBox, QProgressBar, QPushButton, QSpinBox, QStyle,
-    QTabWidget, QTableView, QTableWidget, QTableWidgetItem,
-    QTextEdit, QVBoxLayout, QWidget,
-    QSplitter,
+    QMessageBox, QPushButton, QStyle,
+    QTableView, QVBoxLayout,
 )
 
 from catasto_exceptions import (
-    DBMError, DBUniqueConstraintError, DBDataError,
+    DBMError,
 )
 from foliarium.ui.widgets.custom import LazyLoadedWidget
 from dialogs import (
-    CreateUserDialog, PeriodoStoricoEditDialog,
-    _hash_password,
+    CreateUserDialog, _hash_password,
 )
 
 if TYPE_CHECKING:

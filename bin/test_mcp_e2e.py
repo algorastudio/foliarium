@@ -29,7 +29,6 @@ Exit code:
 from __future__ import annotations
 
 import argparse
-import json
 import os
 import sys
 from pathlib import Path
@@ -266,7 +265,7 @@ def step_mcp_registration():
     if extra:
         _info(f"Tool extra registrati (non previsti dall'E2E): {sorted(extra)}")
 
-    _ok(f"Tutti gli 8 tool registrati nel server MCP")
+    _ok("Tutti gli 8 tool registrati nel server MCP")
     for t in sorted(tools, key=lambda t: t.name):
         first_line = (t.description or "").split("\n", 1)[0]
         print(f"      {C.DIM}- {t.name}: {first_line}{C.RESET}")
@@ -308,7 +307,7 @@ def main():
     if n_failures == 0 and mcp_ok:
         print(f"{C.GREEN}{C.BOLD}✓ Tutto funziona.{C.RESET} "
               "La catena è pronta per Claude Desktop.")
-        print(f"\nProssimo passo: configura claude_desktop_config.json")
+        print("\nProssimo passo: configura claude_desktop_config.json")
         print(f"come spiegato in {C.BLUE}docs/admin/mcp.md{C.RESET}, "
               f"poi riavvia Claude Desktop.")
         sys.exit(0)

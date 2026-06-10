@@ -54,7 +54,7 @@ from dialogs import (  # noqa: F401  — re-export
     PeriodoStoricoEditDialog, CreatePossessoreDialog, AlberoGeneralogicoDialog,
     ConfrontoPartiteDialog,
 )
-from foliarium.ui.widgets.custom import LazyLoadedWidget
+from foliarium.ui.widgets.custom import LazyLoadedWidget  # noqa: F401  — re-export
 
 # Ottieni un logger specifico per questo modulo.
 logger = logging.getLogger("CatastoGUI.gui_widgets")
@@ -118,7 +118,7 @@ def _set_field_error(widget, has_error: bool) -> None:
     widget.style().polish(widget)
 
 
-from foliarium.ui.widgets.custom import show_status_message as _show_status_message
+from foliarium.ui.widgets.custom import show_status_message as _show_status_message  # noqa: F401  — re-export
 
 
 # ---------------------------------------------------------------------------

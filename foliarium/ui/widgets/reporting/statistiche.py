@@ -1,41 +1,31 @@
 """Widget statistiche e grafici."""
 from __future__ import annotations
 
-import os
-import csv
 import logging
-from datetime import date, datetime
-from typing import Optional, List, Dict, Any, TYPE_CHECKING
+from datetime import datetime
+from typing import TYPE_CHECKING
 
-import pandas as pd
 
 from PyQt6.QtCore import (
-    QAbstractTableModel, QDate, QModelIndex, QPoint, Qt, QUrl,
-)
-from PyQt6.QtGui import (
-    QDesktopServices,
+    QPoint, Qt,
 )
 from PyQt6.QtWidgets import (
     QAbstractItemView, QApplication,
-    QComboBox, QDateEdit, QDialog, QFileDialog,
-    QFormLayout, QFrame, QGridLayout, QGroupBox,
+    QDialog, QFrame, QGroupBox,
     QHBoxLayout, QHeaderView, QLabel,
-    QLineEdit, QMenu, QMessageBox, QProgressDialog,
-    QPushButton, QSpinBox, QStyle, QTabWidget,
-    QTableView, QTextBrowser, QTextEdit, QVBoxLayout,
+    QMenu, QMessageBox, QPushButton, QTabWidget,
+    QTableView, QTextEdit, QVBoxLayout,
     QWidget,
 )
 
-from app_utils import BulkReportPDF, FPDF_AVAILABLE, GenericTextReportPDF, _get_default_export_path
 from catasto_exceptions import DBMError, DBDataError, DBNotFoundError, DBUniqueConstraintError  # noqa: F401
 from dialogs import (
-    AlberoGeneralogicoDialog, ConfrontoPartiteDialog,
-    ComuneSelectionDialog, PartitaSearchDialog, PossessoreSelectionDialog,
+    ComuneSelectionDialog,
 )
 from foliarium.ui.widgets.custom import LazyLoadedWidget
 
 if TYPE_CHECKING:
-    from catasto_db_manager import CatastoDBManager
+    pass
 
 logger = logging.getLogger("CatastoGUI.reporting_widgets")
 from foliarium.ui.widgets.reporting.model import SimpleRowsModel

@@ -20,10 +20,10 @@ from __future__ import annotations
 import logging
 import math
 from datetime import date, datetime
-from typing import Any, Dict, List, Optional, Set, Tuple, TYPE_CHECKING
+from typing import Any, Dict, List, Optional, Tuple, TYPE_CHECKING
 
 from PyQt6.QtCore import (
-    QPointF, QRectF, Qt, pyqtSignal,
+    QPointF, Qt, pyqtSignal,
 )
 from PyQt6.QtGui import (
     QBrush, QColor, QPainter, QPainterPath, QPen, QPolygonF, QFont,

@@ -3,35 +3,27 @@ from __future__ import annotations
 
 import csv
 import json
-import os
 import logging
 from datetime import date
-from typing import Optional, Dict, List, Any, TYPE_CHECKING
+from typing import Dict, List, Any, TYPE_CHECKING
 
 from PyQt6.QtCore import (
-    QAbstractTableModel, QDateTime, QModelIndex, QPoint, QProcess, QProcessEnvironment,
-    QSettings, QSortFilterProxyModel, Qt, pyqtSlot,
+    QAbstractTableModel, QDateTime, QModelIndex, QPoint, Qt,
 )
-from PyQt6.QtGui import QColor, QFont
+from PyQt6.QtGui import QFont
 from PyQt6.QtWidgets import (
     QAbstractItemView, QApplication,
-    QComboBox, QDateTimeEdit, QDialog, QDialogButtonBox,
-    QFileDialog, QFormLayout, QFrame, QGroupBox, QHBoxLayout, QHeaderView,
-    QInputDialog, QLabel, QLineEdit, QMenu,
-    QMessageBox, QProgressBar, QPushButton, QSpinBox, QStyle,
-    QTabWidget, QTableView, QTableWidget, QTableWidgetItem,
-    QTextEdit, QVBoxLayout, QWidget,
+    QComboBox, QDateTimeEdit, QFileDialog, QFrame, QGroupBox, QHBoxLayout, QHeaderView,
+    QLabel, QLineEdit, QMenu,
+    QMessageBox, QPushButton, QSpinBox, QStyle,
+    QTableView, QTextEdit, QVBoxLayout, QWidget,
     QSplitter,
 )
 
 from catasto_exceptions import (
-    DBMError, DBUniqueConstraintError, DBDataError,
+    DBMError,
 )
 from foliarium.ui.widgets.custom import LazyLoadedWidget
-from dialogs import (
-    CreateUserDialog, PeriodoStoricoEditDialog,
-    _hash_password,
-)
 
 if TYPE_CHECKING:
     from catasto_db_manager import CatastoDBManager
