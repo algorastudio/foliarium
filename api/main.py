@@ -18,7 +18,7 @@ _PROJECT_ROOT = str(Path(__file__).parent.parent)
 if _PROJECT_ROOT not in sys.path:
     sys.path.insert(0, _PROJECT_ROOT)
 
-from api.routes import auth, comuni, partite, possessori, dashboard, audit, genealogia, timeline
+from api.routes import auth, comuni, partite, possessori, immobili, dashboard, audit, genealogia, timeline
 from api.deps import set_db_manager
 
 logger = logging.getLogger("FoliariumAPI")
@@ -108,7 +108,8 @@ def create_app(db_manager=None) -> FastAPI:
     # Quando il frontend sarà migrato, /api/* potrà essere rimosso.
     _routers = (
         auth.router, comuni.router, partite.router, possessori.router,
-        dashboard.router, audit.router, genealogia.router, timeline.router,
+        immobili.router, dashboard.router, audit.router, genealogia.router,
+        timeline.router,
     )
     for r in _routers:
         app.include_router(r, prefix="/api/v1")
