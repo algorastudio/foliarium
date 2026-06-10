@@ -21,7 +21,7 @@ Scope tipici esposti nella UI:
 from __future__ import annotations
 
 import logging
-from datetime import datetime, timedelta
+from datetime import datetime
 from typing import List, Optional
 
 from PyQt6.QtCore import QDate, Qt

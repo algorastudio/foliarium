@@ -2,40 +2,37 @@
 from __future__ import annotations
 
 import os
-import csv
 import logging
 from datetime import date, datetime
-from typing import Optional, List, Dict, Any, TYPE_CHECKING
+from typing import TYPE_CHECKING
 
-import pandas as pd
 
 from PyQt6.QtCore import (
-    QAbstractTableModel, QDate, QModelIndex, QPoint, Qt, QUrl,
+    QDate, Qt, QUrl,
 )
 from PyQt6.QtGui import (
     QDesktopServices,
 )
 from PyQt6.QtWidgets import (
-    QAbstractItemView, QApplication,
-    QComboBox, QDateEdit, QDialog, QFileDialog,
-    QFormLayout, QFrame, QGridLayout, QGroupBox,
-    QHBoxLayout, QHeaderView, QLabel,
-    QLineEdit, QMenu, QMessageBox, QProgressDialog,
-    QPushButton, QSpinBox, QStyle, QTabWidget,
-    QTableView, QTextBrowser, QTextEdit, QVBoxLayout,
+    QDateEdit, QDialog, QFileDialog,
+    QFormLayout, QGroupBox,
+    QHBoxLayout, QLabel,
+    QLineEdit, QMessageBox, QProgressDialog,
+    QPushButton, QSpinBox, QTabWidget,
+    QTextBrowser, QVBoxLayout,
     QWidget,
 )
 
-from app_utils import BulkReportPDF, FPDF_AVAILABLE, GenericTextReportPDF, _get_default_export_path
+from app_utils import FPDF_AVAILABLE, GenericTextReportPDF, _get_default_export_path
 from catasto_exceptions import DBMError, DBDataError, DBNotFoundError, DBUniqueConstraintError  # noqa: F401
 from dialogs import (
     AlberoGeneralogicoDialog, ConfrontoPartiteDialog,
-    ComuneSelectionDialog, PartitaSearchDialog, PossessoreSelectionDialog,
+    PartitaSearchDialog, PossessoreSelectionDialog,
 )
 from foliarium.ui.widgets.custom import LazyLoadedWidget
 
 if TYPE_CHECKING:
-    from catasto_db_manager import CatastoDBManager
+    pass
 
 logger = logging.getLogger("CatastoGUI.reporting_widgets")
 

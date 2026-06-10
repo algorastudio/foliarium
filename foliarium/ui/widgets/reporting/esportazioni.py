@@ -5,33 +5,26 @@ import os
 import csv
 import logging
 from datetime import date, datetime
-from typing import Optional, List, Dict, Any, TYPE_CHECKING
+from typing import Optional, TYPE_CHECKING
 
 import pandas as pd
 
 from PyQt6.QtCore import (
-    QAbstractTableModel, QDate, QModelIndex, QPoint, Qt, QUrl,
+    QUrl,
 )
 from PyQt6.QtGui import (
     QDesktopServices,
 )
 from PyQt6.QtWidgets import (
-    QAbstractItemView, QApplication,
-    QComboBox, QDateEdit, QDialog, QFileDialog,
-    QFormLayout, QFrame, QGridLayout, QGroupBox,
-    QHBoxLayout, QHeaderView, QLabel,
-    QLineEdit, QMenu, QMessageBox, QProgressDialog,
-    QPushButton, QSpinBox, QStyle, QTabWidget,
-    QTableView, QTextBrowser, QTextEdit, QVBoxLayout,
-    QWidget,
+    QApplication,
+    QComboBox, QFileDialog,
+    QFormLayout, QGroupBox,
+    QHBoxLayout, QLabel,
+    QMessageBox, QPushButton, QStyle, QTextBrowser, QTextEdit, QVBoxLayout,
 )
 
-from app_utils import BulkReportPDF, FPDF_AVAILABLE, GenericTextReportPDF, _get_default_export_path
+from app_utils import BulkReportPDF, FPDF_AVAILABLE, _get_default_export_path
 from catasto_exceptions import DBMError, DBDataError, DBNotFoundError, DBUniqueConstraintError  # noqa: F401
-from dialogs import (
-    AlberoGeneralogicoDialog, ConfrontoPartiteDialog,
-    ComuneSelectionDialog, PartitaSearchDialog, PossessoreSelectionDialog,
-)
 from foliarium.ui.widgets.custom import LazyLoadedWidget
 
 if TYPE_CHECKING:

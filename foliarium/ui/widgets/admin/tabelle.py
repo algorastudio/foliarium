@@ -1,27 +1,19 @@
 """Tabelle di sistema: tipi localita, periodi storici, tipi possesso."""
 from __future__ import annotations
 
-import csv
-import json
-import os
 import logging
-from datetime import date
-from typing import Optional, Dict, List, Any, TYPE_CHECKING
+from typing import TYPE_CHECKING
 
 from PyQt6.QtCore import (
-    QAbstractTableModel, QDateTime, QModelIndex, QPoint, QProcess, QProcessEnvironment,
-    QSettings, QSortFilterProxyModel, Qt, pyqtSlot,
+    Qt,
 )
-from PyQt6.QtGui import QColor, QFont
 from PyQt6.QtWidgets import (
     QAbstractItemView, QApplication,
-    QComboBox, QDateTimeEdit, QDialog, QDialogButtonBox,
-    QFileDialog, QFormLayout, QFrame, QGroupBox, QHBoxLayout, QHeaderView,
-    QInputDialog, QLabel, QLineEdit, QMenu,
-    QMessageBox, QProgressBar, QPushButton, QSpinBox, QStyle,
-    QTabWidget, QTableView, QTableWidget, QTableWidgetItem,
+    QDialog, QDialogButtonBox,
+    QFormLayout, QGroupBox, QHBoxLayout, QHeaderView,
+    QInputDialog, QLabel, QLineEdit, QMessageBox, QPushButton, QStyle,
+    QTabWidget, QTableWidget, QTableWidgetItem,
     QTextEdit, QVBoxLayout, QWidget,
-    QSplitter,
 )
 
 from catasto_exceptions import (
@@ -29,8 +21,7 @@ from catasto_exceptions import (
 )
 from foliarium.ui.widgets.custom import LazyLoadedWidget
 from dialogs import (
-    CreateUserDialog, PeriodoStoricoEditDialog,
-    _hash_password,
+    PeriodoStoricoEditDialog,
 )
 
 if TYPE_CHECKING:

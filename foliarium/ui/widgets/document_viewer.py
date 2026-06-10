@@ -19,7 +19,7 @@ from typing import Optional
 
 from PyQt6.QtCore import QUrl, Qt
 from PyQt6.QtGui import (
-    QDesktopServices, QImageReader, QPainter, QPixmap, QTransform,
+    QDesktopServices, QImageReader, QPainter, QPixmap,
 )
 from PyQt6.QtWidgets import (
     QGraphicsPixmapItem, QGraphicsScene, QGraphicsView, QHBoxLayout, QLabel,

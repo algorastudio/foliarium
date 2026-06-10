@@ -2,39 +2,18 @@
 from __future__ import annotations
 
 import logging
-import os
-import sys
-from datetime import date
-from typing import Optional, Dict, Any
+from typing import Optional
 
-from PyQt6.QtCore import (QDate, QSettings, Qt)
-from PyQt6.QtGui import (QDesktopServices, QFont, QPixmap)
-from PyQt6.QtPdf import QPdfDocument
-from PyQt6.QtPdfWidgets import QPdfView
 from PyQt6.QtWidgets import (QAbstractItemView, QApplication,
-                             QCheckBox, QComboBox, QDialog,
-                             QFileDialog, QFormLayout, QFrame, QGridLayout, QGroupBox,
-                             QHBoxLayout, QHeaderView, QLabel, QLineEdit,
-                             QMessageBox, QPushButton, QSpinBox, QStyle,
-                             QSplitter, QTableWidget, QTableWidgetItem,
-                             QTreeWidget, QTreeWidgetItem, QVBoxLayout,
-                             QWidget, QTextBrowser, QDialogButtonBox,
-                             QRadioButton, QGraphicsScene, QGraphicsView)
-from PyQt6.QtGui import QPainter
+                             QComboBox, QDialog,
+                             QFrame, QGridLayout, QHBoxLayout, QHeaderView, QLabel, QLineEdit,
+                             QMessageBox, QPushButton, QStyle,
+                             QTableWidget, QTableWidgetItem,
+                             QVBoxLayout)
 from app_paths import get_resource_path, get_resource_path as resource_path, get_doc_path  # noqa: F401
-from config import (
-    SETTINGS_DB_TYPE, SETTINGS_DB_HOST, SETTINGS_DB_PORT,
-    SETTINGS_DB_NAME, SETTINGS_DB_USER, SETTINGS_DB_SCHEMA, SETTINGS_DB_PASSWORD,
-    SETTINGS_SMTP_ENABLED, SETTINGS_SMTP_HOST, SETTINGS_SMTP_PORT,
-    SETTINGS_SMTP_USER, SETTINGS_SMTP_USE_TLS, SETTINGS_SMTP_FROM_ADDR,
-    SETTINGS_EMAIL_ON_CREATE, SETTINGS_EMAIL_ON_PASSWD,
-    SETTINGS_EMAIL_ON_ROLE, SETTINGS_EMAIL_ON_LOGIN,
-    SETTINGS_LICENSE_FILE_PATH, SETTINGS_LICENSE_NETWORK_SHARE,
-)
 from catasto_db_manager import CatastoDBManager
 from catasto_exceptions import DBMError, DBUniqueConstraintError, DBNotFoundError, DBDataError  # noqa: F401
-from foliarium.ui.widgets.custom import QPasswordLineEdit, show_status_message as _show_status_message
-from core.auth_manager import AuthManager as _AuthManager
+from foliarium.ui.widgets.custom import QPasswordLineEdit
 
 try:
     import keyring

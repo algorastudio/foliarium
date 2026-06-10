@@ -1,40 +1,18 @@
 """Dialog di gestione e visualizzazione della licenza."""
 from __future__ import annotations
 
-import logging
-import os
-import sys
-from datetime import date
-from typing import Optional, Dict, Any
 
-from PyQt6.QtCore import (QDate, QSettings, Qt)
-from PyQt6.QtGui import (QDesktopServices, QFont, QPixmap)
-from PyQt6.QtPdf import QPdfDocument
-from PyQt6.QtPdfWidgets import QPdfView
-from PyQt6.QtWidgets import (QAbstractItemView, QApplication,
-                             QCheckBox, QComboBox, QDialog,
-                             QFileDialog, QFormLayout, QFrame, QGridLayout, QGroupBox,
-                             QHBoxLayout, QHeaderView, QLabel, QLineEdit,
-                             QMessageBox, QPushButton, QSpinBox, QStyle,
-                             QSplitter, QTableWidget, QTableWidgetItem,
-                             QTreeWidget, QTreeWidgetItem, QVBoxLayout,
-                             QWidget, QTextBrowser, QDialogButtonBox,
-                             QRadioButton, QGraphicsScene, QGraphicsView)
-from PyQt6.QtGui import QPainter
+from PyQt6.QtCore import (QSettings)
+from PyQt6.QtWidgets import (QApplication,
+                             QDialog,
+                             QFileDialog, QFormLayout, QGroupBox,
+                             QHBoxLayout, QLabel, QLineEdit,
+                             QMessageBox, QPushButton, QVBoxLayout)
 from app_paths import get_resource_path, get_resource_path as resource_path, get_doc_path  # noqa: F401
 from config import (
-    SETTINGS_DB_TYPE, SETTINGS_DB_HOST, SETTINGS_DB_PORT,
-    SETTINGS_DB_NAME, SETTINGS_DB_USER, SETTINGS_DB_SCHEMA, SETTINGS_DB_PASSWORD,
-    SETTINGS_SMTP_ENABLED, SETTINGS_SMTP_HOST, SETTINGS_SMTP_PORT,
-    SETTINGS_SMTP_USER, SETTINGS_SMTP_USE_TLS, SETTINGS_SMTP_FROM_ADDR,
-    SETTINGS_EMAIL_ON_CREATE, SETTINGS_EMAIL_ON_PASSWD,
-    SETTINGS_EMAIL_ON_ROLE, SETTINGS_EMAIL_ON_LOGIN,
     SETTINGS_LICENSE_FILE_PATH, SETTINGS_LICENSE_NETWORK_SHARE,
 )
-from catasto_db_manager import CatastoDBManager
 from catasto_exceptions import DBMError, DBUniqueConstraintError, DBNotFoundError, DBDataError  # noqa: F401
-from foliarium.ui.widgets.custom import QPasswordLineEdit, show_status_message as _show_status_message
-from core.auth_manager import AuthManager as _AuthManager
 
 try:
     import keyring
@@ -147,7 +125,6 @@ class LicenseDialog(QDialog):
 
     # ------------------------------------------------------------------
     def _load_settings(self):
-        from PyQt6.QtCore import QSettings
         s = QSettings()
         self._edit_license_path.setText(s.value(SETTINGS_LICENSE_FILE_PATH, "", type=str))
         self._edit_share.setText(s.value(SETTINGS_LICENSE_NETWORK_SHARE, "", type=str))
@@ -196,7 +173,6 @@ class LicenseDialog(QDialog):
         self._lbl_hw.setText(info.hardware_id or "Qualsiasi")
 
     def _browse_license_file(self):
-        from PyQt6.QtWidgets import QFileDialog
         path, _ = QFileDialog.getOpenFileName(
             self, "Seleziona file licenza",
             self._edit_license_path.text() or "",
@@ -207,7 +183,6 @@ class LicenseDialog(QDialog):
             self._refresh_status()
 
     def _browse_share_folder(self):
-        from PyQt6.QtWidgets import QFileDialog
         folder = QFileDialog.getExistingDirectory(
             self, "Seleziona cartella condivisa", self._edit_share.text() or ""
         )
@@ -216,7 +191,6 @@ class LicenseDialog(QDialog):
 
     def _copy_hardware_id(self):
         from foliarium.core.services.license import get_hardware_fingerprint
-        from PyQt6.QtWidgets import QApplication
         fp = get_hardware_fingerprint()
         QApplication.clipboard().setText(fp)
         QMessageBox.information(
@@ -226,7 +200,6 @@ class LicenseDialog(QDialog):
         )
 
     def _save_and_close(self):
-        from PyQt6.QtCore import QSettings
         s = QSettings()
         s.setValue(SETTINGS_LICENSE_FILE_PATH, self._edit_license_path.text().strip())
         s.setValue(SETTINGS_LICENSE_NETWORK_SHARE, self._edit_share.text().strip())

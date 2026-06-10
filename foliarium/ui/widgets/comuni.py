@@ -11,7 +11,6 @@ Contiene:
 
 from __future__ import annotations
 
-import logging
 from typing import Optional, Tuple, TYPE_CHECKING
 
 from PyQt6.QtCore import (

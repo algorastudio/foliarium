@@ -3,22 +3,14 @@
 import logging
 import os
 from datetime import date
-from typing import Optional, Dict, Any
 
-from PyQt6.QtCore import (QDate, Qt, QTimer)
-from PyQt6.QtGui import (QBrush, QColor)
+from PyQt6.QtCore import (Qt)
 from PyQt6.QtWidgets import (QAbstractItemView, QApplication,
-                             QCheckBox, QComboBox, QDateEdit,
-                             QDialog, QDoubleSpinBox,
-                             QFileDialog, QFormLayout, QGridLayout, QGroupBox,
-                             QHBoxLayout, QHeaderView, QLabel, QLineEdit,
-                             QMessageBox, QPushButton, QSpinBox, QStyle,
+                             QDialog, QFileDialog, QGridLayout, QGroupBox,
+                             QHBoxLayout, QHeaderView, QLabel, QMessageBox, QPushButton, QStyle,
                              QTabWidget, QSplitter, QTableWidget,
-                             QTableWidgetItem, QTextEdit, QTreeWidget, QTreeWidgetItem,
-                             QVBoxLayout, QWidget, QTextBrowser,
-                             QDialogButtonBox)
+                             QTableWidgetItem, QVBoxLayout, QWidget)
 
-from catasto_db_manager import CatastoDBManager
 from foliarium.ui.widgets.custom import ImmobiliTableWidget
 from foliarium.ui.widgets.timeline_partita import TimelinePartitaWidget
 from foliarium.ui.widgets.document_viewer import DocumentViewerWidget
@@ -26,7 +18,6 @@ from foliarium.ui.widgets.document_viewer import DocumentViewerWidget
 from app_utils import (GenericTextReportPDF, FPDF_AVAILABLE, prompt_to_open_file)
 from foliarium.ui.dialogs.export_ import PDFApreviewDialog
 
-from foliarium.ui.dialogs.admin import datetime_to_qdate, qdate_to_datetime
 
 try:
     from catasto_db_manager import DBMError, DBUniqueConstraintError, DBNotFoundError, DBDataError

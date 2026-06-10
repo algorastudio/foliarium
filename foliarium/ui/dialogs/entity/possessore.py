@@ -4,19 +4,12 @@ from __future__ import annotations
 import logging
 from typing import Optional, Dict, Any
 
-from PyQt6.QtCore import (QDate, Qt, QTimer)
-from PyQt6.QtWidgets import (QAbstractItemView, QApplication,
-                             QCheckBox, QComboBox, QDateEdit,
-                             QDialog, QFormLayout,
-                             QGridLayout, QGroupBox, QHBoxLayout, QHeaderView,
-                             QLabel, QLineEdit, QListWidget, QListWidgetItem,
-                             QMessageBox, QPushButton, QSpinBox, QStyle,
-                             QTabWidget, QTableWidget,
-                             QTableWidgetItem, QTextEdit, QVBoxLayout, QWidget,
-                             QDialogButtonBox)
+from PyQt6.QtWidgets import (QApplication,
+                             QCheckBox, QComboBox, QDialog, QFormLayout,
+                             QHBoxLayout, QLabel, QLineEdit, QMessageBox, QPushButton, QStyle,
+                             QVBoxLayout, QDialogButtonBox)
 
 from catasto_db_manager import CatastoDBManager
-from app_utils import format_indirizzo
 from foliarium.ui.widgets.custom import show_status_message as _show_status_message
 
 try:

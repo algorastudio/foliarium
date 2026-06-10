@@ -2,18 +2,15 @@
 from __future__ import annotations
 
 import logging
-from typing import Optional, Dict, Any
+from typing import Optional
 
-from PyQt6.QtCore import (QDate, Qt, QTimer)
+from PyQt6.QtCore import (Qt)
 from PyQt6.QtWidgets import (QAbstractItemView, QApplication,
-                             QCheckBox, QComboBox, QDateEdit,
                              QDialog, QFormLayout,
-                             QGridLayout, QGroupBox, QHBoxLayout, QHeaderView,
-                             QLabel, QLineEdit, QListWidget, QListWidgetItem,
+                             QGridLayout, QGroupBox, QHBoxLayout, QLabel, QLineEdit, QListWidget, QListWidgetItem,
                              QMessageBox, QPushButton, QSpinBox, QStyle,
                              QTabWidget, QTableWidget,
-                             QTableWidgetItem, QTextEdit, QVBoxLayout, QWidget,
-                             QDialogButtonBox)
+                             QTableWidgetItem, QVBoxLayout, QWidget)
 
 from catasto_db_manager import CatastoDBManager
 from app_utils import format_indirizzo
