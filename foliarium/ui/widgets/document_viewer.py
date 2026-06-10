@@ -145,10 +145,12 @@ class _ImageView(QGraphicsView):
 class DocumentViewerWidget(QWidget):
     """Visualizzatore documenti: PDF o immagine. Cambia backend in base al file."""
 
-    def __init__(self, parent: Optional[QWidget] = None):
+    def __init__(self, parent: Optional[QWidget] = None,
+                 show_open_external: bool = True):
         super().__init__(parent)
         self._current_path: Optional[str] = None
         self._pdf_doc = None  # type: ignore[var-annotated]
+        self._show_open_external = show_open_external
         self._build_ui()
         self.show_placeholder("Nessun documento selezionato.")
 
@@ -173,11 +175,19 @@ class DocumentViewerWidget(QWidget):
         self._btn_fit = self._mk_btn("⤢", "Adatta alla vista", self._on_fit)
         self._btn_fit_w = self._mk_btn("↔", "Adatta alla larghezza", self._on_fit_width)
         self._btn_rotate = self._mk_btn("⟳", "Ruota 90°", self._on_rotate)
+        # Pulsante "Apri esternamente": opzionale, per evitare duplicazione
+        # quando il contenitore espone gia' un proprio pulsante equivalente
+        # (es. PartitaDetailsDialog ne ha uno sotto la tabella documenti).
         self._btn_open_ext = self._mk_btn("Apri esternamente",
                                           "Apri il documento con il programma di sistema",
                                           self._on_open_external)
-        for b in (self._btn_zoom_in, self._btn_zoom_out, self._btn_fit,
-                  self._btn_fit_w, self._btn_rotate, self._btn_open_ext):
+        _toolbar_buttons = [self._btn_zoom_in, self._btn_zoom_out, self._btn_fit,
+                            self._btn_fit_w, self._btn_rotate]
+        if self._show_open_external:
+            _toolbar_buttons.append(self._btn_open_ext)
+        else:
+            self._btn_open_ext.setVisible(False)
+        for b in _toolbar_buttons:
             toolbar.addWidget(b)
 
         layout.addLayout(toolbar)

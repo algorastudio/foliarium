@@ -188,8 +188,10 @@ class PartitaDetailsDialog(QDialog):
 
         doc_splitter.addWidget(left_panel)
 
-        # Pannello destro: viewer integrato
-        self.document_viewer = DocumentViewerWidget()
+        # Pannello destro: viewer integrato. Nascondiamo il suo pulsante
+        # "Apri esternamente" perche' c'e' gia' btn_apri_doc_details_dialog
+        # sotto la tabella documenti (evita la voce duplicata).
+        self.document_viewer = DocumentViewerWidget(show_open_external=False)
         doc_splitter.addWidget(self.document_viewer)
 
         doc_splitter.setStretchFactor(0, 1)
