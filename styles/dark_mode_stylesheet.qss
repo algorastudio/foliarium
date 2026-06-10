@@ -101,7 +101,7 @@ QTabBar::tab:selected {
 }
 
 /* Table Widget */
-QTableWidget {
+QTableView {
     gridline-color: #404040;
     background-color: #252525;
     alternate-background-color: #2A2A2A;
@@ -281,6 +281,7 @@ QRadioButton::indicator:checked {
 #roleChip[role="admin"]        { background: #4A1A1A; color: #FF6B6B; }
 #roleChip[role="archivista"]   { background: #1A2D4A; color: #5CB3FF; }
 #roleChip[role="consultatore"] { background: #333333; color: #9E9E9E; }
+#licenseExpiryChip { border-radius: 4px; font-size: 11px; font-weight: bold; padding: 2px 8px; }
 #logoutButton {
     background: transparent;
     border: 1px solid #555555;
@@ -289,6 +290,17 @@ QRadioButton::indicator:checked {
     padding: 4px 12px;
 }
 #logoutButton:hover { background: #404040; }
+
+/* Command Palette (Ctrl+K) */
+#cmdPaletteSearch {
+    border: none; border-bottom: 2px solid #5C6BC0; border-radius: 0;
+    font-size: 14px; padding: 6px 8px; background: #2A2A2A; color: #E0E0E0;
+}
+#cmdPaletteSearch:focus { border-bottom-color: #9FA8DA; }
+#cmdPaletteList { background: #2A2A2A; color: #E0E0E0; font-size: 13px; outline: none; }
+#cmdPaletteList::item { padding: 6px 12px; }
+#cmdPaletteList::item:selected { background: #3A3F6B; color: #C5CAE9; }
+
 #sidebar {
     background: #1E1E1E;
     border-right: 1px solid #404040;
@@ -320,3 +332,25 @@ QPushButton#navButton[active="true"] {
     border-left: 3px solid #0078D4;
 }
 QStackedWidget { background: #1A1A1A; }
+
+/* Form validation error state — gestito da _set_field_error() */
+QLineEdit[error="true"], QTextEdit[error="true"], QPlainTextEdit[error="true"],
+QComboBox[error="true"], QDateEdit[error="true"], QSpinBox[error="true"] {
+    border: 1.5px solid #e74c3c;
+}
+
+/* Info box per riepiloghi (partita sorgente/destinazione, etc.) */
+QLabel#infoBox {
+    padding: 5px 8px;
+    border: 1px solid palette(mid);
+    border-radius: 4px;
+    background: palette(alternate-base);
+    min-height: 1.6em;
+}
+
+/* Titolo step wizard partita/operazioni */
+QLabel#wizardStepTitle {
+    font-size: 14pt;
+    font-weight: 600;
+    color: palette(highlight);
+}

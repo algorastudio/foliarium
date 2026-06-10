@@ -44,6 +44,19 @@ Menu **Impostazioni → Cambia Tema Grafico** → selezionare uno dei 16 temi di
 
 Alcune modifiche al tema richiedono il riavvio dell'applicazione. Chiudere e riaprire Foliarium.
 
+### Su un altro PC i colori del tema sono diversi o illeggibili
+
+Da v1.0.2 il tema viene applicato sopra lo stile base **Fusion** in modo
+forzato all'avvio: ciò garantisce che la palette risulti identica su
+qualunque PC, indipendentemente dallo stile Qt nativo del sistema
+(`windowsvista`, `windows11`, GTK, …). Se sei su una versione precedente
+e i colori risultano illeggibili, aggiorna a v1.0.2 o seleziona
+manualmente uno dei temi da **Impostazioni → Cambia Tema Grafico**.
+
+Se nei log compare l'avviso `Unknown property text-shadow`, anche questo
+è stato risolto in v1.0.2 con la pulizia di alcune regole QSS non
+supportate da Qt.
+
 ### Non vedo le tab "Gestione Utenti" e "Backup"
 
 Queste tab sono visibili solo agli utenti con ruolo **Amministratore**. Verificare il ruolo dell'account in uso con l'amministratore.
@@ -83,13 +96,33 @@ Il file `.xlsx` di destinazione è probabilmente aperto in Excel. Chiuderlo prim
 
 ---
 
+## Supporto tecnico
+
+### Come invio i log al supporto Algora?
+
+Dal menu in alto selezionare **Help → Esporta log per supporto (.zip)...**:
+viene chiesto dove salvare l'archivio (default: cartella Documenti, nome con
+timestamp). Il file `.zip` risultante contiene tutti i log applicativi (compresi
+i log ruotati) e può essere allegato direttamente a una mail per
+**info@algorastudio.it**.
+
+In alternativa i log sono leggibili manualmente in
+`%LOCALAPPDATA%\AlgoraStudio\Foliarium\` (file `foliarium_session.log` in
+radice, file `logs\foliarium_gui.log` + rotazioni nella sotto-cartella).
+
+!!! info "Cosa contiene l'archivio"
+    L'archivio include solo i log applicativi (`foliarium_gui.log*`). Non
+    contiene dati del database, credenziali o licenze.
+
+---
+
 ## Performance
 
 ### Foliarium è lenta ad avviarsi
 
 Il primo avvio può richiedere più tempo per inizializzare la connessione al database. Se il problema persiste:
 - Verificare le prestazioni del server PostgreSQL
-- Controllare i log (`config.py` → cartella log) per messaggi di errore
+- Esportare i log con **Help → Esporta log per supporto (.zip)...** e inviarli ad Algora Studio
 
 ### I grafici nella sezione Statistiche non si caricano
 

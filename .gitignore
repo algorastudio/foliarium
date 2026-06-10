@@ -116,6 +116,9 @@ config.local.json
 config.dev.json
 secrets.json
 
+# config.ini generato da setup_database.py (contiene credenziali DB)
+config.ini
+
 # Claude Code internal files
 .claude/worktrees/
 
@@ -135,7 +138,17 @@ pgsql/
 demo_data/
 pg_portable.zip
 
-# File di licenza cliente (generati localmente, non versionare)
+# File di licenza e chiave di firma (mai in repository)
 *.license
+foliarium.key
 frontend/dist/
 frontend/node_modules/
+
+# Backup database — non versionare dump/backup locali
+*.dump
+*.backup
+*.sql.gz
+
+# Export artifacts
+*.pdf
+esportazioni/

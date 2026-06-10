@@ -12,7 +12,20 @@ SET search_path TO catasto, public; -- Aggiunto public per le estensioni
 -- Estensioni necessarie
 CREATE EXTENSION IF NOT EXISTS "uuid-ossp" WITH SCHEMA public; -- O catasto se preferito
 CREATE EXTENSION IF NOT EXISTS "pg_trgm" WITH SCHEMA public;   -- O catasto se preferito
-CREATE EXTENSION IF NOT EXISTS "system_stats" WITH SCHEMA public; -- O catasto se preferito
+-- system_stats e' un'extension di terze parti (non standard PostgreSQL):
+-- wrappata in DO block per non bloccare l'install se non e' disponibile
+-- (es. PostgreSQL Docker standard, runner CI Linux). Funzionalita'
+-- legate alle statistiche di sistema vengono semplicemente skippate.
+DO $$
+BEGIN
+    CREATE EXTENSION IF NOT EXISTS "system_stats" WITH SCHEMA public;
+EXCEPTION
+    WHEN undefined_file THEN
+        RAISE NOTICE 'Extension "system_stats" non disponibile — skip.';
+    WHEN OTHERS THEN
+        RAISE NOTICE 'Extension "system_stats" non installata (%) — skip.', SQLERRM;
+END
+$$;
 
 
 -- 1. Estensione per la gestione di periodi storici
@@ -45,16 +58,20 @@ CREATE TABLE comune (
     nome VARCHAR(100) NOT NULL UNIQUE,
     provincia VARCHAR(100) NOT NULL,
     regione VARCHAR(100) NOT NULL,
-    
+
     -- Campi aggiunti per coerenza con l'interfaccia
     codice_catastale VARCHAR(50) NULL,
     data_istituzione DATE NULL,
     data_soppressione DATE NULL,
     note TEXT NULL,
-    
+
     -- Campi esistenti
     periodo_id INTEGER NULL REFERENCES catasto.periodo_storico(id),
-    
+
+    -- Soft delete
+    archiviato   BOOLEAN NOT NULL DEFAULT FALSE,
+    archiviato_il TIMESTAMP WITHOUT TIME ZONE DEFAULT NULL,
+
     -- Timestamps automatici
     data_creazione TIMESTAMP(0) WITHOUT TIME ZONE DEFAULT CURRENT_TIMESTAMP,
     data_modifica TIMESTAMP(0) WITHOUT TIME ZONE DEFAULT CURRENT_TIMESTAMP
@@ -109,7 +126,9 @@ CREATE TABLE catasto.partita (
     data_chiusura DATE,
     numero_provenienza VARCHAR(50), -- O INTEGER, a seconda del formato previsto
     stato VARCHAR(20) NOT NULL CHECK (stato IN ('attiva', 'inattiva')),
-    tipo VARCHAR(20) NOT NULL CHECK (tipo IN ('principale', 'secondaria')),
+    tipo VARCHAR(20) NOT NULL CHECK (tipo IN ('principale', 'secondaria', 'enfiteusi', 'usufrutto')),
+    archiviato   BOOLEAN NOT NULL DEFAULT FALSE,
+    archiviato_il TIMESTAMP WITHOUT TIME ZONE DEFAULT NULL,
     data_creazione TIMESTAMP(0) DEFAULT CURRENT_TIMESTAMP,
     data_modifica TIMESTAMP(0) DEFAULT CURRENT_TIMESTAMP
 );
@@ -147,6 +166,8 @@ CREATE TABLE possessore (
     paternita VARCHAR(255),
     nome_completo VARCHAR(255) NOT NULL,
     attivo BOOLEAN NOT NULL DEFAULT TRUE,
+    -- Soft delete: 'attivo' funge da flag, archiviato_il traccia il timestamp
+    archiviato_il TIMESTAMP WITHOUT TIME ZONE DEFAULT NULL,
     data_creazione TIMESTAMP(0) DEFAULT CURRENT_TIMESTAMP,
     data_modifica TIMESTAMP(0) DEFAULT CURRENT_TIMESTAMP
 );
@@ -166,23 +187,28 @@ CREATE TABLE partita_possessore (
 );
 COMMENT ON TABLE partita_possessore IS 'Relazione tra partite e possessori.';
 
--- Tabella LOCALITA (Modificata per usare comune_id; civico incorporato nel nome da v1.6.1)
+-- Tabella LOCALITA (v1.7.0: nome senza civico, tipologia_stradale obbligatoria)
 CREATE TABLE localita (
     id SERIAL PRIMARY KEY,
     comune_id INTEGER NOT NULL REFERENCES comune(id) ON UPDATE CASCADE ON DELETE RESTRICT,
     nome VARCHAR(255) NOT NULL,
-    tipologia_stradale VARCHAR(50),
+    tipologia_stradale VARCHAR(50) NOT NULL,
+    archiviato   BOOLEAN NOT NULL DEFAULT FALSE,
+    archiviato_il TIMESTAMP WITHOUT TIME ZONE DEFAULT NULL,
     data_creazione TIMESTAMP(0) DEFAULT CURRENT_TIMESTAMP,
     data_modifica TIMESTAMP(0) DEFAULT CURRENT_TIMESTAMP,
-    UNIQUE(comune_id, nome)
+    CONSTRAINT localita_comune_nome_tipo_unique UNIQUE (comune_id, nome, tipologia_stradale)
 );
-COMMENT ON TABLE localita IS 'Località o indirizzi degli immobili (comune_id + nome univoco). Civico incorporato nel nome.';
+COMMENT ON TABLE localita IS 'Località degli immobili. Solo nome strada (senza civico) + tipologia_stradale obbligatoria. Civico in immobile.numero_civico.';
+COMMENT ON COLUMN localita.nome IS 'Nome della località senza civico (es. ''Repubblica'', ''Garibaldi''). Univoco per (comune_id, nome, tipologia_stradale).';
+COMMENT ON COLUMN localita.tipologia_stradale IS 'Tipologia (obbligatoria): Via, Piazza, Borgata, Regione, Frazione, ecc. Valori popolati da tipo_localita.';
 
--- Tabella IMMOBILE (Nessuna modifica diretta per comune_id, relazione indiretta tramite partita_id)
+-- Tabella IMMOBILE (v1.7.0: aggiunto numero_civico alfanumerico)
 CREATE TABLE immobile (
     id SERIAL PRIMARY KEY,
     partita_id INTEGER NOT NULL REFERENCES partita(id) ON UPDATE CASCADE ON DELETE RESTRICT,
     localita_id INTEGER NOT NULL REFERENCES localita(id) ON UPDATE CASCADE ON DELETE RESTRICT,
+    numero_civico VARCHAR(20),
     natura VARCHAR(100) NOT NULL,
     numero_piani INTEGER,
     numero_vani INTEGER,
@@ -192,6 +218,7 @@ CREATE TABLE immobile (
     data_modifica TIMESTAMP(0) DEFAULT CURRENT_TIMESTAMP
 );
 COMMENT ON TABLE immobile IS 'Immobili registrati nel catasto.';
+COMMENT ON COLUMN immobile.numero_civico IS 'Numero civico (alfanumerico: es. ''17'', ''17/A'', ''s.n.c.'', ''3 bis'')';
 
 -- Relazione tra PARTITE (Nessuna modifica necessaria qui)
 CREATE TABLE partita_relazione (
@@ -406,5 +433,57 @@ COMMENT ON COLUMN catasto.app_metadata.value_text IS 'Un valore di tipo testuale
 
 -- Inserisce il valore di default per la chiave dell'aggiornamento delle viste.
 -- Questo previene errori al primo avvio dell'applicazione su un database pulito.
-INSERT INTO catasto.app_metadata (key, value_timestamp) 
+INSERT INTO catasto.app_metadata (key, value_timestamp)
 VALUES ('last_mv_refresh', '2000-01-01 00:00:00+00');
+
+-- =====================================================================
+-- LOOKUP: TIPO POSSESSO
+-- (era 07_create_tipo_possesso_table.sql, integrato qui dalla v1.0.0)
+-- =====================================================================
+CREATE TABLE IF NOT EXISTS catasto.tipo_possesso (
+    id SERIAL PRIMARY KEY,
+    nome VARCHAR(50) NOT NULL UNIQUE,
+    descrizione TEXT,
+    data_creazione TIMESTAMP(0) DEFAULT CURRENT_TIMESTAMP,
+    data_modifica TIMESTAMP(0) DEFAULT CURRENT_TIMESTAMP
+);
+
+COMMENT ON TABLE catasto.tipo_possesso IS 'Lookup table per i tipi di possesso (proprietà esclusiva, comproprietà, usufrutto, etc.)';
+
+INSERT INTO catasto.tipo_possesso (nome, descrizione) VALUES
+    ('proprietà esclusiva', 'Pieno diritto di proprietà esclusivo'),
+    ('comproprietà',        'Proprietà condivisa con altri soggetti'),
+    ('usufrutto',           'Diritto di uso e godimento della proprietà altrui'),
+    ('nuda proprietà',      'Proprietà separata dall''usufrutto'),
+    ('enfiteusi',           'Diritto perpetuo di godere il bene altrui'),
+    ('superficie',          'Diritto di costruire o costruito su suolo altrui'),
+    ('servitù',             'Diritto limitato di passaggio o altro uso'),
+    ('altro',               'Altro tipo di diritto/titolo non classificato')
+ON CONFLICT (nome) DO NOTHING;
+
+-- =====================================================================
+-- LOOKUP: TIPO LOCALITA
+-- (era 20_feature_tipi_localita.sql, integrato qui dalla v1.0.0)
+-- Da v1.6.1 localita.tipologia_stradale è VARCHAR libero, questa lookup
+-- è disponibile per la UI come autocompletamento.
+-- =====================================================================
+CREATE TABLE IF NOT EXISTS catasto.tipo_localita (
+    id SERIAL PRIMARY KEY,
+    nome VARCHAR(50) NOT NULL UNIQUE,
+    descrizione TEXT
+);
+
+COMMENT ON TABLE catasto.tipo_localita IS 'Lookup table per le tipologie di località (Via, Borgata, Regione, etc.)';
+
+INSERT INTO catasto.tipo_localita (nome) VALUES
+    ('Regione'), ('Via'), ('Borgata'), ('Altro')
+ON CONFLICT (nome) DO NOTHING;
+
+-- =====================================================================
+-- INDICI SOFT DELETE / ARCHIVIAZIONE
+-- (erano in 07_soft_delete_archiviazione.sql, integrati qui dalla v1.0.0)
+-- =====================================================================
+CREATE INDEX IF NOT EXISTS idx_comune_archiviato    ON catasto.comune    (archiviato);
+CREATE INDEX IF NOT EXISTS idx_localita_archiviato  ON catasto.localita  (archiviato);
+CREATE INDEX IF NOT EXISTS idx_partita_archiviato   ON catasto.partita   (archiviato);
+CREATE INDEX IF NOT EXISTS idx_possessore_attivo    ON catasto.possessore (attivo);

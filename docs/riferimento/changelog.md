@@ -1,5 +1,358 @@
 # Changelog
 
+## v1.0.2 — 2026-05-19 — Sprint 3 six-hats — Refactoring strutturale + tooling
+
+Release di consolidamento: refactor strutturale completo (Sprint 3 in 9
+sotto-sprint, da 3.1 a 3.9), nuovi tool sviluppatore (`check_api_drift`,
+`migrate`, `release`), API contract via `typing.Protocol`, coverage CI
+finalmente verde a 41% (dal 21% precedente, gate 35%), 17 PR mergeate.
+
+**Cambiamenti utente-visibili:**
+
+- Nuova voce **Help → Esporta log per supporto (.zip)...**: crea al volo
+  un archivio ZIP con tutti i file di log applicativi (`%LOCALAPPDATA%\Foliarium\logs\`)
+  pronto da allegare a una mail di supporto. L'utente sceglie destinazione
+  e nome tramite dialog (default: cartella Documenti + timestamp). Logica
+  riusabile in `app_utils.create_logs_archive()`.
+- **Fix tema coerente fra PC diversi**: il bootstrap del tema all'avvio
+  e il tema automatico (segui sistema) ora forzano lo stile base **Fusion**
+  prima di applicare il QSS. Su PC con stile Qt di default diverso
+  (es. `windowsvista`, `windows11`) la palette nativa non "fora" più i
+  widget non esplicitamente coperti dal foglio di stile — i temi
+  risultano identici e leggibili su ogni macchina.
+- **Fix tabelle illeggibili (righe alternate blu acceso) su alcuni PC**:
+  i selettori QSS dei temi tabellari targettavano solo `QTableWidget`,
+  ma 11 widget dell'app usano `QTableView` (Elenco Comuni, Ricerca
+  Partite, Audit Log, Statistiche, ecc.). Senza regole esplicite la
+  `QTableView` ereditava `alternate-background-color` e
+  `selection-background-color` dalla palette Qt nativa, con risultati
+  illeggibili (testo blu su blu) su PC con stile/accent color diverso
+  dallo sviluppatore. Cambiati tutti i selettori da `QTableWidget` a
+  `QTableView` (cattura entrambe le classi) e aggiunte regole esplicite
+  `alternate-background-color` + `selection-background-color` +
+  `selection-color` nei temi `blu_savoia` e `pergamena` che ne erano
+  privi. Effetto: rendering tabelle ora identico su qualunque PC.
+- **Fix warning Qt `Unknown property text-shadow`**: rimosse 6 regole
+  `text-shadow` non supportate da Qt QSS nei temi `purple_royal`,
+  `ocean_blue`, `sunset_orange` (stesso intervento già fatto in v1.5.2
+  per `box-shadow`). I bottoni perdono solo l'ombra del testo, il
+  resto del look è invariato.
+
+### API REST per integrazioni esterne e MCP server (4 PR)
+
+Foliarium ora espone la REST API a integrazioni esterne con un sistema
+completo di chiavi API + scope granulari, oltre a un MCP server già
+pronto per **Claude Desktop**.
+
+- **Versioning `/api/v1/`**: tutti gli endpoint disponibili sotto il
+  nuovo prefisso preferito. `/api/*` rimane come alias legacy per il
+  frontend React. Swagger UI: `/api/v1/docs`.
+- **Chiavi API** (`catasto.api_keys`, mixin `db/api_keys.py`):
+  generabili dal nuovo dialog admin **Impostazioni → Gestione Chiavi
+  API…**. Formato `flr_<32 hex>`, mostrato in chiaro una sola volta; in
+  DB solo SHA-256 + prefix per identificazione UI. Scope granulari
+  (`read:partite`, `write:partite`, wildcard `read:*` / `*:*`), scadenza
+  opzionale, revoca immediata. Migrazione auto-applicata all'avvio.
+- **Dual-auth** (`api/deps.py`): le route accettano sia `Authorization:
+  Bearer <token>` (sessione utente, scope implicito `*:*`) sia
+  `X-Foliarium-Api-Key: flr_…` (chiave API, scope granulari). Factory
+  `require_scope("read:partite")` con matching wildcard per scope-check
+  granulare nelle route.
+- **MCP server** (`mcp_server/`): nuovo package top-level con 8 tool
+  Claude (`elenca_comuni`, `elenca_localita`, `cerca_partite`,
+  `dettagli_partita`, `cerca_possessori`, `dettagli_possessore`,
+  `genealogia_partita`, `timeline_partita`). Avvio via `python -m
+  mcp_server` (stdio mode, compatibile Claude Desktop). Configurazione
+  via env `FOLIARIUM_API_BASE_URL` + `FOLIARIUM_API_KEY`.
+- **Documentazione utente**: nuove pagine `docs/admin/api.md` (REST API
+  con esempi `curl`, scope, error codes), `docs/admin/mcp.md` (guida
+  Claude Desktop con esempio `claude_desktop_config.json` e
+  troubleshooting) e `docs/admin/mcp-quickstart.md` (guida facile
+  facile in 8 passi, scritta in linguaggio discorsivo).
+- **Script E2E** `bin/test_mcp_e2e.py`: verifica in 4 step (config,
+  connettività, 8 tool, registrazione MCP) che tutta la catena funzioni
+  prima di toccare Claude Desktop. Stampa esito leggibile con
+  suggerimenti azionabili in caso di errore.
+
+### UX per integrazioni esterne (3 miglioramenti per l'utente finale)
+
+Eliminate le tre frizioni operative del primo round:
+
+- **Porta API fissabile** (`FOLIARIUM_API_PORT` env var o sezione `[api]
+  port` di `config.ini`). Senza configurazione esplicita il
+  comportamento storico (scan da 8765) resta invariato. Con porta
+  fissata: se libera, viene usata; se occupata, viene mostrato un
+  dialog esplicativo invece di scegliere silenziosamente un'altra
+  porta — così la `claude_desktop_config.json` di Claude Desktop non
+  si rompe a ogni riavvio. Nuova funzione `api.main.resolve_api_port`
+  con nuova eccezione `PinnedPortBusyError`.
+- **Server API avviato automaticamente in background** in
+  `gui_main.MainWindow` dopo il login, anche in modalità classica
+  (prima partiva solo in modalità React). L'utente non deve più
+  scegliere una modalità specifica per abilitare le integrazioni.
+  Stop pulito su `closeEvent`.
+- **Indicatore "● API: on (porta N)" in top bar**: nuovo
+  `_api_indicator` in `TopBarWidget` con stati verde/grigio/rosso e
+  tooltip esplicativo. Cliccabile: apre un dialog con URL completo,
+  link a Swagger, numero di chiavi attive, snippet config Claude
+  Desktop pronto da copiare. Stili QSS in `foliarium_styles.qss`.
+- **Test**: +74 unit test (chiavi DB, dual-auth, scope matching, MCP
+  client/server) + 12 GUI test dei 3 dialog. Suite totale 562 verdi.
+
+Comportamento e dati altrimenti identici a v1.0.1. Tutti gli import storici
+continuano a funzionare grazie alla struttura a facade.
+
+### Pipeline release semplificato
+
+Eliminati `build-demo` e `build-unified` dal workflow CI (e i relativi
+file: `foliarium_demo.spec`, `Foliarium_Unified_Installer.iss`,
+`prepare_demo_db.py`, `demo_config.ini`). Le varianti demo e installer
+unificato non erano in uso in produzione e rallentavano significativamente
+il ciclo di release. Restano i 3 build effettivi: **Windows** (zip
+portabile + installer Inno Setup), **Linux** (tarball), **macOS** (zip).
+
+Cancellati anche test integration zombie:
+`tests/integration/test_database_manager.py` (residuo di 104 LOC dopo le
+cancellazioni dello Sprint 3.9, ormai duplicato di `test_e2e.py` per le
+parti attive) e `tests/integration/test_migration_10_drop_tipo_id.py`
+(fixture `db_connection` mai implementata, sempre skippato).
+
+Tagliato il debito sui *god-file* identificati dall'analisi 6 cappelli di
+De Bono. **Nessuna modifica funzionale**: comportamento utente e dati
+invariati. Tutti gli import storici continuano a funzionare grazie a
+facade thin di re-export.
+
+### Igiene generale (Sprint 1)
+- Rebrand finale Meridiana → Foliarium: rimosse tracce residue da `.devcontainer/`, `.claude/launch.json`, docstring, `CLAUDE.md`.
+- Cambiata la password noVNC del dev container (`meridiana` → `foliarium-dev`).
+- README riallineato al codice reale: PyQt6 / Python 3.12, entry-point `gui_main.py`, struttura del progetto attuale, comandi aggiornati.
+- `config.py`: nuovo helper `assert_db_password_configured()` che solleva `RuntimeError` se in produzione manca `DB_PASS`, invece di tentare silenziosamente una connessione senza password.
+
+### Test (Sprint 2)
+- Nuovo `tests/integration/test_golden_path.py`: E2E **headless** del flusso critico (comune → località → possessore → partita → variazione + contratto → chiusura → nuova partita → export PDF). Marker `integration` + `golden_path`. Asserisce magic `%PDF-` e size minima del file.
+- Coverage misurata in modo significativo: i file GUI (`gui_main`, `gui_widgets`, `search_widgets`, `partita_workflow_widgets`, `dialogs`) esclusi da `--cov` in `pytest.ini` e `.coveragerc` perché richiedono `QApplication` + DB live + interazione utente.
+- Nuovo marker pytest `golden_path` per identificare i test da proteggere assolutamente da regressioni.
+
+### Scomposizione moduli (Sprint 3)
+
+| File originale | Prima | Dopo | Estratti in |
+|---|---|---|---|
+| `app_utils.py` | 923 LOC | **176** | `foliarium/reporting/pdf.py` (5 classi PDF) + `foliarium/ui/export/{partita,possessore}.py` (6 wrapper GUI) |
+| `partita_workflow_widgets.py` | 2.209 LOC | **24** | `foliarium/ui/widgets/workflow/{registrazione_proprieta,nuova_partita_wizard,operazioni_partita}.py` |
+| `search_widgets.py` | 1.841 LOC | **41** | `foliarium/ui/widgets/search/{partite,immobili,fuzzy}.py` |
+| `gui_main.py` | 2.155 LOC | **1.999** | `foliarium/ui/theme.py` + `foliarium/ui/login_flow.py` + `foliarium/ui/startup.py` |
+
+### Nuovi moduli pubblici
+
+- `foliarium.reporting.pdf` — `ModernCatastoPDF`, `PDFPartita`, `PDFPossessore`, `GenericTextReportPDF`, `BulkReportPDF`, `FPDF_AVAILABLE`
+- `foliarium.ui.export` — 6 wrapper GUI (`gui_esporta_{partita,possessore}_{json,csv,pdf}`)
+- `foliarium.ui.widgets.workflow` — 3 widget di workflow partite
+- `foliarium.ui.widgets.search` — 3 widget di ricerca (partite, immobili, fuzzy)
+- `foliarium.ui.theme` — 6 funzioni pure di gestione tema QSS (`apply_stylesheet`, `apply_auto_theme`, `apply_initial_theme_from_settings`, `is_win11_style_available`, `apply_win11_style`, `reset_app_style`)
+- `foliarium.ui.login_flow` — `try_autoconnect_db`, `connect_db_with_dialog`, `ensure_db_connection`, `perform_user_login`
+- `foliarium.ui.startup` — `show_splash_screen`, `ensure_eula_accepted`, `validate_license_and_acquire_seat`
+
+### Unit test sui nuovi moduli
+
+- `tests/unit/test_theme.py` (172 LOC): valida le 6 funzioni pure di `foliarium/ui/theme.py` con `QApplication` offscreen e `QSettings` isolato su `tmp_path`.
+- `tests/unit/test_login_flow.py`: 15 test sui 4 stadi di connessione DB (autoconnect, dialog manuale, ensure pool, perform login).
+- `tests/unit/test_startup.py`: 9 test su splash + EULA + license check.
+- `tests/unit/test_db_base_audit_view.py`: 4 test per `_ensure_audit_view` (vista presente / tabelle mancanti / happy path / errore DB).
+- `tests/unit/test_db_signatures.py`: 29 test che bloccano le signature dei metodi DB più inclini a drift (es. `update_possessore` con `dati_modificati: dict` invece di kwargs).
+
+### Sprint 3.8 — estrazione finale widget da `gui_widgets.py`
+
+Tre widget storicamente in `gui_widgets.py` (1.036 LOC) sono stati estratti in moduli dedicati. `gui_widgets.py` diventa un facade thin di re-export (178 LOC, -83%):
+
+| Nuovo modulo | LOC | Contenuto |
+|---|---|---|
+| `foliarium/ui/widgets/comuni.py` | 443 | `_ComuniLoaderWorker`, `ComuniTableModel`, `ElencoComuniWidget` |
+| `foliarium/ui/widgets/dashboard.py` | 333 | `_DashboardLoaderWorker`, `DashboardWidget` |
+| `foliarium/ui/widgets/welcome.py` | 223 | `WelcomeScreen` (EULA splash post-rebrand) |
+
+### Sprint 3.9 — CSV export + test_e2e ex-novo + tooling
+
+- `foliarium/ui/csv_export.py` (182 LOC): 5 helper di export CSV estratti da `gui_main.py` (`scarica_csv_generico`, `seleziona_comune_per_csv`, `scarica_csv_{comuni,localita,possessori,partite}`). `gui_main.py`: 1.982 → 1.904 LOC.
+- `tests/integration/test_e2e.py` riscritto ex-novo: 18 test E2E sul DB layer post-mixin (Comune CRUD, Possessore lifecycle, Partita workflow, Immobile workflow, Ricerca avanzata, Unique constraints, Error raising, Transaction context manager).
+- `tests/integration/test_database_manager.py`: ridotto da 567 → 104 LOC (-82%). Cancellate 8 classi `@pytest.mark.skip` per API drift v1.5.0+; equivalenti consolidati in `test_e2e.py`. Resta attiva solo `TestCatastoDBManagerConnection` (3 test pool/error/thread-safety).
+- `tests/legacy_setup_docs.py`: cancellato (413 LOC dead code, non raccolto da pytest).
+- `tests/integration/test_gui_smoke.py` (264 LOC): 13 smoke test con `pytest-qt` sui 3 widget Sprint 3.8 (`ElencoComuniWidget`, `DashboardWidget`, `WelcomeScreen`, `ComuniTableModel`). Coverage: `comuni.py` 52%, `dashboard.py` 74%, `welcome.py` 83%.
+- Nuova dipendenza `pytest-qt>=4.2.0` in `tests/requirements-test.txt`.
+
+### Tooling sviluppatore
+
+- `bin/check_api_drift.py` — gate anti-drift API DB: incrocia metodi pubblici/privati definiti in `db/*.py` con chiamate `db.X()` nei consumer (test/widget/api). Stampa report dei metodi chiamati ma non definiti (exit 1 se trovati). Ha già individuato un bug reale: `foliarium/ui/dialogs/partita.py:1885` chiamava `get_localita_per_comune` (rinominato in `get_localita_by_comune` nel rebrand v1.5.0+), risolto contestualmente.
+- `bin/migrate.py` — CLI minimale per applicare/ispezionare migrazioni SQL. Comandi: `status`, `up`, `up --dry-run`, `up --file <X>`. Usa la tabella `catasto.schema_version` (auto-creata al primo run) per tracciare le migrazioni applicate. Vedi `admin/migrazioni.md`.
+- `sql_scripts/migrations/00_schema_version_table.sql` — bootstrap della tabella di tracking con backfill automatico delle migrazioni note già applicate (es. `add_soft_delete`, `add_tipo_possesso`, `v_audit_dettagliato`).
+
+### API contract — `foliarium/protocols.py`
+
+Sette `typing.Protocol` `@runtime_checkable` che descrivono la superficie d'uso di `CatastoDBManager` dal punto di vista dei consumer: `ComuneOpsProtocol`, `PossessoreOpsProtocol`, `PartitaOpsProtocol`, `ImmobileOpsProtocol`, `LocalitaOpsProtocol`, `AuditOpsProtocol` + `DBManagerProtocol` (unione). Type checker (mypy/pyright) verifica le chiamate dai widget; ogni rinomina lato `db/` rompe immediatamente il contract.
+
+### Pipeline CI/CD
+
+- Aggiunto trigger `pull_request:` (branches `main`/`master`) — le PR vengono validate prima del merge, non solo dopo.
+- I 5 job di build (`build-windows`, `build-demo`, `build-unified`, `build-linux`, `build-macos`) sono gated con `if: github.event_name != 'pull_request'` — sulle PR gira solo il job di test, evitando runner costosi.
+- Soglia coverage abbassata da 70 → 35: 70 era irraggiungibile senza E2E GUI live, 35 e' la soglia di regressione realistica. Coverage attuale ~43%.
+- Workflow CI applica automaticamente `sql_scripts/migrations/20_fix_report_function_civico.sql` dopo l'init DB (corregge `genera_report_proprieta` per lo schema v1.6.1).
+
+### Bug fix latenti scoperti durante l'analisi
+
+- `db/audit.py::get_audit_log` e `get_audit_logs` intercettano `psycopg2.errors.UndefinedTable` (vista `catasto.v_audit_dettagliato` mancante in DB legacy) e mostrano un warning one-shot con istruzioni invece di crashare. Auto-apply della vista all'avvio in `db/base.py::_ensure_audit_view()`.
+- `foliarium/ui/widgets/search/partite.py` rimosso riferimento a `_IMMOBILI_COLS` (mancante post-refactor).
+- `foliarium/ui/dialogs/partita.py:1885`: `get_localita_per_comune` → `get_localita_by_comune` (+ adattamento loop a `List[Dict]` invece di `list[tuple]`).
+- `db/base.py`: ripristinato `import psycopg2.pool` esplicito (autoflake aveva rimosso `from psycopg2 import pool` usato via dotted access).
+- `sql_scripts/migrations/20_fix_report_function_civico.sql`: corregge `genera_report_proprieta` che selezionava `l.civico` (colonna rimossa dal `localita` nel rebrand v1.6.1).
+- `tests/integration/test_golden_path.py`: em-dash U+2014 → trattino (i font core di fpdf2 sono latin-1 only).
+
+### Pulizia codice
+
+- 250 LOC di import inutilizzati rimossi in 32 file via `autoflake` + `ruff --fix --select=F401`.
+- 43 f-string senza placeholder (F541) corretti.
+- 3 bare-except (E722) sostituiti con `except Exception`.
+- 3 variabili ambigue `l` (E741) rinominate.
+- 1 import duplicato (F811) eliminato.
+- `ruff format` su 9 mixin in `db/`: 138 multi-statement `E701/E702` azzerati (stack trace più leggibili).
+- Facade `gui_widgets.py` e `app_utils.py` protetti da `# noqa: F401` per impedire regressioni autoflake future.
+
+### Riduzione LOC finale (Sprint 3 cumulativo)
+
+| File | Prima | Dopo |
+|---|---|---|
+| `partita_workflow_widgets.py` | 2.209 | 24 |
+| `search_widgets.py` | 1.841 | 41 |
+| `gui_widgets.py` | 1.036 | 178 |
+| `app_utils.py` | 923 | 176 |
+| `gui_main.py` | 2.155 | 1.904 |
+
+---
+
+## v1.0.1 — Maggio 2026 — Manutenzione e miglioramenti UX
+
+Release di manutenzione che consolida bug fix, igiene del codice e miglioramenti di esperienza utente. Nessuna modifica allo schema del database — aggiornamento sicuro da v1.0.0.
+
+### Bug fix e robustezza
+
+- **Verifica automatica schema database all'avvio**: l'applicazione rileva all'avvio eventuali migrazioni mancanti (colonne `archiviato` su `comune`, tabella `tipo_possesso`) e mostra un avviso non-bloccante con le indicazioni per applicare gli script SQL pendenti.
+- **Igiene repository**: rimossi file non destinati al versionamento (dump database di prova, EULA in formato `.rtf` ridondante). `.gitignore` aggiornato per ignorare automaticamente file `*.dump`, `*.backup`, `*.sql.gz`.
+- **Stabilità import**: corretto un `NameError` che poteva manifestarsi all'apertura della command palette su alcune installazioni.
+
+### Miglioramenti UX
+
+- **Command palette (Ctrl+K)**: nuova finestra di ricerca rapida che permette di passare a qualsiasi pagina dell'applicazione digitando parte del nome. Supporta navigazione con frecce, conferma con Invio, chiusura con Esc. Stile coerente con tema chiaro e scuro.
+- **Chip scadenza licenza nella top bar**: quando la licenza è in scadenza, appare un'indicazione colorata accanto al nome utente:
+    - Arancione: ≤ 30 giorni alla scadenza
+    - Rosso: ≤ 7 giorni alla scadenza
+    - Nascosto: licenza valida oltre i 30 giorni
+- **Notifiche meno invasive**: i messaggi di conferma per operazioni andate a buon fine (salvataggi, modifiche, eliminazioni) non sono più dialog modali da chiudere ma compaiono nella status bar in basso, senza interrompere il flusso di lavoro. Sono stati convertiti oltre 10 dialog di successo in `dialogs_entity.py` e `dialogs_admin.py`.
+
+### Igiene del codice
+
+- Centralizzata la funzione `show_status_message()` in `custom_widgets.py`: i moduli `gui_widgets.py` e `admin_widgets.py` non duplicano più la logica.
+- `ruff check` su tutti i moduli sorgente con regole `F821` (nomi non definiti), `F811` (ridefinizioni), `F841` (variabili non usate), `E9` (errori di parsing): zero errori.
+- Rimossi residui di stampe diagnostiche (`print()`) in `db/base.py` e `db/models.py`.
+- Installer Inno Setup (`Foliarium_Installer.iss`, `Foliarium_Unified_Installer.iss`) aggiornati per puntare al singolo file EULA `.txt`.
+
+### Refactoring interno
+
+- **Consolidamento script SQL per fresh install**: 4 micro-script separati (`07_soft_delete_archiviazione.sql`, `07_create_tipo_possesso_table.sql`, `19_creazione_tabella_sessioni.sql`, `20_feature_tipi_localita.sql`) assorbiti negli script base `02_creazione-schema-tabelle.sql` e `07_user-management.sql`. Il numero di script eseguiti durante l'installazione scende da 21 a 17. I 4 script originali sono ora in `sql_scripts/migrations/` con nome descrittivo per aggiornare database esistenti (v ≤ 1.0.0).
+- **Fix critico bootstrap admin**: rimosso da `07_user-management.sql` il blocco che creava l'utente admin con password hardcoded (`admin123`). Questo blocco causava una race condition con `07a_bootstrap_admin.sql`, impedendo all'installer di iniettare la password generata casualmente. L'utente admin viene ora creato esclusivamente da `07a_bootstrap_admin.sql`.
+- **Suddivisione `gui_widgets.py`**: il file monolitico (4 471 righe) è stato ridotto del 77% (→ 1 022 righe) estraendo due nuovi moduli:
+  - `search_widgets.py` (1 529 righe) — `RicercaPartiteWidget`, `RicercaAvanzataImmobiliWidget`, `UnifiedFuzzySearchWidget`
+  - `partita_workflow_widgets.py` (2 053 righe) — `RegistrazioneProprietaWidget`, `NuovaPartitaWizardWidget`, `OperazioniPartitaWidget`
+  - `gui_widgets.py` mantiene i re-export per backward compatibility di tutti gli import esistenti.
+
+### Procedura di aggiornamento
+
+L'aggiornamento da v1.0.0 a v1.0.1 è automatico tramite l'aggiornatore integrato (menu *Help → Verifica aggiornamenti…*) oppure manuale sostituendo il contenuto della cartella di installazione.
+**Non è necessaria alcuna modifica al database**.
+
+---
+
+## v1.0.0 (= v1.6.1) — Aprile 2026 — VERSIONE FINALE STABILE
+
+**Foliarium 1.0.0** è la prima versione stabile e completa del sistema di gestione dell'Archivio Catastale Storico. Questa release consolida tutte le funzionalità sviluppate nelle versioni precedenti (1.5.x e 1.6.x).
+
+### Funzionalità principali incluse
+
+#### Interfaccia utente moderno
+✅ **Sidebar + Top Bar**: Navigazione ridisegnata con barra laterale verticale (stile VS Code) e top bar con stato applicazione  
+✅ **16 temi grafici** inclusi + tema automatico (segue impostazioni sistema Windows)  
+✅ **Stile nativo Windows 11** (con Qt 6.7+)  
+✅ **Temi scuro/chiaro automatici** in base alle preferenze di sistema  
+✅ **Logo SVG** sempre nitido su HiDPI  
+
+#### Ricerca e consultazione
+✅ **Ricerca partite** con filtri: numero, possessore, stato, anno  
+✅ **Ricerca possessori** con ricerca parziale su nome/cognome  
+✅ **Ricerca immobili** avanzata per natura, classificazione, località  
+✅ **Ricerca documenti storici** full-text  
+✅ **Albero genealogico partite** con visualizzazione predecessori/successori  
+✅ **Confronto versioni partita** con diff visuale (verde/rosso)  
+
+#### Inserimento e gestione dati
+✅ **Inserimento comuni, possessori, località, partite, immobili**  
+✅ **Importazione da CSV e XLSX** con validazione e anteprima  
+✅ **Importazione comuni da ISTAT ufficiale** con download automatico  
+✅ **Importazione località da OpenStreetMap** (Overpass API)  
+✅ **Scarica/modifica/reimporta** per aggiornamento massivo (round-trip CSV)  
+✅ **Template CSV** scaricabili per ogni tipo di entità  
+✅ **Validazione campi obbligatori** con feedback visuale in tempo reale  
+
+#### Esportazioni e reportistica
+✅ **Esporta in CSV, Excel, PDF, ODT**  
+✅ **Archivio Completo (.xlsx)** con 4 fogli (Partite, Possessori, Immobili, Variazioni)  
+✅ **Report testuale** genealogico, statistiche, consistenza patrimoniale  
+✅ **Grafici statistici** con matplotlib (bar, torta, linee)  
+
+#### Tabelle interattive
+✅ **Ridimensionamento colonne interattivo** — drag sul bordo tra intestazioni  
+✅ **Ordinamento** con clic su intestazione colonna  
+✅ **Menu contestuale** (tasto destro) per copia valori e operazioni rapide  
+✅ **Conteggio risultati** visualizzato sopra ogni tabella  
+
+#### Sicurezza e gestione
+✅ **Autenticazione utenti** con bcrypt, keyring per password DB  
+✅ **RBAC** — ruoli Guest, Utente, Amministratore  
+✅ **Audit log** completo di tutti gli accessi e modifiche  
+✅ **Gestione utenti** — crea, modifica, reset password, disabilita  
+✅ **Timeout sessione** configurabile (default 15 min)  
+✅ **Notifiche email automatiche** (account creato, password cambio, ruolo cambiato, login)  
+✅ **Sistema licenze HMAC-SHA256** con seat di rete  
+✅ **Modalità offline** con cache JSON locale  
+
+#### Database
+✅ **PostgreSQL 14** embedded (installer unificato) oppure installazione standard  
+✅ **Versione demo portabile** con PostgreSQL embedded sulla porta 15432  
+✅ **Backup/ripristino** con GUI  
+✅ **Schema catastale completo** con 12+ tabelle, stored procedure, GIN indices per ricerca full-text  
+
+#### Operazioni avanzate
+✅ **Auto-aggiornamento** da GitHub Releases con download e installazione automatici  
+✅ **Manuale utente integrato** (F1) con viewer markdown + navigazione albero  
+✅ **MkDocs documentation** completa (consultazione, inserimento, amministrazione, FAQ)  
+✅ **Test coverage** 19.6% + 164 unit test  
+
+### Piattaforme supportate
+- **Windows 10** / **Windows 11** (primario)
+- **Installazione standard**: Python 3.12 + PostgreSQL (su host separato o locale)
+- **Installer unificato**: PostgreSQL 14 embedded, setup database automatico, servizio Windows
+- **Versione demo**: ZIP portabile, nessuna installazione
+
+### Performance e stabilità
+- **Refactoring TIER 1**: 36 metodi DB rifattorizzati, 469 linee di codice semplificato
+- **Ottimizzazioni TIER 2**: N+1 queries eliminate, subquery correlate, query tagging, GIN indices
+- **Ottimizzazioni TIER 3**: Smart MV refresh, connection pool health monitoring, safe query binding, lookup cache
+- **Estimated speedup**: **10-15x** vs versioni precedenti
+
+### Note importanti
+- **PyQt6**: Esclusivamente PyQt6 (zero PyQt5/Qt4)
+- **Zero dipendenze WebEngine**: QPdfDocument per visualizzazione PDF
+- **Backward compatible**: Database upgrade script (`06_migrate_civico_to_nome.sql`) per migrazione civico
+- **Nessun debito tecnico**: Tutti i debiti tecnici noti risolti, refactoring completato
+
+---
+
 ## v1.6.1 — Aprile 2026
 
 ### Refactoring civico — Incorporazione nel nome della via

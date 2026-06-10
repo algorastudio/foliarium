@@ -6,7 +6,7 @@ Foliarium — Archivio Catastale Storico
 Autore: Marco Santoro
 Data: 18/05/2025
 """
-import sys,bcrypt
+import sys
 from gui_widgets import UnifiedFuzzySearchWidget
 import os
 import logging
@@ -14,79 +14,58 @@ from datetime import datetime
 from typing import Optional, Dict
 # Importazioni PyQt6
 from PyQt6.QtCore import (QSettings,
-                          QStandardPaths, Qt, QTimer, QUrl,
-                          pyqtSlot, pyqtSignal, QCoreApplication,
-                          QPropertyAnimation, QEasingCurve)
+                          QStandardPaths, Qt, QTimer, pyqtSlot,
+                          QCoreApplication, QPropertyAnimation, QEasingCurve)
 
-from PyQt6.QtGui import (QCloseEvent, QDesktopServices, QAction, QActionGroup, QGuiApplication,
-                         QKeySequence, QShortcut)
-from PyQt6.QtCore import QSize
+from PyQt6.QtGui import (QCloseEvent, QAction, QActionGroup, QGuiApplication, QKeySequence,
+                         QShortcut)
 from PyQt6.QtWidgets import QGraphicsOpacityEffect
 
 from PyQt6.QtWidgets import (QApplication,
-                             QDialog, QFileDialog, QFrame, QGridLayout,
-                             QHBoxLayout, QInputDialog,
-                             QLabel, QLineEdit, QMainWindow, QMessageBox, QPushButton,
-                             QScrollArea, QSizePolicy, QSplashScreen, QStackedWidget,
-                             QStyle, QStyleFactory, QTabWidget,
-                             QVBoxLayout, QWidget)
-# --- FINE MODIFICA ---
-
+                             QDialog, QFileDialog, QFrame, QHBoxLayout,
+                             QInputDialog, QLabel,
+                             QMainWindow, QMessageBox, QPushButton, QStackedWidget,
+                             QStyle, QVBoxLayout, QWidget)
 
 
 from catasto_db_manager import CatastoDBManager
-from app_utils import get_local_ip_address, get_password_from_keyring 
-import pandas as pd # Importa pandas
-from app_paths import get_available_styles, load_stylesheet, get_logo_svg_path, get_resource_path
+from app_utils import get_local_ip_address
+from app_paths import get_available_styles
 from dialogs import (CSVImportResultDialog, EulaDialog, BackupReminderSettingsDialog,
                      ImportComuniDialog, ImportLocalitaDialog)
 
 
-# Dai nuovi moduli che creeremo:
 from gui_widgets import (
     DashboardWidget, ElencoComuniWidget, RicercaPartiteWidget,
     RicercaAvanzataImmobiliWidget, InserimentoComuneWidget,
     InserimentoPossessoreWidget, InserimentoLocalitaWidget, RegistrazioneProprietaWidget,
     OperazioniPartitaWidget, EsportazioniWidget, ReportisticaWidget, StatisticheWidget,
-    GestioneUtentiWidget, AuditLogViewerWidget, BackupWidget,
-    RegistraConsultazioneWidget, WelcomeScreen, GestionePeriodiStoriciWidget,
-    GestioneTipiLocalitaWidget, NuovaPartitaWizardWidget,
+    GestioneUtentiWidget, AuditLogViewerWidget, BackupWidget, ArchivioWidget,
+    RegistraConsultazioneWidget, GestionePeriodiStoriciWidget,
+    GestioneTipiLocalitaWidget, TipiPossessoWidget, NuovaPartitaWizardWidget,
     DBConfigDialog, InserimentoPartitaWidget, RicercaDocumentiWidget)
+from foliarium.ui.widgets.admin import TabelleDiSistemaWidget
 
-from custom_widgets import QPasswordLineEdit
-import update_checker
+from foliarium.core.services import update_checker
 
 
 from config import (
-    APP_VERSION, APP_NAME, APP_SUBTITLE,
-    SETTINGS_DB_TYPE, SETTINGS_DB_HOST, SETTINGS_DB_PORT,
-    SETTINGS_DB_NAME, SETTINGS_DB_USER, SETTINGS_DB_SCHEMA, SETTINGS_DB_PASSWORD,
     SETTINGS_UI_CURRENT_STYLE, SETTINGS_UI_AUTO_THEME, SETTINGS_UI_WIN11_STYLE,
-    AUTO_THEME_DARK, AUTO_THEME_LIGHT,
-    IS_TEST_ENV, SETTINGS_SESSION_TIMEOUT,
-    EULA_VERSION, SETTINGS_EULA_ACCEPTED,
-    IS_DEMO_MODE,
-    DEMO_DB_HOST, DEMO_DB_NAME, DEMO_DB_USER, DEMO_DB_PASS, DEMO_DB_PORT,
-    DEMO_LOGIN_USER, DEMO_LOGIN_PASS,
-    SETTINGS_LICENSE_FILE_PATH, SETTINGS_LICENSE_NETWORK_SHARE)
-from app_paths import get_icon_path
+    AUTO_THEME_LIGHT, SETTINGS_SESSION_TIMEOUT, IS_DEMO_MODE,
+    DEMO_DB_HOST, DEMO_DB_NAME, DEMO_DB_USER,
+    DEMO_DB_PASS, DEMO_DB_PORT, DEMO_LOGIN_USER)
 from core.session_manager import SessionManager
 
 try:
-    from fpdf import FPDF
-    from fpdf.enums import XPos, YPos
     FPDF_AVAILABLE = True
 except ImportError:
     FPDF_AVAILABLE = False
     # QMessageBox.warning(None, "Avviso Dipendenza", "La libreria FPDF non è installata. L'esportazione in PDF non sarà disponibile.")
     # Non mostrare il messaggio qui, ma gestire la disabilitazione dei pulsanti PDF.
 
-# Importazione del gestore DB (il percorso potrebbe necessitare aggiustamenti)
 try:
     from catasto_db_manager import DBMError, DBUniqueConstraintError, DBNotFoundError, DBDataError
 except ImportError:
-    # Fallback o definizione locale se preferisci non importare direttamente
-    # (ma l'importazione è più pulita se sono definite in db_manager)
     class DBMError(Exception):
         pass
 
@@ -112,674 +91,26 @@ except ImportError:
                              "Non è possibile importare CatastoDBManager. "
                              "Assicurati che catasto_db_manager.py sia accessibile.")
         sys.exit(1)
-# Hash/verifica password: logica centralizzata in core.auth_manager
-from core.auth_manager import AuthManager as _AuthManager
-def _hash_password(password: str) -> str:
-    """Genera un hash sicuro per la password usando bcrypt."""
-    return _AuthManager._hash_password(password)
-
-def _verify_password(stored_hash: str, provided_password: str) -> bool:
-    """Verifica se la password fornita corrisponde all'hash memorizzato."""
-    return _AuthManager._verify_password(stored_hash, provided_password)
-
-# ---------------------------------------------------------------------------
-# Splash screen Foliarium
-# ---------------------------------------------------------------------------
-
-def _build_foliarium_splash_pixmap():
-    """Genera il pixmap di fallback per la splash screen (usato se il PNG non esiste)."""
-    from PyQt6.QtGui import QPixmap, QPainter, QColor, QFont, QPen
-    from PyQt6.QtCore import QRect
-
-    W, H = 700, 394
-    pixmap = QPixmap(W, H)
-    pixmap.fill(QColor("#f5f0e8"))
-
-    painter = QPainter(pixmap)
-    painter.setRenderHint(QPainter.RenderHint.Antialiasing)
-
-    # Bordo oro
-    pen = QPen(QColor("#b8960c"), 4)
-    painter.setPen(pen)
-    painter.drawRect(8, 8, W - 16, H - 16)
-    # Linea separatrice
-    painter.drawLine(40, H // 2 + 30, W - 40, H // 2 + 30)
-
-    # Titolo
-    font_title = QFont("Georgia", 64, QFont.Weight.Bold)
-    painter.setFont(font_title)
-    painter.setPen(QColor("#1a3c2b"))
-    painter.drawText(QRect(0, 50, W, 140), Qt.AlignmentFlag.AlignCenter, "FOLIARIUM")
-
-    # Sottotitolo
-    font_sub = QFont("Georgia", 16)
-    painter.setFont(font_sub)
-    painter.drawText(QRect(0, 210, W, 40), Qt.AlignmentFlag.AlignCenter, "GESTIONE DIGITALE")
-    painter.drawText(QRect(0, 245, W, 40), Qt.AlignmentFlag.AlignCenter, "ARCHIVI CATASTALI STORICI")
-
-    # Versione
-    font_ver = QFont("Georgia", 10)
-    painter.setFont(font_ver)
-    painter.setPen(QColor("#7a6a50"))
-    painter.drawText(QRect(0, H - 45, W - 20, 30),
-                     Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignBottom,
-                     f"v{APP_VERSION}")
-
-    painter.end()
-    return pixmap
-
-
-class FoliariumSplashScreen(QSplashScreen):
-    """Splash screen mostrata all'avvio prima del login."""
-
-    def __init__(self):
-        logo_path = str(get_resource_path("Logo_foliarium_1.png"))
-        if os.path.exists(logo_path):
-            from PyQt6.QtGui import QPixmap
-            pixmap = QPixmap(logo_path).scaled(
-                700, 394,
-                Qt.AspectRatioMode.KeepAspectRatio,
-                Qt.TransformationMode.SmoothTransformation,
-            )
-        else:
-            pixmap = _build_foliarium_splash_pixmap()
-        super().__init__(pixmap)
-        self.setWindowFlag(Qt.WindowType.FramelessWindowHint)
-
-
-# ---------------------------------------------------------------------------
-
-
-class LoginDialog(QDialog):
-    # --- INIZIO MODIFICA 1 ---
-    # Aggiungiamo 'client_ip' come parametro all'init
-    def __init__(self, db_manager: CatastoDBManager, client_ip: str, parent=None):
-        super(LoginDialog, self).__init__(parent)
-        self.db_manager = db_manager
-        self.client_ip = client_ip # Salviamo l'IP come attributo dell'istanza
-        self.logged_in_user_id: Optional[int] = None
-    # --- FINE MODIFICA 1 ---
-        self.logged_in_user_info: Optional[Dict] = None
-        # NUOVO attributo per conservare l'UUID
-        self.current_session_id_from_dialog: Optional[str] = None
-
-        self.setWindowTitle("Login - Foliarium")
-        self.setMinimumWidth(350)
-        self.setModal(True)
-
-        layout = QVBoxLayout(self)
-
-        form_layout = QGridLayout()
-        form_layout.addWidget(QLabel("Username:"), 0, 0)
-        self.username_edit = QLineEdit()
-        self.username_edit.setPlaceholderText("Inserisci username")
-        form_layout.addWidget(self.username_edit, 0, 1)
-
-        form_layout.addWidget(QLabel("Password:"), 1, 0)
-        self.password_edit = QPasswordLineEdit()
-        form_layout.addWidget(self.password_edit, 1, 1)
-
-        layout.addLayout(form_layout)
-
-        buttons_layout = QHBoxLayout()
-        self.login_button = QPushButton("Login")
-        self.login_button.setDefault(True)
-        self.login_button.clicked.connect(self.handle_login)
-
-        self.cancel_button = QPushButton("Esci")
-        self.cancel_button.clicked.connect(self.reject)
-
-        buttons_layout.addStretch()
-        buttons_layout.addWidget(self.login_button)
-        buttons_layout.addWidget(self.cancel_button)
-        layout.addLayout(buttons_layout)
-
-        self.username_edit.setFocus()
-
-    def handle_login(self):
-        username = self.username_edit.text().strip()
-        password = self.password_edit.text()
-
-        if not username or not password:
-            QMessageBox.warning(self, "Login Fallito",
-                                "Username e password sono obbligatori.")
-            return
-
-        credentials = self.db_manager.get_user_credentials(
-            username)  # Presumiamo restituisca anche 'id' utente app
-        login_success = False
-        user_id_app = None  # ID utente dell'applicazione
-
-        if credentials:
-            # ID dell'utente dalla tabella 'utente'
-            user_id_app = credentials.get('id')
-            stored_hash = credentials.get('password_hash')
-            is_active = credentials.get('attivo', False)
-
-            if not is_active:
-                QMessageBox.warning(self, "Login Fallito",
-                                    "Utente non attivo.")
-                logging.getLogger("CatastoGUI").warning(
-                    f"Login GUI fallito (utente '{username}' non attivo).")
-                return  # Non procedere oltre se l'utente non è attivo
-
-            # Usa la tua funzione di verifica
-            if stored_hash and _verify_password(stored_hash, password):
-                login_success = True
-                logging.getLogger("CatastoGUI").info(
-                    f"Verifica password GUI OK per utente '{username}' (ID App: {user_id_app})")
-            else:
-                QMessageBox.warning(self, "Login Fallito",
-                                    "Username o Password errati.")
-                logging.getLogger("CatastoGUI").warning(
-                    f"Login GUI fallito (pwd errata) per utente '{username}'.")
-                self.password_edit.selectAll()
-                self.password_edit.setFocus()
-                return
-        else:
-            # Messaggio generico
-            QMessageBox.warning(self, "Login Fallito",
-                                "Username o Password errati.")
-            logging.getLogger("CatastoGUI").warning(
-                f"Login GUI fallito (utente '{username}' non trovato).")
-            self.username_edit.selectAll()
-            self.username_edit.setFocus()
-            return
-
-        if login_success and user_id_app is not None:
-            try:
-                 # --- INIZIO MODIFICA 2 ---
-                # Usiamo self.client_ip invece della variabile globale non definita
-                session_uuid_returned = self.db_manager.register_access(
-                    user_id=user_id_app,
-                    action='login',
-                    esito=True,
-                    indirizzo_ip=self.client_ip, # <-- USA L'ATTRIBUTO DI ISTANZA
-                    application_name='CatastoAppGUI'
-                )
-                # --- FINE MODIFICA 2 ---
-
-                if session_uuid_returned:
-                    self.logged_in_user_id = user_id_app
-                    # Contiene tutti i dati dell'utente, incluso 'id'
-                    self.logged_in_user_info = credentials
-                    self.current_session_id_from_dialog = session_uuid_returned  # Salva l'UUID
-
-                    # Imposta le variabili di sessione PostgreSQL per l'audit
-                    # user_id_app è l'ID dell'utente da 'utente.id'
-                    # session_uuid_returned è l'UUID dalla tabella 'sessioni_accesso.id_sessione'
-                    if not self.db_manager.set_audit_session_variables(user_id_app, session_uuid_returned):
-                        QMessageBox.critical(
-                            self, "Errore Audit", "Impossibile impostare le informazioni di sessione per l'audit. Il login non può procedere.")
-                        # Considera di non fare self.accept() qui se questo è un errore bloccante
-                        return
-
-                    QMessageBox.information(self, "Login Riuscito",
-                                            f"Benvenuto {self.logged_in_user_info.get('nome_completo', username)}!")
-                    self.accept()  # Chiude il dialogo e segnala successo
-                else:
-                    # register_access ha fallito nel restituire un session_id
-                    QMessageBox.critical(
-                        self, "Login Fallito", "Errore critico: Impossibile registrare la sessione di accesso nel database.")
-                    logging.getLogger("CatastoGUI").error(
-                        f"Login GUI OK per utente '{username}' ma fallita registrazione della sessione (nessun UUID sessione restituito).")
-
-            except DBMError as e_dbm:  # Cattura DBMError da register_access o set_audit_session_variables
-                QMessageBox.critical(
-                    self, "Errore di Login (DB)", f"Errore durante il processo di login:\n{str(e_dbm)}")
-                logging.getLogger("CatastoGUI").error(
-                    f"DBMError durante il login per {username}: {str(e_dbm)}")
-            except Exception as e_gen:  # Altri errori imprevisti
-                QMessageBox.critical(
-                    self, "Errore Imprevisto", f"Errore di sistema durante il login:\n{str(e_gen)}")
-                logging.getLogger("CatastoGUI").error(
-                    f"Errore imprevisto durante il login per {username}: {str(e_gen)}", exc_info=True)
+from foliarium.ui.dialogs.admin import LoginDialog       # noqa: F401
 
 
 try:
-    from gui_widgets import UnifiedFuzzySearchWidget,UnifiedFuzzySearchThread
+    from gui_widgets import UnifiedFuzzySearchWidget
     FUZZY_SEARCH_AVAILABLE = True
-except ImportError as e:
+except ImportError:
     logging.warning("[INIT] Ricerca fuzzy non disponibile")
     FUZZY_SEARCH_AVAILABLE = False
 
 
-# ---------------------------------------------------------------------------
-# TopBarWidget — barra superiore fissa con logo, info utente e logout
-# ---------------------------------------------------------------------------
-
-class TopBarWidget(QFrame):
-    logout_requested = pyqtSignal()
-
-    def __init__(self, parent=None):
-        super().__init__(parent)
-        self.setObjectName("topBar")
-        self.setFixedHeight(52)
-        self.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
-
-        layout = QHBoxLayout(self)
-        layout.setContentsMargins(16, 0, 16, 0)
-        layout.setSpacing(6)
-
-        # Logo SVG
-        try:
-            from PyQt6.QtSvgWidgets import QSvgWidget
-            logo_path = get_logo_svg_path(dark=False)
-            if logo_path:
-                logo = QSvgWidget(str(logo_path))
-                logo.setFixedSize(28, 28)
-                layout.addWidget(logo)
-        except Exception:
-            pass
-
-        # Titolo + sottotitolo istituzionale
-        title_label = QLabel(APP_NAME)
-        title_label.setObjectName("appTitle")
-        layout.addWidget(title_label)
-
-        subtitle_label = QLabel(f"/ {APP_SUBTITLE}")
-        subtitle_label.setObjectName("appSubtitle")
-        layout.addWidget(subtitle_label)
-
-        # Badge visibile solo in modalità demo
-        if IS_DEMO_MODE:
-            demo_badge = QLabel("  DEMO  ")
-            demo_badge.setObjectName("demoBadge")
-            layout.addWidget(demo_badge)
-
-        layout.addStretch()
-
-        # Indicatore DB
-        self._db_indicator = QLabel("● DB: —")
-        self._db_indicator.setObjectName("dbIndicator")
-        layout.addWidget(self._db_indicator)
-
-        layout.addSpacing(12)
-
-        # Avatar con iniziali utente
-        self._avatar_label = QLabel("—")
-        self._avatar_label.setObjectName("avatarWidget")
-        self._avatar_label.setFixedSize(28, 28)
-        self._avatar_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        layout.addWidget(self._avatar_label)
-
-        layout.addSpacing(4)
-
-        # Nome utente
-        self._user_label = QLabel("—")
-        self._user_label.setObjectName("userLabel")
-        layout.addWidget(self._user_label)
-
-        # Chip ruolo
-        self._role_chip = QLabel("")
-        self._role_chip.setObjectName("roleChip")
-        layout.addWidget(self._role_chip)
-
-        layout.addSpacing(8)
-
-        # Pulsante Logout
-        self._logout_btn = QPushButton("Logout")
-        self._logout_btn.setObjectName("logoutButton")
-        self._logout_btn.setEnabled(False)
-        self._logout_btn.clicked.connect(self.logout_requested)
-        layout.addWidget(self._logout_btn)
-
-    @staticmethod
-    def _initials(nome: str) -> str:
-        """Estrae le iniziali (max 2 lettere) dal nome utente."""
-        parts = nome.strip().split()
-        if len(parts) >= 2:
-            return (parts[0][0] + parts[-1][0]).upper()
-        return nome[:2].upper() if nome else "—"
-
-    def update_user_info(self, nome: str, ruolo: str, db_connected: bool, db_name: str = ""):
-        """Aggiorna label utente, ruolo, avatar e stato DB."""
-        if db_connected:
-            db_text = f"● DB: {db_name}" if db_name else "● DB: connesso"
-            self._db_indicator.setStyleSheet("color: #2E7D32; font-size: 11px;")
-        else:
-            db_text = "● DB: offline"
-            self._db_indicator.setStyleSheet("color: #B71C1C; font-size: 11px;")
-        self._db_indicator.setText(db_text)
-
-        if nome:
-            self._avatar_label.setText(self._initials(nome))
-            self._user_label.setText(nome)
-            self._role_chip.setText(ruolo or "")
-            self._role_chip.setProperty("role", (ruolo or "").lower())
-            self._role_chip.style().unpolish(self._role_chip)
-            self._role_chip.style().polish(self._role_chip)
-            self._logout_btn.setEnabled(True)
-        else:
-            self._avatar_label.setText("—")
-            self._user_label.setText("—")
-            self._role_chip.setText("")
-            self._logout_btn.setEnabled(False)
-
-    def set_logout_enabled(self, enabled: bool):
-        self._logout_btn.setEnabled(enabled)
-
 
 # ---------------------------------------------------------------------------
-# SidebarWidget — navigazione verticale stile VS Code
+# TopBarWidget, CommandPaletteDialog, SidebarWidget — estratti in foliarium.ui
 # ---------------------------------------------------------------------------
 
-class SidebarWidget(QWidget):
-    page_requested = pyqtSignal(str)
+from foliarium.ui.top_bar import TopBarWidget
+from foliarium.ui.command_palette import CommandPaletteDialog
+from foliarium.ui.sidebar import SidebarWidget
 
-    def __init__(self, parent=None):
-        super().__init__(parent)
-        self.setObjectName("sidebar")
-        self.setFixedWidth(220)
-        self.setSizePolicy(QSizePolicy.Policy.Fixed, QSizePolicy.Policy.Expanding)
-
-        outer = QVBoxLayout(self)
-        outer.setContentsMargins(0, 0, 0, 0)
-        outer.setSpacing(0)
-
-        scroll = QScrollArea()
-        scroll.setWidgetResizable(True)
-        scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
-        scroll.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAsNeeded)
-        scroll.setFrameShape(QFrame.Shape.NoFrame)
-
-        self._container = QWidget()
-        self._nav_layout = QVBoxLayout(self._container)
-        self._nav_layout.setContentsMargins(0, 8, 0, 8)
-        self._nav_layout.setSpacing(0)
-        self._nav_layout.addStretch()
-
-        scroll.setWidget(self._container)
-        outer.addWidget(scroll)
-
-        # Dict page_name -> QPushButton
-        self._buttons: dict[str, QPushButton] = {}
-
-    def build_nav(self, is_admin: bool, fuzzy_available: bool = False):
-        """Costruisce i bottoni di navigazione in base al ruolo."""
-        # Rimuove widget esistenti (tranne lo stretch finale)
-        while self._nav_layout.count() > 1:
-            item = self._nav_layout.takeAt(0)
-            if item.widget():
-                item.widget().deleteLater()
-        self._buttons.clear()
-
-        layout = self._nav_layout
-        stretch = layout.takeAt(0)  # rimuovi stretch temporaneamente
-
-        def insert(lbl, page, icon=""):
-            self._add_nav_button(layout, lbl, page, icon)
-
-        # Home
-        insert("Home", "home", "home")
-
-        # ARCHIVIO
-        self._add_section(layout, "ARCHIVIO")
-        insert("Comuni", "comuni", "building")
-        insert("Ricerca Partite", "partite", "search")
-        insert("Ricerca Immobili", "immobili", "search")
-        insert("Ricerca Documenti", "documenti", "file-text")
-        if fuzzy_available:
-            insert("Ricerca Globale", "fuzzy", "globe")
-
-        # INSERIMENTO
-        self._add_section(layout, "INSERIMENTO")
-        insert("Comune", "ins_comune", "building")
-        insert("Possessore", "ins_possessore", "user")
-        insert("Partita", "ins_partita", "file-text")
-        insert("Località", "ins_localita", "map-pin")
-        insert("Reg. Proprietà", "reg_proprieta", "key")
-        insert("Operazioni", "operazioni", "settings")
-        insert("Reg. Consultazione", "reg_consult", "book")
-        if is_admin:
-            insert("Tipi Località", "tipi_localita", "map-pin")
-            insert("Periodi Storici", "periodi", "clock")
-
-        # ANALISI
-        self._add_section(layout, "ANALISI")
-        insert("Esportazioni", "esportazioni", "download")
-        insert("Report", "report", "report")
-        insert("Statistiche", "statistiche", "bar-chart")
-
-        # SISTEMA (admin only)
-        if is_admin:
-            self._add_section(layout, "SISTEMA")
-            insert("Utenti", "utenti", "users")
-            insert("Audit Log", "audit", "shield")
-            insert("Backup", "backup", "database")
-
-        layout.addStretch()
-
-    def _add_section(self, layout: QVBoxLayout, label: str):
-        lbl = QLabel(label)
-        lbl.setObjectName("sectionLabel")
-        lbl.setEnabled(False)
-        layout.addWidget(lbl)
-
-    def _add_nav_button(self, layout: QVBoxLayout, label: str, page_name: str,
-                        icon_name: str = ""):
-        btn = QPushButton(label)
-        btn.setObjectName("navButton")
-        btn.setFlat(True)
-        btn.setCheckable(False)
-        btn.setProperty("active", "false")
-        btn.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
-        btn.setMinimumHeight(36)
-        if icon_name:
-            icon_path = get_icon_path(icon_name)
-            if icon_path.exists():
-                from PyQt6.QtGui import QIcon
-                btn.setIcon(QIcon(str(icon_path)))
-                btn.setIconSize(QSize(18, 18))
-        btn.clicked.connect(lambda _, p=page_name: self.page_requested.emit(p))
-        self._buttons[page_name] = btn
-        layout.addWidget(btn)
-
-    def set_active(self, page_name: str):
-        """Imposta il bottone attivo e rimuove lo stile dagli altri."""
-        for name, btn in self._buttons.items():
-            active = (name == page_name)
-            btn.setProperty("active", "true" if active else "false")
-            btn.style().unpolish(btn)
-            btn.style().polish(btn)
-
-    def set_button_visible(self, page_name: str, visible: bool):
-        if page_name in self._buttons:
-            self._buttons[page_name].setVisible(visible)
-
-    def get_page_names(self) -> list:
-        """Restituisce la lista ordinata dei nomi pagina (per shortcut Ctrl+N)."""
-        return list(self._buttons.keys())
-
-
-# ---------------------------------------------------------------------------
-# Mappa pagina → sezione e pagina default per sezione
-# ---------------------------------------------------------------------------
-_PAGE_SECTION: dict[str, str] = {
-    "home": "home",
-    "comuni": "archivio", "partite": "archivio", "immobili": "archivio",
-    "documenti": "archivio", "fuzzy": "archivio",
-    "ins_comune": "inserimento", "ins_possessore": "inserimento",
-    "ins_partita": "inserimento", "ins_localita": "inserimento",
-    "ins_wizard": "inserimento", "reg_proprieta": "inserimento",
-    "operazioni": "inserimento", "reg_consult": "inserimento",
-    "tipi_localita": "inserimento", "periodi": "inserimento",
-    "esportazioni": "analisi", "report": "analisi", "statistiche": "analisi",
-    "utenti": "gestione", "audit": "gestione", "backup": "gestione",
-}
-
-_SECTION_DEFAULT_PAGE: dict[str, str] = {
-    "home": "home",
-    "archivio": "comuni",
-    "inserimento": "ins_comune",
-    "analisi": "esportazioni",
-    "gestione": "utenti",
-}
-
-
-# ---------------------------------------------------------------------------
-# TopNavWidget — navigazione orizzontale principale (livello sezione)
-# ---------------------------------------------------------------------------
-class TopNavWidget(QFrame):
-    section_requested = pyqtSignal(str)
-
-    _SECTIONS = [
-        ("home",        "Home"),
-        ("archivio",    "Archivio"),
-        ("inserimento", "Inserimento"),
-        ("analisi",     "Analisi"),
-        ("gestione",    "Gestione"),
-    ]
-
-    def __init__(self, parent=None):
-        super().__init__(parent)
-        self.setObjectName("topNav")
-        self.setFixedHeight(44)
-        self.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
-        self._buttons: dict[str, QPushButton] = {}
-
-        layout = QHBoxLayout(self)
-        layout.setContentsMargins(16, 0, 8, 0)
-        layout.setSpacing(0)
-
-        for key, label in self._SECTIONS:
-            btn = QPushButton(label)
-            btn.setObjectName("topNavButton")
-            btn.setProperty("active", "false")
-            btn.setFlat(True)
-            btn.setSizePolicy(QSizePolicy.Policy.Fixed, QSizePolicy.Policy.Expanding)
-            btn.clicked.connect(lambda _, k=key: self.section_requested.emit(k))
-            layout.addWidget(btn)
-            self._buttons[key] = btn
-
-        layout.addStretch()
-
-    def build_nav(self, is_admin: bool):
-        self._buttons["gestione"].setVisible(is_admin)
-
-    def set_active_section(self, section: str):
-        for key, btn in self._buttons.items():
-            active = (key == section)
-            btn.setProperty("active", "true" if active else "false")
-            btn.style().unpolish(btn)
-            btn.style().polish(btn)
-
-    def set_section_visible(self, section: str, visible: bool):
-        if section in self._buttons:
-            self._buttons[section].setVisible(visible)
-
-
-# ---------------------------------------------------------------------------
-# SubNavWidget — navigazione orizzontale secondaria (livello pagina)
-# ---------------------------------------------------------------------------
-class SubNavWidget(QFrame):
-    page_requested = pyqtSignal(str)
-
-    _SECTION_PAGES: dict[str, list] = {
-        "home": [],
-        "archivio": [
-            ("comuni",    "Comuni"),
-            ("partite",   "Partite"),
-            ("immobili",  "Immobili"),
-            ("documenti", "Documenti"),
-            ("fuzzy",     "Ricerca Globale"),
-        ],
-        "inserimento": [
-            ("ins_comune",    "Comune"),
-            ("ins_possessore","Possessore"),
-            ("ins_partita",   "Partita"),
-            ("ins_localita",  "Località"),
-            ("ins_wizard",    "Nuova Partita"),
-            ("reg_proprieta", "Reg. Proprietà"),
-            ("operazioni",    "Operazioni"),
-            ("reg_consult",   "Consultazione"),
-            ("tipi_localita", "Tipi Località"),
-            ("periodi",       "Periodi Storici"),
-        ],
-        "analisi": [
-            ("esportazioni", "Esportazioni"),
-            ("report",       "Report"),
-            ("statistiche",  "Statistiche"),
-        ],
-        "gestione": [
-            ("utenti", "Utenti"),
-            ("audit",  "Audit Log"),
-            ("backup", "Backup"),
-        ],
-    }
-
-    def __init__(self, parent=None):
-        super().__init__(parent)
-        self.setObjectName("subNav")
-        self.setFixedHeight(36)
-        self.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
-        self._buttons: dict[str, QPushButton] = {}
-        self._current_section = ""
-
-        outer = QHBoxLayout(self)
-        outer.setContentsMargins(0, 0, 0, 0)
-        outer.setSpacing(0)
-
-        scroll = QScrollArea()
-        scroll.setWidgetResizable(True)
-        scroll.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
-        scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAsNeeded)
-        scroll.setFrameShape(QFrame.Shape.NoFrame)
-
-        container = QWidget()
-        self._btn_layout = QHBoxLayout(container)
-        self._btn_layout.setContentsMargins(16, 0, 16, 0)
-        self._btn_layout.setSpacing(2)
-        self._btn_layout.addStretch()
-
-        scroll.setWidget(container)
-        outer.addWidget(scroll)
-
-    def build_nav(self, is_admin: bool, fuzzy_available: bool = False):
-        while self._btn_layout.count() > 1:
-            item = self._btn_layout.takeAt(0)
-            if item.widget():
-                item.widget().deleteLater()
-        self._buttons.clear()
-
-        _admin_pages = {"tipi_localita", "periodi", "utenti", "audit", "backup"}
-        for section, pages in self._SECTION_PAGES.items():
-            for page_key, label in pages:
-                if page_key == "fuzzy" and not fuzzy_available:
-                    continue
-                if page_key in _admin_pages and not is_admin:
-                    continue
-                btn = QPushButton(label)
-                btn.setObjectName("subNavButton")
-                btn.setProperty("active", "false")
-                btn.setFlat(True)
-                btn.setVisible(False)
-                btn.setSizePolicy(QSizePolicy.Policy.Fixed, QSizePolicy.Policy.Fixed)
-                btn.clicked.connect(lambda _, p=page_key: self.page_requested.emit(p))
-                self._btn_layout.insertWidget(self._btn_layout.count() - 1, btn)
-                self._buttons[page_key] = btn
-
-    def show_section(self, section: str):
-        self._current_section = section
-        section_keys = {p for p, _ in self._SECTION_PAGES.get(section, [])}
-        for key, btn in self._buttons.items():
-            btn.setVisible(key in section_keys)
-        self.setVisible(bool(section_keys))
-
-    def set_active(self, page_name: str):
-        for key, btn in self._buttons.items():
-            active = (key == page_name)
-            btn.setProperty("active", "true" if active else "false")
-            btn.style().unpolish(btn)
-            btn.style().polish(btn)
-
-    def set_page_visible(self, page_name: str, visible: bool):
-        if page_name in self._buttons:
-            section_keys = {p for p, _ in self._SECTION_PAGES.get(self._current_section, [])}
-            self._buttons[page_name].setVisible(visible and page_name in section_keys)
-
-    def get_visible_page_names(self) -> list:
-        return [k for k, btn in self._buttons.items() if btn.isVisible()]
 
 
 class CatastoMainWindow(QMainWindow):
@@ -796,16 +127,14 @@ class CatastoMainWindow(QMainWindow):
         # Gestione sessione centralizzata (nuovo sistema modulare)
         self.session = SessionManager()
 
-        # --- INIZIO CORREZIONE DEFINITIVA: Aggiungi questa riga ---
         self.pool_initialized_successful: bool = False
-        # --- FINE CORREZIONE DEFINITIVA ---
 
         # --- Gestione licenza ---
         self._license_manager = None   # impostato in run_gui_app prima di perform_initial_setup
         self._seat_refresh_timer = None
 
         # --- Session timeout (inattività) ---
-        from PyQt6.QtCore import QTimer, QEvent
+        from PyQt6.QtCore import QTimer
         self._inactivity_timer = QTimer(self)
         self._inactivity_timer.setSingleShot(True)
         self._inactivity_timer.timeout.connect(self._on_inactivity_timeout)
@@ -833,12 +162,13 @@ class CatastoMainWindow(QMainWindow):
         self.backup_restore_widget_ref: Optional[BackupWidget] = None
         self.gestione_periodi_storici_widget_ref: Optional[GestionePeriodiStoriciWidget] = None
         self.gestione_tipi_localita_widget_ref: Optional[GestioneTipiLocalitaWidget] = None
+        self.gestione_tipi_possesso_widget_ref: Optional[TipiPossessoWidget] = None
 
         # Indice pagine sidebar: page_name -> QStackedWidget index
         self._page_index: dict = {}
 
         self.setWindowTitle("Foliarium — Archivio Catastale Storico")
-        self.setMinimumSize(1280, 720)
+        self.setMinimumSize(1024, 600)
         self.central_widget = QWidget()
         self.main_layout = QVBoxLayout(self.central_widget)
         self.main_layout.setContentsMargins(0, 0, 0, 0)
@@ -847,34 +177,48 @@ class CatastoMainWindow(QMainWindow):
         # --- Top bar ---
         self.top_bar = TopBarWidget(self)
         self.top_bar.logout_requested.connect(self.handle_logout)
+        self.top_bar.api_status_clicked.connect(self._show_api_status_dialog)
         self.main_layout.addWidget(self.top_bar)
 
-        # --- TopNav (sezioni orizzontali) ---
-        self.top_nav = TopNavWidget(self)
-        self.top_nav.section_requested.connect(self._on_section_requested)
-        self.main_layout.addWidget(self.top_nav)
-        self.top_nav.hide()
+        # Riferimento al thread API (avviato dopo login con
+        # _start_api_server_if_needed). None finché non parte.
+        self._api_thread = None
+        self._api_port = 0
 
-        # --- SubNav (pagine per sezione) ---
-        self.sub_nav = SubNavWidget(self)
-        self.sub_nav.page_requested.connect(self.navigate_to)
-        self.main_layout.addWidget(self.sub_nav)
-        self.sub_nav.hide()
+        # --- Contenuto: sidebar sinistra + stack destra ---
+        content_widget = QWidget()
+        content_layout = QHBoxLayout(content_widget)
+        content_layout.setContentsMargins(0, 0, 0, 0)
+        content_layout.setSpacing(0)
 
-        # --- Stack pagine ---
+        self.sidebar = SidebarWidget(self)
+        self.sidebar.page_requested.connect(self.navigate_to)
+        content_layout.addWidget(self.sidebar)
+        self.sidebar.hide()
+
         self.stack = QStackedWidget(self)
         self.stack.currentChanged.connect(self._on_stack_changed)
-        self.main_layout.addWidget(self.stack, 1)
+
+        # Wrapper con padding consistente attorno alle pagine, così ogni
+        # widget eredita un margine uniforme senza doverlo settare a mano.
+        stack_wrapper = QWidget()
+        stack_wrapper.setObjectName("pageContainer")
+        stack_wrapper_layout = QVBoxLayout(stack_wrapper)
+        stack_wrapper_layout.setContentsMargins(20, 18, 20, 14)
+        stack_wrapper_layout.setSpacing(0)
+        stack_wrapper_layout.addWidget(self.stack)
+        content_layout.addWidget(stack_wrapper, 1)
+
+        self.main_layout.addWidget(content_widget, 1)
 
         # --- Barra dati obsoleti ---
         self.stale_data_bar = QFrame()
         self.stale_data_bar.setObjectName("staleDataBar")
-        self.stale_data_bar.setStyleSheet("#staleDataBar { background-color: #FFF3CD; border: 1px solid #FFEEBA; border-radius: 4px; }")
         stale_data_layout = QHBoxLayout(self.stale_data_bar)
-        stale_data_layout.setContentsMargins(10, 5, 10, 5)
+        stale_data_layout.setContentsMargins(16, 8, 16, 8)
         self.stale_data_label = QLabel("I dati delle statistiche potrebbero non essere aggiornati.")
-        self.stale_data_label.setStyleSheet("color: #664D03;")
         self.stale_data_refresh_btn = QPushButton("Aggiorna Ora")
+        self.stale_data_refresh_btn.setObjectName("secondaryButton")
         self.stale_data_refresh_btn.clicked.connect(self._handle_stale_data_refresh_click)
         stale_data_layout.addWidget(self.stale_data_label)
         stale_data_layout.addStretch()
@@ -885,13 +229,11 @@ class CatastoMainWindow(QMainWindow):
         # --- Barra modalità offline ---
         self.offline_bar = QFrame()
         self.offline_bar.setObjectName("offlineBar")
-        self.offline_bar.setStyleSheet("#offlineBar { background-color: #FFCDD2; border: 1px solid #EF9A9A; border-radius: 4px; }")
         offline_layout = QHBoxLayout(self.offline_bar)
-        offline_layout.setContentsMargins(10, 5, 10, 5)
+        offline_layout.setContentsMargins(16, 8, 16, 8)
         self.offline_label = QLabel("⚠️  Modalità offline — database non raggiungibile. Dati mostrati dalla cache locale.")
-        self.offline_label.setStyleSheet("color: #B71C1C; font-weight: bold;")
         self.offline_timestamp_label = QLabel("")
-        self.offline_timestamp_label.setStyleSheet("color: #B71C1C;")
+        self.offline_timestamp_label.setObjectName("offlineTimestamp")
         offline_layout.addWidget(self.offline_label)
         offline_layout.addWidget(self.offline_timestamp_label)
         offline_layout.addStretch()
@@ -937,7 +279,6 @@ class CatastoMainWindow(QMainWindow):
 
         # --- Aggiornamento etichetta stato DB ---
         db_name_configured = "N/Config"  # Default
-        db_name_configured = "N/Config"
         if self.db_manager:
             db_name_configured = self.db_manager.get_current_dbname() or "N/Config(None)"
 
@@ -951,9 +292,15 @@ class CatastoMainWindow(QMainWindow):
             self.statusBar().showMessage(
                 f"Login come {user_display} effettuato con successo.")
             self._start_inactivity_timer()
+
+            # --- Avvio in background del server API per integrazioni esterne ---
+            # (MCP / Claude Desktop / Zapier / script). Avviato solo se l'utente
+            # ha completato il login: senza login l'API non avrebbe il pool DB.
+            self._start_api_server_if_needed()
+
             # --- Notifica email login ---
             try:
-                from email_service import EmailService, EmailWorker
+                from foliarium.core.services.email import EmailService, EmailWorker
                 from config import SETTINGS_EMAIL_ON_LOGIN
                 _svc = EmailService(QSettings())
                 if _svc.is_configured() and QSettings().value(SETTINGS_EMAIL_ON_LOGIN, True, type=bool):
@@ -979,6 +326,9 @@ class CatastoMainWindow(QMainWindow):
                 self.top_bar.update_user_info("", "", db_connected, db_name_configured)
                 self.statusBar().showMessage("Pronto.")
 
+        # Chip scadenza licenza — mostra avviso se <30 giorni alla scadenza
+        self._update_license_expiry_chip()
+
         logging.getLogger("CatastoGUI").info(
             ">>> CatastoMainWindow: Chiamata a setup_pages")
         self.setup_pages()
@@ -998,14 +348,13 @@ class CatastoMainWindow(QMainWindow):
 
         self.check_mv_refresh_status()
         self._check_offline_mode()
+        QTimer.singleShot(800, self._check_db_schema_migrations)
 
         # --- Refresh periodico del seat di rete (ogni 60 secondi) ---
         if hasattr(self, '_license_manager') and self._license_manager:
             self._seat_refresh_timer = QTimer(self)
             self._seat_refresh_timer.timeout.connect(self._license_manager.refresh_seat)
             self._seat_refresh_timer.start(60_000)
-        # --- FINE AGGIUNTA ---
-# In gui_main.py, SOSTITUISCI il metodo _check_backup_reminder
 
     def _check_backup_reminder(self):
         settings = QSettings()
@@ -1048,12 +397,10 @@ class CatastoMainWindow(QMainWindow):
         settings_menu = menu_bar.addMenu("&Impostazioni")
         help_menu = menu_bar.addMenu("&Help")
         
-            # --- INIZIO AGGIUNTA ---
         settings_menu.addSeparator()
         backup_reminder_action = QAction("Promemoria Backup...", self)
         backup_reminder_action.triggered.connect(self._show_backup_settings_dialog)
         settings_menu.addAction(backup_reminder_action)
-        # --- FINE AGGIUNTA ---
         
         # --- Azioni per il menu File ---
         import_comuni_action = QAction("Importa Comuni da CSV/ISTAT...", self)
@@ -1116,11 +463,22 @@ class CatastoMainWindow(QMainWindow):
         )
         license_action.triggered.connect(self._apri_gestione_licenza)
 
+        api_keys_action = QAction(
+            self.style().standardIcon(QStyle.StandardPixmap.SP_DriveNetIcon),
+            "Gestione &Chiavi API...", self
+        )
+        api_keys_action.setStatusTip(
+            "Crea e revoca chiavi API per integrazioni esterne (MCP, Zapier, script)"
+        )
+        api_keys_action.triggered.connect(self._apri_gestione_api_keys)
+        self._api_keys_action = api_keys_action  # ref per show/hide post-login
+
         settings_menu.addAction(config_db_action)
         settings_menu.addAction(config_refresh_action)
         settings_menu.addAction(email_action)
         settings_menu.addAction(timeout_action)
         settings_menu.addAction(license_action)
+        settings_menu.addAction(api_keys_action)
         settings_menu.addSeparator()
 
         # --- Menu dinamico per i temi ---
@@ -1143,7 +501,8 @@ class CatastoMainWindow(QMainWindow):
 
         # Voce speciale: stile nativo Windows 11 (solo se disponibile)
         self.win11_action = None
-        if "windows11" in QStyleFactory.keys():
+        from foliarium.ui.theme import is_win11_style_available
+        if is_win11_style_available():
             self.win11_action = QAction("Stile Nativo Windows 11", self, checkable=True)
             self.win11_action.setChecked(win11_enabled)
             self.win11_action.triggered.connect(self._enable_win11_style)
@@ -1166,21 +525,28 @@ class CatastoMainWindow(QMainWindow):
         show_manual_action.setShortcut(QKeySequence("F1"))
         show_manual_action.triggered.connect(self._apri_manuale_utente)
         help_menu.addAction(show_manual_action)
-            # --- INIZIO MODIFICA ---
+        help_menu.addSeparator()
+
+        esporta_log_action = QAction(
+            self.style().standardIcon(QStyle.StandardPixmap.SP_DialogSaveButton),
+            "Esporta &log per supporto (.zip)...", self
+        )
+        esporta_log_action.setStatusTip(
+            "Crea un archivio ZIP dei file di log da allegare a una mail di supporto"
+        )
+        esporta_log_action.triggered.connect(self._esporta_log_zip)
+        help_menu.addAction(esporta_log_action)
         help_menu.addSeparator()
 
         show_eula_action = QAction("Informazioni su Foliarium / EULA...", self)
         show_eula_action.triggered.connect(self._show_about_eula_dialog)
         help_menu.addAction(show_eula_action)
-        # --- FINE MODIFICA ---
 
     def _change_stylesheet(self, filename: str):
         """Carica, applica e salva il nuovo stylesheet. Disabilita tema automatico e stile Win11."""
         self.logger.info(f"Cambio tema grafico richiesto: {filename}")
-        new_stylesheet = load_stylesheet(filename)
-        if new_stylesheet:
-            self._reset_app_style()
-            QApplication.instance().setStyleSheet(new_stylesheet)
+        from foliarium.ui import theme as _theme
+        if _theme.apply_stylesheet(filename, logger=self.logger):
             settings = QSettings()
             settings.setValue(SETTINGS_UI_CURRENT_STYLE, filename)
             settings.setValue(SETTINGS_UI_AUTO_THEME, False)
@@ -1194,23 +560,20 @@ class CatastoMainWindow(QMainWindow):
 
     def _enable_auto_theme(self):
         """Attiva il tema automatico basato sulla preferenza dark/light del sistema operativo."""
-        self._reset_app_style()
+        from foliarium.ui import theme as _theme
+        _theme.reset_app_style()
         settings = QSettings()
         settings.setValue(SETTINGS_UI_AUTO_THEME, True)
         settings.setValue(SETTINGS_UI_WIN11_STYLE, False)
         if self.win11_action:
             self.win11_action.setChecked(False)
-        self._apply_auto_theme()
+        _theme.apply_auto_theme(logger=self.logger)
         self.logger.info("Tema automatico attivato.")
 
     def _apply_auto_theme(self):
         """Applica il tema chiaro o scuro in base allo schema colori del sistema operativo."""
-        scheme = QGuiApplication.styleHints().colorScheme()
-        theme_file = AUTO_THEME_DARK if scheme == Qt.ColorScheme.Dark else AUTO_THEME_LIGHT
-        stylesheet = load_stylesheet(theme_file)
-        if stylesheet:
-            QApplication.instance().setStyleSheet(stylesheet)
-            self.logger.info(f"Tema automatico applicato: {theme_file} (schema OS: {scheme.name})")
+        from foliarium.ui import theme as _theme
+        _theme.apply_auto_theme(logger=self.logger)
 
     @pyqtSlot(Qt.ColorScheme)
     def _on_color_scheme_changed(self, scheme: Qt.ColorScheme):
@@ -1222,13 +585,36 @@ class CatastoMainWindow(QMainWindow):
 
     def _enable_win11_style(self):
         """Attiva lo stile nativo Windows 11, rimuovendo qualsiasi QSS personalizzato."""
-        QApplication.instance().setStyle("windows11")
-        QApplication.instance().setStyleSheet("")
+        from foliarium.ui import theme as _theme
+        _theme.apply_win11_style()
         settings = QSettings()
         settings.setValue(SETTINGS_UI_WIN11_STYLE, True)
         settings.setValue(SETTINGS_UI_AUTO_THEME, False)
         self.auto_theme_action.setChecked(False)
         self.logger.info("Stile nativo Windows 11 attivato.")
+
+    def _update_license_expiry_chip(self) -> None:
+        """Aggiorna il chip di scadenza licenza nella top bar.
+
+        Usa il LicenseManager già inizializzato se disponibile, altrimenti
+        crea un'istanza temporanea di sola lettura (best-effort, non bloccante).
+        """
+        try:
+            from foliarium.core.services.license import LicenseManager
+            from config import IS_TEST_ENV, IS_DEMO_MODE
+            if IS_TEST_ENV or IS_DEMO_MODE:
+                return
+            mgr = getattr(self, '_license_manager', None) or LicenseManager()
+            info = mgr.validate()
+            if info and info.expiry_date:
+                from datetime import date
+                days_left = (info.expiry_date - date.today()).days
+                self.top_bar.set_license_expiry(days_left)
+            else:
+                self.top_bar.set_license_expiry(None)
+        except Exception as e:
+            self.logger.debug(f"_update_license_expiry_chip: {e}")
+            self.top_bar.set_license_expiry(None)
 
     def _apri_gestione_licenza(self):
         """Apre il dialogo di gestione licenza."""
@@ -1236,14 +622,177 @@ class CatastoMainWindow(QMainWindow):
         dlg = LicenseDialog(self)
         dlg.exec()
 
+    def _start_api_server_if_needed(self):
+        """Avvia il server API in background dopo login.
+
+        Idempotente: chiamate ripetute non riavviano un thread già attivo.
+        Aggiorna l'indicatore in top bar tramite i segnali del QThread.
+        """
+        if self._api_thread is not None and self._api_thread.isRunning():
+            return
+        if not self.db_manager or not getattr(self, "pool_initialized_successful", False):
+            self.logger.debug("API server: pool DB non pronto, avvio rimandato.")
+            return
+        try:
+            from api.server_thread import APIServerThread
+        except ImportError as e:
+            self.logger.warning(f"Server API non disponibile (import fallito): {e}")
+            return
+
+        self.logger.info("Avvio server API in background per integrazioni esterne...")
+        self._api_thread = APIServerThread(self.db_manager, parent=self)
+        self._api_thread.started_ok.connect(self._on_api_started)
+        self._api_thread.pinned_port_busy.connect(self._on_api_pinned_port_busy)
+        self._api_thread.start_error.connect(self._on_api_start_error)
+        self._api_thread.start()
+
+    @pyqtSlot(int)
+    def _on_api_started(self, port: int):
+        self._api_port = port
+        self.top_bar.set_api_status(running=True, port=port)
+        self.logger.info(f"Server API in ascolto su 127.0.0.1:{port}")
+
+    @pyqtSlot(int)
+    def _on_api_pinned_port_busy(self, port: int):
+        self._api_port = 0
+        self.top_bar.set_api_status(
+            running=False,
+            error=f"Porta {port} occupata. Cambia FOLIARIUM_API_PORT o libera la porta.",
+        )
+        QMessageBox.warning(
+            self,
+            "Porta API occupata",
+            f"<b>Il server API non è partito.</b><br><br>"
+            f"La porta <b>{port}</b> configurata in <code>FOLIARIUM_API_PORT</code> "
+            f"(env var o sezione <code>[api]</code> di <code>config.ini</code>) "
+            f"è già occupata da un altro processo.<br><br>"
+            f"<b>Cosa fare:</b><ul>"
+            f"<li>Chiudi l'applicazione che occupa la porta {port}, o</li>"
+            f"<li>Cambia <code>FOLIARIUM_API_PORT</code> in un valore libero "
+            f"(es. {port + 1}) e riavvia Foliarium, o</li>"
+            f"<li>Rimuovi la configurazione esplicita per tornare alla "
+            f"selezione automatica della porta.</li></ul>"
+            f"Le integrazioni MCP/Claude non funzioneranno finché l'API "
+            f"non parte."
+        )
+
+    @pyqtSlot(str)
+    def _on_api_start_error(self, msg: str):
+        self._api_port = 0
+        self.top_bar.set_api_status(running=False, error=msg)
+        self.logger.error(f"Errore avvio server API: {msg}")
+
+    @pyqtSlot()
+    def _show_api_status_dialog(self):
+        """Mostra dettagli dello stato API quando l'utente clicca l'indicatore."""
+        if self._api_port:
+            n_keys = 0
+            try:
+                if self.db_manager:
+                    n_keys = len(self.db_manager.list_api_keys(include_revoked=False))
+            except Exception:
+                pass
+            QMessageBox.information(
+                self,
+                "Server API",
+                f"<b>Server API attivo.</b><br><br>"
+                f"URL: <code>http://localhost:{self._api_port}</code><br>"
+                f"Swagger: <code>http://localhost:{self._api_port}/api/v1/docs</code><br>"
+                f"Chiavi API attive: <b>{n_keys}</b><br><br>"
+                f"Per integrare Claude Desktop, usa:<br>"
+                f"<code>FOLIARIUM_API_BASE_URL=http://localhost:{self._api_port}</code><br><br>"
+                f"Per gestire le chiavi: <i>Impostazioni → Gestione Chiavi API…</i>"
+            )
+        else:
+            QMessageBox.information(
+                self,
+                "Server API",
+                "<b>Server API non attivo.</b><br><br>"
+                "Le integrazioni esterne (MCP, Claude Desktop, Zapier) non "
+                "sono disponibili finché il server non parte. Di solito si avvia "
+                "automaticamente dopo il login: controlla i log per dettagli."
+            )
+
+    def _apri_gestione_api_keys(self):
+        """Apre il dialogo di gestione chiavi API (solo admin)."""
+        if not self.db_manager:
+            QMessageBox.warning(
+                self, "Database non disponibile",
+                "Connettersi al database prima di gestire le chiavi API.",
+            )
+            return
+        is_admin = (
+            self.logged_in_user_info is not None
+            and self.logged_in_user_info.get("ruolo") == "admin"
+        )
+        if not is_admin:
+            QMessageBox.warning(
+                self, "Accesso negato",
+                "La gestione delle chiavi API è riservata agli amministratori.",
+            )
+            return
+        from foliarium.ui.dialogs.admin import ApiKeysDialog
+        dlg = ApiKeysDialog(
+            db_manager=self.db_manager,
+            current_user_id=self.logged_in_user_id,
+            parent=self,
+        )
+        dlg.exec()
+
     def _reset_app_style(self):
         """Ripristina lo stile Qt predefinito (necessario prima di applicare un QSS)."""
-        QApplication.instance().setStyle(QStyleFactory.create("Fusion"))
+        from foliarium.ui import theme as _theme
+        _theme.reset_app_style()
 
     def _show_about_eula_dialog(self):
         """Apre la finestra di dialogo con le informazioni su versione e licenza (EULA)."""
         dialog = EulaDialog(self)
         dialog.exec()
+
+    def _esporta_log_zip(self):
+        """Comprime i file di log dell'applicazione in uno zip da inviare al supporto."""
+        from app_utils import create_logs_archive, prompt_to_open_file
+
+        default_name = f"foliarium_logs_{datetime.now().strftime('%Y%m%d_%H%M%S')}.zip"
+        documenti = QStandardPaths.writableLocation(QStandardPaths.StandardLocation.DocumentsLocation)
+        default_path = os.path.join(documenti or os.path.expanduser("~"), default_name)
+
+        destination, _ = QFileDialog.getSaveFileName(
+            self,
+            "Salva archivio dei log",
+            default_path,
+            "Archivio ZIP (*.zip)"
+        )
+        if not destination:
+            return
+
+        if not destination.lower().endswith(".zip"):
+            destination += ".zip"
+
+        try:
+            n_file, size_bytes = create_logs_archive(destination)
+        except FileNotFoundError as e:
+            QMessageBox.information(self, "Esporta Log", str(e))
+            return
+        except Exception as e:
+            self.logger.error(f"Errore durante l'esportazione dei log: {e}", exc_info=True)
+            QMessageBox.critical(
+                self, "Esporta Log",
+                f"Impossibile creare l'archivio dei log:\n{e}"
+            )
+            return
+
+        size_kb = max(1, size_bytes // 1024)
+        self.logger.info(
+            f"Archivio log creato: {destination} ({n_file} file, {size_kb} KB)"
+        )
+        QMessageBox.information(
+            self, "Esporta Log",
+            f"Archivio creato con {n_file} file ({size_kb} KB).\n\n"
+            f"Percorso:\n{destination}\n\n"
+            f"Puoi allegare questo file a una mail di supporto."
+        )
+        prompt_to_open_file(self, destination)
 
     def setup_pages(self):
         """Popola il QStackedWidget e la sidebar con tutte le pagine."""
@@ -1255,6 +804,13 @@ class CatastoMainWindow(QMainWindow):
         while self.stack.count():
             w = self.stack.widget(0)
             self.stack.removeWidget(w)
+            # Ferma in modo sicuro eventuali thread in esecuzione per evitare crash
+            for worker_attr in ['_dash_loader', '_loader', '_search_worker', 'search_thread']:
+                worker = getattr(w, worker_attr, None)
+                if worker and worker.isRunning():
+                    worker.quit()
+                    worker.wait(500)
+            w.deleteLater()  # Previene un grave memory leak eliminando il widget
         self._page_index.clear()
 
         is_admin = bool(
@@ -1315,10 +871,12 @@ class CatastoMainWindow(QMainWindow):
         _add_page("ins_localita", self.inserimento_localita_widget_ref)
 
         self.nuova_partita_wizard_ref = NuovaPartitaWizardWidget(
-            self.db_manager, self.logged_in_user_info, self.stack)
+            self.db_manager, self.logged_in_user_info, self.stack,
+            utente_id=self.logged_in_user_id)
         _add_page("ins_wizard", self.nuova_partita_wizard_ref)
 
-        self.registrazione_proprieta_widget_ref = RegistrazioneProprietaWidget(self.db_manager)
+        self.registrazione_proprieta_widget_ref = RegistrazioneProprietaWidget(
+            self.db_manager, utente_id=self.logged_in_user_id)
         _add_page("reg_proprieta", self.registrazione_proprieta_widget_ref)
 
         self.operazioni_partita_widget_ref = OperazioniPartitaWidget(self.db_manager)
@@ -1328,13 +886,15 @@ class CatastoMainWindow(QMainWindow):
             self.db_manager, self.logged_in_user_info)
         _add_page("reg_consult", self.registra_consultazione_widget_ref)
 
-        # Admin — voci inserimento
+        # Admin — configurazione lookup tables (unificate in un'unica pagina con sub-tab)
         if is_admin:
-            self.gestione_tipi_localita_widget_ref = GestioneTipiLocalitaWidget(self.db_manager)
-            _add_page("tipi_localita", self.gestione_tipi_localita_widget_ref)
-
-            self.gestione_periodi_storici_widget_ref = GestionePeriodiStoriciWidget(self.db_manager)
-            _add_page("periodi", self.gestione_periodi_storici_widget_ref)
+            self.tabelle_sistema_widget_ref = TabelleDiSistemaWidget(self.db_manager)
+            _add_page("tabelle_sistema", self.tabelle_sistema_widget_ref)
+            # Riferimenti diretti ai sub-widget per compatibilità con codice esistente
+            # (es. refresh dopo CRUD da altre parti dell'app).
+            self.gestione_tipi_localita_widget_ref = self.tabelle_sistema_widget_ref.tipi_localita_tab
+            self.gestione_periodi_storici_widget_ref = self.tabelle_sistema_widget_ref.periodi_tab
+            self.gestione_tipi_possesso_widget_ref = self.tabelle_sistema_widget_ref.tipi_possesso_tab
 
         # Analisi
         self.esportazioni_widget_ref = EsportazioniWidget(self.db_manager)
@@ -1357,18 +917,29 @@ class CatastoMainWindow(QMainWindow):
             self.backup_restore_widget_ref = BackupWidget(self.db_manager)
             _add_page("backup", self.backup_restore_widget_ref)
 
-        # Costruisce i navigatori orizzontali
-        self.top_nav.build_nav(is_admin=is_admin)
-        self.sub_nav.build_nav(is_admin=is_admin, fuzzy_available=FUZZY_SEARCH_AVAILABLE)
-        self.top_nav.show()
-        self.sub_nav.show()
+            self.archivio_widget_ref = ArchivioWidget(self.db_manager)
+            _add_page("archivio", self.archivio_widget_ref)
+
+        # Costruisce la sidebar verticale
+        self.sidebar.build_nav(is_admin=is_admin, fuzzy_available=FUZZY_SEARCH_AVAILABLE)
+        self.sidebar.show()
 
         self._f5_shortcut = QShortcut(QKeySequence("F5"), self)
         self._f5_shortcut.activated.connect(self._handle_f5_refresh)
 
+        self._cmd_palette_shortcut = QShortcut(QKeySequence("Ctrl+K"), self)
+        self._cmd_palette_shortcut.activated.connect(self._open_command_palette)
+
         # Vai alla home
         self.navigate_to("home")
         self.logger.info("Setup pagine completato (layout sidebar).")
+
+    def _open_command_palette(self):
+        """Ctrl+K: apre la command palette per navigazione rapida."""
+        available = list(self._page_index.keys())
+        dlg = CommandPaletteDialog(available, parent=self)
+        dlg.page_selected.connect(self.navigate_to)
+        dlg.exec()
 
     def _handle_f5_refresh(self):
         """F5: ricarica i dati della pagina corrente."""
@@ -1398,8 +969,8 @@ class CatastoMainWindow(QMainWindow):
             ("Inserimento", "Reg. Proprietà"):      "reg_proprieta",
             ("Inserimento", "Operazioni"):          "operazioni",
             ("Inserimento", "Reg. Consultazione"):  "reg_consult",
-            ("Inserimento", "Tipi Località"):       "tipi_localita",
-            ("Inserimento", "Periodi"):             "periodi",
+            ("Inserimento", "Tipi Località"):       "tabelle_sistema",
+            ("Inserimento", "Periodi"):             "tabelle_sistema",
             ("Esportazioni", ""):                   "esportazioni",
             ("Report", ""):                         "report",
             ("Statistiche", ""):                    "statistiche",
@@ -1477,10 +1048,7 @@ class CatastoMainWindow(QMainWindow):
         if self.stack.currentIndex() == new_idx:
             return
 
-        section = _PAGE_SECTION.get(page_name, "home")
-        self.top_nav.set_active_section(section)
-        self.sub_nav.show_section(section)
-        self.sub_nav.set_active(page_name)
+        self.sidebar.set_active(page_name)
 
         old_widget = self.stack.currentWidget()
         if old_widget is None:
@@ -1519,17 +1087,6 @@ class CatastoMainWindow(QMainWindow):
         anim_out.start()
         self._anim_out = anim_out
 
-    def _on_section_requested(self, section: str):
-        """Naviga alla prima pagina disponibile della sezione cliccata."""
-        self.sub_nav.show_section(section)
-        default = _SECTION_DEFAULT_PAGE.get(section, "home")
-        if default in self._page_index:
-            self.navigate_to(default)
-            return
-        visible = self.sub_nav.get_visible_page_names()
-        if visible:
-            self.navigate_to(visible[0])
-
     def update_ui_based_on_role(self):
         """Controlla la visibilità dei bottoni nav in base al ruolo utente."""
         self.logger.info(">>> CatastoMainWindow: update_ui_based_on_role")
@@ -1550,25 +1107,21 @@ class CatastoMainWindow(QMainWindow):
         is_consultatore = (ruolo == 'consultatore')
         db_ready = self.pool_initialized_successful and not is_admin_offline_mode
 
-        # Visibilità bottoni sidebar per sezioni/pagine non-admin
         inserimento_ok = db_ready and (is_admin or is_archivista)
         analisi_ok = db_ready and (is_admin or is_archivista or is_consultatore)
 
-        # I bottoni admin sono già assenti dalla sidebar se non admin (build_nav è role-aware).
-        # Qui gestiamo solo la visibilità di bottoni presenti per tutti.
-        # Visibilità sezioni nel top-nav
-        self.top_nav.set_section_visible("archivio", db_ready)
-        self.top_nav.set_section_visible("inserimento", inserimento_ok)
-        self.top_nav.set_section_visible("analisi", analisi_ok)
-
-        # Visibilità pagine nel sub-nav
+        # Visibilità bottoni sidebar — i bottoni admin non esistono se non admin (build_nav role-aware)
         for page in ("comuni", "partite", "immobili", "documenti", "fuzzy"):
-            self.sub_nav.set_page_visible(page, db_ready)
+            self.sidebar.set_button_visible(page, db_ready)
         for page in ("ins_comune", "ins_possessore", "ins_partita", "ins_localita",
-                     "reg_proprieta", "operazioni", "reg_consult"):
-            self.sub_nav.set_page_visible(page, inserimento_ok)
+                     "ins_wizard", "reg_proprieta", "reg_consult"):
+            self.sidebar.set_button_visible(page, inserimento_ok)
         for page in ("esportazioni", "report", "statistiche"):
-            self.sub_nav.set_page_visible(page, analisi_ok)
+            self.sidebar.set_button_visible(page, analisi_ok)
+        # Pagine sezione AMMINISTRAZIONE + Archiviati (esistono solo se is_admin)
+        for page in ("operazioni", "utenti", "backup", "audit",
+                     "tabelle_sistema", "archivio"):
+            self.sidebar.set_button_visible(page, db_ready and is_admin)
 
         # Pulsante logout nella topbar
         self.top_bar.set_logout_enabled(
@@ -1644,114 +1197,36 @@ class CatastoMainWindow(QMainWindow):
     # ------------------------------------------------------------------
 
     def _scarica_csv(self, data: list, fieldnames: list, default_filename: str) -> None:
-        """Salva una lista di dict come CSV (delimiter ';') tramite QFileDialog."""
-        if not data:
-            QMessageBox.information(self, "Nessun dato", "Nessun record da scaricare.")
-            return
-        filename, _ = QFileDialog.getSaveFileName(
-            self, "Salva CSV", default_filename, "File CSV (*.csv)"
+        from foliarium.ui.csv_export import scarica_csv_generico
+        scarica_csv_generico(
+            self, self.db_manager,
+            self.logged_in_user_id, self.current_session_id,
+            data, fieldnames, default_filename,
         )
-        if not filename:
-            return
-        try:
-            import csv as _csv
-            with open(filename, 'w', newline='', encoding='utf-8') as f:
-                writer = _csv.DictWriter(f, fieldnames=fieldnames, delimiter=';',
-                                         extrasaction='ignore')
-                writer.writeheader()
-                writer.writerows(data)
-            QMessageBox.information(
-                self, "Scaricato",
-                f"{len(data)} record salvati in:\n{filename}"
-            )
-            # --- Audit log export ---
-            if self.db_manager:
-                import os as _os
-                self.db_manager.log_app_event(
-                    self.logged_in_user_id, self.current_session_id,
-                    "export_csv",
-                    {"filename": _os.path.basename(filename), "n_record": len(data),
-                     "entity": default_filename.replace(".csv", "")})
-        except OSError as e:
-            QMessageBox.critical(self, "Errore salvataggio", str(e))
 
     def _seleziona_comune_per_csv(self, entita: str):
-        """
-        Mostra QInputDialog per selezionare un comune.
-        Restituisce (comune_id, nome_slug) oppure (None, '') se l'utente annulla.
-        """
-        try:
-            comuni = self.db_manager.get_elenco_comuni_semplice()
-        except Exception:
-            comuni = []
-        if not comuni:
-            QMessageBox.warning(self, "Nessun Comune",
-                                "Nessun comune trovato nel database.")
-            return None, ""
-        nomi = [c[1] for c in comuni]
-        nome, ok = QInputDialog.getItem(
-            self, "Selezione Comune",
-            f"Comune di riferimento per '{entita}':", nomi, 0, False
-        )
-        if not ok or not nome:
-            return None, ""
-        for cid, cnome in comuni:
-            if cnome == nome:
-                return cid, cnome.replace(' ', '_')
-        return None, ""
+        from foliarium.ui.csv_export import seleziona_comune_per_csv
+        return seleziona_comune_per_csv(self, self.db_manager, entita)
 
     def _scarica_csv_comuni(self):
-        """Scarica tutti i comuni in un CSV compatibile con 'Importa Comuni da CSV'."""
-        try:
-            data = self.db_manager.get_comuni_export_csv()
-        except Exception as e:
-            QMessageBox.critical(self, "Errore Database", str(e))
-            return
-        self._scarica_csv(
-            data,
-            ['nome', 'provincia', 'regione', 'codice_catastale',
-             'data_istituzione', 'data_soppressione', 'note'],
-            'comuni_export.csv'
-        )
+        from foliarium.ui.csv_export import scarica_csv_comuni
+        scarica_csv_comuni(self, self.db_manager,
+                           self.logged_in_user_id, self.current_session_id)
 
     def _scarica_csv_localita(self):
-        """Scarica le località di un comune in CSV compatibile con 'Importa Località da CSV'."""
-        comune_id, slug = self._seleziona_comune_per_csv("località")
-        if not comune_id:
-            return
-        try:
-            data = self.db_manager.get_localita_export_csv(comune_id)
-        except Exception as e:
-            QMessageBox.critical(self, "Errore Database", str(e))
-            return
-        self._scarica_csv(data, ['nome', 'tipo', 'civico'],
-                          f'localita_{slug}.csv')
+        from foliarium.ui.csv_export import scarica_csv_localita
+        scarica_csv_localita(self, self.db_manager,
+                             self.logged_in_user_id, self.current_session_id)
 
     def _scarica_csv_possessori(self):
-        """Scarica i possessori di un comune in CSV compatibile con 'Importa Possessori da CSV'."""
-        comune_id, slug = self._seleziona_comune_per_csv("possessori")
-        if not comune_id:
-            return
-        try:
-            data = self.db_manager.get_possessori_export_csv(comune_id)
-        except Exception as e:
-            QMessageBox.critical(self, "Errore Database", str(e))
-            return
-        self._scarica_csv(data, ['cognome_nome', 'nome_completo', 'paternita'],
-                          f'possessori_{slug}.csv')
+        from foliarium.ui.csv_export import scarica_csv_possessori
+        scarica_csv_possessori(self, self.db_manager,
+                               self.logged_in_user_id, self.current_session_id)
 
     def _scarica_csv_partite(self):
-        """Scarica le partite di un comune in CSV compatibile con 'Importa Partite da CSV'."""
-        comune_id, slug = self._seleziona_comune_per_csv("partite")
-        if not comune_id:
-            return
-        try:
-            data = self.db_manager.get_partite_export_csv(comune_id)
-        except Exception as e:
-            QMessageBox.critical(self, "Errore Database", str(e))
-            return
-        self._scarica_csv(data, ['numero_partita', 'data_impianto', 'stato', 'tipo'],
-                          f'partite_{slug}.csv')
+        from foliarium.ui.csv_export import scarica_csv_partite
+        scarica_csv_partite(self, self.db_manager,
+                            self.logged_in_user_id, self.current_session_id)
 
     # ------------------------------------------------------------------
     # Session timeout — inattività
@@ -1858,15 +1333,21 @@ class CatastoMainWindow(QMainWindow):
             self.current_session_id = None
             self.session.logout()  # Sincronizza il SessionManager centralizzato
 
-            # Aggiorna la top bar e nasconde le nav
+            # Aggiorna la top bar e nasconde la sidebar
             self.top_bar.update_user_info("", "", False)
-            self.top_nav.hide()
-            self.sub_nav.hide()
+            self.sidebar.hide()
 
             # Svuota lo stack
             while self.stack.count():
                 w = self.stack.widget(0)
                 self.stack.removeWidget(w)
+                # Ferma in modo sicuro eventuali thread in esecuzione per evitare crash
+                for worker_attr in ['_dash_loader', '_loader', '_search_worker', 'search_thread']:
+                    worker = getattr(w, worker_attr, None)
+                    if worker and worker.isRunning():
+                        worker.quit()
+                        worker.wait(500)
+                w.deleteLater()  # Previene il memory leak a ogni logout
             self._page_index.clear()
 
             self.statusBar().showMessage("Logout effettuato. L'applicazione verrà chiusa.")
@@ -1882,6 +1363,15 @@ class CatastoMainWindow(QMainWindow):
     def closeEvent(self, event: QCloseEvent):
         logging.getLogger("CatastoGUI").info(
             "Evento closeEvent intercettato in CatastoMainWindow.")
+
+        # Stop pulito del thread API (se attivo)
+        api_thread = getattr(self, "_api_thread", None)
+        if api_thread is not None and api_thread.isRunning():
+            try:
+                api_thread.stop()
+                api_thread.wait(3000)
+            except Exception as e:
+                self.logger.warning(f"Stop server API: {e}")
 
         if hasattr(self, 'db_manager') and self.db_manager:
             pool_era_attivo = self.db_manager.pool is not None
@@ -1908,6 +1398,23 @@ class CatastoMainWindow(QMainWindow):
         else:
             logging.getLogger("CatastoGUI").warning(
                 "DB Manager non disponibile durante closeEvent o pool già None.")
+                
+        # Rimuovi l'event filter globale per prevenire memory leak e segfaults
+        if QApplication.instance():
+            QApplication.instance().removeEventFilter(self)
+
+        # Ferma i thread attivi nello stack prima di uscire per prevenire segfault
+        for i in range(self.stack.count()):
+            w = self.stack.widget(i)
+            for worker_attr in ['_dash_loader', '_loader', '_search_worker', 'search_thread']:
+                worker = getattr(w, worker_attr, None)
+                if worker and worker.isRunning():
+                    worker.quit()
+                    worker.wait(500)
+
+        if hasattr(self, '_login_email_worker') and self._login_email_worker and self._login_email_worker.isRunning():
+            self._login_email_worker.quit()
+            self._login_email_worker.wait(500)
 
         # Rilascia il seat di licenza di rete
         if hasattr(self, '_license_manager') and self._license_manager:
@@ -1916,7 +1423,7 @@ class CatastoMainWindow(QMainWindow):
         # Ferma il PostgreSQL portabile (solo in modalità demo con embedded PG)
         if IS_DEMO_MODE:
             try:
-                import demo_launcher
+                from foliarium.core.services import demo_launcher
                 demo_launcher.stop_demo_postgres()
             except Exception:
                 pass
@@ -1989,24 +1496,16 @@ class CatastoMainWindow(QMainWindow):
             if risposta != QMessageBox.StandardButton.Yes:
                 return
 
-            # --- PASSO 3: Avvia l'importazione e mostra il nuovo dialogo di riepilogo ---
             QApplication.setOverrideCursor(Qt.CursorShape.WaitCursor)
-            
-            # --- MODIFICA CHIAVE QUI ---
-            # Chiamiamo il metodo del db_manager che ora restituisce un dizionario dettagliato.
-            # Passiamo anche il nome del comune per poterlo visualizzare nel report di successo.
             import_results = self.db_manager.import_possessori_from_csv(
                 file_path, comune_id_selezionato, nome_comune_selezionato
             )
-
-            # Invece di una semplice QMessageBox, creiamo e mostriamo il nostro nuovo dialogo.
             result_dialog = CSVImportResultDialog(
                 import_results.get('success', []),
                 import_results.get('errors', []),
                 self
             )
             result_dialog.exec()
-            # --- FINE MODIFICA ---
 
             # Dopo l'importazione, aggiorniamo la vista dei comuni per riflettere eventuali
             # cambiamenti (se ad esempio la vista mostrasse il numero di possessori).
@@ -2098,10 +1597,8 @@ class CatastoMainWindow(QMainWindow):
         """
         from datetime import timedelta, timezone
         if not self.db_manager or not self.db_manager.pool: return
-        # --- MODIFICA QUI: Leggiamo il valore da QSettings ---
         settings = QSettings()
         threshold_hours = settings.value("General/StaleDataThresholdHours", 24, type=int)
-        # ----------------------------------------------------
 
         last_refresh = self.db_manager.get_last_mv_refresh_timestamp()
         if last_refresh is None:
@@ -2133,6 +1630,62 @@ class CatastoMainWindow(QMainWindow):
             self.offline_bar.show()
         else:
             self.offline_bar.hide()
+
+    def _check_db_schema_migrations(self):
+        """Controlla se mancano migrazioni DB critiche e avvisa l'utente."""
+        if not self.db_manager:
+            return
+        from config import IS_TEST_ENV, IS_DEMO_MODE
+        if IS_TEST_ENV or IS_DEMO_MODE:
+            return
+
+        missing = self.db_manager.check_missing_migrations()
+        if not missing:
+            return
+
+        descriptions = {
+            "soft_delete": (
+                "Colonne di archiviazione (soft-delete) mancanti",
+                "Le tabelle comune, località, partita e possessore non hanno le colonne\n"
+                "archiviato / archiviato_il. Alcune funzioni (ricerca, archiviazione) potrebbero\n"
+                "non funzionare correttamente.\n\n"
+                "Reinstallare via sql_scripts/02_creazione-schema-tabelle.sql"
+            ),
+            "tipo_possesso": (
+                "Tabella tipo_possesso mancante",
+                "La tabella di lookup 'tipo_possesso' non è presente.\n"
+                "Il dropdown dei tipi di possesso nei legami proprietà sarà vuoto.\n\n"
+                "Reinstallare via sql_scripts/02_creazione-schema-tabelle.sql"
+            ),
+        }
+
+        lines = []
+        scripts = []
+        for key in missing:
+            title, detail = descriptions.get(key, (key, ""))
+            lines.append(f"• {title}")
+            if detail:
+                lines.append(f"  {detail.splitlines()[0]}")
+            # extract script path from detail
+            for row in detail.splitlines():
+                if row.strip().startswith("Script:"):
+                    scripts.append(row.strip().replace("Script: ", ""))
+
+        msg = QMessageBox(self)
+        msg.setWindowTitle("Migrazioni database necessarie")
+        msg.setIcon(QMessageBox.Icon.Warning)
+        msg.setText(
+            "<b>Alcune migrazioni dello schema del database non sono state applicate.</b><br><br>"
+            + "<br>".join(line.replace("\n", "<br>") for line in lines)
+        )
+        msg.setInformativeText(
+            "Per applicare le migrazioni, eseguire gli script SQL indicati con:\n"
+            "  psql -U postgres -d catasto_storico -f <script>\n\n"
+            "L'applicazione continuerà, ma alcune funzioni potrebbero non funzionare."
+        )
+        msg.setStandardButtons(QMessageBox.StandardButton.Ok)
+        msg.setDefaultButton(QMessageBox.StandardButton.Ok)
+        msg.exec()
 
     def _apri_dialogo_impostazioni_aggiornamento(self):
         """
@@ -2187,32 +1740,6 @@ class CatastoMainWindow(QMainWindow):
 
 
 
-def setup_logging():
-    """Configura il logging per scrivere nella cartella AppData dell'utente."""
-    # Imposta i metadati dell'applicazione per creare un percorso univoco
-    QCoreApplication.setOrganizationName("AlgoraStudio")
-    QCoreApplication.setApplicationName("Foliarium")
-
-    # Trova la cartella standard e scrivibile per i dati dell'applicazione
-    app_data_path = QStandardPaths.writableLocation(QStandardPaths.StandardLocation.AppLocalDataLocation)
-
-    # Assicurati che la cartella esista
-    os.makedirs(app_data_path, exist_ok=True)
-
-    # Percorso completo del file di log
-    log_file_path = os.path.join(app_data_path, "foliarium_session.log")
-
-    # Configura il logger principale (root logger)
-    log_format = '%(asctime)s - %(name)s - %(levelname)s - %(filename)s:%(lineno)d - %(message)s'
-    logging.basicConfig(level=logging.INFO,
-                        format=log_format,
-                        handlers=[
-                            logging.FileHandler(log_file_path, mode='a', encoding='utf-8'),
-                            logging.StreamHandler(sys.stdout)
-                        ])
-
-    logging.info(f"Logging configurato. I log verranno salvati in: {log_file_path}")
-    
 # Inserisci questa funzione in gui_main.py
 
 def setup_global_logging():
@@ -2257,6 +1784,7 @@ class WebViewWindow(QMainWindow):
         self.setMinimumSize(900, 600)
         self._api_port = port
         self._db_manager = db_manager
+        self._api_thread = None  # impostato da run_web_app dopo l'avvio
 
         try:
             from PyQt6.QtWebEngineWidgets import QWebEngineView
@@ -2277,10 +1805,18 @@ class WebViewWindow(QMainWindow):
             label.setOpenExternalLinks(True)
             self.setCentralWidget(label)
 
+    def closeEvent(self, event):
+        if self._api_thread is not None:
+            self._api_thread.stop()
+            if not self._api_thread.wait(5000):
+                logging.getLogger("FoliariumWeb").warning(
+                    "Il thread API non ha terminato entro 5 secondi."
+                )
+        event.accept()
+
 
 def run_web_app():
     """Avvia la modalità React (FastAPI + WebView/browser)."""
-    import time
     from api.server_thread import APIServerThread
 
     app = QApplication(sys.argv)
@@ -2309,6 +1845,7 @@ def run_web_app():
     def on_started(port: int):
         splash.accept()
         win = WebViewWindow(port, db)
+        win._api_thread = thread
         _win[0] = win
         win.show()
 
@@ -2331,26 +1868,12 @@ def run_web_app():
 def run_gui_app():
     try:
         app = QApplication(sys.argv)
-        # --- INIZIO MODIFICA ---
-        # Imposta i metadati dell'applicazione.
-        # Questo è FONDAMENTALE affinché QStandardPaths possa generare
-        # percorsi di dati scrivibili e univoci per l'app.
         QCoreApplication.setOrganizationName("AlgoraStudio")
         QCoreApplication.setApplicationName("Foliarium")
-        # --- FINE MODIFICA ---
 
         # Splash screen (saltata in ambiente CI/test)
-        _splash = None
-        if not IS_TEST_ENV:
-            _splash = FoliariumSplashScreen()
-            _splash.show()
-            # Mostra la splash per 2.5 secondi poi la chiude automaticamente
-            import time
-            app.processEvents()
-            time.sleep(2.5)
-            app.processEvents()
-            _splash.close()
-            _splash = None
+        from foliarium.ui.startup import show_splash_screen
+        show_splash_screen(app)
 
         # --- CHIAMATA ALLA NUOVA FUNZIONE QUI ---
         # Questo imposta il logging per l'intera applicazione prima che qualsiasi
@@ -2365,65 +1888,16 @@ def run_gui_app():
         client_ip_address_gui = get_local_ip_address()
         gui_logger.info(f"Indirizzo IP locale identificato: {client_ip_address_gui}")
 
-        settings = QSettings()
-        if settings.value(SETTINGS_UI_WIN11_STYLE, False, type=bool) and \
-                "windows11" in QStyleFactory.keys():
-            app.setStyle("windows11")
-        elif settings.value(SETTINGS_UI_AUTO_THEME, False, type=bool):
-            scheme = QGuiApplication.styleHints().colorScheme()
-            current_style_file = AUTO_THEME_DARK if scheme == Qt.ColorScheme.Dark else AUTO_THEME_LIGHT
-            stylesheet = load_stylesheet(current_style_file)
-            if stylesheet:
-                app.setStyleSheet(stylesheet)
-        else:
-            current_style_file = settings.value(SETTINGS_UI_CURRENT_STYLE, AUTO_THEME_LIGHT, type=str)
-            stylesheet = load_stylesheet(current_style_file)
-            if stylesheet:
-                app.setStyleSheet(stylesheet)
-        # --- CONTROLLO EULA / WELCOME SCREEN ---
-        settings = QSettings()
-        accepted_version = settings.value(SETTINGS_EULA_ACCEPTED, "", type=str)
-        if accepted_version != EULA_VERSION:
-            welcome = WelcomeScreen(parent=None)
-            if welcome.exec() != QDialog.DialogCode.Accepted:
-                gui_logger.info("EULA non accettata. Uscita.")
-                sys.exit(0)
-            settings.setValue(SETTINGS_EULA_ACCEPTED, EULA_VERSION)
-            settings.sync()
-        # --- FINE CONTROLLO EULA ---
+        from foliarium.ui import theme as _theme
+        _theme.apply_initial_theme_from_settings(app, logger=gui_logger)
 
-        # --- VERIFICA LICENZA ---
-        from license_manager import LicenseManager
-        _license_mgr = LicenseManager()
-        _license_info = _license_mgr.validate()
-        if not _license_info.is_valid:
-            QMessageBox.critical(
-                None,
-                "Licenza non valida",
-                f"<b>Foliarium non può essere avviato.</b><br><br>"
-                f"{_license_info.error_message}<br><br>"
-                "Contatta il tuo amministratore per ottenere una licenza valida."
-            )
-            gui_logger.error(f"Licenza non valida: {_license_info.error_message}")
-            sys.exit(1)
-
-        # Controllo seat di rete (skip per demo — max_seats=1 e no share)
-        _allowed, _seats, _max = _license_mgr.acquire_seat()
-        if not _allowed:
-            QMessageBox.critical(
-                None,
-                "Numero di licenze esaurito",
-                f"<b>Impossibile avviare Foliarium.</b><br><br>"
-                f"Sono già attive <b>{_seats - 1}</b> istanze su {_max} consentite dalla licenza.<br>"
-                "Chiudi un'altra sessione e riprova."
-            )
-            gui_logger.error(f"Seat di rete esauriti ({_seats}/{_max})")
-            sys.exit(1)
-        gui_logger.info(
-            f"Licenza OK — intestata a: {_license_info.licensed_to} "
-            f"| tipo: {_license_info.license_type} | seat: {_seats}/{_max}"
+        from foliarium.ui.startup import (
+            ensure_eula_accepted,
+            validate_license_and_acquire_seat,
         )
-        # --- FINE VERIFICA LICENZA ---
+        ensure_eula_accepted(gui_logger)
+        _license_mgr = validate_license_and_acquire_seat(gui_logger)
+        settings = QSettings()
 
         gui_logger.info("Avvio dell'applicazione GUI Catasto Storico...")
         db_manager_gui: Optional[CatastoDBManager] = None
@@ -2438,7 +1912,7 @@ def run_gui_app():
 
             # --- Avvia PostgreSQL portabile (se presente nel bundle) ---
             try:
-                import demo_launcher
+                from foliarium.core.services import demo_launcher
                 if demo_launcher.is_embedded_available():
                     gui_logger.info("PostgreSQL portabile rilevato — avvio in corso…")
 
@@ -2453,7 +1927,7 @@ def run_gui_app():
                     _pg_vlay.addWidget(_pg_title)
                     _pg_lbl = QLabel("Preparazione in corso...")
                     _pg_lbl.setWordWrap(True)
-                    _pg_lbl.setStyleSheet("color: gray; font-size: 11px;")
+                    _pg_lbl.setProperty("muted", "true")
                     _pg_vlay.addWidget(_pg_lbl)
                     from PyQt6.QtWidgets import QProgressBar
                     _pg_bar = QProgressBar()
@@ -2580,122 +2054,21 @@ def run_gui_app():
         # MODALITÀ NORMALE
         # ================================================================
 
-        # --- NUOVO FLUSSO DI AVVIO ---
+        # --- FLUSSO DI AVVIO (estratto in foliarium/ui/login_flow.py) ---
+        from foliarium.ui.login_flow import ensure_db_connection, perform_user_login
 
-        # 1. TENTATIVO DI CONNESSIONE AUTOMATICA
-        gui_logger.info("Tentativo di connessione automatica con le impostazioni salvate...")
+        db_manager_gui = ensure_db_connection(
+            main_window_instance, settings, gui_logger, license_mgr=_license_mgr,
+        )
 
-        # --- CORREZIONE: Gestisci la password in modo più robusto ---
-        saved_password = settings.value(SETTINGS_DB_PASSWORD, "", type=str)
+        user_id, user_info, session_id = perform_user_login(
+            db_manager_gui, client_ip_address_gui,
+            parent=main_window_instance, logger=gui_logger,
+            license_mgr=_license_mgr,
+        )
 
-        # Se non c'è password salvata, prova a prenderla dal keyring
-        if not saved_password:
-            db_host = settings.value(SETTINGS_DB_HOST, "localhost", type=str)
-            db_user = settings.value(SETTINGS_DB_USER, "postgres", type=str)
-            saved_password = get_password_from_keyring(db_host, db_user)
-
-        saved_config = {
-            "host": settings.value(SETTINGS_DB_HOST, "localhost", type=str),
-            "port": settings.value(SETTINGS_DB_PORT, 5432, type=int),
-            "dbname": settings.value(SETTINGS_DB_NAME, "catasto_storico", type=str),
-            "user": settings.value(SETTINGS_DB_USER, "postgres", type=str),
-            "password": saved_password or ""  # Assicurati che ci sia sempre una password (anche vuota)
-        }
-
-        # Prova a connettere solo se sono presenti i dati essenziali E la password
-        if saved_config["dbname"] and saved_config["user"] and saved_config["password"]:
-            try:
-                db_manager_gui = CatastoDBManager(**saved_config)
-                if db_manager_gui.initialize_main_pool():
-                    main_window_instance.db_manager = db_manager_gui
-                    main_window_instance.pool_initialized_successful = True
-                    gui_logger.info("Connessione automatica riuscita.")
-                else:
-                    db_manager_gui = None # Resetta se fallisce
-            except Exception as e:
-                gui_logger.warning(f"Errore durante la creazione di CatastoDBManager: {e}")
-                db_manager_gui = None
-        else:
-            gui_logger.info("Dati di connessione incompleti (manca password o altri parametri essenziali). Skip connessione automatica.")
-            db_manager_gui = None
-        # --- FINE CORREZIONE ---
-
-        # 2. FALLBACK A CONFIGURAZIONE MANUALE se la connessione automatica è fallita
-        if not db_manager_gui or not db_manager_gui.pool:
-            gui_logger.warning("Connessione automatica fallita. Apertura dialogo di configurazione manuale.")
-            QMessageBox.information(None, "Configurazione Database", "Impossibile connettersi con le impostazioni salvate. Apriamo la configurazione.")
-
-            while True: # Loop per riprovare la configurazione manuale
-                config_dialog = DBConfigDialog(parent=None)
-                # --- INIZIO MODIFICA: Leggiamo le impostazioni AD OGNI ciclo ---
-                db_type = settings.value("Database/Type", "local", type=str)
-                db_host = settings.value("Database/Host", "localhost", type=str)
-                db_port = settings.value("Database/Port", 5432, type=int)
-                db_name = settings.value("Database/DBName", "catasto_storico", type=str)
-                db_user = settings.value("Database/User", "postgres", type=str)
-                db_password = get_password_from_keyring(db_host, db_user)
-                # --- FINE MODIFICA ---
-
-                if config_dialog.exec() != QDialog.DialogCode.Accepted:
-                    gui_logger.info("Configurazione manuale annullata. Uscita.")
-                    _license_mgr.release_seat()
-                    sys.exit(0)
-
-                current_config = config_dialog.get_config_values(include_password=True)
-
-                # --- CORREZIONE: Filtra solo i parametri supportati da CatastoDBManager ---
-                db_manager_params = {
-                    'host': current_config.get('host'),
-                    'port': current_config.get('port'),
-                    'dbname': current_config.get('dbname'),
-                    'user': current_config.get('user'),
-                    'password': current_config.get('password', '')  # Assicurati che ci sia sempre una password
-                }
-
-                # Rimuovi eventuali chiavi con valore None (ma mantieni password vuota se necessario)
-                db_manager_params = {k: v for k, v in db_manager_params.items() if v is not None}
-
-                # Assicurati che password sia sempre presente
-                if 'password' not in db_manager_params:
-                    db_manager_params['password'] = ''
-
-                try:
-                    db_manager_gui = CatastoDBManager(**db_manager_params)
-                except Exception as e:
-                    gui_logger.error(f"Errore creazione CatastoDBManager: {e}")
-                    QMessageBox.critical(None, "Errore Configurazione", f"Errore nella configurazione del database: {e}")
-                    continue  # Riprova il loop di configurazione
-                # --- FINE CORREZIONE ---
-
-                if db_manager_gui.initialize_main_pool():
-                    main_window_instance.db_manager = db_manager_gui
-                    main_window_instance.pool_initialized_successful = True
-                    gui_logger.info("Connessione manuale riuscita.")
-                    break # Esce dal loop di configurazione
-                else:
-                    # Mostra l'errore specifico e il loop continuerà, riaprendo il dialogo
-                    error_details = db_manager_gui.get_last_connect_error_details() or {}
-                    pgcode = error_details.get('pgcode')
-                    pgerror_msg = error_details.get('pgerror')
-
-                    if pgcode == '28P01':
-                        QMessageBox.critical(None, "Errore Autenticazione", "Password o utente errati.")
-                    else:
-                        QMessageBox.critical(None, "Errore Connessione", f"Impossibile connettersi.\n{pgerror_msg}")
-
-        # 3. SE LA CONNESSIONE (auto o manuale) è OK, PROCEDI CON IL LOGIN UTENTE
-        login_dialog = LoginDialog(db_manager_gui, client_ip_address_gui, parent=main_window_instance)
-        if login_dialog.exec() != QDialog.DialogCode.Accepted:
-            gui_logger.info("Login utente annullato. Uscita.")
-            _license_mgr.release_seat()
-            sys.exit(0)
-
-        # 4. LOGIN UTENTE OK, AVVIA L'APP
         main_window_instance.perform_initial_setup(
-            db_manager_gui,
-            login_dialog.logged_in_user_id,
-            login_dialog.logged_in_user_info,
-            login_dialog.current_session_id_from_dialog
+            db_manager_gui, user_id, user_info, session_id,
         )
 
         QTimer.singleShot(1500, lambda: update_checker.check_for_updates(main_window_instance))
@@ -2732,7 +2105,7 @@ if __name__ == "__main__":
             QMessageBox.critical(None, "Errore Critico", 
                                f"Si è verificato un errore critico:\n\n{str(e)}\n\n"
                                "Controlla il file catasto_gui.log per maggiori dettagli.")
-        except:
+        except Exception:
             logging.critical(f"ERRORE CRITICO: {e}")
             logging.critical("Controlla il file catasto_gui.log per maggiori dettagli.")
         

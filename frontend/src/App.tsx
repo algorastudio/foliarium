@@ -7,6 +7,8 @@ import Archivio from './pages/Archivio'
 import Genealogia from './pages/Genealogia'
 import Analytics from './pages/Analytics'
 import Audit from './pages/Audit'
+import PartitaDetail from './pages/PartitaDetail'
+import Possessori from './pages/Possessori'
 import Inserimento from './pages/Inserimento'
 
 const qc = new QueryClient({
@@ -35,6 +37,8 @@ export default function App() {
             >
               <Route index element={<Navigate to="/archivio" replace />} />
               <Route path="archivio" element={<Archivio />} />
+              <Route path="partite/:id" element={<PartitaDetail />} />
+              <Route path="possessori" element={<Possessori />} />
               <Route path="inserimento" element={<Inserimento />} />
               <Route path="genealogia" element={<Genealogia />} />
               <Route path="analytics" element={<Analytics />} />

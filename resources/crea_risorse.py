@@ -27,8 +27,8 @@ try:
     font_title = ImageFont.truetype("arial.ttf", 24)
     font_subtitle = ImageFont.truetype("arial.ttf", 14)
     font_small = ImageFont.truetype("arial.ttf", 10)
-except:
-    # Usa font default se non disponibile
+except (OSError, IOError):
+    # Usa font default se non disponibile (file font non trovato)
     font_title = ImageFont.load_default()
     font_subtitle = ImageFont.load_default()
     font_small = ImageFont.load_default()

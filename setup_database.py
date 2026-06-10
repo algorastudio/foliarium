@@ -5,7 +5,7 @@ setup_database.py — Inizializzazione cross-platform di PostgreSQL per Foliariu
 Funziona su Windows, Linux e macOS. Eseguito automaticamente dall'installer
 o manualmente dopo l'estrazione del pacchetto.
 
-Operazioni:
+Operazioni (modalità bundle — pgsql/ incluso nell'installer):
   1. Rileva la porta libera (5432, 5433, 5434)
   2. initdb — crea cluster PostgreSQL in pg_data/
   3. Configura pg_hba.conf (scram-sha-256) e postgresql.conf
@@ -15,12 +15,31 @@ Operazioni:
   7. Esegue gli script SQL (schema, procedure, user management)
   8. Scrive config.ini con le credenziali generate
 
-Uso:
+Modalità sviluppo (PostgreSQL di sistema già installato):
+  python setup_database.py --pg-bin "C:\\Program Files\\PostgreSQL\\16\\bin"
+  python setup_database.py --pg-bin auto            # ricerca automatica nel PATH
+  python setup_database.py --pg-bin auto --admin-password MiaPass
+
+  Usa un PostgreSQL già in esecuzione: salta initdb, pg_ctl e registrazione
+  servizio. Richiede che postgres sia raggiungibile su 127.0.0.1:5432 senza
+  password (trust) o con la password passata via --postgres-password.
+
+Uso (modalità bundle):
   python setup_database.py                        # auto-detect install_dir
   python setup_database.py --install-dir /opt/foliarium
   python setup_database.py --db-password MyPass   # password specifica
   python setup_database.py --skip-service         # no servizio, solo DB
   python setup_database.py --uninstall            # rimuove servizio e dati
+  
+  # 1. (opzionale) elimina il DB vecchio per ripartire pulito
+psql -U postgres -c "DROP DATABASE IF EXISTS catasto_storico;"
+psql -U postgres -c "DROP ROLE IF EXISTS foliarium;"
+
+# 2. Setup completo in un colpo solo
+python setup_database.py --pg-bin "C:\Program Files\PostgreSQL\17\bin" --postgres-password <password_di_postgres> --admin-password <password_admin_app>
+
+# 3. Avvia l'app
+python gui_main.py
 """
 from __future__ import annotations
 
@@ -52,27 +71,63 @@ IS_MAC = SYSTEM == "Darwin"
 IS_LINUX = SYSTEM == "Linux"
 EXE = ".exe" if IS_WIN else ""
 
+# Ordine di applicazione su DB fresco. Il bootstrap admin (07a) e' gestito
+# a parte perche' richiede la variabile psql admin_password (vedi codice).
+# Da v1.0.0: lookup tipo_possesso/tipo_localita, soft-delete e tabella sessioni
+# sono integrati in 02 e 07_user-management (vedi sql_scripts/README.md).
 SQL_SCRIPTS = [
-    "02_creazione-schema-tabelle.sql",
-    "03_funzioni-procedure.sql",
-    "07_user-management.sql",
-    "07a_bootstrap_admin.sql",
+    "schema/01_tables.sql",
+    "functions/01_core.sql",
+    "functions/02_crud.sql",
+    "functions/03_workflow.sql",
+    "functions/04_search.sql",
+    "functions/05_reporting.sql",
+    "functions/06_audit.sql",
+    "functions/07_features.sql",
+    "admin/01_users.sql",
+    "admin/02_backup.sql",
+    "admin/03_performance.sql",
+    "schema/02_trigram_indexes.sql",  # CONCURRENTLY: deve stare fuori transazione
 ]
+
+BOOTSTRAP_ADMIN_SCRIPT = "admin/04_bootstrap_admin.sql"
 
 
 # ============================================================================
 # Utilità
 # ============================================================================
 
+def find_system_pgbin() -> Path | None:
+    """Cerca psql nel PATH o nelle posizioni comuni su Windows/Linux/macOS."""
+    found = shutil.which("psql")
+    if found:
+        return Path(found).parent
+    if IS_WIN:
+        for ver in range(20, 13, -1):
+            for base in [r"C:\Program Files\PostgreSQL", r"C:\Program Files (x86)\PostgreSQL"]:
+                candidate = Path(base) / str(ver) / "bin"
+                if (candidate / "psql.exe").exists():
+                    return candidate
+    return None
+
+
 def log(msg: str) -> None:
     print(f"  {msg}", flush=True)
 
 
 def run(cmd: list, **kw) -> subprocess.CompletedProcess:
-    """Esegue un comando e logga."""
+    """Esegue un comando e logga. Su errore, stampa stdout/stderr catturati."""
     display = " ".join(str(c) for c in cmd)
     log(f"$ {display}")
-    return subprocess.run(cmd, check=True, **kw)
+    try:
+        return subprocess.run(cmd, check=True, **kw)
+    except subprocess.CalledProcessError as e:
+        # Se l'output era catturato, mostralo per non perdere il messaggio reale
+        if e.stdout:
+            sys.stdout.write(e.stdout.decode(errors="replace") if isinstance(e.stdout, bytes) else e.stdout)
+        if e.stderr:
+            sys.stderr.write(e.stderr.decode(errors="replace") if isinstance(e.stderr, bytes) else e.stderr)
+        raise
 
 
 def run_quiet(cmd: list, **kw) -> subprocess.CompletedProcess:
@@ -129,15 +184,20 @@ def run_psql(pg_bin: Path, port: int, sql: str,
 
 
 def run_psql_file(pg_bin: Path, port: int, sql_file: Path,
-                  dbname: str = "postgres", password: str = "") -> None:
-    """Esegue un file SQL tramite psql."""
+                  dbname: str = "postgres", password: str = "",
+                  variables: dict | None = None) -> None:
+    """Esegue un file SQL tramite psql, opzionalmente con variabili -v."""
     env = os.environ.copy()
     env["PGPASSWORD"] = password
-    run(
-        [exe(pg_bin, "psql"), "-h", "127.0.0.1", "-p", str(port),
-         "-U", "postgres", "-d", dbname, "-f", str(sql_file)],
-        env=env, capture_output=True,
-    )
+    cmd = [exe(pg_bin, "psql"), "-h", "127.0.0.1", "-p", str(port),
+           "-U", "postgres", "-d", dbname]
+    for k, v in (variables or {}).items():
+        # psql -v admin_password=valore  → variabile letterale "valore",
+        # poi :'admin_password' nel file aggiunge le virgolette per il SQL.
+        # NB: NON usare repr() qui, altrimenti la quotatura diventa doppia.
+        cmd += ["-v", f"{k}={v}"]
+    cmd += ["-f", str(sql_file)]
+    run(cmd, env=env, capture_output=True)
 
 
 # ============================================================================
@@ -329,6 +389,178 @@ def unregister_service(pg_bin: Path) -> None:
 
 
 # ============================================================================
+# Modalità sviluppo: PostgreSQL di sistema già in esecuzione
+# ============================================================================
+
+def _setup_on_external_pg(
+    install_dir: Path,
+    pg_bin: Path,
+    db_password: str,
+    admin_password: str,
+    postgres_password: str,
+    port: int,
+    db_name: str = DB_NAME,
+    db_user: str = DB_USER,
+    config_file: Path | None = None,
+) -> bool:
+    """
+    Crea il DB su un PostgreSQL già in esecuzione (modalità sviluppo).
+    Non esegue initdb, non modifica pg_hba.conf, non registra servizi.
+    """
+    sql_dir = install_dir / "sql_scripts"
+    if config_file is None:
+        config_file = install_dir / "config.ini"
+
+    print(f"\n{'='*60}")
+    print(f" Foliarium — Setup DB su PostgreSQL di sistema ({SYSTEM})")
+    print(f"{'='*60}")
+    log(f"PostgreSQL bin: {pg_bin}")
+    log(f"Host/porta:     127.0.0.1:{port}")
+    log(f"Database:       {db_name}")
+    log(f"Utente app:     {db_user}")
+
+    if not (pg_bin / f"psql{EXE}").exists():
+        log(f"ERRORE: psql non trovato in '{pg_bin}'")
+        return False
+
+    if not wait_ready(pg_bin, port, attempts=5):
+        log(f"ERRORE: PostgreSQL non risponde su 127.0.0.1:{port}.")
+        log("Verificare che il servizio sia in esecuzione.")
+        return False
+
+    print(f"\n[1/4] Creazione ruolo '{db_user}' e database '{db_name}'...")
+    try:
+        # Il ruolo applicativo e' creato SUPERUSER: REFRESH MATERIALIZED VIEW,
+        # CREATE VIEW e le migrazioni di schema auto-applicate all'avvio
+        # richiedono privilegi DDL/ownership che un ruolo limitato non ha.
+        run_psql(pg_bin, port,
+                 f"DO $$ BEGIN "
+                 f"IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname='{db_user}') THEN "
+                 f"CREATE ROLE {db_user} LOGIN SUPERUSER PASSWORD '{db_password}'; "
+                 f"END IF; END $$;",
+                 password=postgres_password)
+
+        env = os.environ.copy()
+        env["PGPASSWORD"] = postgres_password
+        r = run_quiet([exe(pg_bin, "psql"),
+                       "-h", "127.0.0.1", "-p", str(port),
+                       "-U", "postgres", "-d", "postgres",
+                       "-tc", f"SELECT 1 FROM pg_database WHERE datname='{db_name}'"],
+                      env=env)
+        if "1" not in r.stdout:
+            run_psql(pg_bin, port,
+                     f"CREATE DATABASE {db_name} OWNER postgres ENCODING 'UTF8';",
+                     password=postgres_password)
+            log(f"Database '{db_name}' creato.")
+        else:
+            log(f"Database '{db_name}' già esistente.")
+
+        run_psql(pg_bin, port,
+                 f"GRANT CONNECT ON DATABASE {db_name} TO {db_user};",
+                 dbname=db_name, password=postgres_password)
+
+    except subprocess.CalledProcessError as e:
+        log(f"ERRORE nella creazione del DB: {e}")
+        log("Suggerimento: usare --postgres-password se postgres richiede autenticazione.")
+        return False
+
+    print("\n[2/4] Esecuzione script SQL...")
+    try:
+        for script_name in SQL_SCRIPTS:
+            sql_file = sql_dir / script_name
+            if sql_file.exists():
+                log(f"→ {script_name}")
+                run_psql_file(pg_bin, port, sql_file,
+                              dbname=db_name, password=postgres_password)
+            else:
+                log(f"ATTENZIONE: {script_name} non trovato, saltato.")
+
+        bootstrap_file = sql_dir / BOOTSTRAP_ADMIN_SCRIPT
+        if bootstrap_file.exists():
+            log(f"→ {BOOTSTRAP_ADMIN_SCRIPT}")
+            run_psql_file(pg_bin, port, bootstrap_file,
+                          dbname=db_name, password=postgres_password,
+                          variables={
+                              "admin_password": admin_password,
+                              "admin_email": "admin@archivio.local",
+                          })
+        else:
+            log(f"ATTENZIONE: {BOOTSTRAP_ADMIN_SCRIPT} non trovato — admin non creato!")
+
+        run_psql(pg_bin, port,
+                 f"GRANT USAGE ON SCHEMA catasto TO {db_user}; "
+                 f"GRANT USAGE ON SCHEMA public TO {db_user}; "
+                 f"GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA catasto TO {db_user}; "
+                 f"GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA public TO {db_user}; "
+                 f"GRANT USAGE, SELECT, UPDATE ON ALL SEQUENCES IN SCHEMA catasto TO {db_user}; "
+                 f"GRANT USAGE, SELECT, UPDATE ON ALL SEQUENCES IN SCHEMA public TO {db_user}; "
+                 f"ALTER DEFAULT PRIVILEGES IN SCHEMA catasto "
+                 f"GRANT SELECT, INSERT, UPDATE, DELETE ON TABLES TO {db_user}; "
+                 f"ALTER DEFAULT PRIVILEGES IN SCHEMA public "
+                 f"GRANT SELECT, INSERT, UPDATE, DELETE ON TABLES TO {db_user}; "
+                 f"ALTER DEFAULT PRIVILEGES IN SCHEMA catasto "
+                 f"GRANT USAGE, SELECT, UPDATE ON SEQUENCES TO {db_user}; "
+                 f"ALTER DEFAULT PRIVILEGES IN SCHEMA public "
+                 f"GRANT USAGE, SELECT, UPDATE ON SEQUENCES TO {db_user}; "
+                 f"ALTER DEFAULT PRIVILEGES FOR ROLE postgres IN SCHEMA catasto "
+                 f"GRANT SELECT, INSERT, UPDATE, DELETE ON TABLES TO {db_user}; "
+                 f"ALTER DEFAULT PRIVILEGES FOR ROLE postgres IN SCHEMA catasto "
+                 f"GRANT USAGE, SELECT, UPDATE ON SEQUENCES TO {db_user};",
+                 dbname=db_name, password=postgres_password)
+
+        # Le materialized view ereditano postgres come owner; il REFRESH
+        # richiede l'ownership, quindi le trasferiamo all'utente applicativo.
+        run_psql(pg_bin, port,
+                 "DO $$ DECLARE r RECORD; BEGIN "
+                 "FOR r IN (SELECT matviewname FROM pg_matviews WHERE schemaname = 'catasto') "
+                 "LOOP EXECUTE 'ALTER MATERIALIZED VIEW catasto.' || quote_ident(r.matviewname) "
+                 f"|| ' OWNER TO {db_user}'; END LOOP; END $$;",
+                 dbname=db_name, password=postgres_password)
+
+    except subprocess.CalledProcessError as e:
+        log(f"ERRORE nell'esecuzione degli script SQL: {e}")
+        return False
+
+    print("\n[3/4] Scrittura config.ini...")
+    config = configparser.ConfigParser()
+    config["database"] = {
+        "host": "127.0.0.1",
+        "port": str(port),
+        "dbname": db_name,
+        "user": db_user,
+        "password": db_password,
+    }
+    config["service"] = {
+        "name": "external",
+        "pg_bin": str(pg_bin),
+        "pg_data": "",
+        "platform": SYSTEM,
+    }
+    with open(config_file, "w", encoding="utf-8") as f:
+        f.write("# Foliarium — Configurazione database (PostgreSQL di sistema)\n")
+        f.write(f"# Generato da setup_database.py --pg-bin ({SYSTEM})\n\n")
+        config.write(f)
+    log(f"config.ini scritto in: {config_file}")
+
+    print("\n[4/4] Verifica connessione finale...")
+    if not wait_ready(pg_bin, port, attempts=3):
+        log("ATTENZIONE: verifica finale non superata.")
+    else:
+        log("Connessione OK.")
+
+    print(f"\n{'='*60}")
+    print(" Setup completato!")
+    print(f"{'='*60}")
+    log(f"Porta:    {port}  |  Database: {db_name}")
+    log(f"Utente DB app:   {db_user}")
+    log(f"Config:          {config_file}")
+    log(f"Utente admin:    admin  /  {admin_password}")
+    log("IMPORTANTE: cambiare la password admin al primo accesso!")
+    print(f"{'='*60}\n")
+    return True
+
+
+# ============================================================================
 # Setup principale
 # ============================================================================
 
@@ -344,6 +576,8 @@ def setup(
     db_password: str | None = None,
     skip_service: bool = False,
     logfile: Path | None = None,
+    admin_password: str | None = None,
+    config_file: Path | None = None,
 ) -> bool:
     """
     Esegue l'intera sequenza di setup del database.
@@ -360,7 +594,8 @@ def setup(
     else:
         pg_data = install_dir / "pg_data"
     sql_dir = install_dir / "sql_scripts"
-    config_file = install_dir / "config.ini"
+    if config_file is None:
+        config_file = install_dir / "config.ini"
 
     if not pg_bin.exists():
         log(f"ERRORE: cartella pgsql/bin non trovata in '{install_dir}'")
@@ -369,6 +604,8 @@ def setup(
 
     if db_password is None:
         db_password = generate_password(16)
+    if admin_password is None:
+        admin_password = generate_password(16)
 
     print(f"\n{'='*60}")
     print(f" Foliarium — Inizializzazione Database ({SYSTEM})")
@@ -378,12 +615,12 @@ def setup(
     log(f"Data directory:          {pg_data}")
 
     # --- 1. Trova porta libera ---
-    print(f"\n[1/8] Ricerca porta libera...")
+    print("\n[1/8] Ricerca porta libera...")
     port = find_free_port(DEFAULT_PORT)
     log(f"Porta selezionata: {port}")
 
     # --- 2. initdb ---
-    print(f"\n[2/8] Inizializzazione cluster PostgreSQL...")
+    print("\n[2/8] Inizializzazione cluster PostgreSQL...")
     if (pg_data / "PG_VERSION").exists():
         log("Cluster già esistente, skip initdb.")
     else:
@@ -402,7 +639,7 @@ def setup(
             return False
 
     # --- 3. Configurazione ---
-    print(f"\n[3/8] Configurazione PostgreSQL...")
+    print("\n[3/8] Configurazione PostgreSQL...")
 
     # pg_hba.conf
     hba = pg_data / "pg_hba.conf"
@@ -432,7 +669,7 @@ def setup(
     conf.write_text(conf_text + conf_overrides, encoding="utf-8")
 
     # --- 4. Avvio temporaneo per impostare password superuser ---
-    print(f"\n[4/8] Avvio temporaneo per configurazione iniziale...")
+    print("\n[4/8] Avvio temporaneo per configurazione iniziale...")
 
     # Prima: avvia con trust per impostare la password postgres
     # (pg_hba.conf è scram, ma initdb era trust → sovrascriviamo temporaneamente)
@@ -484,10 +721,13 @@ def setup(
         env = os.environ.copy()
         env["PGPASSWORD"] = db_password
 
+        # Il ruolo applicativo e' creato SUPERUSER: REFRESH MATERIALIZED VIEW,
+        # CREATE VIEW e le migrazioni di schema auto-applicate all'avvio
+        # richiedono privilegi DDL/ownership che un ruolo limitato non ha.
         run_psql(pg_bin, port,
                  f"DO $$ BEGIN "
                  f"IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname='{DB_USER}') THEN "
-                 f"CREATE ROLE {DB_USER} LOGIN PASSWORD '{db_password}'; "
+                 f"CREATE ROLE {DB_USER} LOGIN SUPERUSER PASSWORD '{db_password}'; "
                  f"END IF; END $$;",
                  password=db_password)
 
@@ -508,7 +748,7 @@ def setup(
                  dbname=DB_NAME, password=db_password)
 
         # --- 7. Script SQL ---
-        print(f"\n[6/8] Esecuzione script SQL...")
+        print("\n[6/8] Esecuzione script SQL (schema, funzioni, feature)...")
         for script_name in SQL_SCRIPTS:
             sql_file = sql_dir / script_name
             if sql_file.exists():
@@ -518,18 +758,51 @@ def setup(
             else:
                 log(f"ATTENZIONE: {script_name} non trovato, saltato.")
 
+        # Bootstrap admin: passa admin_password come variabile psql.
+        # CRITICO per fresh install: senza questo non si puo' accedere al primo avvio.
+        bootstrap_file = sql_dir / BOOTSTRAP_ADMIN_SCRIPT
+        if bootstrap_file.exists():
+            log(f"→ {BOOTSTRAP_ADMIN_SCRIPT} (password admin dinamica)")
+            run_psql_file(
+                pg_bin, port, bootstrap_file,
+                dbname=DB_NAME, password=db_password,
+                variables={
+                    "admin_password": admin_password,
+                    "admin_email": "admin@archivio.local",
+                },
+            )
+        else:
+            log(f"ATTENZIONE: {BOOTSTRAP_ADMIN_SCRIPT} non trovato — admin non creato!")
+
         # Grant permessi su tutte le tabelle create
         run_psql(pg_bin, port,
                  f"GRANT USAGE ON SCHEMA catasto TO {DB_USER}; "
                  f"GRANT USAGE ON SCHEMA public TO {DB_USER}; "
                  f"GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA catasto TO {DB_USER}; "
                  f"GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA public TO {DB_USER}; "
-                 f"GRANT USAGE ON ALL SEQUENCES IN SCHEMA catasto TO {DB_USER}; "
-                 f"GRANT USAGE ON ALL SEQUENCES IN SCHEMA public TO {DB_USER}; "
+                 f"GRANT USAGE, SELECT, UPDATE ON ALL SEQUENCES IN SCHEMA catasto TO {DB_USER}; "
+                 f"GRANT USAGE, SELECT, UPDATE ON ALL SEQUENCES IN SCHEMA public TO {DB_USER}; "
                  f"ALTER DEFAULT PRIVILEGES IN SCHEMA catasto "
                  f"GRANT SELECT, INSERT, UPDATE, DELETE ON TABLES TO {DB_USER}; "
                  f"ALTER DEFAULT PRIVILEGES IN SCHEMA public "
-                 f"GRANT SELECT, INSERT, UPDATE, DELETE ON TABLES TO {DB_USER};",
+                 f"GRANT SELECT, INSERT, UPDATE, DELETE ON TABLES TO {DB_USER}; "
+                 f"ALTER DEFAULT PRIVILEGES IN SCHEMA catasto "
+                 f"GRANT USAGE, SELECT, UPDATE ON SEQUENCES TO {DB_USER}; "
+                 f"ALTER DEFAULT PRIVILEGES IN SCHEMA public "
+                 f"GRANT USAGE, SELECT, UPDATE ON SEQUENCES TO {DB_USER}; "
+                 f"ALTER DEFAULT PRIVILEGES FOR ROLE postgres IN SCHEMA catasto "
+                 f"GRANT SELECT, INSERT, UPDATE, DELETE ON TABLES TO {DB_USER}; "
+                 f"ALTER DEFAULT PRIVILEGES FOR ROLE postgres IN SCHEMA catasto "
+                 f"GRANT USAGE, SELECT, UPDATE ON SEQUENCES TO {DB_USER};",
+                 dbname=DB_NAME, password=db_password)
+
+        # Le materialized view ereditano postgres come owner; il REFRESH
+        # richiede l'ownership, quindi le trasferiamo all'utente applicativo.
+        run_psql(pg_bin, port,
+                 "DO $$ DECLARE r RECORD; BEGIN "
+                 "FOR r IN (SELECT matviewname FROM pg_matviews WHERE schemaname = 'catasto') "
+                 "LOOP EXECUTE 'ALTER MATERIALIZED VIEW catasto.' || quote_ident(r.matviewname) "
+                 f"|| ' OWNER TO {DB_USER}'; END LOOP; END $$;",
                  dbname=DB_NAME, password=db_password)
 
     finally:
@@ -562,7 +835,7 @@ def setup(
         log("Skip registrazione servizio (--skip-service).")
 
     # --- 8. Scrittura config.ini ---
-    print(f"\n[8/8] Scrittura config.ini...")
+    print("\n[8/8] Scrittura config.ini...")
     config = configparser.ConfigParser()
     config["database"] = {
         "host": "127.0.0.1",
@@ -581,14 +854,14 @@ def setup(
     with open(config_file, "w", encoding="utf-8") as f:
         f.write("# Foliarium — Configurazione database locale\n")
         f.write(f"# Generato da setup_database.py ({SYSTEM})\n")
-        f.write(f"# NON modificare manualmente a meno che non si sappia cosa si fa.\n\n")
+        f.write("# NON modificare manualmente a meno che non si sappia cosa si fa.\n\n")
         config.write(f)
 
     log(f"config.ini scritto in: {config_file}")
 
     # --- Riepilogo ---
     print(f"\n{'='*60}")
-    print(f" Installazione completata!")
+    print(" Installazione completata!")
     print(f"{'='*60}")
     log(f"Piattaforma:  {SYSTEM}")
     log(f"Porta:        {port}")
@@ -654,15 +927,57 @@ def uninstall(install_dir: Path) -> None:
 
 def main() -> None:
     parser = argparse.ArgumentParser(
-        description="Inizializzazione database PostgreSQL per Foliarium")
+        description="Inizializzazione database PostgreSQL per Foliarium",
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        epilog=(
+            "Esempi modalità sviluppo (PostgreSQL di sistema già installato):\n"
+            "  python setup_database.py --pg-bin auto\n"
+            "  python setup_database.py --pg-bin auto --admin-password MiaPass\n"
+            r'  python setup_database.py --pg-bin "C:\Program Files\PostgreSQL\16\bin"'
+            "\n  python setup_database.py --pg-bin auto --postgres-password postgres"
+        ),
+    )
     parser.add_argument("--install-dir", default=None,
                         help="Directory di installazione (default: auto-detect)")
     parser.add_argument("--db-password", default=None,
                         help="Password per il database (default: generata casualmente)")
+    parser.add_argument("--admin-password", default=None,
+                        help="Password per l'utente admin applicativo "
+                             "(default: 'admin123' — CAMBIARLA al primo accesso)")
     parser.add_argument("--skip-service", action="store_true",
                         help="Non registrare come servizio di sistema")
     parser.add_argument("--uninstall", action="store_true",
                         help="Rimuovi servizio e dati database")
+    # Modalità sviluppo
+    parser.add_argument(
+        "--pg-bin", default=None, metavar="PATH|auto",
+        help=(
+            "Percorso alla cartella bin di PostgreSQL di sistema "
+            "(es. C:\\Program Files\\PostgreSQL\\16\\bin) oppure 'auto' per "
+            "ricerca automatica. Usa un PostgreSQL già in esecuzione: "
+            "salta initdb, pg_ctl e registrazione servizio."
+        ),
+    )
+    parser.add_argument(
+        "--postgres-password", default="",
+        help="Password del superuser postgres (default: stringa vuota = trust/peer)",
+    )
+    parser.add_argument(
+        "--port", type=int, default=DEFAULT_PORT,
+        help=f"Porta PostgreSQL (default: {DEFAULT_PORT})",
+    )
+    parser.add_argument(
+        "--db-name", default=DB_NAME,
+        help=f"Nome del database da creare (default: {DB_NAME})",
+    )
+    parser.add_argument(
+        "--db-user", default=DB_USER,
+        help=f"Ruolo PostgreSQL dell'applicazione (default: {DB_USER})",
+    )
+    parser.add_argument(
+        "--config-file", default=None, metavar="FILE",
+        help="Percorso del file di configurazione da scrivere (default: config.ini nella directory di installazione)",
+    )
     args = parser.parse_args()
 
     install_dir = Path(args.install_dir) if args.install_dir else detect_install_dir()
@@ -670,9 +985,40 @@ def main() -> None:
 
     if args.uninstall:
         uninstall(install_dir)
-    else:
-        ok = setup(install_dir, args.db_password, args.skip_service)
+        return
+
+    # Modalità sviluppo: --pg-bin fornito
+    if args.pg_bin is not None:
+        if args.pg_bin.lower() == "auto":
+            pg_bin = find_system_pgbin()
+            if pg_bin is None:
+                print("  ERRORE: PostgreSQL non trovato nel PATH né nelle posizioni standard.")
+                print("  Specificare il percorso esatto con --pg-bin <cartella>")
+                sys.exit(1)
+            log(f"PostgreSQL trovato in: {pg_bin}")
+        else:
+            pg_bin = Path(args.pg_bin)
+
+        _db_pwd = args.db_password or generate_password(16)
+        _admin_pwd = args.admin_password or generate_password(16)
+        ok = _setup_on_external_pg(
+            install_dir=install_dir,
+            pg_bin=pg_bin,
+            db_password=_db_pwd,
+            admin_password=_admin_pwd,
+            postgres_password=args.postgres_password,
+            port=args.port,
+            db_name=args.db_name,
+            db_user=args.db_user,
+            config_file=Path(args.config_file) if args.config_file else None,
+        )
         sys.exit(0 if ok else 1)
+
+    # Modalità bundle: pgsql/ incluso nell'installer
+    ok = setup(install_dir, args.db_password, args.skip_service,
+               admin_password=args.admin_password,
+               config_file=Path(args.config_file) if args.config_file else None)
+    sys.exit(0 if ok else 1)
 
 
 if __name__ == "__main__":

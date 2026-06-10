@@ -5,6 +5,16 @@ import sys
 # Aggiungi la directory principale al path
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
+# Chiave HMAC di test per LicenseManager: i moduli che firmano/verificano
+# .license file richiedono FOLIARIUM_LICENSE_KEY. In CI e in locale impostiamo
+# una chiave dummy fissa prima dell'import dei moduli di licenza, cosi'
+# tests/unit/test_license_manager.py funziona senza dover provisionare
+# foliarium.key. Il valore qui non e' un segreto reale.
+os.environ.setdefault(
+    "FOLIARIUM_LICENSE_KEY",
+    "deadbeefcafebabe0123456789abcdef0123456789abcdef0123456789abcdef",
+)
+
 from catasto_db_manager import CatastoDBManager
 
 @pytest.fixture(scope="session")

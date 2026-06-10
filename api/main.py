@@ -18,32 +18,77 @@ _PROJECT_ROOT = str(Path(__file__).parent.parent)
 if _PROJECT_ROOT not in sys.path:
     sys.path.insert(0, _PROJECT_ROOT)
 
-from api.routes import auth, comuni, partite, possessori, dashboard, audit, genealogia, timeline, immobili
+from api.routes import auth, comuni, partite, possessori, immobili, dashboard, audit, genealogia, timeline
 from api.deps import set_db_manager
 
 logger = logging.getLogger("FoliariumAPI")
 
 
-def _init_db_from_env():
-    """Inizializza il DB manager da variabili d'ambiente (nessuna dipendenza da PyQt6)."""
+def _init_db_from_config():
+    """Inizializza il DB manager da variabili d'ambiente / config.py (usato in dev)."""
+    from api.deps import set_db_manager
     from catasto_db_manager import CatastoDBManager
-    host = os.environ.get("DB_HOST", "localhost")
-    user = os.environ.get("DB_USER", "postgres")
-    password = os.environ.get("DB_PASS", "postgres")
-    dbname = os.environ.get("DB_NAME", "catasto_storico")
-    port = int(os.environ.get("DB_PORT", "5432"))
-    schema = os.environ.get("DB_SCHEMA", "catasto")
-    mgr = CatastoDBManager(dbname=dbname, user=user, password=password,
-                           host=host, port=port, schema=schema)
-    ok = mgr.initialize_main_pool()
-    if not ok:
-        raise RuntimeError(f"Impossibile connettersi al database {user}@{host}:{port}/{dbname}")
+    import config as cfg
+
+    # Schema: env var FOLIARIUM_DB_SCHEMA → config.ini [database].schema → 'catasto' di default
+    schema = os.environ.get("FOLIARIUM_DB_SCHEMA")
+    if not schema:
+        try:
+            schema = cfg._ini_get("database", "schema", "")
+        except Exception:
+            schema = ""
+    if not schema:
+        schema = "catasto"  # coerente con il bootstrap script (07a_bootstrap_admin.sql)
+
+    # Password: config.ini / env var → keyring di sistema (stessa fonte usata da gui_main.py)
+    password = cfg.ENV_DB_PASS
+    if not password:
+        try:
+            from app_utils import get_password_from_keyring
+            password = get_password_from_keyring(
+                f"foliarium_db_{cfg.ENV_DB_HOST}", cfg.ENV_DB_USER
+            ) or ""
+            if password:
+                logger.info("Password DB letta dal keyring di sistema.")
+        except Exception as e:
+            logger.warning("Lettura password dal keyring fallita: %s", e)
+
+    mgr = CatastoDBManager(
+        dbname=cfg.ENV_DB_NAME,
+        user=cfg.ENV_DB_USER,
+        password=password,
+        host=cfg.ENV_DB_HOST,
+        port=cfg.ENV_DB_PORT,
+        schema=schema,
+    )
+    # Retry-loop sull'inizializzazione del pool: in scenari come docker-compose
+    # il container app può partire prima che il container db abbia completato
+    # gli script SQL di bootstrap, quindi tentiamo per ~60s.
+    import time
+    deadline = time.monotonic() + 60.0
+    attempt = 0
+    while True:
+        attempt += 1
+        if mgr.initialize_main_pool():
+            break
+        if time.monotonic() >= deadline:
+            logger.error("Pool DB non inizializzato dopo 60s — l'API risponderà 503 finché il DB non è raggiungibile.")
+            break
+        logger.warning("Pool DB non pronto (tentativo %d), retry tra 2s…", attempt)
+        time.sleep(2.0)
     set_db_manager(mgr)
-    logger.info("DB manager inizializzato: %s@%s:%s/%s", user, host, port, dbname)
+    logger.info("DB manager inizializzato: %s@%s/%s schema=%s",
+                cfg.ENV_DB_USER, cfg.ENV_DB_HOST, cfg.ENV_DB_NAME, schema)
 
 
 def create_app(db_manager=None) -> FastAPI:
-    app = FastAPI(title="Foliarium API", version="1.0.0", docs_url="/api/docs")
+    app = FastAPI(
+        title="Foliarium API",
+        version="1.0.0",
+        docs_url="/api/v1/docs",
+        redoc_url="/api/v1/redoc",
+        openapi_url="/api/v1/openapi.json",
+    )
 
     app.add_middleware(
         CORSMiddleware,
@@ -56,17 +101,19 @@ def create_app(db_manager=None) -> FastAPI:
     if db_manager is not None:
         set_db_manager(db_manager)
     else:
-        _init_db_from_env()
+        _init_db_from_config()
 
-    app.include_router(auth.router, prefix="/api")
-    app.include_router(comuni.router, prefix="/api")
-    app.include_router(partite.router, prefix="/api")
-    app.include_router(possessori.router, prefix="/api")
-    app.include_router(dashboard.router, prefix="/api")
-    app.include_router(audit.router, prefix="/api")
-    app.include_router(genealogia.router, prefix="/api")
-    app.include_router(timeline.router, prefix="/api")
-    app.include_router(immobili.router, prefix="/api")
+    # Mount duale: /api/v1/* (preferito, contratto stabile per integrazioni
+    # esterne) + /api/* (legacy, mantenuto per il frontend React esistente).
+    # Quando il frontend sarà migrato, /api/* potrà essere rimosso.
+    _routers = (
+        auth.router, comuni.router, partite.router, possessori.router,
+        immobili.router, dashboard.router, audit.router, genealogia.router,
+        timeline.router,
+    )
+    for r in _routers:
+        app.include_router(r, prefix="/api/v1")
+        app.include_router(r, prefix="/api", include_in_schema=False)
 
     # Serve il build React statico (frontend/dist/)
     dist_dir = Path(__file__).parent.parent / "frontend" / "dist"
@@ -90,3 +137,63 @@ def find_free_port(start: int = 8765) -> int:
             except OSError:
                 continue
     raise RuntimeError("Nessuna porta libera trovata")
+
+
+class PinnedPortBusyError(RuntimeError):
+    """La porta fissata in configurazione è già occupata."""
+
+    def __init__(self, port: int):
+        super().__init__(
+            f"La porta {port} è già occupata da un altro processo. "
+            f"Cambia FOLIARIUM_API_PORT in config.ini (sezione [api]) "
+            f"o nelle variabili d'ambiente, oppure libera la porta."
+        )
+        self.port = port
+
+
+def resolve_api_port(default_start: int = 8765) -> int:
+    """Determina la porta su cui esporre l'API.
+
+    Ordine di priorità:
+
+    1. Env var ``FOLIARIUM_API_PORT`` (int).
+    2. ``config.ini`` sezione ``[api]`` chiave ``port``.
+    3. Scan dinamico a partire da ``default_start`` (comportamento storico).
+
+    Quando l'utente ha fissato una porta esplicita (cases 1 e 2) e la porta
+    è occupata, viene sollevata ``PinnedPortBusyError`` invece di scegliere
+    silenziosamente un'altra porta — così il claude_desktop_config.json
+    dell'utente non si rompe a ogni riavvio.
+    """
+    import config as cfg
+
+    pinned_str = os.environ.get("FOLIARIUM_API_PORT", "").strip()
+    if not pinned_str:
+        try:
+            pinned_str = cfg._ini_get("api", "port", "").strip()
+        except Exception:
+            pinned_str = ""
+
+    if pinned_str:
+        try:
+            pinned = int(pinned_str)
+        except ValueError:
+            logger.warning(
+                "FOLIARIUM_API_PORT='%s' non è un intero valido, "
+                "fallback su scan dinamico.", pinned_str,
+            )
+        else:
+            if 1024 <= pinned <= 65535:
+                with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+                    try:
+                        s.bind(("127.0.0.1", pinned))
+                    except OSError:
+                        raise PinnedPortBusyError(pinned)
+                logger.info("API porta fissata: %d (da configurazione)", pinned)
+                return pinned
+            logger.warning(
+                "FOLIARIUM_API_PORT=%d fuori dal range valido (1024-65535), "
+                "fallback su scan dinamico.", pinned,
+            )
+
+    return find_free_port(default_start)

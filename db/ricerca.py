@@ -4,58 +4,75 @@ Estratto da catasto_db_manager.py — mixin per CatastoDBManager.
 """
 
 from __future__ import annotations
-import logging
-from typing import Optional, List, Dict, Any, TYPE_CHECKING
+from datetime import date
+from typing import Optional, List, Dict, Any
 
 import psycopg2
 from psycopg2.extras import DictCursor
 
-from catasto_exceptions import DBMError, DBUniqueConstraintError, DBNotFoundError, DBDataError
 from db.base import db_handle_errors
-
-if TYPE_CHECKING:
-    from catasto_db_manager import CatastoDBManager
 
 
 class DBSearchMixin:
     """Mixin per ricerche fuzzy/GIN e ricerca avanzata immobili."""
 
     @db_handle_errors
-    def search_all_entities_fuzzy(self, query_text: str,
-                                search_possessori: bool = True,
-                                search_localita: bool = True,
-                                search_immobili: bool = True,
-                                search_variazioni: bool = True,
-                                search_contratti: bool = True,
-                                search_partite: bool = True,
-                                max_results_per_type: int = 50,
-                                similarity_threshold: float = 0.3) -> Dict[str, List[Dict]]:
+    def search_all_entities_fuzzy(
+        self,
+        query_text: str,
+        search_possessori: bool = True,
+        search_localita: bool = True,
+        search_immobili: bool = True,
+        search_variazioni: bool = True,
+        search_contratti: bool = True,
+        search_partite: bool = True,
+        max_results_per_type: int = 50,
+        similarity_threshold: float = 0.3,
+    ) -> Dict[str, List[Dict]]:
         """Metodo orchestratore per la ricerca fuzzy che riusa una singola connessione.
 
         TIER 1: @db_handle_errors centralizes exception handling.
         """
         all_results = {
-            "possessore": [], "localita": [], "immobile": [],
-            "variazione": [], "contratto": [], "partita": []
+            "possessore": [],
+            "localita": [],
+            "immobile": [],
+            "variazione": [],
+            "contratto": [],
+            "partita": [],
         }
 
         with self._get_connection() as conn:
             if search_possessori:
-                all_results["possessore"] = self._search_possessori_fuzzy_internal(conn, query_text, similarity_threshold, max_results_per_type)
+                all_results["possessore"] = self._search_possessori_fuzzy_internal(
+                    conn, query_text, similarity_threshold, max_results_per_type
+                )
             if search_localita:
-                all_results["localita"] = self._search_localita_fuzzy_internal(conn, query_text, similarity_threshold, max_results_per_type)
+                all_results["localita"] = self._search_localita_fuzzy_internal(
+                    conn, query_text, similarity_threshold, max_results_per_type
+                )
             if search_immobili:
-                all_results["immobile"] = self._search_immobili_fuzzy_internal(conn, query_text, similarity_threshold, max_results_per_type)
+                all_results["immobile"] = self._search_immobili_fuzzy_internal(
+                    conn, query_text, similarity_threshold, max_results_per_type
+                )
             if search_variazioni:
-                all_results["variazione"] = self._search_variazioni_fuzzy_internal(conn, query_text, similarity_threshold, max_results_per_type)
+                all_results["variazione"] = self._search_variazioni_fuzzy_internal(
+                    conn, query_text, similarity_threshold, max_results_per_type
+                )
             if search_contratti:
-                all_results["contratto"] = self._search_contratti_fuzzy_internal(conn, query_text, similarity_threshold, max_results_per_type)
+                all_results["contratto"] = self._search_contratti_fuzzy_internal(
+                    conn, query_text, similarity_threshold, max_results_per_type
+                )
             if search_partite:
-                all_results["partita"] = self._search_partite_fuzzy_internal(conn, query_text, similarity_threshold, max_results_per_type)
+                all_results["partita"] = self._search_partite_fuzzy_internal(
+                    conn, query_text, similarity_threshold, max_results_per_type
+                )
 
         return all_results
 
-    def _search_localita_fuzzy_internal(self, conn, query: str, threshold: float, limit: int) -> List[Dict]:
+    def _search_localita_fuzzy_internal(
+        self, conn, query: str, threshold: float, limit: int
+    ) -> List[Dict]:
         """Ricerca fuzzy interna per le località. Civico è incorporato nel nome da v1.6.1."""
         sql = f"""
             SELECT
@@ -87,7 +104,9 @@ class DBSearchMixin:
             self.logger.error(f"Errore ricerca fuzzy località: {e}", exc_info=True)
             return []
 
-    def _search_possessori_fuzzy_internal(self, conn, query: str, threshold: float, limit: int) -> List[Dict]:
+    def _search_possessori_fuzzy_internal(
+        self, conn, query: str, threshold: float, limit: int
+    ) -> List[Dict]:
         """Ricerca fuzzy interna per i possessori, restituendo tutti i campi necessari."""
         sql = f"""
             SELECT
@@ -115,13 +134,17 @@ class DBSearchMixin:
         """
         try:
             with conn.cursor(cursor_factory=DictCursor) as cur:
-                cur.execute(sql, (query, query, query, query, query, query, threshold, limit))
+                cur.execute(
+                    sql, (query, query, query, query, query, query, threshold, limit)
+                )
                 return [dict(row) for row in cur.fetchall()]
         except Exception as e:
             self.logger.error(f"Errore ricerca fuzzy possessori: {e}", exc_info=True)
             return []
 
-    def _search_immobili_fuzzy_internal(self, conn, query: str, threshold: float, limit: int) -> List[Dict]:
+    def _search_immobili_fuzzy_internal(
+        self, conn, query: str, threshold: float, limit: int
+    ) -> List[Dict]:
         """Ricerca fuzzy interna per gli immobili, includendo il suffisso della partita."""
         # --- MODIFICA: Aggiunto pa.suffisso_partita e aggiornato detail_text ---
         sql = f"""
@@ -148,13 +171,17 @@ class DBSearchMixin:
         """
         try:
             with conn.cursor(cursor_factory=DictCursor) as cur:
-                cur.execute(sql, (query, query, query, query, query, query, threshold, limit))
+                cur.execute(
+                    sql, (query, query, query, query, query, query, threshold, limit)
+                )
                 return [dict(row) for row in cur.fetchall()]
         except Exception as e:
             self.logger.error(f"Errore ricerca fuzzy immobili: {e}", exc_info=True)
             return []
 
-    def _search_variazioni_fuzzy_internal(self, conn, query: str, threshold: float, limit: int) -> List[Dict]:
+    def _search_variazioni_fuzzy_internal(
+        self, conn, query: str, threshold: float, limit: int
+    ) -> List[Dict]:
         """Ricerca fuzzy interna per le variazioni (su tipo e nominativo di riferimento)."""
         # --- CORREZIONE: Sostituisce v.note (inesistente) con v.nominativo_riferimento (esistente) ---
         sql = f"""
@@ -184,13 +211,17 @@ class DBSearchMixin:
         """
         try:
             with conn.cursor(cursor_factory=DictCursor) as cur:
-                cur.execute(sql, (query, query, query, query, query, query, threshold, limit))
+                cur.execute(
+                    sql, (query, query, query, query, query, query, threshold, limit)
+                )
                 return [dict(row) for row in cur.fetchall()]
         except Exception as e:
             self.logger.error(f"Errore ricerca fuzzy variazioni: {e}", exc_info=True)
             return []
 
-    def _search_contratti_fuzzy_internal(self, conn, query: str, threshold: float, limit: int) -> List[Dict]:
+    def _search_contratti_fuzzy_internal(
+        self, conn, query: str, threshold: float, limit: int
+    ) -> List[Dict]:
         """Ricerca fuzzy interna per i contratti (su tipo, notaio, note)."""
         sql = f"""
             SELECT
@@ -211,13 +242,17 @@ class DBSearchMixin:
         """
         try:
             with conn.cursor(cursor_factory=DictCursor) as cur:
-                cur.execute(sql, (query, query, query, query, query, query, threshold, limit))
+                cur.execute(
+                    sql, (query, query, query, query, query, query, threshold, limit)
+                )
                 return [dict(row) for row in cur.fetchall()]
         except Exception as e:
             self.logger.error(f"Errore ricerca fuzzy contratti: {e}", exc_info=True)
             return []
 
-    def _search_partite_fuzzy_internal(self, conn, query: str, threshold: float, limit: int) -> List[Dict]:
+    def _search_partite_fuzzy_internal(
+        self, conn, query: str, threshold: float, limit: int
+    ) -> List[Dict]:
         """Ricerca fuzzy interna per le partite, ora include l'elenco dei possessori."""
         # --- MODIFICA: Aggiunto JOIN con possessori e aggregazione con string_agg ---
         sql = f"""
@@ -256,7 +291,9 @@ class DBSearchMixin:
         """
         try:
             with conn.cursor(cursor_factory=DictCursor) as cur:
-                cur.execute(sql, (query, query, query, query, query, query, threshold, limit))
+                cur.execute(
+                    sql, (query, query, query, query, query, query, threshold, limit)
+                )
                 return [dict(row) for row in cur.fetchall()]
         except Exception as e:
             self.logger.error(f"Errore ricerca fuzzy partite: {e}", exc_info=True)
@@ -278,18 +315,24 @@ class DBSearchMixin:
                 cur.execute(query, (self.schema,))
                 result = cur.fetchone()
                 count = result[0] if result else 0
-                return {'status': 'OK', 'gin_indices': count}
+                return {"status": "OK", "gin_indices": count}
 
     @db_handle_errors
-    def ricerca_avanzata_immobili_gui(self, comune_id: Optional[int] = None, localita_id: Optional[int] = None,
-                                      natura_search: Optional[str] = None, classificazione_search: Optional[str] = None,
-                                      consistenza_search: Optional[str] = None,
-                                      piani_min: Optional[int] = None, piani_max: Optional[int] = None,
-                                      vani_min: Optional[int] = None, vani_max: Optional[int] = None,
-                                      nome_possessore_search: Optional[str] = None,
-                                      data_inizio_possesso_search: Optional[date] = None,
-                                      data_fine_possesso_search: Optional[date] = None,
-                                     ) -> List[Dict[str, Any]]:
+    def ricerca_avanzata_immobili_gui(
+        self,
+        comune_id: Optional[int] = None,
+        localita_id: Optional[int] = None,
+        natura_search: Optional[str] = None,
+        classificazione_search: Optional[str] = None,
+        consistenza_search: Optional[str] = None,
+        piani_min: Optional[int] = None,
+        piani_max: Optional[int] = None,
+        vani_min: Optional[int] = None,
+        vani_max: Optional[int] = None,
+        nome_possessore_search: Optional[str] = None,
+        data_inizio_possesso_search: Optional[date] = None,
+        data_fine_possesso_search: Optional[date] = None,
+    ) -> List[Dict[str, Any]]:
         """Ricerca avanzata immobili con query diretta (non usa stored procedure).
 
         TIER 1: @db_handle_errors centralizes exception handling.
@@ -305,23 +348,32 @@ class DBSearchMixin:
         """
 
         if comune_id is not None:
-            conditions.append("p.comune_id = %s"); params.append(comune_id)
+            conditions.append("p.comune_id = %s")
+            params.append(comune_id)
         if localita_id is not None:
-            conditions.append("i.localita_id = %s"); params.append(localita_id)
+            conditions.append("i.localita_id = %s")
+            params.append(localita_id)
         if natura_search:
-            conditions.append("i.natura ILIKE %s"); params.append(f"%{natura_search}%")
+            conditions.append("i.natura ILIKE %s")
+            params.append(f"%{natura_search}%")
         if classificazione_search:
-            conditions.append("i.classificazione ILIKE %s"); params.append(f"%{classificazione_search}%")
+            conditions.append("i.classificazione ILIKE %s")
+            params.append(f"%{classificazione_search}%")
         if consistenza_search:
-            conditions.append("i.consistenza ILIKE %s"); params.append(f"%{consistenza_search}%")
+            conditions.append("i.consistenza ILIKE %s")
+            params.append(f"%{consistenza_search}%")
         if piani_min is not None:
-            conditions.append("i.numero_piani >= %s"); params.append(piani_min)
+            conditions.append("i.numero_piani >= %s")
+            params.append(piani_min)
         if piani_max is not None:
-            conditions.append("i.numero_piani <= %s"); params.append(piani_max)
+            conditions.append("i.numero_piani <= %s")
+            params.append(piani_max)
         if vani_min is not None:
-            conditions.append("i.numero_vani >= %s"); params.append(vani_min)
+            conditions.append("i.numero_vani >= %s")
+            params.append(vani_min)
         if vani_max is not None:
-            conditions.append("i.numero_vani <= %s"); params.append(vani_max)
+            conditions.append("i.numero_vani <= %s")
+            params.append(vani_max)
         if nome_possessore_search:
             joins += f"""
                 JOIN {self.schema}.partita_possessore pp_f ON p.id = pp_f.partita_id
@@ -336,6 +388,7 @@ class DBSearchMixin:
             SELECT DISTINCT
                 i.id AS id_immobile, p.numero_partita, c.nome AS comune_nome,
                 l.nome AS localita_nome, l.tipologia_stradale AS localita_tipo,
+                i.numero_civico,
                 i.natura, i.classificazione, i.consistenza, i.numero_piani, i.numero_vani,
                 (SELECT string_agg(DISTINCT pos_agg.nome_completo, ', ')
                  FROM {self.schema}.partita_possessore pp_agg
@@ -343,11 +396,10 @@ class DBSearchMixin:
                  WHERE pp_agg.partita_id = p.id AND pos_agg.attivo = TRUE) AS possessori_attuali
             {joins}
             {where}
-            ORDER BY c.nome, p.numero_partita, i.natura
+            ORDER BY c.nome, p.numero_partita, l.tipologia_stradale, l.nome, i.numero_civico, i.natura
         """
 
         with self._get_connection() as conn:
             with conn.cursor(cursor_factory=psycopg2.extras.DictCursor) as cur:
                 cur.execute(query, params)
                 return [dict(row) for row in cur.fetchall()]
-

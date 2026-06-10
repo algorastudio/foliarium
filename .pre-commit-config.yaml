@@ -1,0 +1,47 @@
+# Pre-commit hooks per Foliarium.
+#
+# Installazione:
+#     pip install pre-commit
+#     pre-commit install
+#
+# Esecuzione manuale (su tutti i file):
+#     pre-commit run --all-files
+#
+# I hook sono allineati ai gate della CI:
+#   - ruff F821 (nomi non definiti)
+#   - ruff E9 (errori di sintassi)
+#   - ruff F811 (redefinition unused)
+#   - bin/check_api_drift.py (drift fra DB methods e chiamanti)
+#
+# Non includiamo:
+#   - black/ruff format: lasciato all'utente per evitare churn nei PR
+#   - mypy/pyright: copertura tipi parziale (foliarium/protocols.py e' opt-in)
+#   - pytest: troppo lento per pre-commit, gestito dalla CI
+
+repos:
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    rev: v0.6.8
+    hooks:
+      - id: ruff
+        name: ruff (F821/E9/F811 gate)
+        args:
+          - --select=F821,E9,F811
+          - --exclude=tests
+        # Solo i file modificati; pre-commit gestisce in automatico
+        types: [python]
+
+  - repo: local
+    hooks:
+      - id: check-api-drift
+        name: bin/check_api_drift.py (DB API ↔ callers)
+        entry: python bin/check_api_drift.py --quiet
+        language: system
+        # Si attiva solo se viene modificato uno dei file rilevanti
+        files: ^(db/.*\.py|catasto_db_manager\.py|foliarium/.*\.py|tests/.*\.py|gui_main\.py|gui_widgets\.py|search_widgets\.py|partita_workflow_widgets\.py|dialogs\.py|app_utils\.py|api/.*\.py)$
+        pass_filenames: false  # lo script scansiona tutto il repo, non i file singoli
+
+      - id: no-trailing-whitespace-py
+        name: no trailing whitespace (.py)
+        entry: python -c "import sys; [sys.exit(1) for f in sys.argv[1:] if any(line.rstrip(chr(10)) != line.rstrip() for line in open(f, encoding='utf-8'))]"
+        language: system
+        types: [python]

@@ -2,10 +2,10 @@
 
 ## Project overview
 
-**Foliarium** is a desktop application for managing historical Italian cadastral records (archivio catastale storico), developed for the State Archive of Savona. It allows archivists to search, insert, and export property records (partite catastali) and owners (possessori).
+**Foliarium** is a desktop application for managing historical Italian cadastral records (archivio catastale storico). It allows archivists to search, insert, and export property records (partite catastali) and owners (possessori).
 
-- **Current version:** 1.6.1 (con refactoring civico)
-- **Author:** Marco Santoro
+- **Current version:** 1.0.1
+- **Author:** Marco Santoro / Algora Studio
 - **Primary platform:** Windows 10+
 - **Code/UI language:** Italian
 - **Precedentemente noto come:** Meridiana (rinominato a Foliarium in v1.5.0)
@@ -23,7 +23,7 @@
 | Data | pandas 2.3, numpy 2.3, openpyxl 3.1.5 |
 | PDF export | fpdf2 2.8.3 |
 | Auth/security | bcrypt 4.3.0, keyring 25.6.0 |
-| Build | PyInstaller (`meridiana.spec`) + Inno Setup |
+| Build | PyInstaller (`foliarium.spec`) + Inno Setup |
 | CI/CD | GitHub Actions |
 | Docs | MkDocs (Material theme) |
 
@@ -32,37 +32,111 @@
 ## Project structure
 
 ```
-catasto/
-├── gui_main.py              # Entry point — QMainWindow, app init
-├── gui_widgets.py           # Main UI panels/widgets (re-export facade)
-├── insertion_widgets.py     # Widget inserimento: Comune, Possessore, Località, Partita
-├── admin_widgets.py         # Widget admin: Utenti, Audit, Backup, TipiLocalità, Periodi
-├── reporting_widgets.py     # Widget report: Documenti, Esportazioni, Reportistica, Statistiche
-├── import_dialogs.py        # Dialog import CSV/ISTAT/OSM per Comuni e Località
-├── dialogs.py               # Dialog windows (tutti gli altri dialog)
-├── catasto_db_manager.py    # Database layer — facade per il package db/
-├── app_utils.py             # PDF/report utilities
-├── app_paths.py             # Path resolution & resource loading
-├── config.py                # App config, logging, env-var DB credentials
-├── custom_widgets.py        # Reusable custom PyQt6 widgets
-├── sql_scripts/             # PostgreSQL DDL, stored procedures, init scripts
-├── styles/                  # Qt stylesheets (.qss) — 16 themes
-├── resources/               # Icons, images, EULA
-├── tests/                   # Test suite (pytest)
-├── docs/                    # MkDocs documentation source
-├── esportazioni/            # Export output directory (PDFs, CSVs)
-├── .devcontainer/           # Dev container config (VS Code / Codespaces)
-├── .github/workflows/       # CI/CD pipeline
-├── meridiana.spec           # PyInstaller build spec
-├── foliarium_demo.spec      # PyInstaller spec versione demo (include PG portabile)
-├── Meridiana_Installer.iss  # Inno Setup installer script
-├── demo_launcher.py         # Avvia/ferma PostgreSQL portabile (solo demo)
-├── prepare_demo_db.py       # Script CI: initdb + schema + dati demo
-├── demo_config.ini          # Credenziali DB demo + guida inizializzazione
-├── license_manager.py       # Gestione licenze (fingerprint, validazione, seat rete)
-├── generate_license.py      # CLI utility: genera/ispeziona file .license
-└── update_checker.py        # Verifica e download automatico aggiornamenti
+foliarium/
+├── gui_main.py                   # Entry point — QMainWindow, navigazione, slot Qt (~2000 LOC)
+├── gui_widgets.py                # Facade thin (178 LOC) → foliarium/ui/widgets/{comuni,dashboard,welcome} + altri re-export
+├── search_widgets.py             # Facade thin (41 LOC) → foliarium/ui/widgets/search/
+├── partita_workflow_widgets.py   # Facade thin (24 LOC) → foliarium/ui/widgets/workflow/
+├── dialogs.py                    # Facade di re-export dialogs (implementati in foliarium/ui/dialogs/)
+├── catasto_db_manager.py         # Facade DB — delega al package db/
+├── app_utils.py                  # Helper IO/keyring/format + facade PDF/export (176 LOC, post-refactor)
+├── app_paths.py                  # Path resolution & resource loading
+├── config.py                     # Costanti, logging, APP_VERSION, assert_db_password_configured()
+├── validators.py                 # Validatori campi form
+│
+├── foliarium/                    # Package principale (servizi + UI estratti)
+│   ├── core/services/            # email.py, license.py, update_checker.py, demo_launcher.py
+│   ├── reporting/                # PDF reports (post-refactor Sprint 3.1)
+│   │   └── pdf.py                # ModernCatastoPDF + PDFPartita/Possessore/Generic/Bulk
+│   └── ui/
+│       ├── top_bar.py, sidebar.py, command_palette.py, splash.py, effects.py
+│       ├── theme.py              # Funzioni pure tema QSS (post-refactor Sprint 3.5)
+│       ├── login_flow.py         # Connessione DB + login utente (post-refactor Sprint 3.6)
+│       ├── startup.py            # Splash + EULA + license check (post-refactor Sprint 3.7)
+│       ├── dialogs/              # entity.py, admin.py (+ LoginDialog), partita.py, import_.py, export_.py
+│       ├── export/               # Wrapper GUI export (post-refactor Sprint 3.2)
+│       │   ├── partita.py        # gui_esporta_partita_{json,csv,pdf}
+│       │   └── possessore.py     # gui_esporta_possessore_{json,csv,pdf}
+│       └── widgets/
+│           ├── admin.py          # GestioneUtenti, AuditLog, Backup, TipiPossesso, Archivio
+│           ├── insertion.py      # Form inserimento (Comune, Possessore, Localita, Partita)
+│           ├── reporting.py      # Documenti, Esportazioni, Reportistica, Statistiche
+│           ├── custom.py         # Widget condivisi, show_status_message, LazyLoadedWidget
+│           ├── comuni.py         # ElencoComuniWidget + ComuniTableModel (Sprint 3.8)
+│           ├── dashboard.py      # DashboardWidget + _DashboardLoaderWorker (Sprint 3.8)
+│           ├── welcome.py        # WelcomeScreen (EULA) (Sprint 3.8)
+│           ├── workflow/         # Widget workflow partite (post-refactor Sprint 3.3)
+│           │   ├── registrazione_proprieta.py    # RegistrazioneProprietaWidget
+│           │   ├── nuova_partita_wizard.py       # NuovaPartitaWizardWidget
+│           │   └── operazioni_partita.py         # OperazioniPartitaWidget
+│           └── search/           # Widget ricerca (post-refactor Sprint 3.4)
+│               ├── partite.py    # Worker, model, proxy, card, widget
+│               ├── immobili.py   # Model + RicercaAvanzataImmobiliWidget
+│               └── fuzzy.py      # UnifiedFuzzySearchWidget + thread + model
+│
+├── db/                           # Database layer — 15 mixin via ereditarietà multipla
+│   ├── base.py                   # DBConnectionBase: pool, _get_connection(), bulk_insert
+│   ├── comuni.py, localita.py, possessori.py, partite.py, immobili.py
+│   ├── variazioni.py, documenti.py, audit.py, utenti.py
+│   ├── backup.py, stats.py, ricerca.py, io.py, archivio.py
+│   ├── drafts.py                 # DBDraftsMixin (bozze wizard Nuova Partita + Registrazione Proprietà)
+│   ├── api_keys.py               # DBApiKeysMixin (chiavi API per integrazioni esterne, MCP, ecc.)
+│   └── models.py                 # Dataclass models
+│
+├── core/                         # Gestione sessione e autenticazione
+│   ├── session_manager.py        # SessionManager (stato utente corrente)
+│   └── auth_manager.py           # AuthManager (authn + permessi)
+│
+├── api/                          # REST API FastAPI (opzionale, per integrazioni esterne)
+│   ├── main.py, server_thread.py
+│   └── routes/                   # comuni, partite, possessori, audit, genealogia, ecc.
+│
+├── utils/
+│   └── error_handlers.py         # Eccezioni custom (AuthenticationError, ecc.)
+│
+├── sql_scripts/                  # Script PostgreSQL (init + migrazioni)
+│   └── migrations/               # Script di upgrade per DB già esistenti
+├── styles/                       # Qt stylesheets (.qss)
+├── resources/                    # Icone, immagini, EULA
+├── tests/                        # Test suite (pytest)
+│   ├── unit/                     # Unit test (validators, theme, db mixins, license, ecc.)
+│   └── integration/              # Integration test (E2E, golden_path, DB live, GUI)
+├── docs/                         # MkDocs documentation source
+├── esportazioni/                 # Output directory (PDF, CSV)
+├── .devcontainer/                # Dev container config (VS Code / Codespaces)
+├── .github/workflows/            # CI/CD pipeline
+├── foliarium.spec                # PyInstaller build spec (produzione)
+├── setup_database.bat / .py      # Init DB Windows / cross-platform
+└── generate_license.py           # CLI: genera/ispeziona file .license
 ```
+
+### Convenzioni post-refactor (Sprint 3 — six-hats)
+
+Diversi moduli root sono ora **facade thin** che re-esportano dai nuovi
+package coesi. I consumer storici continuano a funzionare:
+
+```python
+# Vecchio import (ancora valido)
+from search_widgets import RicercaPartiteWidget
+from partita_workflow_widgets import NuovaPartitaWizardWidget
+from app_utils import PDFPartita, gui_esporta_partita_pdf
+
+# Nuovo import preferito
+from foliarium.ui.widgets.search import RicercaPartiteWidget
+from foliarium.ui.widgets.workflow import NuovaPartitaWizardWidget
+from foliarium.reporting.pdf import PDFPartita
+from foliarium.ui.export import gui_esporta_partita_pdf
+```
+
+**Riduzioni LOC** dopo lo Sprint 3:
+
+| File | Prima | Dopo |
+|---|---|---|
+| `partita_workflow_widgets.py` | 2.209 | 24 |
+| `search_widgets.py` | 1.841 | 41 |
+| `gui_widgets.py` | 1.036 | 178 |
+| `app_utils.py` | 923 | 176 |
+| `gui_main.py` | 2.155 | 1.982 |
 
 ---
 
@@ -87,8 +161,11 @@ python generate_license.py inspect savona.license
 # Show hardware fingerprint of current machine
 python generate_license.py fingerprint
 
-# Prepare demo_data/ locally (requires pgsql/ portable in project root)
-python prepare_demo_db.py --pgsql-dir pgsql
+# Generate HMAC-SHA256 key for license signing (foliarium.key)
+python generate_key.py                    # Interactive menu
+python generate_key.py --save-exe-dir     # Auto-save to EXE_DIR (next to Foliarium.exe)
+python generate_key.py --save-base-dir    # Auto-save to BASE_DIR (project root)
+python generate_key.py --env-var          # Print only HEX value (for environment variable)
 
 # Run all tests
 pytest
@@ -99,7 +176,7 @@ pytest -m integration
 pytest -m "not gui"          # skip GUI tests (e.g. in headless env)
 
 # Build Windows executable
-pyinstaller meridiana.spec
+pyinstaller foliarium.spec
 
 # Install dependencies
 pip install -r requirements.txt
@@ -117,11 +194,22 @@ export QT_QPA_PLATFORM=offscreen
 
 ## Architecture
 
-- **Entry point:** `gui_main.py` creates the `QApplication` and `QMainWindow`, initialises logging (`config.setup_global_logging`), and loads the main window with panels from `gui_widgets.py`.
-- **DB layer:** `catasto_db_manager.py` — `CatastoDBManager` class wraps all psycopg2 calls. Credentials are read from env vars (`DB_HOST`, `DB_USER`, `DB_PASS`, `DB_NAME`, `DB_PORT`) with fallback to defaults defined in `config.py`.
+- **Entry point:** `gui_main.py` creates the `QApplication` and `QMainWindow`, initialises logging (`config.setup_global_logging`), builds `TopBarWidget` + `SidebarWidget` + `QStackedWidget`, navigates with `navigate_to(page_name)`. La sequenza di avvio delega a moduli dedicati: `foliarium.ui.theme` (bootstrap stylesheet), `foliarium.ui.startup` (splash, EULA, licenza), `foliarium.ui.login_flow` (connessione DB + login utente).
+- **DB layer:** `catasto_db_manager.py` — facade thin che eredita dai mixin in `db/`. `CatastoDBManager` espone tutti i metodi CRUD. Credentials are read from env vars (`DB_HOST`, `DB_USER`, `DB_PASS`, `DB_NAME`, `DB_PORT`) with fallback to defaults defined in `config.py`. Se la password manca in produzione, `config.assert_db_password_configured()` solleva `RuntimeError` invece di tentare un login silenzioso con password vuota.
 - **CI detection:** `config.IS_TEST_ENV` is `True` when `CI=true` or `GITHUB_ACTIONS=true`. Used to skip interactive prompts and adjust logging.
-- **UI panels** (all in `gui_widgets.py`): DashboardWidget, RicercaPartiteWidget, RicercaAvanzataImmobiliWidget, InserimentoPossessoreWidget, EsportazioniWidget, ReportisticaWidget, GestioneUtentiWidget, AuditLogViewerWidget, BackupWidget.
-- **Themes:** QSS stylesheets in `styles/`. Loaded at runtime; 16 themes available (dark, light, business, ocean, nature, etc.).
+- **UI widget distribution** (post-refactor Sprint 3):
+  - `gui_widgets.py` — facade thin (178 LOC) di re-export verso `foliarium/ui/widgets/{comuni,dashboard,welcome}` + altri
+  - `foliarium/ui/widgets/comuni.py` — `ElencoComuniWidget` + `ComuniTableModel` + `_ComuniLoaderWorker` (Sprint 3.8)
+  - `foliarium/ui/widgets/dashboard.py` — `DashboardWidget` + `_DashboardLoaderWorker` (Sprint 3.8)
+  - `foliarium/ui/widgets/welcome.py` — `WelcomeScreen` (EULA splash) (Sprint 3.8)
+  - `foliarium/ui/widgets/search/` — 3 file per famiglia: `partite.py`, `immobili.py`, `fuzzy.py`
+  - `foliarium/ui/widgets/workflow/` — 3 file: `registrazione_proprieta.py`, `nuova_partita_wizard.py`, `operazioni_partita.py`
+  - `foliarium/ui/widgets/insertion.py` — form inserimento (Comune, Possessore, Località, Partita)
+  - `foliarium/ui/widgets/admin.py` — `GestioneUtentiWidget`, `AuditLogViewerWidget`, `BackupWidget`, `TipiPossessoWidget`, `ArchivioWidget`
+  - `foliarium/ui/widgets/reporting.py` — `RicercaDocumentiWidget`, `EsportazioniWidget`, `ReportisticaWidget`, `StatisticheWidget`
+- **Reporting:** classi PDF in `foliarium/reporting/pdf.py` (estratte da `app_utils.py` nello Sprint 3.1). Wrapper GUI di export in `foliarium/ui/export/{partita,possessore}.py`.
+- **Themes:** QSS stylesheets in `styles/`. Funzioni pure in `foliarium/ui/theme.py`: `apply_stylesheet`, `apply_auto_theme`, `apply_initial_theme_from_settings`, `is_win11_style_available`.
+- **Supporto/diagnostica:** menu **Help → Esporta log per supporto (.zip)...** invoca `gui_main.MainWindow._esporta_log_zip` che delega a `app_utils.create_logs_archive(destination_path) -> (n_file, size_bytes)`. La helper scopre le cartelle di log via `app_utils._discover_log_directories()` (cumulativa di `QStandardPaths.AppLocalDataLocation`, della sua sotto-cartella `logs/` e della legacy `app_paths.LOG_DIR`) e comprime in uno zip `ZIP_DEFLATED` tutti i file `*.log` / `*.log.N` (rotazioni). Dedup per path canonico, solleva `FileNotFoundError` se nessun file di log esiste. Il path reale su Windows (con `OrganizationName="AlgoraStudio"` + `ApplicationName="Foliarium"`) è `%LOCALAPPDATA%\AlgoraStudio\Foliarium\` (root: `foliarium_session.log`; sotto-cartella `logs/`: `foliarium_gui.log` + rotazioni).
 
 ---
 
@@ -143,7 +231,7 @@ QSizePolicy.Expanding
 QFont.Bold
 ```
 
-This was a recurring issue fixed in commits `4ef1d7a` and `0ca39e0`. Always use the full three-part path `Module.EnumClass.Value`.
+Always use the full three-part path `Module.EnumClass.Value`.
 
 ---
 
@@ -153,14 +241,42 @@ This was a recurring issue fixed in commits `4ef1d7a` and `0ca39e0`. Always use 
 - **Default user:** `postgres`
 - **Schema:** `public` (configurable via `SETTINGS_DB_SCHEMA`)
 - Passwords are **not** stored in QSettings — keyring is used for secure storage.
-- Init SQL scripts are in `sql_scripts/`; run them in order to initialise a fresh DB.
+- Init SQL scripts are in `sql_scripts/`; run in order for a fresh DB.
+- Upgrade scripts for existing DBs are in `sql_scripts/migrations/`.
+- **Auto-apply migrazioni idempotenti:** `db/base.py::_apply_pending_schema_migrations()` viene invocata a ogni init pool e applica silenziosamente migrazioni sicure (es. schema v1.6.1, indici UNIQUE sulle MV, vista `v_audit_dettagliato` — equivalente di `migrations/19_create_v_audit_dettagliato.sql`, tabella `partita_draft` — equivalente di `migrations/21_create_partita_draft.sql`, tabella `api_keys` — equivalente di `migrations/22_create_api_keys.sql`). Best-effort, non bloccante.
+
+## REST API & integrazioni esterne
+
+- **FastAPI** in `api/` esposta con doppio prefisso: `/api/v1/*` (versione preferita, contratto stabile per integrazioni esterne) e `/api/*` (legacy, mantenuto per il frontend React esistente). Swagger UI: `/api/v1/docs`, OpenAPI JSON: `/api/v1/openapi.json`.
+- **Avvio:** `APIServerThread` in `api/server_thread.py` esegue `uvicorn` su `127.0.0.1:<porta-dinamica>` (default 8765+). Lanciato dal flusso WebViewWindow di `gui_main.py`.
+- **Dual auth** (`api/deps.py`):
+  - `Authorization: Bearer <token>` → sessione utente in-memory (TTL 120 min, `api/auth.py`). Implicitamente ha scope `*:*`.
+  - `X-Foliarium-Api-Key: flr_<32 hex>` → chiave API persistente in `catasto.api_keys`. Scope granulari (es. `read:partite`, `write:partite`, wildcard `read:*` / `*:*`).
+  - `get_current_session` (storica) accetta entrambi i metodi. Per scope-check granulare: `Depends(require_scope("read:partite"))`.
+- **Gestione chiavi API** (mixin `db/api_keys.py`):
+  - `create_api_key(name, scopes, created_by, expires_at=None, rate_limit_per_min=60) -> (id, plaintext)` — il plaintext (`flr_<32 hex>`) è restituito una sola volta; in DB si memorizza solo lo SHA-256 + prefix.
+  - `validate_api_key(plaintext) -> Optional[dict]` — verifica hash, scadenza, revoca; aggiorna `last_used_at`.
+  - `list_api_keys(include_revoked=False)`, `revoke_api_key(id)`.
+- **Admin UI** (`foliarium/ui/dialogs/admin/api_keys.py`): voce **Impostazioni → Gestione Chiavi API…** (solo admin) apre `ApiKeysDialog` (tabella chiavi con stati Attiva/Revocata/Scaduta), `CreateApiKeyDialog` (form con scope checkbox + scadenza opzionale), `NewKeyResultDialog` (mostra il plaintext una sola volta con bottone "Copia"). Slot in `gui_main.MainWindow._apri_gestione_api_keys` con guard ruolo admin.
+
+## MCP server (`mcp_server/`)
+
+Package top-level che espone l'API REST come tool MCP (Model Context Protocol)
+invocabili da **Claude Desktop** e altri client MCP.
+
+- `mcp_server/server.py` — `FastMCP("foliarium")` con 8 tool: `elenca_comuni`, `elenca_localita`, `cerca_partite`, `dettagli_partita`, `cerca_possessori`, `dettagli_possessore`, `genealogia_partita`, `timeline_partita`.
+- `mcp_server/client.py` — `FoliariumApiClient` (httpx sync) con header `X-Foliarium-Api-Key`. Mappa 401/403/404/5xx in `FoliariumApiError` con messaggi umani (suggerisce "Genera nuova chiave da Gestione Chiavi API…", "Esporta log per supporto", ecc.).
+- `mcp_server/__main__.py` — entry point `python -m mcp_server`, stdio mode (default Claude Desktop).
+- Configurazione via env: `FOLIARIUM_API_BASE_URL` + `FOLIARIUM_API_KEY`.
+- Documentazione utente: `docs/admin/api.md` (REST API + esempi curl) e `docs/admin/mcp.md` (guida Claude Desktop con esempio `claude_desktop_config.json`).
+- **Avvisi schema:** `db/base.py::check_missing_migrations()` rileva colonne / tabelle critiche mancanti (`soft_delete`, `tipo_possesso`) e `gui_main._check_db_schema_migrations` mostra un avviso non bloccante.
 
 ---
 
 ## Dev container (VS Code / Codespaces)
 
 ```
-noVNC desktop  → http://localhost:6080  (password: meridiana)
+noVNC desktop  → http://localhost:6080  (password: foliarium-dev)
 PostgreSQL     → localhost:5432
 QT_QPA_PLATFORM=xcb  (set automatically inside container)
 ```
@@ -171,10 +287,19 @@ Run `bash .devcontainer/setup.sh` to initialise the DB and install dependencies 
 
 ## CI/CD (GitHub Actions)
 
-Pipeline: `.github/workflows/pipeline_meridiana.yml`
+Pipeline: `.github/workflows/pipeline_foliarium.yml`
 
 1. **Test job** (Ubuntu): spins up PostgreSQL 14, installs Qt6 system libs, runs pytest with `QT_QPA_PLATFORM=offscreen`, captures GUI screenshots as artifacts.
 2. **Build job** (Windows, only if tests pass): runs PyInstaller, creates portable ZIP and Inno Setup installer, uploads as artifacts.
+
+### Trigger
+
+| Evento | Job eseguiti |
+|---|---|
+| `push` a `main`/`master`/branch-allowlist | test + tutti i build |
+| `push` di un tag `*.*.*` | test + build + create-release |
+| `pull_request` verso `main`/`master` | solo test (build skippati via `if: github.event_name != 'pull_request'`) |
+| `workflow_dispatch` | tutti i job |
 
 ---
 
@@ -182,958 +307,111 @@ Pipeline: `.github/workflows/pipeline_meridiana.yml`
 
 ```
 tests/
-├── conftest.py                    # pytest fixtures (DB connection)
+├── conftest.py                    # pytest fixtures (db_manager, clean_db, sample_data)
 ├── test_basic.py
-├── catasto-test-database.py       # DB connection tests
-├── catasto-test-gui.py            # GUI component tests
-├── catasto-test-integration.py    # End-to-end integration tests
-├── catasto-test-runner.py         # Test orchestration
-├── take_screenshots.py            # CI screenshot capture
-├── unit/                          # Unit tests
-└── integration/                   # Integration tests
+├── unit/                          # Unit tests (pytest -m unit)
+│   ├── test_validators_exceptions.py   # 474 LOC, validators centralizzati
+│   ├── test_db_*.py                    # mixin DB (comuni, partite, possessori, ricerca)
+│   ├── test_db_base_audit_view.py      # _ensure_audit_view (auto-apply vista)
+│   ├── test_license_manager.py         # LicenseManager + HMAC
+│   ├── test_theme.py                   # foliarium/ui/theme.py (post-Sprint 3.5)
+│   ├── test_login_flow.py              # foliarium/ui/login_flow.py (post-Sprint 3.6)
+│   ├── test_startup.py                 # foliarium/ui/startup.py (post-Sprint 3.7)
+│   ├── test_demo_launcher.py, test_update_checker.py, test_email_service.py
+│   └── test_widget_modules.py          # smoke test re-export facade
+└── integration/                   # Integration tests (pytest -m integration)
+    ├── test_e2e.py                     # E2E DB layer (richiede Postgres live)
+    ├── test_gui_smoke.py               # smoke widget GUI via pytest-qt
+    ├── test_gui_widgets.py
+    └── test_golden_path.py             # E2E headless del flusso critico
+                                        # comune → possessore → partita →
+                                        # variazione → export PDF (Sprint 2)
 ```
 
-Pytest markers: `slow`, `integration`, `gui`, `unit`.
+**Pytest markers:**
+- `unit` — unit test puri (rapidi)
+- `integration` — richiedono DB live e/o GUI
+- `gui` — richiedono `QApplication` (QT_QPA_PLATFORM=offscreen in CI)
+- `slow` — test lenti (esclusi da run rapidi)
+- `golden_path` — happy-path da proteggere assolutamente da regressioni
+
+**Coverage** (`pytest.ini` + `.coveragerc`):
+i file GUI (`gui_main`, `gui_widgets`, `search_widgets`, `partita_workflow_widgets`,
+`dialogs`) sono **esclusi** dal `--cov` perché richiedono interazione utente +
+DB live e i numeri risulterebbero fuorvianti. La coverage misurata copre
+`db/`, `core/`, `validators.py`, `app_utils.py`, `foliarium/` e moduli simili.
 
 ---
 
-## Changelog sessione corrente (v1.3.0.0)
+## PyInstaller paths (onedir bundle)
 
-Tutto il lavoro è sul branch `claude/summarize-dev-status-vDVnI`.
+In a PyInstaller `onedir` bundle there are two distinct roots:
 
-### Migrazione PyQt6 completata
-- Corretti **tutti** gli enum non-namespaced in `gui_widgets.py`, `dialogs.py`, `catasto_db_manager.py`, `app_utils.py`, `tests/catasto-test-gui.py` (>80 istanze)
-- Pattern fisso: `Qt.AlignLeft` → `Qt.AlignmentFlag.AlignLeft`, `QTableWidget.NoEditTriggers` → `QAbstractItemView.EditTrigger.NoEditTriggers`, ecc.
-- `QStyleFactory` è in `PyQt6.QtWidgets`, **non** in `PyQt6.QtGui`
-
-### Nuove feature introdotte
-
-**1. Auto dark/light mode** (`gui_main.py`, `config.py`)
-- Menu *Impostazioni → Cambia Tema Grafico → Tema Automatico (Segue Sistema)*
-- Usa `QGuiApplication.styleHints().colorScheme()` + segnale `colorSchemeChanged`
-- Costanti: `SETTINGS_UI_AUTO_THEME`, `AUTO_THEME_DARK="dark_mode_stylesheet.qss"`, `AUTO_THEME_LIGHT="meridiana_styles.qss"`
-
-**2. Stile nativo Windows 11** (`gui_main.py`, `config.py`)
-- Menu *Impostazioni → Cambia Tema Grafico → Stile Nativo Windows 11*
-- Appare solo se `"windows11" in QStyleFactory.keys()` (Qt 6.7+)
-- `app.setStyle("windows11")` + pulizia QSS; `_reset_app_style()` ripristina Fusion prima di applicare QSS
-- Costante: `SETTINGS_UI_WIN11_STYLE`; le 3 modalità (Win11/Auto/QSS) si escludono a vicenda
-
-**3. HiDPI audit** (`gui_widgets.py`, `dialogs.py`, `gui_main.py`)
-- Rimossi tutti i `setFixed*` (19 istanze) → sostituiti con `setMinimum*`
-- `WelcomeScreen`: `setFixedSize(1024,768)` → `setMinimumSize(800,600)` + `resize(1024,768)`
-- `QSplitter.setSizes([N,M])` → `setStretchFactor()` proporzionale
-
-**4. QPdfDocument sostituisce WebEngine** (`dialogs.py`)
-- `DocumentViewerDialog._load_pdf()` usa `QPdfDocument` + `QPdfView` con toolbar zoom (−/+/Adatta)
-- WebEngine commentato in `requirements.txt` (risparmio ~80 MB installer)
-- `WEB_ENGINE_AVAILABLE` flag in `gui_widgets.py` e `custom_widgets.py` per uso futuro web
-
-**5. Logo SVG** (`app_paths.py`, `gui_main.py`, `gui_widgets.py`)
-- `get_logo_svg_path(dark=False)` in `app_paths.py` → `"logo meridiana.svg"` o `"meridiana_dark.svg"`
-- `WelcomeScreen` usa `QSvgWidget` (sempre nitido su HiDPI), fallback PNG se QtSvgWidgets non disponibile
-- Logo scelto automaticamente in base al tema dark/light del sistema
-
----
-
-## Changelog sessione corrente (v1.3.1.0)
-
-Tutto il lavoro è sul branch `claude/summarize-dev-status-vDVnI`.
-
-### Feature: Import comuni e località da CSV / ISTAT
-
-**`catasto_db_manager.py`**
-- `import_comuni_from_rows(rows: List[Dict]) -> Dict` — batch insert comuni con SAVEPOINT per riga; campi obbligatori: nome, provincia, regione; opzionali: codice_catastale, data_istituzione, data_soppressione, note
-- `import_localita_from_rows(comune_id, rows: List[Dict]) -> Dict` — batch insert località; risolve tipo (stringa) → tipo_id via lookup in-memory; fallback su "Altro"
-
-**`dialogs.py`**
-- `ISTATDownloadWorker(QThread)` — scarica CSV ISTAT ufficiale in background (`urllib.request`), mappa colonne → schema locale, filtro per sigla provincia
-- `ImportComuniDialog` — due tab: *Da file CSV* (template scaricabile, preview 20 righe, import) e *Da ISTAT* (download con progress bar, preview, import)
-- `ImportLocalitaDialog` — selezione comune da ComboBox, template CSV scaricabile, preview, import
-- `_mostra_risultati_import()` — helper per dialog riepilogo successi/errori
-
-**`gui_main.py`**
-- 2 nuove voci menu *File*: "Importa Comuni da CSV/ISTAT..." e "Importa Località da CSV..."
-- Handler `_import_comuni()` (con refresh `ElencoComuniWidget`) e `_import_localita()`
-
-### Feature: Albero genealogico partita (v1.3.2.0)
-
-**`catasto_db_manager.py`**
-- `get_genealogia_partita(partita_id) -> Dict` — 3 query: partita centrale, predecessori (variazione.partita_destinazione_id), successori (variazione.partita_origine_id)
-
-**`dialogs.py`**
-- `AlberoGeneralogicoDialog` — QTreeWidget 5 colonne, QSplitter con QTextBrowser dettaglio, colori differenziati root/predecessori/successori, pulsante "Apri Report Testo"
-- `PartitaDetailsDialog`: pulsante "Albero Genealogico" + handler `_apri_albero_genealogico()`
-
-**`gui_widgets.py`**
-- `ReportisticaWidget`: bottone "Visualizza Albero Genealogico" affiancato a "Genera Report Genealogico", handler `_apri_albero_genealogico()`
-
----
-
-## Roadmap v1.4 (da "Feature proposte per Meridiana v1.4.pdf")
-
-### Alta priorità
-- [x] **1. Albero genealogico proprietà** — implementato in v1.3.2.0
-- [x] **2. Export Excel avanzato** — bottone "Archivio Completo (.xlsx)" in `EsportazioniWidget`; handler `_handle_export_xlsx_completo()` con `pd.ExcelWriter` + 4 fogli (Partite, Possessori, Immobili, Variazioni)
-- [x] **3. Ricerca full-text documenti storici** — `RicercaDocumentiWidget` in `gui_widgets.py`; sub-tab "Ricerca Documenti" in Consultazione; filtri: parole chiave titolo, tipo, anno da/a, ID partita
-
-### Media priorità
-- [x] **4. Import partite da Excel (.xlsx)** — `_insert_partite_records()` helper condiviso; `import_partite_from_xlsx()` legge xlsx con `openpyxl`; file dialog accetta `.csv` e `.xlsx`, smistamento per estensione
-- [x] **5. Dashboard con grafici statistici** — tab "Grafici" in `StatisticheWidget` con `matplotlib` (FigureCanvasQTAgg): bar partite/comune, torta attive/inattive, bar variazioni/anno; `matplotlib>=3.9.0` aggiunto a `requirements.txt`
-- [x] **6. Confronto versioni partita** — `ConfrontoPartiteDialog` in `dialogs.py`: diff visuale (verde=#C8E6C9 / rosso=#FFCDD2) su possessori e immobili; accesso da tab Genealogico in `ReportisticaWidget`
-
-### Bassa priorità
-- [x] **7. Modalità offline/cache** — `_try_with_cache()` in `CatastoDBManager`; cache JSON in `CACHE_DIR` (`%LOCALAPPDATA%/Meridiana/cache/`); wrappati `get_elenco_comuni_semplice()` e `get_statistiche_comune()`; barra rossa `offline_bar` in `gui_main.py` quando DB non raggiungibile
-- [x] **8. Test coverage report** — `pytest-cov` + `pytest` aggiunti a `requirements.txt`; `pytest.ini` configurato con `--cov` su moduli principali (HTML+XML+terminal); `tests/unit/test_db_manager_unit.py` con 14 test unit per cache layer, import xlsx/csv, genealogia, app_paths (tutti green)
-- [x] **9. Export report ODT** — pulsante "Esporta come ODT" in `ReportisticaWidget`; `_export_current_report_odt()` usa `odfpy` con stili titolo/corpo; `odfpy>=1.4.1` aggiunto a `requirements.txt`
-
----
-
-## Changelog sessione corrente (v1.4.1.0)
-
-Tutto il lavoro è sul branch `claude/summarize-dev-status-vDVnI`.
-
-### Fix: Colonne CSV ISTAT (`dialogs.py`)
-
-- Corretti i nomi colonna in `ISTATDownloadWorker`:
-  - `COL_REGIONE`: `"Denominazione regione"` → `"Denominazione Regione"` (R maiuscola)
-  - `COL_CODICE_CATASTALE`: `"Codice Catastale del Comune"` → `"Codice Catastale del comune"` (c minuscola)
-  - `COL_PROVINCIA`: nome lunghissimo con `\n` → `"Sigla automobilistica"`
-
-### Refactoring: rimozione duplicati e dead code (commit `refactor`)
-
-- `app_utils.py`: rimossa prima definizione di `_get_default_export_path` (usava percorso relativo), rimossa `check_network_environment()` (mai chiamata), rimossi blocchi ridondanti `PDFPartita/PDFPossessore: pass`
-- `catasto_db_manager.py`: rimossa prima definizione di `_resolve_executable_path` e prima definizione di `_search_variazioni_fuzzy_internal` (entrambi duplicati, seconda definizione è quella attiva)
-- `custom_widgets.py`: rimosso import duplicato `from PyQt6.QtCore import Qt, QSettings, pyqtSlot`
-- `gui_main.py`: rimosso `RicercaPartiteWidget` duplicato negli import; rimosso `from dialogs import CSVImportResultDialog, EulaDialog` duplicato
-- Totale: -108 righe
-
-### Feature: Import località da OpenStreetMap (`dialogs.py`)
-
-- `OSMLocalitaWorker(QThread)` — interroga Overpass API (`https://overpass-api.de/api/interpreter`) con query `area["boundary"="administrative"]["admin_level"="8"]["name"="<comune>"]`; estrae strade (tag `highway`) e luoghi (tag `place`: hamlet, village, suburb, etc.); deduplica per nome; mappa tipo dalla prima parola del nome OSM
-- `ImportLocalitaDialog` convertita in `QTabWidget` con 2 tab:
-  - **"Da CSV"**: import da file CSV (funzionalità precedente)
-  - **"Da OpenStreetMap"**: campo comune, checkbox strade/luoghi, progress bar indeterminata, preview tabella, pulsante importa
-- `closeEvent` ferma il worker OSM se in esecuzione
-- Tipi OSM supportati: Via, Viale, Corso, Piazza, Vicolo, Largo, Salita, Calata, Contrada, Borgata, Regione, Frazione, Strada, Traversa, Passaggio, Località
-
-### Feature: 4 pulsanti uniformi nei widget di inserimento (`gui_widgets.py`, `gui_main.py`)
-
-Ogni tab di inserimento ora ha 4 pulsanti in un unico `QHBoxLayout`:
-**[Inserisci] [Pulisci Campi] [Importa CSV] [Scarica template]**
-
-- **`InserimentoComuneWidget`**: aggiunto segnale `import_csv_requested = pyqtSignal()`; rimpiazzato layout a 2 pulsanti con 4; aggiunto `_scarica_template_csv()` (template: `nome;provincia;regione;codice_catastale;data_istituzione;data_soppressione;note`)
-- **`InserimentoPossessoreWidget`**: rimosso QGroupBox "Azioni Aggiuntive" (import + info separati); consolidato in riga unica 4 pulsanti; aggiunto `_scarica_template_csv()` (template: `cognome_nome;nome_completo;paternita`)
-- **`InserimentoLocalitaWidget`**: aggiunto segnale `import_csv_requested`; aggiunto pulsante Pulisci Campi, Importa CSV, Scarica template; aggiunti metodi `_pulisci_campi()` e `_scarica_template_csv()` (template: `nome;tipo;civico`)
-- **`InserimentoPartitaWidget`**: rimosso QGroupBox "Importazione Massiva"; rimosso `manual_actions_layout` dal `form_layout`; aggiunto layout 4 pulsanti dopo `form_group`; aggiunto `_scarica_template_csv()` (template: `comune_nome;numero_partita;suffisso_partita;data_impianto;tipo_partita;numero_provenienza;stato`)
-- **`gui_main.py`**: aggiunte connessioni `inserimento_comune_widget_ref.import_csv_requested.connect(self._import_comuni)` e `inserimento_localita_widget_ref.import_csv_requested.connect(self._import_localita)` (i metodi `_import_*` già esistevano)
-
----
-
-### Note tecniche
-- Venv progetto in `U:/catasto/.venv/` (Python 3.13)
-- Per abilitare Long Paths su Windows serve privilegi admin; alternativa: usare Python da percorso corto `C:\Python312\`
-- Terminale integrato VS Code: impostare "Command Prompt" come default (`terminal.integrated.defaultProfile.windows`)
-- Overpass API: gratuita, nessuna chiave API richiesta; rate limit ~1 req/s; endpoint: `https://overpass-api.de/api/interpreter`
-
----
-
-## Changelog sessione corrente (v1.4.2.0)
-
-Tutto il lavoro è sul branch `claude/summarize-dev-status-vDVnI`.
-
-### Miglioramenti UI/UX (`gui_widgets.py`, `gui_main.py`)
-
-**Helper globali aggiunti in `gui_widgets.py`:**
-- `_PROVINCE_ITALIANE` — lista 107 sigle province italiane
-- `_set_field_error(widget, has_error)` — bordatura rossa CSS su campo non valido
-- `_show_status_message(message, timeout_ms)` — messaggio status bar senza dipendenza circolare
-
-**Tabelle di ricerca:**
-- `RicercaPartiteWidget`: `setSortingEnabled(True)`, menu contestuale tasto destro (Apri Dettagli / Copia Numero / Copia ID), etichetta conteggio risultati, sorting guard in `do_search()`
-- `RicercaAvanzataImmobiliWidget`: etichetta conteggio risultati, sorting guard
-- `RicercaDocumentiWidget`: sorting abilitato, sorting guard in `_popola_tabella()`
-- Sostituiti tutti i `QMessageBox.information("N risultati trovati")` con aggiornamento label
-
-**Form di inserimento (tutti e 4 i widget):**
-- Label con asterisco HTML `<b>*</b>` per campi obbligatori
-- `_set_field_error` nella validazione + reset automatico `textChanged`/`currentIndexChanged`
-- `QCompleter` su campo Provincia (107 sigle, case-insensitive, inline)
-- `_show_status_message` al posto di `QMessageBox.information` per i successi
-
-**Navigazione e shortcut:**
-- `Ctrl+1..N` per navigare tra i tab
-- `F5` per ricaricare il tab corrente (`_handle_f5_refresh`)
-- Auto-focus sul primo campo quando si entra in un tab di inserimento (`_set_focus_first_field`)
-
-### Feature: Notifiche email automatiche (`email_service.py`, `config.py`, `dialogs.py`, `gui_main.py`, `gui_widgets.py`)
-
-**`email_service.py`** (nuovo file):
-- `EmailService` — legge config da `QSettings` + password da `keyring` (`Meridiana_SMTP`); `is_configured()`, `send()`, 4 template: `notify_account_created`, `notify_password_changed`, `notify_role_changed`, `notify_login`
-- `EmailWorker(QThread)` — invio email non-bloccante; segnale `result = pyqtSignal(bool, str)`
-- Supporta STARTTLS (`smtplib.SMTP`) e SMTP_SSL
-
-**`config.py`** (+10 costanti):
-- `SETTINGS_SMTP_ENABLED/HOST/PORT/USER/USE_TLS/FROM_ADDR`
-- `SETTINGS_EMAIL_ON_CREATE/ON_PASSWD/ON_ROLE/ON_LOGIN`
-
-**`dialogs.py`** — `SMTPSettingsDialog`:
-- QGroupBox "Server SMTP": host, porta, TLS, utente, password (QPasswordLineEdit), mittente
-- QGroupBox "Notifiche attive": 4 checkbox per tipo evento
-- Pulsante "Test connessione" → `EmailWorker` con feedback verde/rosso in-dialog
-- `_load_settings()` da QSettings + keyring; `_save_and_accept()` salva tutto
-
-**`gui_main.py`**:
-- Voce menu *Impostazioni → Notifiche Email...* → apre `SMTPSettingsDialog`
-- Notifica login in `perform_initial_setup()` (solo se `SETTINGS_EMAIL_ON_LOGIN` abilitato e utente ha email)
-
-**`gui_widgets.py`** — `GestioneUtentiWidget`:
-- `crea_nuovo_utente()` → `notify_account_created` con dati da `CreateUserDialog`
-- `modifica_utente_selezionato()` → `notify_role_changed` se ruolo cambiato
-- `reset_password_utente_selezionato()` → `notify_password_changed` con lookup `get_utente_by_id`
-- Worker tenuto vivo con `self._email_workers` list (evita garbage collection)
-
-
----
-
-## Changelog sessione corrente (v1.4.3.0)
-
-Tutto il lavoro e sul branch `claude/summarize-dev-status-vDVnI`.
-
-### Feature: Scarica CSV dati esistenti (`catasto_db_manager.py`, `gui_main.py`, `gui_widgets.py`)
-
-Abilita il flusso completo **scarica → modifica → reimporta** per tutte e 4 le entita di inserimento.
-Il CSV scaricato usa esattamente le stesse colonne del template di import (compatibilita round-trip garantita).
-
-**`catasto_db_manager.py`** — 4 nuovi metodi:
-- `get_comuni_export_csv()` — restituisce lista dict con campi `nome;provincia;regione;codice_catastale;data_istituzione;data_soppressione;note`
-- `get_localita_export_csv(comune_id)` — campi `nome;tipo;civico`
-- `get_possessori_export_csv()` — campi `cognome_nome;nome_completo;paternita`
-- `get_partite_export_csv()` — campi `numero_partita;data_impianto;stato;tipo`
-
-**`gui_main.py`**:
-- Helper `_scarica_csv(data, fieldnames, default_filename)` — salva lista dict come CSV con `;` via QFileDialog
-- Helper `_seleziona_comune_per_csv(entita)` — QInputDialog per selezione comune (usato da localita)
-- 4 handler `_scarica_csv_comuni/localita/possessori/partite()`
-- 4 nuove voci menu *File*: "Scarica CSV Comuni", "Scarica CSV Localita...", "Scarica CSV Possessori...", "Scarica CSV Partite..."
-
-**`gui_widgets.py`**:
-- Segnale `scarica_csv_requested` nei 4 widget di inserimento
-- Pulsante "Scarica CSV" aggiunto tra "Importa CSV" e "Scarica template" (barra ora a 5 pulsanti)
-- Segnali connessi agli handler di `gui_main.py`
-
-### Feature: Manuale utente integrato (`HelpViewerDialog`) (`dialogs.py`, `app_paths.py`, `gui_main.py`, `requirements.txt`)
-
-Viewer del manuale embedded nell'app senza WebEngine ne server MkDocs.
-
-**`app_paths.py`**:
-- `get_doc_path(relative_path=)` — risolve percorso in `DOCS_DIR` (gia definita come `BASE_DIR / docs`)
-
-**`dialogs.py`** — `HelpViewerDialog(QDialog)`:
-- `QSplitter` orizzontale: albero navigazione (sinistra) + `QTextBrowser` contenuto (destra)
-- Albero costruito dalla sezione `nav` di `mkdocs.yml` tramite PyYAML; fallback a scansione ricorsiva `docs/`
-- Categorie in **grassetto**, foglie con `UserRole = percorso .md relativo`
-- Rendering: `markdown` lib con estensioni `tables, fenced_code, toc, admonition, nl2br` + CSS inline (stile indigo professionale)
-- Navigazione back/forward con cronologia interna
-- Link interni .md risolti relativamente alla pagina corrente
-- Link http/https aperti in `QDesktopServices`
-- `_sync_tree()` sincronizza la selezione albero alla pagina corrente (anche su back/forward)
-- Shortcut F1 su voce menu *Help → Visualizza Manuale Utente...*
-
-**`gui_main.py`**:
-- `_apri_manuale_utente()` semplificato: apre `HelpViewerDialog(self).exec()`
-- `show_manual_action.setShortcut(QKeySequence(F1))`
-
-**`requirements.txt`**: aggiunto `markdown>=3.4`
-
-
----
-
-## Changelog sessione corrente (v1.5.0)
-
-Tutto il lavoro è sul branch `claude/summarize-dev-status-vDVnI`.
-
-### Feature: Redesign UI — Sidebar + Top Bar (`gui_main.py`, `styles/meridiana_styles.qss`)
-
-Sostituita la navigazione a QTabWidget annidati (3 livelli) con una sidebar verticale stile VS Code + QStackedWidget flat.
-
-**Nuove classi in `gui_main.py`:**
-- `TopBarWidget(QFrame)` — barra fissa h=48px: logo SVG + titolo | [spacer] | indicatore DB | nome utente | chip ruolo | [Logout]
-  - `update_user_info(nome, ruolo, db_connected, db_name)` — aggiorna tutti i label
-  - `set_logout_enabled(bool)` — abilita/disabilita il pulsante logout
-- `SidebarWidget(QWidget)` — pannello w=220px scrollabile
-  - `build_nav(is_admin, fuzzy_available)` — costruisce bottoni e label sezione in base al ruolo
-  - `set_active(page_name)` — applica stile attivo al bottone selezionato
-  - `set_button_visible(page_name, visible)` — mostra/nasconde bottoni per ruolo
-  - `get_page_names()` — lista ordinata pagine per shortcut Ctrl+N
-
-**Refactoring `CatastoMainWindow`:**
-- `initUI()`: rimosso `QTabWidget`, aggiunti `TopBarWidget` + `SidebarWidget` + `QStackedWidget`; rimosso `create_status_bar_content()`
-- `setup_tabs()` → `setup_pages()`: tutte le pagine aggiunte direttamente a `self.stack`; `_page_index` dict mappa `page_name → indice stack`
-- `navigate_to(page_name)`: nuovo metodo principale di navigazione (sostituisce tab switching)
-- `activate_tab_and_sub_tab()`: mantenuto come wrapper di compatibilità con mapping `(main_tab, sub_tab) → page_name`
-- `_on_stack_changed(index)`: lazy loading su cambio pagina stack
-- `update_ui_based_on_role()`: usa `sidebar.set_button_visible()` invece di `tabs.setTabEnabled()`
-- `handle_logout()`: aggiorna `top_bar`, svuota `self.stack`
-- `_check_backup_reminder()`: usa `navigate_to("backup")`
-- `_handle_partita_creata_per_operazioni()`: usa `navigate_to("operazioni")`
-- `_handle_f5_refresh()`: opera su `self.stack.currentWidget()`
-- Shortcut `Ctrl+1..N`: rimappati ai bottoni sidebar flat
-- Titolo finestra: `"Meridiana — Archivio Catastale Storico"`
-
-**`styles/meridiana_styles.qss`:** aggiunti stili `#topBar`, `#appTitle`, `#dbIndicator`, `#userLabel`, `#roleChip[role=*]`, `#logoutButton`, `#sidebar`, `#sectionLabel`, `QPushButton#navButton` (con stati `:hover` e `[active="true"]`), `QStackedWidget`.
-
----
-
-## Changelog sessione corrente (v1.4.6.0)
-
-Tutto il lavoro è sul branch `claude/summarize-dev-status-vDVnI`.
-
-### Miglioramenti UI/UX (`gui_widgets.py`, `config.py`)
-
-**Dashboard:**
-- `APP_VERSION` aggiunta in `config.py` e importata in `gui_widgets.py`; header non più hardcoded "1.3"
-- Riga secondaria sotto il titolo: ruolo utente + data/ora corrente (font piccolo, colore grigio)
-
-**Form di inserimento (tutti e 4 i widget):**
-- `setToolTip()` sui 5 pulsanti di ogni widget (Inserisci/Salva, Pulisci Campi, Importa CSV, Scarica CSV, Scarica template)
-- `returnPressed` collegato al metodo di salvataggio sul campo principale di ogni form:
-  - Comuni → `codice_catastale_edit`
-  - Possessori → `nome_completo_edit`
-  - Località → `nome_edit`
-  - Partite → `suffisso_edit`
-
-**Tabelle di ricerca:**
-- `result_count_label` spostata sopra la tabella in `RicercaPartiteWidget` e `RicercaAvanzataImmobiliWidget`
-- Menu contestuale (tasto destro) aggiunto a `RicercaAvanzataImmobiliWidget`: copia ID Immobile, Partita N., Comune, Natura
-- Menu contestuale aggiunto a `RicercaDocumentiWidget`: copia Titolo, Anno, Partita, ID documento
-
----
-
-## Changelog sessione corrente (v1.4.5.0)
-
-Tutto il lavoro è sul branch `claude/summarize-dev-status-vDVnI`.
-
-### Fix: ImportLocalitaDialog — campo OSM non sincronizzato (`dialogs.py`)
-
-- `_build_ui()`: aggiunta chiamata a `_on_comune_changed()` dopo la costruzione dei tab, così `_osm_comune_edit` viene popolato correttamente all'apertura del dialog con il valore già selezionato nel combo.
-
-### Conferma prima di ogni import dati (`dialogs.py`, `gui_main.py`)
-
-- `QMessageBox.question` (default **No**) aggiunto in 6 punti:
-  - `ImportComuniDialog._importa_csv()` — comuni da CSV
-  - `ImportComuniDialog._importa_istat()` — comuni da ISTAT
-  - `ImportLocalitaDialog._importa_csv()` — località da CSV
-  - `ImportLocalitaDialog._importa_osm()` — località da OSM
-  - `gui_main._import_possessori_csv()` — possessori da CSV
-  - `gui_main._import_partite_csv()` — partite da CSV/xlsx
-- Ogni messaggio mostra N record, comune di riferimento (ove applicabile) e avviso su dati già presenti.
-
----
-
-## Changelog sessione corrente (v1.4.4.0)
-
-Tutto il lavoro e sul branch `claude/summarize-dev-status-vDVnI`.
-
-### Compliance GDPR/NIS2 (`config.py`, `catasto_db_manager.py`, `gui_main.py`, `gui_widgets.py`, `dialogs.py`)
-
-**Session timeout (inattivita):**
-- `config.py`: `SETTINGS_SESSION_TIMEOUT = "Security/SessionTimeoutMinutes"` (default 15, 0=disabilitato)
-- `gui_main.py`: `QTimer` + `eventFilter` su `QApplication`; resetta su MouseMove/Click/KeyPress/Wheel
-- Dialog countdown 60s con "Continua"/"Logout"; avvio dopo login, stop al logout
-- Voce menu *Impostazioni → Timeout Sessione...* per configurare i minuti (`_configura_timeout_sessione()`)
-
-**Log tracciabilita export:**
-- `catasto_db_manager.py`: `log_app_event(user_id, session_id, event_type, details)` — scrive su `audit_log` (best-effort)
-- `gui_main.py`: log in `_scarica_csv()` dopo salvataggio riuscito (copre tutti e 4 gli handler CSV)
-- `gui_widgets.py`: log in `EsportazioniWidget._handle_export_csv()` e `_handle_export_xls()`
-
-**Policy password:**
-- `dialogs.py`: `_validate_password_strength(password) -> (bool, str)` — minimo 8 caratteri + 1 cifra
-- `dialogs.py`: `CreateUserDialog.handle_create_user()` usa il nuovo validator (era min 6, nessun requisito cifra)
-- `gui_widgets.py`: `reset_password_utente_selezionato()` usa il nuovo validator con importazione locale
-
-### Documentazione aggiornata (`docs/`)
-- `docs/index.md`: versione aggiornata a 1.4.4.0
-- `docs/riferimento/changelog.md`: aggiunte sezioni v1.4.2.0, v1.4.3.0, v1.4.4.0
-- `docs/admin/gestione-utenti.md`: aggiornati requisiti password, aggiunte note notifiche email
-- `docs/primo-avvio.md`: aggiunta sezione "Timeout di sessione"
-
----
-
-## Changelog sessione corrente (v1.5.3)
-
-Tutto il lavoro è sul branch `claude/improve-foliarium-system-5aDC6`.
-
-### Nota: migrazione PyQt6 (completata in v1.3.0.0)
-
-L'applicazione usa **esclusivamente PyQt6**. Tutti gli enum sono nella forma
-a tre parti obbligatoria:
-
-```python
-# CORRETTO (PyQt6)
-Qt.AlignmentFlag.AlignLeft
-Qt.ItemFlag.ItemIsSelectable
-QSizePolicy.Policy.Expanding
-QFont.Weight.Bold
-
-# ERRATO (PyQt4/5 — genera AttributeError a runtime)
-Qt.AlignLeft
-Qt.ItemIsSelectable
-QFont.Bold
-```
-
-### Refactoring: suddivisione `catasto_db_manager.py` in package `db/`
-
-Il file monolitico (4 745 righe, 169 metodi) è stato suddiviso in 14 mixin
-tramite ereditarietà multipla Python (MRO). `catasto_db_manager.py` è ora
-una facade di 19 righe:
-
-```python
-class CatastoDBManager(
-    DBComuniMixin, DBLocalitaMixin, DBPossessoriMixin,
-    DBPartiteMixin, DBImmobiliMixin, DBVariazioniMixin,
-    DBSearchMixin, DBAuditMixin, DBUtentiMixin,
-    DBBackupMixin, DBDocumentiMixin, DBStatsMixin,
-    DBIOMixin, DBConnectionBase,
-):
-    pass
-```
-
-Pattern corretto per ogni metodo DB (commit/rollback automatici):
-
-```python
-with self._get_connection() as conn:
-    with conn.cursor(cursor_factory=DictCursor) as cur:
-        cur.execute(query, params)
-        return [dict(row) for row in cur.fetchall()]
-```
-
-### Fix: eliminazione `self.execute_query` residui (`db/` package)
-
-31 metodi su 9 file mixin usavano ancora la vecchia API della classe
-monolitica (`self.execute_query`, `self.fetchall`, `self.commit`,
-`self.rollback`). Tutti riscritti con il pattern `_get_connection()`.
-
-File corretti: `db/partite.py` (6), `db/audit.py` (6+1 close_user_session),
-`db/variazioni.py` (6), `db/immobili.py` (2+1 delete_immobile),
-`db/utenti.py` (1), `db/backup.py` (3), `db/documenti.py` (2),
-`db/comuni.py` (1 completo riscrittura registra_comune_nel_db),
-`db/possessori.py` (1).
-
-Rimossi anche:
-- 3 log di debug temporanei da `db/partite.py`
-- Tutti i `logger.xxx()` bare → `self.logger.xxx()` in tutti i mixin
-- `self.cursor`, `self.pool.getconn()`, `self.get_connection()`,
-  `self.release_connection()` (tutti riferimenti all'API vecchia)
-
-### Fix: dipendenza Qt in `db/stats.py`
-
-Gli import `QProgressDialog`, `QMessageBox`, `Qt` spostati dentro
-`refresh_materialized_views()` (lazy import). Il modulo può ora essere
-importato in ambienti headless (test CI) senza che Qt sia disponibile.
-
-### Estrazione widget GUI in moduli dedicati
-
-`gui_widgets.py` (originale >7 000 righe) ridotto estraendo:
-
-| Nuovo modulo | Widget |
-|---|---|
-| `admin_widgets.py` | `GestioneUtentiWidget`, `AuditLogViewerWidget`, `BackupWidget` |
-| `import_dialogs.py` | `ImportComuniDialog`, `ImportLocalitaDialog` |
-| `reporting_widgets.py` | `RicercaDocumentiWidget`, `EsportazioniWidget`, `ReportisticaWidget`, `StatisticheWidget` |
-
-`gui_widgets.py` mantiene i re-export per backward compatibility degli import
-esistenti.
-
-### Fix runtime emersi durante il refactoring
-
-| Errore | File | Soluzione |
-|--------|------|-----------|
-| `NameError: CatastoDBManager` | `admin_widgets.py` | `from __future__ import annotations` |
-| `NameError: Tuple` | `import_dialogs.py` | Aggiunto `Tuple` agli import typing |
-| `NameError: QStyle, QProgressDialog, pd` | `reporting_widgets.py` | Aggiunti import mancanti |
-| `AttributeError: execute_query` | `db/documenti.py` | Riscritto con `_get_connection()` |
-| `DatatypeMismatch civico` | `db/ricerca.py` + SQL | `civico INTEGER` → `VARCHAR` nella SP + riscrittura come query diretta |
-| `AttributeError: civico_spinbox_nuova` | `dialogs.py` | Rimosso riferimento al spinbox in modalità selezione |
-
-### Test coverage (`tests/unit/test_db_mixins.py`)
-
-Nuovo file con **53 unit test** suddivisi in 9 classi (una per mixin).
-Ogni test patcha `_get_connection()` con un mock connection:
-
-```python
-conn_cm, cur = make_mock_conn(rows=[{"id": 1, "nome": "Savona"}])
-with patch.object(mgr, "_get_connection", return_value=conn_cm):
-    result = mgr.get_comuni()
-assert len(result) == 2
-```
-
-Coverage totale: **7% → 19.6%**
-
-| Mixin | Coverage |
-|-------|---------|
-| `db/variazioni.py` | 61% |
-| `db/audit.py` | 32% |
-| `db/immobili.py` | 38% |
-| `db/comuni.py` | 29% |
-| `db/backup.py` | 29% |
-
-`pytest.ini`: aggiunto `--cov=db`.
-
-### Documentazione aggiornata
-
-- `docs/index.md`: versione → 1.5.3
-- `docs/riferimento/changelog.md`: aggiunta sezione v1.5.3 con dettaglio refactoring
-- `CLAUDE.md`: aggiornato a v1.5.3, aggiunta nota PyQt6, aggiunto changelog sessione
-
-### Debiti tecnici noti
-
-Nessun debito tecnico aperto. Tutti i debiti precedenti sono stati risolti:
-
-| Debito | Risolto in |
-|--------|-----------|
-| `db/base.py` import Qt massivi | commit `bcf65bd` |
-| `gui_widgets.py` estrazione widget inserimento | `insertion_widgets.py` (commit `3fc3af7`) |
-| Test coverage `db/possessori`, `db/partite`, `db/ricerca` | `test_db_possessori_partite_ricerca.py` (commit `3fc3af7`) |
-
----
-
-## Changelog sessione corrente (v1.5.3 — demo + licenze + aggiornamenti)
-
-Tutto il lavoro è sul branch `claude/create-demo-version-qUbik`.
-
-### Feature: Versione Demo portabile (PostgreSQL embedded)
-
-**`demo_launcher.py`** (nuovo):
-- `start_demo_postgres()` — avvia `pg_ctl` sulla porta 15432, attende `pg_isready`
-- `stop_demo_postgres()` — arresto fast, chiamato da `closeEvent` e da `atexit`
-- `is_embedded_available()` — verifica presenza di `pgsql/` e `demo_data/` nel bundle
-- Fallback scrittura: se `demo_data/` è in sola lettura (USB/CD), copia in `%LOCALAPPDATA%\Foliarium\demo_data`
-- Porta dedicata 15432 — non interferisce con PostgreSQL di produzione sulla 5432
-
-**`prepare_demo_db.py`** (nuovo, script CI):
-- `initdb` con superuser `postgres`, locale C, encoding UTF-8
-- Modifica `pg_hba.conf` (trust 127.0.0.1) e `postgresql.conf` (porta, shared_buffers)
-- Crea ruolo `demo_user` e database `catasto_storico`
-- Esegue `02_creazione-schema-tabelle.sql`, `03_funzioni-procedure.sql`, `05_demo_dataset.sql`
-- Inserisce utente applicativo `demo` con hash bcrypt in tabella `utenti`
-- Rimuove `postmaster.pid` per portabilità
-- Uso: `python prepare_demo_db.py --pgsql-dir pgsql`
-
-**`foliarium_demo.spec`** (aggiornato):
-- Include `pgsql/bin`, `pgsql/lib`, `pgsql/share` e `demo_data/` nel COLLECT
-- Runtime hook inietta `FOLIARIUM_DEMO=1` prima di qualsiasi import
-- Gestisce assenza di `pgsql/` o `demo_data/` con warning (build non bloccante)
-
-**`gui_main.py`** — modalità demo:
-- `IS_DEMO_MODE`: rileva `--demo` CLI o `FOLIARIUM_DEMO=1` env var
-- Badge arancione **DEMO** nella top bar
-- Dialog di attesa con progress bar durante avvio PostgreSQL embedded
-- Login automatico come utente `demo` (senza dialogo)
-- `closeEvent`: chiama `demo_launcher.stop_demo_postgres()`
-
-**Pipeline CI `build-demo`** (aggiornato):
-- Scarica PostgreSQL 14 portabile da EnterpriseDB, rimuove pgAdmin4/doc/include/symbols
-- Esegue `prepare_demo_db.py` per creare `demo_data/`
-- Verifica presenza file critici nel bundle prima dello ZIP
-- Produce `Foliarium_Demo_<versione>_Portabile.zip` (~150 MB)
-
-**Flusso utente finale:**
-1. Estrarre ZIP in qualsiasi cartella → doppio clic su `Foliarium_Demo.exe`
-2. Dialog "Avvio database demo" (~3-5 s) → login automatico → app pronta
-3. Dati dimostrativi: Provincia di Savona, 1870-1985, ~300 partite, 120 possessori
-4. Chiusura: PostgreSQL si ferma automaticamente
-
-### Feature: Gestione Licenze
-
-**`license_manager.py`** (nuovo):
-- `get_hardware_fingerprint()` — SHA-256(MAC+hostname), 16 hex
-- `generate_license(...)` — produce JSON firmato HMAC-SHA256
-- `_validate_file(path)` — verifica firma, hardware ID, scadenza → `LicenseInfo`
-- Seat di rete: file-lock JSON in cartella condivisa UNC, TTL 2 min, refresh ogni 60 s
-- `LicenseManager` — facade: `validate()`, `acquire_seat()`, `release_seat()`, `refresh_seat()`
-- Demo mode: restituisce sempre licenza demo valida senza leggere file
-
-**`generate_license.py`** (nuovo, CLI utility):
-- `generate` — crea file `.license` per un cliente (`--to`, `--type`, `--seats`, `--expiry`, `--hardware`, `--bind-local`)
-- `inspect` — mostra stato e validità di un file `.license`
-- `fingerprint` — mostra MAC, hostname e ID hardware del computer corrente
-
-**`dialogs.py`** — `LicenseDialog`:
-- Stato licenza in tempo reale (validità, intestatario, tipo, seat, scadenza, hardware ID)
-- Sfoglia file `.license`, configura cartella condivisa UNC per seat di rete
-- Pulsante "Copia ID hardware" → clipboard per richiedere una licenza
-- Accesso: *Impostazioni → Gestione Licenza…*
-
-**`gui_main.py`** — verifica all'avvio:
-- `LicenseManager.validate()` prima del dialogo DB — blocca se non valida
-- `acquire_seat()` — blocca se seat di rete esauriti
-- `release_seat()` al `closeEvent` e al logout
-- Timer refresh seat ogni 60 s (`QTimer`)
-
-### Feature: Auto-Aggiornamento con download automatico
-
-**`update_checker.py`** (riscritto):
-- Chiama GitHub API, confronta versioni semantiche
-- Dialog aggiornato con note di rilascio (prime 3 righe del body) e pulsanti:
-  - **"Scarica e installa automaticamente"** (solo se asset `.exe` trovato)
-  - **"Apri pagina download"** → browser
-- `DownloadWorker(QThread)`: progress bar 0–100%, gestione annullamento
-- Verifica SHA-256 opzionale (file `.sha256` accanto all'installer su GitHub)
-- Lancia installer Inno Setup con `/SILENT /CLOSEAPPLICATIONS /RESTARTAPPLICATIONS`
-- Demo e test env saltano il controllo aggiornamenti
-
-### File aggiunti/modificati
-
-| File | Tipo | Note |
-|------|------|------|
-| `demo_launcher.py` | Nuovo | PostgreSQL embedded lifecycle |
-| `prepare_demo_db.py` | Nuovo | Script CI inizializzazione DB demo |
-| `generate_license.py` | Nuovo | CLI utility licenze |
-| `license_manager.py` | Nuovo | Core licenze |
-| `foliarium_demo.spec` | Nuovo | Build spec demo |
-| `demo_config.ini` | Nuovo | Guida + credenziali demo |
-| `update_checker.py` | Modificato | Auto-download + progress |
-| `config.py` | Modificato | Costanti demo/licenza, porta 15432 |
-| `gui_main.py` | Modificato | Integrazione demo + licenza |
-| `dialogs.py` | Modificato | `LicenseDialog` aggiunto |
-| `.gitignore` | Modificato | `pgsql/`, `demo_data/`, `*.license` |
-| `pipeline_foliarium.yml` | Modificato | Job `build-demo` completo |
-
----
-
-## Changelog sessione corrente (v1.6.0 — installer unificato + fix PyInstaller)
-
-Tutto il lavoro è sul branch `claude/analyze-dev-progress-sPWUb`.
-
-### Feature: Installer unificato Foliarium + PostgreSQL embedded
-
-**`Foliarium_Unified_Installer.iss`** (nuovo) — installer Inno Setup che
-distribuisce in un unico eseguibile: app Foliarium (output PyInstaller) +
-binari PostgreSQL 14 portabili (`pgsql\bin`, `pgsql\lib`, `pgsql\share`) +
-script SQL + `setup_database.bat`. Sostituisce la procedura manuale di
-installazione di PostgreSQL sul PC di destinazione.
-
-**`setup_database.bat`** (nuovo) — eseguito automaticamente dall'installer
-nelle 8 fasi:
-1. Verifica porta 5432 (fallback 5433/5434)
-2. `initdb` in `%ProgramData%\Foliarium\pg_data` (NON in Program Files)
-3. Avvio temporaneo in `trust` + `ALTER USER postgres PASSWORD`
-4. Sovrascrittura `pg_hba.conf` con `scram-sha-256`
-5. Registrazione servizio Windows `FoliariumDB` (auto-start)
-6. Avvio servizio + `pg_isready` loop
-7. Esecuzione script SQL (schema, procedure, user management, bootstrap admin)
-8. Scrittura `config.ini` con credenziali generate casualmente
-
-**`uninstall_database.bat`** (nuovo) — ferma e deregistra il servizio,
-rimuove `%ProgramData%\Foliarium\pg_data`.
-
-**`setup_database.py`** (nuovo) — variante cross-platform per sviluppo
-Linux/macOS; reimplementa le stesse operazioni con Python puro.
-
-**Password generate casualmente dall'installer Pascal:** 16 caratteri
-alfanumerici per il DB, 12 per l'admin applicativo, passati come
-parametri a `setup_database.bat`.
-
-### Fix: errori emersi durante il debug dell'installer
-
-| # | Errore | Causa | Fix | Commit |
-|---|--------|-------|-----|--------|
-| 1 | `initdb: Permission denied` | `pg_data` in `C:\Program Files` non scrivibile perché `initdb` droppa i privilegi | Spostato in `%ProgramData%\Foliarium\pg_data` | `e691897` |
-| 2 | Hang su "il server è stato avviato" | `pg_hba.conf` scritto `scram-sha-256` prima del primo `ALTER USER` → psql non poteva autenticarsi | Riordinato: trust-start → `ALTER USER` → riscrittura hba → restart | `82c9dbd` |
-| 3 | `initdb: directory exists but is not empty` | Residuo di `pg_data` da installazione precedente fallita | Aggiunta pulizia automatica con `taskkill /F /IM postgres.exe` + `rmdir /s /q` | `385c11d` |
-| 4 | `DeleteFile fallito; codice 5. Accesso negato` su `icuin67.dll` | Servizio `FoliariumDB` ancora in esecuzione durante la reinstallazione | `PrepareToInstall()` Pascal ferma `FoliariumDB` e killa `postgres.exe` prima dell'estrazione | `77da8ca` |
-
-### Fix: percorsi PyInstaller 'onedir' (EXE_DIR vs BASE_DIR)
-
-Problema: in un bundle PyInstaller `onedir`, `sys._MEIPASS` =
-`app_paths.BASE_DIR` punta alla sottocartella `_internal/` dove vengono
-estratte le risorse interne, **NON** alla cartella dove vive
-`Foliarium.exe`. Ma `config.ini` (scritto dall'installer) e
-`foliarium.license` (fornito dal cliente) stanno accanto all'eseguibile.
-Risultato: l'app non trovava né le credenziali DB né il file di licenza.
-
-Fix (commit `4c56506`):
-- **`app_paths.py`**: nuova funzione `get_exe_dir()` e costante `EXE_DIR`:
-  ```python
-  def get_exe_dir():
-      if getattr(sys, 'frozen', False):
-          return Path(sys.executable).parent  # Foliarium.exe folder
-      else:
-          return Path(__file__).parent
-
-  EXE_DIR = get_exe_dir()
-  ```
-- **`config.py`**: `_config_ini_path` ora cerca prima in `EXE_DIR`, poi
-  come fallback in `BASE_DIR` (per retrocompatibilità dev mode).
-- **`license_manager.py`**: `LicenseManager.__init__` cerca il file
-  `.license` prima in `EXE_DIR`, poi in `BASE_DIR`, poi usa il percorso
-  atteso (`EXE_DIR`) per il messaggio di errore.
-
-### Regola generale per file esterni in PyInstaller onedir
-
-| Tipo di file | Dove si trova | Usare |
-|--------------|---------------|-------|
-| Risorse bundled (icone, .qss, .md, .svg) | `_internal/` | `BASE_DIR` |
-| File utente / installer (`config.ini`, `.license`) | Accanto all'exe | `EXE_DIR` |
+| Tipo di file | Dove si trova | Costante |
+|---|---|---|
+| Risorse bundled (icone, .qss, .md, .svg) | `_internal/` | `BASE_DIR` (`app_paths.BASE_DIR`) |
+| File utente / installer (`config.ini`, `.license`) | Accanto all'exe | `EXE_DIR` (`app_paths.EXE_DIR`) |
 | Dati scrivibili (log, cache, esportazioni) | `%LOCALAPPDATA%\Foliarium` | `APP_DATA_DIR` |
 
-### File aggiunti/modificati (v1.6.0 — sessione installer)
-
-| File | Tipo | Note |
-|------|------|------|
-| `Foliarium_Unified_Installer.iss` | Nuovo | Installer Inno Setup unificato |
-| `setup_database.bat` | Nuovo | Script batch inizializzazione DB (Windows) |
-| `setup_database.py` | Nuovo | Script Python cross-platform (Linux/macOS) |
-| `uninstall_database.bat` | Nuovo | Script batch disinstallazione |
-| `app_paths.py` | Modificato | Aggiunti `get_exe_dir()` + `EXE_DIR` |
-| `config.py` | Modificato | `_config_ini_path` usa `EXE_DIR` |
-| `license_manager.py` | Modificato | Cerca `.license` prima in `EXE_DIR` |
-
-### Documentazione aggiornata
-
-- `docs/riferimento/changelog.md`: sezione v1.6.0 arricchita con installer
-  unificato, fix critici, fix PyInstaller
-- `CLAUDE.md`: titolo corretto a "Foliarium" (da "Meridiana"), versione
-  marcata come "definitiva", aggiunto questo changelog di sessione
-
-### Stato finale v1.6.0
-
-Foliarium 1.6.0 è la **versione definitiva**. Include tutto lo stack:
-- App PyQt6 completamente funzionante
-- PostgreSQL 14 embedded (produzione) o portabile (demo)
-- Installer unificato Windows self-contained
-- Sistema licenze HMAC-SHA256 + seat di rete
-- Auto-aggiornamento da GitHub Releases
-- 16 temi, dark/light automatico, UI sidebar + top bar
-- Coverage test 19.6% + 164 unit test complessivi
-- Documentazione MkDocs completa, manuale utente integrato (F1)
-
-Nessun debito tecnico noto.
+`app_paths.get_exe_dir()` returns `Path(sys.executable).parent` when frozen, `Path(__file__).parent` otherwise.
 
 ---
 
-## Changelog sessione corrente (v1.6.1 — refactoring civico)
+## License Management
 
-Tutto il lavoro è sul branch `claude/fix-match-dialog-error-LqGW1`.
+### HMAC-SHA256 Key (`foliarium.key`)
 
-### Feature: Incorporazione civico nel nome della via (v1.6.1)
+The license system signs `.license` files with HMAC-SHA256. The signing key is loaded from:
 
-**Problema risolto**: Il campo civico non era visualizzato correttamente quando si visualizzavano le località. Il civico era memorizzato separatamente ma non mostrato nell'UI, e richiedeva gestione complessa (colonna INTEGER vs VARCHAR per supportare "10A").
+1. **Environment variable** `FOLIARIUM_LICENSE_KEY` (priority)
+2. **File** `foliarium.key` next to `Foliarium.exe` (EXE_DIR)
 
-**Soluzione**: Incorporare il civico direttamente nel campo `nome` della via (es. "Via Roma 10", "Via Pippo 10A"). Questo semplifica il design e risolve il problema visuale.
+**Generate the key:**
 
-#### Database Schema
-
-**`02_creazione-schema-tabelle.sql`** (aggiornato):
-- Rimosso campo `civico` da tabella `localita`
-- UNIQUE constraint semplificato: `(comune_id, nome)` anziché `(comune_id, nome, civico)`
-- Colonne rimaste: `id, comune_id, nome, tipologia_stradale, data_creazione, data_modifica`
-
-**Script migrazione** (`06_migrate_civico_to_nome.sql`):
-- Concatena civico al nome per tutti i record esistenti: `nome = CONCAT(nome, ' ', civico)`
-- Rimuove colonna civico
-- Aggiorna UNIQUE constraint
-
-#### Widget e Dialog
-
-**`insertion_widgets.py`** — `InserimentoLocalitaWidget`:
-- ✅ Rimosso `civico_edit` (QSpinBox)
-- ✅ Implementato `refresh_localita()` con tabella 3 colonne: ID, Nome, Tipologia
-- ✅ Template CSV aggiornato: `nome;tipologia_stradale` (civico incorporato nel nome)
-
-**`dialogs_entity.py`**:
-- ✅ `ModificaLocalitaDialog`: rimosso `civico_spinbox`, aggiunto `tipologia_edit`
-- ✅ `LocalitaSelectionDialog`: tabella 3 colonne, rimosso `civico_spinbox_nuova`, aggiunto `tipologia_edit_nuova`
-- ✅ Metodi `_handle_selection_or_creation`, `_salva_nuova_localita_da_tab` aggiornati
-
-#### Database Manager (`db/` package)
-
-**`db/localita.py`**:
-- ✅ `insert_localita(comune_id, nome, tipologia_stradale)` — rimosso `tipo_id`, `civico`
-- ✅ `get_localita_by_comune()` — semplificato (rimosso JOIN `tipo_localita`)
-- ✅ `update_localita()` — supporta `nome`, `tipologia_stradale`
-- ✅ `get_localita_details()` — aggiornata query
-
-**`db/immobili.py`**:
-- ✅ 2 query aggiornate: rimosso `l.civico`, rimosso JOIN `tipo_localita`, aggiunto `l.tipologia_stradale`
-
-**`db/io.py`** — `import_localita_from_rows()`:
-- ✅ Concatena civico al nome durante import CSV
-- ✅ INSERT aggiornato per `(comune_id, nome, tipologia_stradale)`
-
-**`db/comuni.py`**:
-- ✅ `get_immobili_by_comune()` — rimosso JOIN `tipo_localita`, aggiunto `l.tipologia_stradale`
-
-**`db/localita.py`**:
-- ✅ `get_elenco_localita_per_esportazione()` — aggiornata, rimosso civico
-
-#### Visualizzazione dati
-
-**`app_utils.py`**:
-- ✅ Rimossa concatenazione `{localita_nome} {civico}` — civico è nel nome
-
-**`custom_widgets.py`**:
-- ✅ Rimossa aggiunta di civico a `localita_text` — civico è nel nome
-
-#### Fix Import
-
-**`dialogs_partita.py`**:
-- ✅ Aggiunto import `datetime_to_qdate` da `dialogs_admin`
-- ✅ Aggiunto import `qdate_to_datetime` da `dialogs_admin`
-
-#### SQL Scripts
-
-**`04_dati-esempio_modificato.sql`, `05_demo_dataset.sql`, `03_funzioni-procedure.sql`**:
-- ✅ Aggiornati INSERT per concatenare civico nel nome
-- ✅ Rimosso campi `civico` e `tipo_id` dagli INSERT
-- ✅ Rimossi JOIN con `tipo_localita`
-
-#### File Modificati
-
-| File | Tipo | Modifiche |
-|------|------|-----------|
-| `sql_scripts/02_creazione-schema-tabelle.sql` | Mod | Rimosso civico, UNIQUE semplificato |
-| `sql_scripts/03, 04, 05` | Mod | INSERT aggiornati |
-| `sql_scripts/06_migrate_civico_to_nome.sql` | Nuovo | Script migrazione dati |
-| `insertion_widgets.py` | Mod | Rimosso civico_edit, implementato refresh_localita |
-| `dialogs_entity.py` | Mod | 2 dialog aggiornati, metodi refactorizzati |
-| `db/localita.py` | Mod | 4 metodi aggiornati |
-| `db/immobili.py` | Mod | 2 query aggiornate |
-| `db/io.py` | Mod | import_localita_from_rows aggiornato |
-| `db/comuni.py` | Mod | get_immobili_by_comune aggiornata |
-| `app_utils.py` | Mod | Rimossa concatenazione civico |
-| `custom_widgets.py` | Mod | Rimossa concatenazione civico |
-| `dialogs_partita.py` | Mod | Aggiunto import funzioni helper |
-
-### Vantaggi del Refactoring
-
-✅ **Risolve problema visuale**: Civico sempre visibile nel nome della via  
-✅ **Schema semplice**: Una colonna `nome` anziché civico separato  
-✅ **Semantica corretta**: "Via Roma 5" è diversa da "Via Roma 10"  
-✅ **Flessibilità**: Supporta civici con lettere (es. "10A")  
-✅ **Backward Compatible**: Script migrazione preserva dati esistenti  
-✅ **Riduce complessità**: Meno colonne, meno JOIN, query semplici  
-
-### Migrazione Dati
-
-Per applicare il refactoring a un database esistente:
 ```bash
-psql -U postgres -d catasto_storico -f sql_scripts/06_migrate_civico_to_nome.sql
+# Interactive menu (recommended)
+python generate_key.py
+
+# Auto-save next to exe
+python generate_key.py --save-exe-dir
+
+# Print HEX value only (for env vars)
+python generate_key.py --env-var
 ```
 
-Questo script:
-1. Concatena civico al nome per tutti i record
-2. Rimuove colonna civico
-3. Aggiorna UNIQUE constraint
+**Security rules:**
 
-### Note Tecniche
+- ✅ Generate **once per environment** (dev, staging, prod)
+- ✅ Store in secure location (env var or restricted file)
+- ✅ **Never commit** `foliarium.key` to Git (add to `.gitignore`)
+- ✅ Backup securely (if lost, all `.license` files become invalid)
+- ❌ Never hardcode the key in source code
+- ❌ Never share via email/chat
 
-- **Nessun impatto su immobili**: Il civico era una proprietà della location, non dell'immobile
-- **Import CSV**: Supporta ancora file con civico separato (concatenazione automatica al nome)
-- **Backward compat**: I metodi legacy `get_tipi_localita()`, `gestisci_tipo_localita()`, `elimina_tipo_localita()` rimangono per compatibilità ma non sono più critici
+**If compromised:**
 
-### Debito Tecnico
+- Generate a new key immediately
+- All existing `.license` files must be re-signed with the new key
+- Notify clients to update their license files
 
-✅ **Azzerato**: Tutti i metodi DB sono stati aggiornati e testati logicamente
+### License File Generation
 
----
+```bash
+# Generate a .license file for a client
+python generate_license.py generate \
+    --to "Archivio di Stato di Savona" \
+    --type standard \
+    --seats 2 \
+    --expiry 2027-12-31 \
+    --out savona.license
+```
 
-## Changelog sessione corrente (TIER 3 — performance avanzate)
+**License types:** `demo`, `standard`, `enterprise`
 
-Tutto il lavoro è sul branch `claude/sqlalchemy-cost-benefit-analysis-Z0WFL`.
+The `.license` file is JSON-signed (signature field is HMAC-SHA256 of all other fields).
 
-### TIER 3: Advanced Performance Optimizations (v1.6.1+)
-
-Implementate **4 fasi di optimizzazione avanzata** complementari a TIER 1 (refactoring codice) e TIER 2 (eliminazione colli di bottiglia query).
-
-#### Phase 1: Smart Materialized View Refresh (`db/stats.py`)
-
-**Problema:** 
-- Refresh sempre tutte le MV indipendentemente da cambio dati (2-3 secondi per dataset grandi)
-- Nessuna rilevazione intelligente di tabelle "dirty" (modificate)
-
-**Soluzione:**
-- `_get_base_tables_max_timestamp()` — ritrova timestamp max modifica su tutte le tabelle base
-- `_should_refresh_materialized_views(min_interval=10)` — refresh solo se:
-  1. Mai aggiornate, oppure
-  2. >10min da ultimo refresh, oppure
-  3. Dati base modificati dopo ultimo refresh
-- Enhanced `refresh_materialized_views()`:
-  - `force=True` ignora check intelligente
-  - `concurrent=True` usa CONCURRENTLY per refresh non-bloccante
-  - Fallback automatico se CONCURRENTLY non supportato
-
-**Speedup:** 2-3x (check <5ms se non serve refresh vs 1-2s se sempre refresh)
-
-#### Phase 2: Connection Pool Health Monitoring (`db/base.py`)
-
-**Problema:**
-- Nessuna visibilità su salute pool (difficile diagnosticare errori)
-- Non si sa il picco di connessioni attive
-- Silent failures nel pool
-
-**Soluzione:**
-- `_pool_metrics` dict: total_getconn, total_putconn, connection_errors, last_error_time
-- `get_pool_metrics()` — ritorna statistiche per monitoring
-- `get_pool_health_status()` — ritorna "OK", "DEGRADED", "CRITICAL" basato su error rate
-  - CRITICAL: >10% error rate
-  - DEGRADED: 5-10% error rate
-- `_get_connection()` traccia metrics automaticamente
-
-**Speedup:** 1.5-2x improvement affidabilità acquisizione connessioni
-
-#### Phase 3: Safe Query Binding (`db/base.py`)
-
-**Problema:**
-- Formatting stringhe per table/column names vulnerabile a injection
-- Manual f-string queries difficili da proteggere
-
-**Soluzione:**
-- `build_select_query(table, columns, where_clause, order_by)` helper
-- `build_insert_query(table, columns)` helper
-- Usa `psycopg2.sql.Identifier()` per schema/table/column (safe)
-- Usa `psycopg2.sql.Placeholder()` per parametri
-
-**Benefit:** Zero SQL injection risk su table/column names
-
-#### Phase 4: Immutable Data Caching
-
-**Problema:**
-- Lookup tables (tipo_localita, periodo_storico) queryate ogni volta UI load
-- Dati statici ma fetched ripetutamente (10+ query per sessione)
-
-**Soluzione:**
-- `get_tipi_localita()` cached con key "tipi_localita"
-- `get_historical_periods()` cached con key "periodi_storici"
-- Usa `_try_with_cache()` esistente: salva JSON su disco, fallback offline
-- `clear_immutable_caches()` — invalida cache dopo data modification
-
-**Speedup:** 5-10x su app startup (200ms → 20ms lookup tables)
-
-### Impact TIER 3
-
-| Fase | Tecnica | Speedup |
-|------|---------|---------|
-| 1 | Smart MV refresh | 2-3x |
-| 2 | Pool health monitoring | 1.5-2x |
-| 3 | Safe query binding | Security |
-| 4 | Immutable cache | 5-10x |
-
-### Combined TIER 1 + 2 + 3
-
-- **TIER 1**: 36 metodi refactored, 469 linee risparmiate, 40% reduction
-- **TIER 2**: 4 bottleneck eliminati (N+1, correlated subqueries, sequential queries, indexing)
-- **TIER 3**: 4 optimizzazioni avanzate (MV refresh, pool health, query safety, lookup cache)
-- **Total**: Estimated **10-15x overall speedup** vs v1.6.0
-  - App startup: ~1500ms → ~100ms
-  - Typical workflows: ~800ms → ~100ms
-  - MV operations: ~2000ms → ~500ms
-
-### Backward Compatibility
-
-✅ **100% backward compatible** — zero breaking changes
-✅ **All signatures preserved** — nessun impatto su codice client
-✅ **All return types unchanged** — dicts, lists mantengono struttura
-✅ **Zero new dependencies** — psycopg2.sql già incluso
+`LicenseManager.validate()` verifies:
+- Signature validity
+- Hardware ID match (if bound to a specific machine)
+- Expiry date
+- Network seat limits (concurrent instances)

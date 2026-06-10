@@ -2,7 +2,7 @@
   "version": "0.0.1",
   "configurations": [
     {
-      "name": "Meridiana App",
+      "name": "Foliarium App",
       "runtimeExecutable": ".venv/Scripts/python.exe",
       "runtimeArgs": ["gui_main.py"],
       "port": 6080

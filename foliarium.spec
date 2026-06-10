@@ -14,7 +14,37 @@ a = Analysis(
         ('styles', 'styles'),       # Inclusione della cartella 'styles'
         ('sql_scripts', 'sql_scripts'),  # Script SQL per inizializzazione DB
     ],
-    hiddenimports=[],
+    hiddenimports=[
+        # Submodules del package foliarium/ — PyInstaller li trova via Analysis,
+        # ma alcuni sono importati lazy in gui_main.py e necessitano enumerazione esplicita.
+        'foliarium.core.services.license',
+        'foliarium.core.services.update_checker',
+        'foliarium.core.services.email',
+        'foliarium.ui.widgets.custom',
+        'foliarium.ui.widgets.insertion',
+        'foliarium.ui.widgets.admin',
+        'foliarium.ui.widgets.reporting',
+        'foliarium.ui.dialogs.entity',
+        'foliarium.ui.dialogs.admin',
+        'foliarium.ui.dialogs.partita',
+        'foliarium.ui.dialogs.import_',
+        'foliarium.ui.top_bar',
+        'foliarium.ui.sidebar',
+        'foliarium.ui.command_palette',
+        # Grafici dashboard (matplotlib + Qt backend)
+        'foliarium.ui.widgets.dashboard_charts',
+        'matplotlib.backends.backend_qtagg',
+        # Timeline cronologica variazioni partita
+        'foliarium.ui.widgets.timeline_partita',
+        # Grafo genealogico interattivo
+        'foliarium.ui.widgets.genealogia_graph',
+        # Visualizzatore documentale (PDF/immagini)
+        'foliarium.ui.widgets.document_viewer',
+        'PyQt6.QtPdf',
+        'PyQt6.QtPdfWidgets',
+        # Wizard operazioni massive (bulk successione/trasferimento)
+        'foliarium.ui.widgets.workflow.bulk_successione',
+    ],
     hookspath=[],
     hooksconfig={},
     runtime_hooks=[],

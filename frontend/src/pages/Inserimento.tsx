@@ -208,7 +208,7 @@ function FormPossessore() {
       nome_completo: nomeCompleto,
       cognome_nome: cognomeNome || undefined,
       paternita: paternita || undefined,
-      comune_riferimento_id: Number(comuneId),
+      comune_id: Number(comuneId),
     })
   }
 
