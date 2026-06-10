@@ -151,3 +151,22 @@ def test_resolve_path_missing_returns_none(qapp):
     w = DocumentViewerWidget()
     assert w._resolve_path("/tmp/__definitely_does_not_exist__.png") is None
     w.deleteLater()
+
+
+def test_open_external_button_visible_by_default(qapp):
+    """Per default il pulsante 'Apri esternamente' e' nella toolbar."""
+    from foliarium.ui.widgets.document_viewer import DocumentViewerWidget
+    w = DocumentViewerWidget()
+    assert w._btn_open_ext.isVisibleTo(w) is True
+    w.deleteLater()
+
+
+def test_open_external_button_hidden_when_disabled(qapp):
+    """Con show_open_external=False il pulsante e' nascosto (usato da
+    PartitaDetailsDialog, che ha gia' un proprio pulsante equivalente)."""
+    from foliarium.ui.widgets.document_viewer import DocumentViewerWidget
+    w = DocumentViewerWidget(show_open_external=False)
+    assert w._btn_open_ext.isVisibleTo(w) is False
+    # Il pulsante esiste comunque (referenziato da setEnabled altrove)
+    assert w._btn_open_ext is not None
+    w.deleteLater()
