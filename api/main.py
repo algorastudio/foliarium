@@ -18,7 +18,7 @@ _PROJECT_ROOT = str(Path(__file__).parent.parent)
 if _PROJECT_ROOT not in sys.path:
     sys.path.insert(0, _PROJECT_ROOT)
 
-from api.routes import auth, comuni, partite, possessori, dashboard, audit, genealogia, timeline
+from api.routes import auth, comuni, partite, possessori, immobili, dashboard, audit, genealogia, timeline
 from api.deps import set_db_manager
 
 logger = logging.getLogger("FoliariumAPI")
@@ -82,7 +82,13 @@ def _init_db_from_config():
 
 
 def create_app(db_manager=None) -> FastAPI:
-    app = FastAPI(title="Foliarium API", version="1.0.0", docs_url="/api/docs")
+    app = FastAPI(
+        title="Foliarium API",
+        version="1.0.0",
+        docs_url="/api/v1/docs",
+        redoc_url="/api/v1/redoc",
+        openapi_url="/api/v1/openapi.json",
+    )
 
     app.add_middleware(
         CORSMiddleware,
@@ -97,14 +103,17 @@ def create_app(db_manager=None) -> FastAPI:
     else:
         _init_db_from_config()
 
-    app.include_router(auth.router, prefix="/api")
-    app.include_router(comuni.router, prefix="/api")
-    app.include_router(partite.router, prefix="/api")
-    app.include_router(possessori.router, prefix="/api")
-    app.include_router(dashboard.router, prefix="/api")
-    app.include_router(audit.router, prefix="/api")
-    app.include_router(genealogia.router, prefix="/api")
-    app.include_router(timeline.router, prefix="/api")
+    # Mount duale: /api/v1/* (preferito, contratto stabile per integrazioni
+    # esterne) + /api/* (legacy, mantenuto per il frontend React esistente).
+    # Quando il frontend sarà migrato, /api/* potrà essere rimosso.
+    _routers = (
+        auth.router, comuni.router, partite.router, possessori.router,
+        immobili.router, dashboard.router, audit.router, genealogia.router,
+        timeline.router,
+    )
+    for r in _routers:
+        app.include_router(r, prefix="/api/v1")
+        app.include_router(r, prefix="/api", include_in_schema=False)
 
     # Serve il build React statico (frontend/dist/)
     dist_dir = Path(__file__).parent.parent / "frontend" / "dist"
@@ -128,3 +137,63 @@ def find_free_port(start: int = 8765) -> int:
             except OSError:
                 continue
     raise RuntimeError("Nessuna porta libera trovata")
+
+
+class PinnedPortBusyError(RuntimeError):
+    """La porta fissata in configurazione è già occupata."""
+
+    def __init__(self, port: int):
+        super().__init__(
+            f"La porta {port} è già occupata da un altro processo. "
+            f"Cambia FOLIARIUM_API_PORT in config.ini (sezione [api]) "
+            f"o nelle variabili d'ambiente, oppure libera la porta."
+        )
+        self.port = port
+
+
+def resolve_api_port(default_start: int = 8765) -> int:
+    """Determina la porta su cui esporre l'API.
+
+    Ordine di priorità:
+
+    1. Env var ``FOLIARIUM_API_PORT`` (int).
+    2. ``config.ini`` sezione ``[api]`` chiave ``port``.
+    3. Scan dinamico a partire da ``default_start`` (comportamento storico).
+
+    Quando l'utente ha fissato una porta esplicita (cases 1 e 2) e la porta
+    è occupata, viene sollevata ``PinnedPortBusyError`` invece di scegliere
+    silenziosamente un'altra porta — così il claude_desktop_config.json
+    dell'utente non si rompe a ogni riavvio.
+    """
+    import config as cfg
+
+    pinned_str = os.environ.get("FOLIARIUM_API_PORT", "").strip()
+    if not pinned_str:
+        try:
+            pinned_str = cfg._ini_get("api", "port", "").strip()
+        except Exception:
+            pinned_str = ""
+
+    if pinned_str:
+        try:
+            pinned = int(pinned_str)
+        except ValueError:
+            logger.warning(
+                "FOLIARIUM_API_PORT='%s' non è un intero valido, "
+                "fallback su scan dinamico.", pinned_str,
+            )
+        else:
+            if 1024 <= pinned <= 65535:
+                with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+                    try:
+                        s.bind(("127.0.0.1", pinned))
+                    except OSError:
+                        raise PinnedPortBusyError(pinned)
+                logger.info("API porta fissata: %d (da configurazione)", pinned)
+                return pinned
+            logger.warning(
+                "FOLIARIUM_API_PORT=%d fuori dal range valido (1024-65535), "
+                "fallback su scan dinamico.", pinned,
+            )
+
+    return find_free_port(default_start)

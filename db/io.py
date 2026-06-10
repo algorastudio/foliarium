@@ -4,19 +4,16 @@ Estratto da catasto_db_manager.py — mixin per CatastoDBManager.
 """
 
 from __future__ import annotations
-import logging
-from typing import Optional, List, Dict, Any, TYPE_CHECKING
+from typing import Optional, List, Dict, Any, Tuple
 
 import os
 from datetime import date, datetime
-import psycopg2
 from psycopg2.extras import DictCursor
+from psycopg2.extensions import ISOLATION_LEVEL_AUTOCOMMIT
 
-from catasto_exceptions import DBMError, DBUniqueConstraintError, DBNotFoundError, DBDataError
+from catasto_exceptions import DBMError
 from db.base import db_handle_errors
 
-if TYPE_CHECKING:
-    from catasto_db_manager import CatastoDBManager
 
 
 class DBIOMixin:
@@ -95,12 +92,16 @@ class DBIOMixin:
             if not nome:
                 raise ValueError("Il campo 'nome' è obbligatorio")
 
-            # Civico incorporato nel nome (v1.6.1)
-            civico_raw = str(record.get('civico', '')).strip()
-            if civico_raw:
-                nome = f"{nome} {civico_raw}".strip()
+            # Da v1.7.0 il civico NON va nel nome località (campo separato su immobile).
+            # Se il CSV contiene 'civico', lo ignoriamo silenziosamente.
 
-            tipologia_stradale = str(record.get('tipo', '')).strip() or None
+            tipologia_stradale = (
+                str(record.get('tipologia_stradale') or record.get('tipo') or '').strip()
+            )
+            if not tipologia_stradale:
+                raise ValueError(
+                    "Il campo 'tipologia_stradale' è obbligatorio (es. Via, Piazza, Borgata)."
+                )
 
             records_prepared.append({
                 'comune_id': comune_id,
@@ -145,15 +146,15 @@ class DBIOMixin:
         """
         Restituisce le località di un comune con i campi compatibili con il template di import.
         Colonne: nome;tipologia_stradale
-        Nota: civico è incorporato nel nome da v1.6.1
+        Da v1.7.0 nome contiene solo la radice (es. 'Repubblica'); civico è su immobile.
         """
         query = f"""
             SELECT
                 l.nome,
-                COALESCE(l.tipologia_stradale, '') AS tipologia_stradale
+                l.tipologia_stradale
             FROM {self.schema}.localita l
             WHERE l.comune_id = %s
-            ORDER BY l.nome;
+            ORDER BY l.tipologia_stradale, l.nome;
         """
         try:
             with self._get_connection() as conn:
@@ -211,11 +212,14 @@ class DBIOMixin:
             self.logger.error(f"Errore export CSV partite per comune {comune_id}: {e}", exc_info=True)
             raise DBMError(f"Impossibile recuperare le partite per l'export: {e}") from e
 
-    def create_clean_environment(self) -> 'QProcessEnvironment':
-        """Crea un ambiente pulito per QProcess, ereditando le variabili di sistema."""
+    def create_clean_environment(self) -> Any:
+        """Crea un ambiente pulito per QProcess, ereditando le variabili di sistema.
+
+        Lazy-import di QProcessEnvironment così il package db/ resta utilizzabile
+        in ambienti headless dove PyQt6 potrebbe non essere disponibile.
+        """
         from PyQt6.QtCore import QProcessEnvironment
-        env = QProcessEnvironment.systemEnvironment()
-        return env
+        return QProcessEnvironment.systemEnvironment()
 
     def execute_sql_from_file(self, file_path: str) -> Tuple[bool, str]:
         """Esegue uno script SQL da un file in modo sicuro, gestendo l'autocommit."""

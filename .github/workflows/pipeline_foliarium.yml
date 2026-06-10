@@ -2,10 +2,15 @@ name: CI/CD Foliarium (Test & Build)
 
 on:
   push:
-    branches: [ "main", "master", "foliarium/enterprise", "claude/summarize-dev-status-vDVnI", "claude/create-demo-version-qUbik", "claude/analyze-dev-progress-sPWUb" ]
+    branches: [ "main", "master", "foliarium/enterprise", "claude/summarize-dev-status-vDVnI", "claude/create-demo-version-qUbik", "claude/analyze-dev-progress-sPWUb", "claude/release-1.0.0-testing-wbblE", "claude/product-delivery-prep-ujTLi" ]
     tags:
-      - '*.*.*'        # es. 1.6.0
-      - 'v*.*.*'       # es. v1.6.0
+      - '*.*.*'        # es. 1.0.0
+      - 'v*.*.*'       # es. v1.0.0
+  pull_request:
+    branches: [ "main", "master" ]
+    # Il job di build Windows e' skippato sulle PR via
+    # `if: github.event_name != 'pull_request'`: solo il test job gira,
+    # cosi' otteniamo feedback rapido senza pagare i runner pesanti.
   workflow_dispatch: # Permette di avviare l'azione manualmente da GitHub
 
 permissions:
@@ -52,14 +57,47 @@ jobs:
         python -m pip install --upgrade pip
         pip install -r requirements.txt
         pip install -r tests/requirements-test.txt
+        pip install ruff
+
+    - name: Lint (ruff) — gate sui bug reali (F821 / E9)
+      # F821 = nomi non definiti, E9 = errori di sintassi.
+      # Le altre regole sono solo informative (continue-on-error)
+      # finché il codebase non viene formattato.
+      run: |
+        ruff check --select=F821,E9 --exclude=tests
+        ruff check --statistics --exclude=tests || true
 
     - name: Inizializzazione Database di Test
       env:
         PGPASSWORD: testpassword
       run: |
         sudo apt-get install -y postgresql-client
+        # Schema base + lookup + soft-delete (v1.0.0 fresh install order)
         psql -h localhost -U postgres -d catasto_storico -f sql_scripts/02_creazione-schema-tabelle.sql
         psql -h localhost -U postgres -d catasto_storico -f sql_scripts/03_funzioni-procedure.sql
+        psql -h localhost -U postgres -d catasto_storico -f sql_scripts/03b_expand_fuzzy_search.sql
+        psql -h localhost -U postgres -d catasto_storico -f sql_scripts/07_user-management.sql
+        psql -h localhost -U postgres -d catasto_storico -f sql_scripts/08_advanced-reporting.sql
+        psql -h localhost -U postgres -d catasto_storico -f sql_scripts/09_backup-system.sql
+        psql -h localhost -U postgres -d catasto_storico -f sql_scripts/10_performance-optimization.sql
+        psql -h localhost -U postgres -d catasto_storico -f sql_scripts/11_advanced-cadastral-features.sql
+        psql -h localhost -U postgres -d catasto_storico -f sql_scripts/12_procedure_crud.sql
+        psql -h localhost -U postgres -d catasto_storico -f sql_scripts/13_workflow_integrati.sql
+        psql -h localhost -U postgres -d catasto_storico -f sql_scripts/14_report_functions.sql
+        psql -h localhost -U postgres -d catasto_storico -f sql_scripts/15_integration_audit_users.sql
+        psql -h localhost -U postgres -d catasto_storico -f sql_scripts/16_advanced_search.sql
+        psql -h localhost -U postgres -d catasto_storico -f sql_scripts/17_funzione_ricerca_immobili.sql
+        psql -h localhost -U postgres -d catasto_storico -f sql_scripts/18_funzioni_trigger_audit.sql
+        # CREATE INDEX CONCURRENTLY non può stare in una transazione — va per ultimo
+        psql -h localhost -U postgres -d catasto_storico -f sql_scripts/07_create_trigram_indexes.sql
+        # Bootstrap admin con password di test
+        psql -h localhost -U postgres -d catasto_storico \
+          -v admin_password="'testpassword'" \
+          -v admin_email="'admin@test.local'" \
+          -f sql_scripts/07a_bootstrap_admin.sql
+        # Migrazioni post-init: aggiornano funzioni/viste allo schema v1.6.1+
+        psql -h localhost -U postgres -d catasto_storico \
+          -f sql_scripts/migrations/20_fix_report_function_civico.sql
 
     - name: Esecuzione Test Automatici (Pytest + Coverage)
       env:
@@ -110,6 +148,7 @@ jobs:
   # ==========================================
   build-windows:
     needs: test-database-and-code # Parte SOLO se i test sopra hanno successo
+    if: github.event_name != 'pull_request'
     runs-on: windows-latest
 
     steps:
@@ -129,20 +168,6 @@ jobs:
 
     - name: Compilazione Eseguibile con PyInstaller
       run: pyinstaller foliarium.spec
-
-    # ----------------------------------------------------------
-    # BUILD PORTABILE: zip della cartella dist\Foliarium
-    # Estraibile ed eseguibile senza installazione (no admin)
-    # ----------------------------------------------------------
-    - name: Creazione Build Portabile (ZIP)
-      run: |
-        Compress-Archive -Path dist\Foliarium\* -DestinationPath Foliarium_Portabile.zip
-
-    - name: Caricamento Build Portabile
-      uses: actions/upload-artifact@v4
-      with:
-        name: Foliarium-Portabile-Windows
-        path: Foliarium_Portabile.zip
 
     - name: Compilazione Installer con Inno Setup
       run: iscc Foliarium_Installer.iss
@@ -154,389 +179,16 @@ jobs:
         path: Installer\*.exe
 
   # ==========================================
-  # FASE 3: BUILD DEMO (su Windows, portabile)
-  # Versione senza installazione per demo live
-  # Include PostgreSQL portabile + dati demo
-  # ==========================================
-  build-demo:
-    needs: test-database-and-code  # Parte solo se i test passano
-    runs-on: windows-latest
-
-    steps:
-    - name: Checkout del codice
-      uses: actions/checkout@v4
-
-    - name: Setup Python
-      uses: actions/setup-python@v5
-      with:
-        python-version: '3.12'
-
-    - name: Installazione Dipendenze per Build Demo
-      run: |
-        python -m pip install --upgrade pip
-        pip install -r requirements.txt
-        pip install pyinstaller bcrypt
-
-    # ----------------------------------------------------------
-    # Scarica PostgreSQL 14 portabile (zip binaries, no installer)
-    # Viene estratto in pgsql/ e incluso nel bundle demo
-    # ----------------------------------------------------------
-    - name: Download PostgreSQL 14 portabile
-      run: |
-        $PG_VERSION = "14.13-1"
-        $PG_URL = "https://get.enterprisedb.com/postgresql/postgresql-${PG_VERSION}-windows-x64-binaries.zip"
-        Write-Host "Download PostgreSQL portabile: $PG_URL"
-        Invoke-WebRequest -Uri $PG_URL -OutFile pg_portable.zip -UseBasicParsing
-        Write-Host "Estrazione..."
-        Expand-Archive -Path pg_portable.zip -DestinationPath . -Force
-        # L'archivio estrae in pgsql/ automaticamente
-        if (Test-Path "pgsql\bin\pg_ctl.exe") {
-          Write-Host "PostgreSQL portabile pronto in pgsql\"
-        } else {
-          Write-Error "Estrazione fallita: pgsql\bin\pg_ctl.exe non trovato"
-          exit 1
-        }
-        # Pulizia: rimuovi componenti non necessari per il runtime
-        Remove-Item -Recurse -Force -ErrorAction SilentlyContinue pgsql\pgAdmin4
-        Remove-Item -Recurse -Force -ErrorAction SilentlyContinue pgsql\include
-        Remove-Item -Recurse -Force -ErrorAction SilentlyContinue pgsql\doc
-        Remove-Item -Recurse -Force -ErrorAction SilentlyContinue pgsql\symbols
-        Remove-Item pg_portable.zip
-
-    # ----------------------------------------------------------
-    # Prepara demo_data/: initdb + schema + dati dimostrativi
-    # ----------------------------------------------------------
-    - name: Preparazione database demo (initdb + SQL)
-      run: |
-        Write-Host "Esecuzione prepare_demo_db.py..."
-        python prepare_demo_db.py --pgsql-dir pgsql
-      env:
-        PGPASSWORD: ""
-        DEMO_DB_PASS:    ${{ secrets.DEMO_DB_PASS }}
-        DEMO_LOGIN_PASS: ${{ secrets.DEMO_LOGIN_PASS }}
-
-    # ----------------------------------------------------------
-    # Compila Foliarium_Demo.exe con PyInstaller
-    # ----------------------------------------------------------
-    - name: Compilazione Build Demo con PyInstaller
-      run: pyinstaller foliarium_demo.spec
-
-    # ----------------------------------------------------------
-    # Copia pgsql/ e demo_data/ nella root del bundle
-    # (NON tramite datas di PyInstaller: in v6+ finirebbero in _internal/)
-    # demo_launcher.py li cerca accanto a Foliarium_Demo.exe
-    # ----------------------------------------------------------
-    - name: Copia pgsql e demo_data nel bundle
-      run: |
-        Copy-Item -Recurse -Force pgsql     dist\Foliarium_Demo\pgsql
-        Copy-Item -Recurse -Force demo_data dist\Foliarium_Demo\demo_data
-        Write-Host "Copia completata."
-        Write-Host "  pgsql: $((Get-ChildItem dist\Foliarium_Demo\pgsql -Recurse -File).Count) file"
-        Write-Host "  demo_data: $((Get-ChildItem dist\Foliarium_Demo\demo_data -Recurse -File).Count) file"
-
-    # ----------------------------------------------------------
-    # Verifica che il bundle contenga i componenti critici
-    # ----------------------------------------------------------
-    - name: Verifica contenuto bundle demo
-      run: |
-        $bundle = "dist\Foliarium_Demo"
-        Write-Host "Contenuto bundle:"
-        Get-ChildItem $bundle | Select-Object Name, Length
-        Write-Host ""
-        $checks = @(
-          "$bundle\Foliarium_Demo.exe",
-          "$bundle\pgsql\bin\pg_ctl.exe",
-          "$bundle\pgsql\bin\postgres.exe",
-          "$bundle\demo_data\postgresql.conf",
-          "$bundle\demo_data\PG_VERSION"
-        )
-        $ok = $true
-        foreach ($f in $checks) {
-          if (Test-Path $f) {
-            Write-Host "  [OK] $f"
-          } else {
-            Write-Warning "  [MANCANTE] $f"
-            $ok = $false
-          }
-        }
-        if (-not $ok) { exit 1 }
-
-    # ----------------------------------------------------------
-    # Crea il ZIP portabile finale
-    # Basta estrarlo ed eseguire Foliarium_Demo.exe
-    # ZERO installazione richiesta
-    # ----------------------------------------------------------
-    - name: Creazione ZIP Portabile Demo
-      run: |
-        $version = (python -c "from config import APP_VERSION; print(APP_VERSION)" 2>$null) -replace '\s',''
-        if (-not $version) { $version = "demo" }
-        $zipName = "Foliarium_Demo_${version}_Portabile.zip"
-        Write-Host "Creazione $zipName..."
-        Compress-Archive -Path dist\Foliarium_Demo\* -DestinationPath $zipName
-        $sizeMB = [math]::Round((Get-Item $zipName).Length / 1MB, 1)
-        Write-Host "ZIP creato: $zipName ($sizeMB MB)"
-
-    - name: Caricamento Build Demo Portabile
-      uses: actions/upload-artifact@v4
-      with:
-        name: Foliarium-Demo-Portabile-Windows
-        path: Foliarium_Demo_*_Portabile.zip
-
-  # ==========================================
-  # FASE 4: BUILD UNIFIED (Windows)
-  # Installer unico: Foliarium + PostgreSQL + DB
-  # L'utente non deve installare nulla separatamente
-  # ==========================================
-  build-unified:
-    needs: test-database-and-code
-    runs-on: windows-latest
-
-    steps:
-    - name: Checkout del codice
-      uses: actions/checkout@v4
-
-    - name: Setup Python
-      uses: actions/setup-python@v5
-      with:
-        python-version: '3.12'
-
-    - name: Installazione Dipendenze per Build
-      run: |
-        python -m pip install --upgrade pip
-        pip install -r requirements.txt
-        pip install pyinstaller
-
-    - name: Compilazione Eseguibile con PyInstaller
-      run: pyinstaller foliarium.spec
-
-    # ----------------------------------------------------------
-    # Scarica PostgreSQL 14 portabile (stesso approccio della demo)
-    # ----------------------------------------------------------
-    - name: Download PostgreSQL 14 portabile
-      run: |
-        $PG_VERSION = "14.13-1"
-        $PG_URL = "https://get.enterprisedb.com/postgresql/postgresql-${PG_VERSION}-windows-x64-binaries.zip"
-        Write-Host "Download PostgreSQL portabile: $PG_URL"
-        Invoke-WebRequest -Uri $PG_URL -OutFile pg_portable.zip -UseBasicParsing
-        Expand-Archive -Path pg_portable.zip -DestinationPath . -Force
-        if (Test-Path "pgsql\bin\pg_ctl.exe") {
-          Write-Host "PostgreSQL portabile pronto."
-        } else {
-          Write-Error "pgsql\bin\pg_ctl.exe non trovato"
-          exit 1
-        }
-        # Pulizia componenti non necessari per il runtime
-        Remove-Item -Recurse -Force -ErrorAction SilentlyContinue pgsql\pgAdmin4
-        Remove-Item -Recurse -Force -ErrorAction SilentlyContinue pgsql\include
-        Remove-Item -Recurse -Force -ErrorAction SilentlyContinue pgsql\doc
-        Remove-Item -Recurse -Force -ErrorAction SilentlyContinue pgsql\symbols
-        Remove-Item pg_portable.zip
-        $sizeMB = [math]::Round((Get-ChildItem pgsql -Recurse -File | Measure-Object -Property Length -Sum).Sum / 1MB, 1)
-        Write-Host "PostgreSQL portabile: $sizeMB MB"
-
-    # ----------------------------------------------------------
-    # Verifica presenza file necessari per l'installer
-    # ----------------------------------------------------------
-    - name: Verifica componenti build
-      run: |
-        $checks = @(
-          "dist\Foliarium\Foliarium.exe",
-          "pgsql\bin\pg_ctl.exe",
-          "pgsql\bin\postgres.exe",
-          "pgsql\bin\initdb.exe",
-          "pgsql\bin\psql.exe",
-          "pgsql\bin\pg_isready.exe",
-          "sql_scripts\02_creazione-schema-tabelle.sql",
-          "sql_scripts\03_funzioni-procedure.sql",
-          "sql_scripts\07_user-management.sql",
-          "sql_scripts\07a_bootstrap_admin.sql",
-          "setup_database.bat",
-          "uninstall_database.bat",
-          "Foliarium_Unified_Installer.iss"
-        )
-        $ok = $true
-        foreach ($f in $checks) {
-          if (Test-Path $f) {
-            Write-Host "  [OK] $f"
-          } else {
-            Write-Warning "  [MANCANTE] $f"
-            $ok = $false
-          }
-        }
-        if (-not $ok) { exit 1 }
-        Write-Host "Tutti i componenti presenti."
-
-    # ----------------------------------------------------------
-    # Compilazione installer unificato con Inno Setup
-    # ----------------------------------------------------------
-    - name: Compilazione Installer Unificato con Inno Setup
-      run: iscc Foliarium_Unified_Installer.iss
-
-    - name: Caricamento Installer Unificato
-      uses: actions/upload-artifact@v4
-      with:
-        name: Foliarium-Unified-Setup-Windows
-        path: Installer\Foliarium_*_Unified_Setup.exe
-
-  # ==========================================
-  # FASE 5: BUILD LINUX (tarball portabile)
-  # Include PostgreSQL + script di setup
-  # ==========================================
-  build-linux:
-    needs: test-database-and-code
-    runs-on: ubuntu-latest
-
-    steps:
-    - name: Checkout del codice
-      uses: actions/checkout@v4
-
-    - name: Setup Python
-      uses: actions/setup-python@v5
-      with:
-        python-version: '3.12'
-
-    - name: Installazione Dipendenze
-      run: |
-        python -m pip install --upgrade pip
-        pip install -r requirements.txt
-        pip install pyinstaller
-
-    - name: Compilazione con PyInstaller (Linux)
-      run: pyinstaller foliarium.spec
-
-    - name: Download PostgreSQL 14 portabile (Linux)
-      run: |
-        PG_URL="https://get.enterprisedb.com/postgresql/postgresql-14.13-1-linux-x64-binaries.tar.gz"
-        echo "Download PostgreSQL portabile..."
-        wget -q "$PG_URL" -O pg_portable.tar.gz
-        tar xzf pg_portable.tar.gz
-        rm pg_portable.tar.gz
-        # Pulizia componenti non necessari
-        rm -rf pgsql/pgAdmin\ 4 pgsql/include pgsql/doc pgsql/symbols
-        ls -la pgsql/bin/pg_ctl && echo "PostgreSQL pronto."
-
-    - name: Assemblaggio pacchetto Linux
-      run: |
-        BUNDLE="Foliarium_Linux"
-        mkdir -p "$BUNDLE"
-        # App
-        cp -r dist/Foliarium/* "$BUNDLE/"
-        # PostgreSQL
-        cp -r pgsql "$BUNDLE/pgsql"
-        # Script SQL
-        cp -r sql_scripts "$BUNDLE/sql_scripts"
-        # Script di setup
-        cp setup_database.py "$BUNDLE/"
-        cp install.sh "$BUNDLE/"
-        chmod +x "$BUNDLE/install.sh"
-        chmod +x "$BUNDLE/Foliarium"
-        # README
-        cat > "$BUNDLE/LEGGIMI.txt" << 'EOFREADME'
-        Foliarium — Archivio Catastale Storico
-        =======================================
-
-        Installazione:
-          1. Estrarre l'archivio in una cartella a scelta
-          2. Eseguire: sudo ./install.sh
-          3. Avviare: ./Foliarium
-
-        Il database PostgreSQL viene configurato automaticamente.
-        Credenziali admin: admin / admin123 (cambiare al primo accesso)
-
-        Disinstallazione:
-          sudo ./install.sh --uninstall
-        EOFREADME
-
-    - name: Creazione tarball Linux
-      run: |
-        VERSION=$(python -c "from config import APP_VERSION; print(APP_VERSION)" 2>/dev/null || echo "1.6.0")
-        TARBALL="Foliarium_${VERSION}_Linux_x64.tar.gz"
-        tar czf "$TARBALL" Foliarium_Linux/
-        SIZE=$(du -h "$TARBALL" | cut -f1)
-        echo "Tarball creato: $TARBALL ($SIZE)"
-
-    - name: Caricamento Build Linux
-      uses: actions/upload-artifact@v4
-      with:
-        name: Foliarium-Linux-x64
-        path: Foliarium_*_Linux_x64.tar.gz
-
-  # ==========================================
-  # FASE 6: BUILD macOS (tarball portabile)
-  # Include PostgreSQL + script di setup
-  # ==========================================
-  build-macos:
-    needs: test-database-and-code
-    runs-on: macos-latest
-
-    steps:
-    - name: Checkout del codice
-      uses: actions/checkout@v4
-
-    - name: Setup Python
-      uses: actions/setup-python@v5
-      with:
-        python-version: '3.12'
-
-    - name: Installazione Dipendenze
-      run: |
-        python -m pip install --upgrade pip
-        pip install -r requirements.txt
-        pip install pyinstaller
-
-    - name: Compilazione con PyInstaller (macOS)
-      run: pyinstaller foliarium.spec
-
-    - name: Installazione PostgreSQL 14 via Homebrew
-      run: |
-        brew install postgresql@14
-        PG_PREFIX="$(brew --prefix postgresql@14)"
-        echo "PostgreSQL installato in: $PG_PREFIX"
-        # Copia i binari in pgsql/ per il bundle
-        mkdir -p pgsql
-        cp -r "$PG_PREFIX/bin" pgsql/bin
-        cp -r "$PG_PREFIX/lib" pgsql/lib
-        cp -r "$PG_PREFIX/share" pgsql/share
-
-    - name: Assemblaggio pacchetto macOS
-      run: |
-        BUNDLE="Foliarium_macOS"
-        mkdir -p "$BUNDLE"
-        cp -r dist/Foliarium/* "$BUNDLE/"
-        cp -r pgsql "$BUNDLE/pgsql"
-        cp -r sql_scripts "$BUNDLE/sql_scripts"
-        cp setup_database.py "$BUNDLE/"
-        cp install.sh "$BUNDLE/"
-        chmod +x "$BUNDLE/install.sh"
-        chmod +x "$BUNDLE/Foliarium"
-
-    - name: Creazione tarball macOS
-      run: |
-        VERSION=$(python -c "from config import APP_VERSION; print(APP_VERSION)" 2>/dev/null || echo "1.6.0")
-        TARBALL="Foliarium_${VERSION}_macOS.tar.gz"
-        tar czf "$TARBALL" Foliarium_macOS/
-        SIZE=$(du -h "$TARBALL" | cut -f1)
-        echo "Tarball creato: $TARBALL ($SIZE)"
-
-    - name: Caricamento Build macOS
-      uses: actions/upload-artifact@v4
-      with:
-        name: Foliarium-macOS
-        path: Foliarium_*_macOS.tar.gz
-
-  # ==========================================
-  # FASE 7: PUBBLICA RELEASE GITHUB
+  # FASE 3: PUBBLICA RELEASE GITHUB
   # Si attiva SOLO quando viene pushato un tag tipo 1.6.0 o v1.6.0.
-  # Scarica gli artefatti di tutti i job di build, calcola i checksum
-  # SHA-256 (l'auto-updater li verifica) e crea/aggiorna la release.
+  # Scarica l'installer Windows, calcola il checksum SHA-256
+  # (l'auto-updater lo verifica) e crea/aggiorna la release.
+  # I build Linux/macOS e la versione portabile sono stati accantonati:
+  # il pipeline pubblica solo l'installer Windows (Inno Setup).
   # ==========================================
   create-release:
     needs:
       - build-windows
-      - build-demo
-      - build-unified
-      - build-linux
-      - build-macos
     runs-on: ubuntu-latest
     if: startsWith(github.ref, 'refs/tags/')
 

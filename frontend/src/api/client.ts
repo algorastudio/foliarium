@@ -381,3 +381,17 @@ export interface PossessoreDetail {
 
 export const getPossessore = (id: number) =>
   request<PossessoreDetail>(`/possessori/${id}`)
+
+export const assegnaPossessore = (data: {
+  possessore_id: number
+  partita_id: number
+  titolo?: string
+  quota?: string
+}) => request<{ ok: boolean }>('/possessori/assegna', { method: 'POST', body: JSON.stringify(data) })
+
+export const createComune = (data: {
+  nome: string
+  provincia: string
+  regione: string
+  codice_catastale?: string
+}) => request<{ id: number }>('/comuni', { method: 'POST', body: JSON.stringify(data) })

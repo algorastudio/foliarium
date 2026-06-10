@@ -4,24 +4,22 @@ Estratto da catasto_db_manager.py — mixin per CatastoDBManager.
 """
 
 from __future__ import annotations
-import logging
-from typing import Optional, List, Dict, Any, TYPE_CHECKING
+from typing import Optional, List, Dict, Any
 
 import psycopg2
 from psycopg2.extras import DictCursor
 
-from catasto_exceptions import DBMError, DBUniqueConstraintError, DBNotFoundError, DBDataError
+from catasto_exceptions import DBMError, DBNotFoundError, DBDataError
 from db.base import db_handle_errors
-
-if TYPE_CHECKING:
-    from catasto_db_manager import CatastoDBManager
 
 
 class DBImmobiliMixin:
     """Mixin CRUD per Immobili."""
 
     @db_handle_errors
-    def get_elenco_immobili_per_esportazione(self, comune_id: Optional[int] = None) -> List[Dict[str, Any]]:
+    def get_elenco_immobili_per_esportazione(
+        self, comune_id: Optional[int] = None
+    ) -> List[Dict[str, Any]]:
         """Recupera un elenco completo di immobili per l'esportazione.
 
         TIER 1: @db_handle_errors centralizes exception handling.
@@ -29,9 +27,9 @@ class DBImmobiliMixin:
         query = f"""
             SELECT
                 i.id AS id_immobile, i.natura, i.classificazione, i.consistenza,
-                i.numero_piani, i.numero_vani, l.nome AS localita_nome,
-                l.tipologia_stradale, p.numero_partita,
-                p.suffisso_partita, c.nome AS comune_nome
+                i.numero_piani, i.numero_vani, i.numero_civico,
+                l.nome AS localita_nome, l.tipologia_stradale,
+                p.numero_partita, p.suffisso_partita, c.nome AS comune_nome
             FROM {self.schema}.immobile i
             JOIN {self.schema}.partita p ON i.partita_id = p.id
             JOIN {self.schema}.comune c ON p.comune_id = c.id
@@ -41,16 +39,23 @@ class DBImmobiliMixin:
         if comune_id:
             query += " WHERE p.comune_id = %s"
             params.append(comune_id)
-        query += " ORDER BY c.nome, p.numero_partita, l.nome, i.natura;"
+        query += (
+            " ORDER BY c.nome, p.numero_partita, l.nome, i.numero_civico, i.natura;"
+        )
         with self._get_connection() as conn:
             with conn.cursor(cursor_factory=psycopg2.extras.DictCursor) as cur:
                 cur.execute(query, params)
                 return [dict(row) for row in cur.fetchall()]
 
     @db_handle_errors
-    def search_immobili(self, partita_id: Optional[int] = None, comune_id: Optional[int] = None,
-                        localita_id: Optional[int] = None, natura: Optional[str] = None,
-                        classificazione: Optional[str] = None) -> List[Dict]:
+    def search_immobili(
+        self,
+        partita_id: Optional[int] = None,
+        comune_id: Optional[int] = None,
+        localita_id: Optional[int] = None,
+        natura: Optional[str] = None,
+        classificazione: Optional[str] = None,
+    ) -> List[Dict]:
         """Chiama la funzione SQL cerca_immobili con filtri opzionali su partita, comune, località, natura.
 
         TIER 1: @db_handle_errors centralizes exception handling.
@@ -62,20 +67,87 @@ class DBImmobiliMixin:
                 cur.execute(query, params)
                 return [dict(row) for row in cur.fetchall()]
 
+    @db_handle_errors
+    def inserisci_immobile(
+        self,
+        partita_id: int,
+        natura: str,
+        localita_id: int,
+        numero_civico: Optional[str] = None,
+        classificazione: Optional[str] = None,
+        consistenza: Optional[str] = None,
+        numero_piani: Optional[int] = None,
+        numero_vani: Optional[int] = None,
+    ) -> Optional[int]:
+        """Inserisce un nuovo immobile e ritorna l'ID generato.
+
+        TIER 1: @db_handle_errors centralizes exception handling.
+        """
+        if not (isinstance(partita_id, int) and partita_id > 0):
+            raise DBDataError("ID partita non valido.")
+        if not (isinstance(localita_id, int) and localita_id > 0):
+            raise DBDataError("ID località non valido.")
+        if not (isinstance(natura, str) and natura.strip()):
+            raise DBDataError("La natura dell'immobile è obbligatoria.")
+
+        query = f"""
+            INSERT INTO {self.schema}.immobile
+                (partita_id, localita_id, numero_civico, natura,
+                 classificazione, consistenza, numero_piani, numero_vani)
+            VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
+            RETURNING id;
+        """
+        params = (
+            partita_id,
+            localita_id,
+            numero_civico.strip() if numero_civico else None,
+            natura.strip(),
+            classificazione,
+            consistenza,
+            numero_piani,
+            numero_vani,
+        )
+        with self._get_connection() as conn:
+            with conn.cursor() as cur:
+                cur.execute(query, params)
+                row = cur.fetchone()
+                if row:
+                    immobile_id = row[0]
+                    self.logger.info(
+                        f"Immobile '{natura}' inserito con ID {immobile_id}."
+                    )
+                    return immobile_id
+        return None
+
     def update_immobile(self, immobile_id: int, **kwargs) -> bool:
         """Chiama la procedura SQL aggiorna_immobile. Il commit è automatico."""
-        params = {'p_id': immobile_id, 'p_natura': kwargs.get('natura'), 'p_numero_piani': kwargs.get('numero_piani'),
-                  'p_numero_vani': kwargs.get('numero_vani'), 'p_consistenza': kwargs.get('consistenza'),
-                  'p_classificazione': kwargs.get('classificazione'), 'p_localita_id': kwargs.get('localita_id')}
-        call_proc = "CALL aggiorna_immobile(%(p_id)s, %(p_natura)s, %(p_numero_piani)s, %(p_numero_vani)s, %(p_consistenza)s, %(p_classificazione)s, %(p_localita_id)s)"
+        params = {
+            "p_id": immobile_id,
+            "p_natura": kwargs.get("natura"),
+            "p_numero_piani": kwargs.get("numero_piani"),
+            "p_numero_vani": kwargs.get("numero_vani"),
+            "p_consistenza": kwargs.get("consistenza"),
+            "p_classificazione": kwargs.get("classificazione"),
+            "p_localita_id": kwargs.get("localita_id"),
+            "p_numero_civico": kwargs.get("numero_civico"),
+        }
+        call_proc = "CALL aggiorna_immobile(%(p_id)s, %(p_natura)s, %(p_numero_piani)s, %(p_numero_vani)s, %(p_consistenza)s, %(p_classificazione)s, %(p_localita_id)s, %(p_numero_civico)s)"
         try:
             with self._get_connection() as conn:
                 with conn.cursor() as cur:
                     cur.execute(call_proc, params)
             self.logger.info(f"Immobile ID {immobile_id} aggiornato.")
             return True
-        except psycopg2.Error as db_err: self.logger.error(f"Errore DB aggiornamento immobile ID {immobile_id}: {db_err}"); return False
-        except Exception as e: self.logger.error(f"Errore Python aggiornamento immobile ID {immobile_id}: {e}"); return False
+        except psycopg2.Error as db_err:
+            self.logger.error(
+                f"Errore DB aggiornamento immobile ID {immobile_id}: {db_err}"
+            )
+            return False
+        except Exception as e:
+            self.logger.error(
+                f"Errore Python aggiornamento immobile ID {immobile_id}: {e}"
+            )
+            return False
 
     def delete_immobile(self, immobile_id: int) -> bool:
         """
@@ -90,34 +162,50 @@ class DBImmobiliMixin:
             self.logger.info(f"Immobile ID {immobile_id} eliminato con successo.")
             return True
         except Exception as e:
-            self.logger.error(f"Errore durante l'eliminazione dell'immobile ID {immobile_id}: {e}")
+            self.logger.error(
+                f"Errore durante l'eliminazione dell'immobile ID {immobile_id}: {e}"
+            )
             return False
 
-    def transfer_immobile(self, immobile_id: int, nuova_partita_id: int, registra_variazione: bool = False) -> bool:
+    def transfer_immobile(
+        self, immobile_id: int, nuova_partita_id: int, registra_variazione: bool = False
+    ) -> bool:
         """
         Chiama la procedura SQL per trasferire un immobile a una nuova partita in modo transazionale.
         """
         call_proc_str = f"CALL {self.schema}.trasferisci_immobile(%s, %s, %s);"
         params = (immobile_id, nuova_partita_id, registra_variazione)
-        
+
         try:
             with self._get_connection() as conn:
                 with conn.cursor() as cur:
-                    self.logger.info(f"Trasferimento immobile ID {immobile_id} a partita ID {nuova_partita_id}...")
+                    self.logger.info(
+                        f"Trasferimento immobile ID {immobile_id} a partita ID {nuova_partita_id}..."
+                    )
                     cur.execute(call_proc_str, params)
-            
+
             # Il commit è automatico qui se la procedura non ha sollevato eccezioni
             self.logger.info(f"Immobile ID {immobile_id} trasferito con successo.")
             return True
-            
+
         except psycopg2.Error as db_err:
             # Il rollback è automatico
-            pgerror_msg = getattr(db_err, 'pgerror', str(db_err))
-            self.logger.error(f"Errore DB durante trasferimento immobile ID {immobile_id}: {pgerror_msg}", exc_info=True)
-            raise DBMError(f"Errore database durante il trasferimento: {pgerror_msg}") from db_err
+            pgerror_msg = getattr(db_err, "pgerror", str(db_err))
+            self.logger.error(
+                f"Errore DB durante trasferimento immobile ID {immobile_id}: {pgerror_msg}",
+                exc_info=True,
+            )
+            raise DBMError(
+                f"Errore database durante il trasferimento: {pgerror_msg}"
+            ) from db_err
         except Exception as e:
-            self.logger.error(f"Errore imprevisto durante trasferimento immobile ID {immobile_id}: {e}", exc_info=True)
-            raise DBMError(f"Errore di sistema imprevisto durante il trasferimento: {e}") from e
+            self.logger.error(
+                f"Errore imprevisto durante trasferimento immobile ID {immobile_id}: {e}",
+                exc_info=True,
+            )
+            raise DBMError(
+                f"Errore di sistema imprevisto durante il trasferimento: {e}"
+            ) from e
 
     @db_handle_errors
     def get_immobile_details(self, immobile_id: int) -> Optional[Dict[str, Any]]:
@@ -131,7 +219,7 @@ class DBImmobiliMixin:
         query = f"""
             SELECT
                 i.id, i.partita_id, i.localita_id, i.natura, i.classificazione, i.consistenza,
-                i.numero_piani, i.numero_vani,
+                i.numero_piani, i.numero_vani, i.numero_civico,
                 p.numero_partita, p.suffisso_partita,
                 c.nome AS comune_nome,
                 l.nome AS localita_nome, l.tipologia_stradale
@@ -151,7 +239,9 @@ class DBImmobiliMixin:
                     raise DBNotFoundError(f"Immobile con ID {immobile_id} non trovato.")
 
     @db_handle_errors
-    def get_immobili_per_tipologia(self, comune_id: Optional[int] = None, limit: int = 100) -> List[Dict[str, Any]]:
+    def get_immobili_per_tipologia(
+        self, comune_id: Optional[int] = None, limit: int = 100
+    ) -> List[Dict[str, Any]]:
         """Recupera dati dalla vista materializzata mv_immobili_per_tipologia in modo sicuro.
 
         TIER 1: @db_handle_errors centralizes exception handling.
@@ -172,4 +262,3 @@ class DBImmobiliMixin:
             with conn.cursor(cursor_factory=DictCursor) as cur:
                 cur.execute(query, tuple(params))
                 return [dict(row) for row in cur.fetchall()]
-

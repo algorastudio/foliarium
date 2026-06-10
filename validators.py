@@ -18,8 +18,8 @@ from __future__ import annotations
 
 import re
 from dataclasses import dataclass, field
-from datetime import date, datetime
-from typing import Any, Callable, List, Optional
+from datetime import datetime
+from typing import Any, List, Optional
 
 
 # ---------------------------------------------------------------------------

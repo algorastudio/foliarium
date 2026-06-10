@@ -48,9 +48,11 @@ datas = [
     (os.path.join(PROJ_ROOT, 'docs'), 'docs'),
     # mkdocs.yml per navigazione manuale
     (os.path.join(PROJ_ROOT, 'mkdocs.yml'), '.'),
-    # Config demo
-    (os.path.join(PROJ_ROOT, 'demo_config.ini'), '.'),
 ]
+
+# Config demo (rimossa da main — inclusa solo se presente)
+if os.path.exists(os.path.join(PROJ_ROOT, 'demo_config.ini')):
+    datas.append((os.path.join(PROJ_ROOT, 'demo_config.ini'), '.'))
 
 # --- MODULI INCLUDERE ---
 # Alcuni moduli potrebbero non essere rilevati automaticamente

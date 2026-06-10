@@ -9,6 +9,7 @@ import Analytics from './pages/Analytics'
 import Audit from './pages/Audit'
 import PartitaDetail from './pages/PartitaDetail'
 import Possessori from './pages/Possessori'
+import Inserimento from './pages/Inserimento'
 
 const qc = new QueryClient({
   defaultOptions: { queries: { retry: 1, staleTime: 30_000 } },
@@ -38,6 +39,7 @@ export default function App() {
               <Route path="archivio" element={<Archivio />} />
               <Route path="partite/:id" element={<PartitaDetail />} />
               <Route path="possessori" element={<Possessori />} />
+              <Route path="inserimento" element={<Inserimento />} />
               <Route path="genealogia" element={<Genealogia />} />
               <Route path="analytics" element={<Analytics />} />
               <Route path="audit" element={<Audit />} />

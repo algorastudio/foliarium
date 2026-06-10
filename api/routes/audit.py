@@ -1,5 +1,5 @@
 """api/routes/audit.py — Audit log e statistiche giornaliere."""
-from datetime import datetime, date, timedelta
+from datetime import datetime, date
 from typing import Optional
 
 from fastapi import APIRouter, Depends, Query

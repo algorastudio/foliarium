@@ -72,13 +72,13 @@ class TestSafeQuery:
     def test_insert_query(self):
         """INSERT query builder."""
         query = SafeQuery.insert("partita", ["numero_partita", "stato"])
-        # Dovrebbe essere sql.SQL object
-        assert isinstance(query, sql.SQL)
+        # Dovrebbe essere sql.Composable (che include sia SQL che Composed)
+        assert hasattr(query, 'as_string')  # SQL-like objects have as_string method
 
     def test_select_query(self):
         """SELECT query builder."""
         query = SafeQuery.select(["id", "numero_partita"], "partita")
-        assert isinstance(query, sql.SQL)
+        assert hasattr(query, 'as_string')
 
     def test_where_clause(self):
         """WHERE clause builder."""
@@ -86,7 +86,7 @@ class TestSafeQuery:
             "numero_partita": 123,
             "stato": "Attiva"
         })
-        assert isinstance(where_sql, sql.SQL)
+        assert hasattr(where_sql, 'as_string')
         assert len(values) == 2
         assert 123 in values
         assert "Attiva" in values
@@ -94,7 +94,8 @@ class TestSafeQuery:
     def test_empty_where_clause(self):
         """Empty WHERE clause returns empty tuple."""
         where_sql, values = SafeQuery.where_clause({})
-        assert isinstance(where_sql, sql.SQL)
+        # Empty where clause returns sql.SQL("") which is sql.SQL type
+        assert isinstance(where_sql, sql.SQL) or hasattr(where_sql, 'as_string')
         assert len(values) == 0
 
 

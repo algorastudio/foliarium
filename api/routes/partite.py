@@ -1,5 +1,5 @@
 """api/routes/partite.py — Ricerca, dettaglio, creazione partite + immobili/variazioni inline."""
-from typing import Optional, List
+from typing import Optional
 from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel
 from datetime import date
@@ -26,8 +26,9 @@ class NuovaPartitaRequest(BaseModel):
 
 class NuovoImmobileRequest(BaseModel):
     localita_nome: str
-    tipologia_stradale: Optional[str] = None
+    tipologia_stradale: str
     natura: str
+    numero_civico: Optional[str] = None
     numero_piani: Optional[int] = None
     numero_vani: Optional[int] = None
     consistenza: Optional[str] = None
@@ -138,29 +139,33 @@ def add_immobile(
                 raise HTTPException(status_code=404, detail="Partita non trovata")
             comune_id = partita_row["comune_id"]
 
-            # Find or create locality
+            # Find or create locality (univoca per comune+nome+tipologia)
             nome = req.localita_nome.strip()
+            tipologia = req.tipologia_stradale.strip()
             cur.execute(
-                f"SELECT id FROM {schema}.localita WHERE comune_id = %s AND nome = %s",
-                (comune_id, nome),
+                f"SELECT id FROM {schema}.localita "
+                f"WHERE comune_id = %s AND nome = %s AND tipologia_stradale = %s",
+                (comune_id, nome, tipologia),
             )
             loc_row = cur.fetchone()
             if loc_row:
                 localita_id = loc_row["id"]
             else:
                 cur.execute(
-                    f"INSERT INTO {schema}.localita (comune_id, nome, tipologia_stradale) VALUES (%s, %s, %s) RETURNING id",
-                    (comune_id, nome, req.tipologia_stradale),
+                    f"INSERT INTO {schema}.localita (comune_id, nome, tipologia_stradale) "
+                    f"VALUES (%s, %s, %s) RETURNING id",
+                    (comune_id, nome, tipologia),
                 )
                 localita_id = cur.fetchone()["id"]
 
             # Insert immobile
             cur.execute(
                 f"""INSERT INTO {schema}.immobile
-                    (partita_id, localita_id, natura, numero_piani, numero_vani, consistenza, classificazione)
-                    VALUES (%s, %s, %s, %s, %s, %s, %s) RETURNING id""",
-                (partita_id, localita_id, req.natura, req.numero_piani,
-                 req.numero_vani, req.consistenza, req.classificazione),
+                    (partita_id, localita_id, numero_civico, natura,
+                     numero_piani, numero_vani, consistenza, classificazione)
+                    VALUES (%s, %s, %s, %s, %s, %s, %s, %s) RETURNING id""",
+                (partita_id, localita_id, req.numero_civico, req.natura,
+                 req.numero_piani, req.numero_vani, req.consistenza, req.classificazione),
             )
             immobile_id = cur.fetchone()["id"]
 

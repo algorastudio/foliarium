@@ -110,7 +110,7 @@ QTabBar::tab:selected {
 }
 
 /* Table Widget */
-QTableWidget {
+QTableView {
     gridline-color: #000000;
     background-color: #FFFFFF;
     alternate-background-color: #F0F0F0;
@@ -352,3 +352,77 @@ QPushButton#navButton[active="true"] {
     border-color: #FFFF00;
 }
 QStackedWidget { background: #000000; }
+
+/* Form validation error state — gestito da _set_field_error() */
+QLineEdit[error="true"], QTextEdit[error="true"], QPlainTextEdit[error="true"],
+QComboBox[error="true"], QDateEdit[error="true"], QSpinBox[error="true"] {
+    border: 1.5px solid #e74c3c;
+}
+
+/* Info box per riepiloghi (partita sorgente/destinazione, etc.) */
+QLabel#infoBox {
+    padding: 5px 8px;
+    border: 1px solid palette(mid);
+    border-radius: 4px;
+    background: palette(alternate-base);
+    min-height: 1.6em;
+}
+
+/* Titolo step wizard partita/operazioni */
+QLabel#wizardStepTitle {
+    font-size: 14pt;
+    font-weight: 600;
+    color: palette(highlight);
+}
+
+/* Status text labels (download, SMTP test, ecc.) */
+QLabel[status="pending"] { color: palette(mid); }
+QLabel[status="success"] { color: #27ae60; }
+QLabel[status="warning"] { color: #e67e22; }
+QLabel[status="error"]   { color: #c0392b; }
+
+/* Hint/note labels (italic, colore secondario) */
+QLabel#hintLabel { font-style: italic; color: palette(mid); }
+
+/* DB connection indicator badge */
+QLabel#dbIndicator {
+    font-size: 11px;
+    border-radius: 10px;
+    padding: 2px 8px;
+    font-weight: 600;
+}
+QLabel#dbIndicator[dbStatus="connected"] { color: #2E7D32; background: #E8F5E9; }
+QLabel#dbIndicator[dbStatus="offline"]   { color: #B71C1C; background: #FDE8E8; }
+
+/* License expiry chip */
+QLabel#licenseExpiryChip {
+    border-radius: 4px;
+    font-size: 11px;
+    font-weight: bold;
+    padding: 2px 6px;
+    color: white;
+}
+QLabel#licenseExpiryChip[severity="expired"]  { background: #B71C1C; }
+QLabel#licenseExpiryChip[severity="critical"] { background: #E65100; }
+QLabel#licenseExpiryChip[severity="warning"]  { background: #F57F17; }
+
+/* Step bar wizard (barra avanzamento step) */
+QLabel[stepState="current"] {
+    font-weight: 700;
+    color: palette(highlight);
+    text-decoration: underline;
+}
+QLabel[stepState="done"]    { color: #4CAF50; }
+QLabel[stepState="pending"] { color: palette(mid); }
+
+/* Stato partita badge */
+QLabel#statoBadge {
+    border-radius: 9px;
+    padding: 1px 9px;
+    font-size: 9pt;
+    font-weight: 600;
+}
+QLabel#statoBadge[stato="attiva"]   { background: #E8F5E9; color: #1B5E20; }
+QLabel#statoBadge[stato="inattiva"] { background: #F5F5F5; color: #616161; }
+QLabel#statoBadge[stato="aperta"]   { background: #E3F2FD; color: #0D47A1; }
+QLabel#statoBadge[stato="chiusa"]   { background: #FFF3E0; color: #BF360C; }

@@ -73,7 +73,7 @@ def setup_database_and_config(demo_mode: bool = False):
     if demo_mode:
         # Demo mode: avvia PostgreSQL embedded e usa credenziali demo
         try:
-            from demo_launcher import is_embedded_available, start_demo_postgres
+            from foliarium.core.services.demo_launcher import is_embedded_available, start_demo_postgres
             if not is_embedded_available():
                 logging.warning("PostgreSQL embedded non disponibile per demo mode")
                 logging.info("Fallback a credenziali di produzione...")

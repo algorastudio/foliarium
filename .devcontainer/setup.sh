@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Setup automatico per GitHub Codespaces – Meridiana Catasto Storico
+# Setup automatico per GitHub Codespaces – Foliarium Catasto Storico
 set -euo pipefail
 
 # ── Colori per output ──────────────────────────────────────────────────────────
@@ -122,7 +122,7 @@ cat <<'EOF'
   │                                                          │
   │  Modalità PyQt (desktop noVNC):                          │
   │    python gui_main.py                                    │
-  │    → Desktop nella porta 6080 (password: meridiana)      │
+  │    → Desktop nella porta 6080 (password: foliarium-dev)  │
   │                                                          │
   │  Test:  python -m pytest tests/                          │
   └──────────────────────────────────────────────────────────┘

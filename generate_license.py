@@ -8,12 +8,7 @@ Comandi disponibili:
   fingerprint  Mostra il fingerprint hardware del computer corrente
 
 Esempi:
-  python generate_license.py generate \\
-      --to "Archivio di Stato di Savona" \\
-      --type standard \\
-      --seats 2 \\
-      --expiry 2027-12-31 \\
-      --out savona.license
+  python generate_license.py generate --to "Comune di Firenze" --type standard --seats 2 --expiry 2027-12-31 --out savona.license
 
   python generate_license.py generate \\
       --to "Comune di Albenga" \\
@@ -35,7 +30,7 @@ from pathlib import Path
 
 
 def cmd_generate(args: argparse.Namespace) -> None:
-    from license_manager import generate_license, get_hardware_fingerprint
+    from foliarium.core.services.license import generate_license, get_hardware_fingerprint
 
     hw_id = args.hardware
     if args.bind_local:
@@ -61,7 +56,7 @@ def cmd_generate(args: argparse.Namespace) -> None:
 
 
 def cmd_inspect(args: argparse.Namespace) -> None:
-    from license_manager import _validate_file, get_hardware_fingerprint
+    from foliarium.core.services.license import _validate_file, get_hardware_fingerprint
 
     path = args.file
     if not Path(path).exists():
@@ -83,7 +78,7 @@ def cmd_inspect(args: argparse.Namespace) -> None:
         status = "SCADUTA" if days < 0 else f"tra {days} giorni"
         print(f"  Scadenza       : {info.expiry_date.strftime('%d/%m/%Y')} ({status})")
     else:
-        print(f"  Scadenza       : Perpetua")
+        print("  Scadenza       : Perpetua")
     print(f"  Hardware ID    : {info.hardware_id or 'Qualsiasi (floating)'}")
     print(f"  Emessa il      : {info.issued_at.strftime('%d/%m/%Y')}")
     print(f"  ID computer    : {current_fp}")
@@ -94,7 +89,7 @@ def cmd_inspect(args: argparse.Namespace) -> None:
 
 
 def cmd_fingerprint(_args: argparse.Namespace) -> None:
-    from license_manager import get_hardware_fingerprint
+    from foliarium.core.services.license import get_hardware_fingerprint
     import socket
     import uuid
 
@@ -103,13 +98,13 @@ def cmd_fingerprint(_args: argparse.Namespace) -> None:
     host = socket.gethostname()
 
     print(f"\n{'='*55}")
-    print(f" Fingerprint hardware di questo computer")
+    print(" Fingerprint hardware di questo computer")
     print(f"{'='*55}")
     print(f"  Hostname       : {host}")
     print(f"  MAC address    : {':'.join(f'{(mac >> i) & 0xff:02x}' for i in range(40, -1, -8))}")
     print(f"  Fingerprint    : {fp}")
-    print(f"\nUsare questo fingerprint con --hardware durante la generazione")
-    print(f"di una licenza vincolata a questo specifico computer.\n")
+    print("\nUsare questo fingerprint con --hardware durante la generazione")
+    print("di una licenza vincolata a questo specifico computer.\n")
 
 
 def _print_license_info(data: dict) -> None:
@@ -135,7 +130,7 @@ def main() -> None:
     # --- generate ---
     p_gen = sub.add_parser("generate", help="Genera un nuovo file .license")
     p_gen.add_argument("--to",       required=True, metavar="NOME",
-                       help="Nome del licenziatario (es. 'Archivio di Stato di Savona')")
+                       help="Nome del licenziatario (es. 'Comune di Firenze')")
     p_gen.add_argument("--type",     default="standard",
                        choices=["demo", "standard", "enterprise"],
                        help="Tipo di licenza (default: standard)")

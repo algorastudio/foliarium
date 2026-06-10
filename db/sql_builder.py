@@ -7,7 +7,7 @@ Uso:
     cur.execute(query, (123, "Attiva"))
 """
 
-from typing import List, Dict, Any, Tuple, Optional
+from typing import List, Dict, Any, Tuple
 from psycopg2 import sql
 
 

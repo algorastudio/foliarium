@@ -44,7 +44,7 @@ Durante l'installazione vengono eseguite automaticamente tutte le fasi:
 | `config.ini` | `C:\Program Files (x86)\Foliarium\config.ini` |
 | `foliarium.license` (da fornire) | `C:\Program Files (x86)\Foliarium\foliarium.license` |
 | Dati DB | `C:\ProgramData\Foliarium\pg_data\` |
-| Log app | `%LOCALAPPDATA%\Foliarium\logs\` |
+| Log app | `%LOCALAPPDATA%\AlgoraStudio\Foliarium\` (`foliarium_session.log` + `logs\foliarium_gui.log*`, esportabili in ZIP da *Help → Esporta log per supporto*) |
 | Log installer DB | `C:\Program Files (x86)\Foliarium\setup_database.log` |
 | Cache offline | `%LOCALAPPDATA%\Foliarium\cache\` |
 
@@ -121,15 +121,62 @@ python gui_main.py
     automaticamente** il database. Questa sezione serve solo a chi
     installa Foliarium da sorgente o utilizza un PostgreSQL preesistente.
 
-### Creazione del database
+### Script automatico `setup_database.py`
 
-Aprire pgAdmin o psql e creare il database:
+Il modo più rapido per inizializzare il database è usare lo script incluso,
+che crea il database, esegue tutti gli script SQL nell'ordine corretto e
+scrive il file `config.ini`.
+
+**Utilizzo base (PostgreSQL 17 già installato su Windows):**
+
+```powershell
+python setup_database.py --pg-bin "C:\Program Files\PostgreSQL\17\bin" --postgres-password <password_postgres>
+```
+
+**Ricerca automatica del PostgreSQL nel PATH:**
+
+```powershell
+python setup_database.py --pg-bin auto --postgres-password <password_postgres>
+```
+
+#### Opzioni disponibili
+
+| Opzione | Default | Descrizione |
+|---|---|---|
+| `--pg-bin <path\|auto>` | — | Percorso `bin/` di PostgreSQL, oppure `auto` per ricerca automatica |
+| `--postgres-password` | *(vuoto)* | Password del superuser `postgres` |
+| `--db-name` | `catasto_storico` | Nome del database da creare |
+| `--db-user` | `foliarium` | Ruolo PostgreSQL dell'applicazione |
+| `--db-password` | *(generata)* | Password per il ruolo applicativo (generata casualmente se omessa) |
+| `--admin-password` | *(generata)* | Password utente admin applicativo |
+| `--port` | `5432` | Porta PostgreSQL |
+| `--config-file` | `config.ini` | Percorso/nome del file di configurazione da scrivere |
+
+**Esempio con opzioni personalizzate:**
+
+```powershell
+python setup_database.py `
+    --pg-bin "C:\Program Files\PostgreSQL\17\bin" `
+    --postgres-password postgres `
+    --db-name archivio_savona `
+    --db-user archivio_user `
+    --admin-password AdminSicuro2025 `
+    --config-file archivio_savona.ini
+```
+
+!!! info "Risultato"
+    Al termine lo script stampa le credenziali generate e il percorso
+    del file di configurazione scritto. Conservare questi dati in luogo sicuro.
+
+### Creazione manuale del database
+
+In alternativa allo script, aprire pgAdmin o psql e creare il database:
 
 ```sql
 CREATE DATABASE catasto_storico;
 ```
 
-### Esecuzione degli script SQL
+### Esecuzione manuale degli script SQL
 
 Eseguire gli script nella cartella `sql_scripts/` nell'ordine indicato:
 
@@ -142,6 +189,25 @@ Eseguire gli script nella cartella `sql_scripts/` nell'ordine indicato:
 ```
 
 In pgAdmin: *Tools → Query Tool*, aprire ciascun file ed eseguire.
+
+### Migrazioni post-installazione
+
+Dopo aver eseguito gli script base, applicare le migrazioni pendenti:
+
+```bash
+python bin/migrate.py status   # mostra cosa e' applicato vs pendente
+python bin/migrate.py up       # applica tutte le pending
+```
+
+Vedi la guida dedicata *Migrazioni Schema* per il dettaglio (naming
+convention, tracking via `catasto.schema_version`, rollback).
+
+!!! info "Vista audit applicata automaticamente"
+    Dalla v1.0.1 la vista `catasto.v_audit_dettagliato` (necessaria al
+    visualizzatore Audit Log) viene **creata automaticamente** al primo
+    avvio se mancante (`db/base.py::_ensure_audit_view`). I DB
+    inizializzati prima dello script `18_funzioni_trigger_audit.sql`
+    non richiedono più migrazione manuale.
 
 ### Configurazione credenziali
 
@@ -240,29 +306,19 @@ pyinstaller foliarium.spec
 L'eseguibile viene generato in `dist/Foliarium/`. Per creare l'installer Windows usare
 **Inno Setup** con lo script `Foliarium_Installer.iss`.
 
-### Build Demo portabile
+### Piattaforme distribuite
 
-La build demo include PostgreSQL 14 portabile e i dati dimostrativi. Viene prodotta
-automaticamente dal pipeline CI (`build-demo`), ma può essere generata localmente:
+A partire dalla v1.0.2 il pipeline pubblica solo le 3 build effettivamente in uso:
 
-```bash
-# 1. Scarica e posiziona PostgreSQL 14 portabile in pgsql/
-#    (EnterpriseDB binaries: https://www.enterprisedb.com/download-postgresql-binaries)
+| Build | Artifact | Trigger |
+|---|---|---|
+| `build-windows` | `Foliarium_Portabile.zip` + Inno Setup `.exe` | tag `*.*.*` |
+| `build-linux` | tarball portabile | tag `*.*.*` |
+| `build-macos` | zip portabile | tag `*.*.*` |
 
-# 2. Prepara il database demo (initdb + schema + dati Savona)
-python prepare_demo_db.py --pgsql-dir pgsql
-
-# 3. Compila il bundle demo
-pyinstaller foliarium_demo.spec
-
-# 4. Crea lo ZIP portabile
-Compress-Archive -Path dist\Foliarium_Demo\* -DestinationPath Foliarium_Demo_Portabile.zip
-```
-
-Il bundle `dist/Foliarium_Demo/` contiene:
-- `Foliarium_Demo.exe` — eseguibile principale
-- `pgsql/` — binari PostgreSQL 14 portabili
-- `demo_data/` — cluster PostgreSQL pre-inizializzato con dati Savona
+Le precedenti varianti `build-demo` (con PostgreSQL portabile) e `build-unified` (installer
+combinato Foliarium+PostgreSQL+DB init in un singolo `.exe`) sono state rimosse: non erano
+in produzione e rallentavano il ciclo di release senza valore commerciale.
 
 ---
 

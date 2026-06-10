@@ -17,7 +17,7 @@ import pytest
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.dirname(__file__))))
 
-from update_checker import (
+from foliarium.core.services.update_checker import (
     _find_asset,
     _parse_version,
     _verify_sha256,
@@ -159,7 +159,7 @@ class TestVerifySha256:
 
 @pytest.mark.unit
 class TestFetchChecksum:
-    @patch("update_checker.urllib.request.urlopen")
+    @patch("foliarium.core.services.update_checker.urllib.request.urlopen")
     def test_success(self, mock_urlopen):
         mock_resp = MagicMock()
         mock_resp.read.return_value = b"abc123def456  Foliarium_Setup.exe\n"
@@ -170,7 +170,7 @@ class TestFetchChecksum:
         result = _fetch_checksum("http://example.com/file.sha256")
         assert result == "abc123def456  Foliarium_Setup.exe"
 
-    @patch("update_checker.urllib.request.urlopen")
+    @patch("foliarium.core.services.update_checker.urllib.request.urlopen")
     def test_network_error(self, mock_urlopen):
         mock_urlopen.side_effect = Exception("Network error")
         result = _fetch_checksum("http://example.com/file.sha256")
@@ -184,7 +184,7 @@ class TestFetchChecksum:
 
 @pytest.mark.unit
 class TestFetchReleaseInfo:
-    @patch("update_checker.urllib.request.urlopen")
+    @patch("foliarium.core.services.update_checker.urllib.request.urlopen")
     def test_success(self, mock_urlopen):
         release_data = {"tag_name": "v1.7.0", "assets": []}
         mock_resp = MagicMock()
@@ -197,7 +197,7 @@ class TestFetchReleaseInfo:
         assert result is not None
         assert result["tag_name"] == "v1.7.0"
 
-    @patch("update_checker.urllib.request.urlopen")
+    @patch("foliarium.core.services.update_checker.urllib.request.urlopen")
     def test_url_error(self, mock_urlopen):
         import urllib.error
         mock_urlopen.side_effect = urllib.error.URLError("No network")
@@ -205,7 +205,7 @@ class TestFetchReleaseInfo:
         result = _fetch_release_info(timeout=1)
         assert result is None
 
-    @patch("update_checker.urllib.request.urlopen")
+    @patch("foliarium.core.services.update_checker.urllib.request.urlopen")
     def test_generic_exception(self, mock_urlopen):
         mock_urlopen.side_effect = Exception("Something broke")
         result = _fetch_release_info(timeout=1)
@@ -219,14 +219,14 @@ class TestFetchReleaseInfo:
 
 @pytest.mark.unit
 class TestCheckForUpdates:
-    @patch("update_checker._fetch_release_info", return_value=None)
+    @patch("foliarium.core.services.update_checker._fetch_release_info", return_value=None)
     def test_no_network(self, _mock):
         """Se GitHub non raggiungibile, ritorna False."""
         result = check_for_updates(None)
         assert result is False
 
-    @patch("update_checker._show_update_available_dialog")
-    @patch("update_checker._fetch_release_info")
+    @patch("foliarium.core.services.update_checker._show_update_available_dialog")
+    @patch("foliarium.core.services.update_checker._fetch_release_info")
     @patch("config.IS_TEST_ENV", False)
     @patch("config.IS_DEMO_MODE", False)
     @patch("config.APP_VERSION", "1.6.0")
@@ -236,8 +236,8 @@ class TestCheckForUpdates:
         assert result is False
         mock_dialog.assert_not_called()
 
-    @patch("update_checker._show_update_available_dialog")
-    @patch("update_checker._fetch_release_info")
+    @patch("foliarium.core.services.update_checker._show_update_available_dialog")
+    @patch("foliarium.core.services.update_checker._fetch_release_info")
     @patch("config.IS_TEST_ENV", False)
     @patch("config.IS_DEMO_MODE", False)
     @patch("config.APP_VERSION", "1.6.0")
@@ -246,8 +246,8 @@ class TestCheckForUpdates:
         result = check_for_updates(None)
         assert result is False
 
-    @patch("update_checker._show_update_available_dialog")
-    @patch("update_checker._fetch_release_info")
+    @patch("foliarium.core.services.update_checker._show_update_available_dialog")
+    @patch("foliarium.core.services.update_checker._fetch_release_info")
     @patch("config.IS_TEST_ENV", False)
     @patch("config.IS_DEMO_MODE", False)
     @patch("config.APP_VERSION", "1.6.0")

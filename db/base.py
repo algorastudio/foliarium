@@ -5,19 +5,14 @@ Classe base per CatastoDBManager (non usare direttamente).
 
 import psycopg2
 import psycopg2.errors
+import psycopg2.pool  # noqa: F401  — registra psycopg2.pool.X (usato via dotted access)
 from psycopg2.extras import DictCursor
-from psycopg2.extensions import ISOLATION_LEVEL_SERIALIZABLE, ISOLATION_LEVEL_AUTOCOMMIT
-from psycopg2 import sql, extras, pool
-import sys, csv
+from psycopg2 import sql
 import logging
-from datetime import date, datetime
-from typing import List, Dict, Any, Optional, Tuple, Union, Callable
+from datetime import datetime
+from typing import List, Dict, Any, Optional, Tuple, Callable
 import json
-import uuid
-import os
-import shutil
 from contextlib import contextmanager
-import time
 from functools import wraps
 
 
@@ -27,7 +22,6 @@ from functools import wraps
 COLONNE_POSSESSORI_DETTAGLI_NUM = 6 # Esempio: ID, Nome Compl, Cognome/Nome, Paternità, Quota, Titolo
 COLONNE_POSSESSORI_DETTAGLI_LABELS = ["ID Poss.", "Nome Completo", "Cognome Nome", "Paternità", "Quota", "Titolo"]
 
-import logging
 logger = logging.getLogger(__name__)
 # ------------ ECCEZIONI PERSONALIZZATE ------------
 # Definite in catasto_exceptions.py; re-esportate qui per backward compatibility.
@@ -35,7 +29,6 @@ logger = logging.getLogger(__name__)
 from catasto_exceptions import (
     DBMError,
     DBUniqueConstraintError,
-    DBNotFoundError,
     DBDataError,
 )
 # -------------------------------------------------
@@ -116,7 +109,6 @@ class DBConnectionBase:
             from app_paths import CACHE_DIR
             self._cache_dir = CACHE_DIR
         except Exception:
-            import tempfile
             self._cache_dir = None
             self.logger.warning("CACHE_DIR non disponibile; cache offline disabilitata.")
     # In catasto_db_manager.py, SOSTITUISCI il metodo initialize_main_pool con questo:
@@ -182,8 +174,82 @@ class DBConnectionBase:
             self.pool = None
             return False
 
+    def check_missing_migrations(self) -> list[str]:
+        """Verifica se mancano migrazioni critiche nello schema del DB.
+
+        Restituisce una lista di descrizioni delle migrazioni mancanti.
+        Lista vuota → schema aggiornato.  Errori di connessione → lista vuota
+        (non bloccante: il DB potrebbe essere offline).
+        """
+        missing = []
+        try:
+            with self._get_connection() as conn:
+                with conn.cursor() as cur:
+                    # Soft-delete (archiviazione) — migrations/add_soft_delete.sql
+                    cur.execute(
+                        "SELECT 1 FROM information_schema.columns "
+                        "WHERE table_schema = %s AND table_name = 'comune' "
+                        "  AND column_name = 'archiviato'",
+                        (self.schema,)
+                    )
+                    if not cur.fetchone():
+                        missing.append("soft_delete")
+
+                    # Tipo possesso — migrations/add_tipo_possesso.sql
+                    cur.execute(
+                        "SELECT 1 FROM information_schema.tables "
+                        "WHERE table_schema = %s AND table_name = 'tipo_possesso'",
+                        (self.schema,)
+                    )
+                    if not cur.fetchone():
+                        missing.append("tipo_possesso")
+
+        except Exception as e:
+            self.logger.debug(f"check_missing_migrations: impossibile verificare ({e})")
+        return missing
+
     def _apply_pending_schema_migrations(self):
-        """Applica migrazioni schema idempotenti all'avvio (silent best-effort)."""
+        """Applica migrazioni schema idempotenti all'avvio (silent best-effort).
+
+        Ogni step è isolato: il fallimento di uno non blocca gli altri. Tutti
+        gli step sono idempotenti (no-op se già applicati).
+        """
+        # Migrazione v1.6.1: rimuove tipo_id e incorpora civico nel nome località.
+        # Eseguita solo su DB pre-v1.6.1 (rilevamento via colonna tipo_id).
+        self._apply_v161_localita_migration()
+
+        # Ownership delle MV — REFRESH MATERIALIZED VIEW richiede di esserne
+        # proprietari. Va eseguito prima di creare gli indici (anche CREATE
+        # INDEX richiede l'ownership). Best-effort, non bloccante.
+        self._ensure_mv_ownership()
+
+        # Indici UNIQUE sulle MV — richiesti per REFRESH ... CONCURRENTLY.
+        # Idempotente: ogni CREATE è IF NOT EXISTS, l'esistenza della MV
+        # è verificata prima per evitare errori se la MV non è stata creata.
+        self._ensure_mv_unique_indexes()
+
+        # Vista v_audit_dettagliato — assente nei DB inizializzati prima di
+        # sql_scripts/18_funzioni_trigger_audit.sql; senza, il visualizzatore
+        # audit log lancia UndefinedTable. CREATE OR REPLACE = idempotente.
+        self._ensure_audit_view()
+
+        # Tabella partita_draft — bozze del wizard Nuova Partita.
+        # Idempotente: CREATE TABLE IF NOT EXISTS.
+        self._ensure_partita_draft_table()
+
+        # Tabella api_keys — chiavi API per integrazioni esterne.
+        # Idempotente: CREATE TABLE IF NOT EXISTS.
+        self._ensure_api_keys_table()
+
+    def _apply_v161_localita_migration(self):
+        """Migrazione v1.6.1: rimuove tipo_id da localita e incorpora civico.
+
+        Step isolato dagli altri ensure_*: un errore qui non blocca gli step
+        successivi (la separazione e' stata introdotta per fixare un bug in
+        cui il return early da questo metodo, quando inserito inline in
+        _apply_pending_schema_migrations, saltava silenziosamente tutti gli
+        ensure_* successivi su qualunque DB gia' aggiornato).
+        """
         try:
             with self._get_connection() as conn:
                 with conn.cursor() as cur:
@@ -238,7 +304,304 @@ class DBConnectionBase:
 
                     self.logger.info("Migrazione automatica schema v1.6.1 completata con successo.")
         except Exception as e:
-            self.logger.warning(f"Migrazione schema automatica saltata (non bloccante): {e}")
+            self.logger.warning(f"Migrazione schema v1.6.1 saltata (non bloccante): {e}")
+
+    def _ensure_api_keys_table(self):
+        """Crea la tabella catasto.api_keys se mancante.
+
+        Equivale alla migrazione `migrations/22_create_api_keys.sql` ma
+        applicata automaticamente all'avvio. Best-effort: non blocca
+        l'avvio se fallisce (es. permessi DDL insufficienti).
+        """
+        try:
+            with self._get_connection() as conn:
+                with conn.cursor() as cur:
+                    cur.execute(
+                        f"CREATE TABLE IF NOT EXISTS {self.schema}.api_keys ("
+                        f"  id                 SERIAL PRIMARY KEY, "
+                        f"  name               VARCHAR(100) NOT NULL, "
+                        f"  key_hash           VARCHAR(64)  NOT NULL UNIQUE, "
+                        f"  prefix             VARCHAR(12)  NOT NULL, "
+                        f"  scopes             TEXT[]       NOT NULL "
+                        f"                     DEFAULT ARRAY[]::TEXT[], "
+                        f"  created_by         INTEGER      NULL "
+                        f"                     REFERENCES {self.schema}.utente(id) "
+                        f"                     ON DELETE SET NULL, "
+                        f"  created_at         TIMESTAMPTZ  NOT NULL DEFAULT NOW(), "
+                        f"  expires_at         TIMESTAMPTZ  NULL, "
+                        f"  revoked_at         TIMESTAMPTZ  NULL, "
+                        f"  last_used_at       TIMESTAMPTZ  NULL, "
+                        f"  rate_limit_per_min INTEGER      NOT NULL DEFAULT 60 "
+                        f")"
+                    )
+                    cur.execute(
+                        f"CREATE INDEX IF NOT EXISTS idx_api_keys_prefix "
+                        f"ON {self.schema}.api_keys(prefix)"
+                    )
+                    cur.execute(
+                        f"CREATE INDEX IF NOT EXISTS idx_api_keys_active "
+                        f"ON {self.schema}.api_keys(revoked_at, expires_at) "
+                        f"WHERE revoked_at IS NULL"
+                    )
+                conn.commit()
+        except Exception as e:
+            self.logger.warning(
+                f"_ensure_api_keys_table fallita (non bloccante): {e}. "
+                f"Applicare manualmente sql_scripts/migrations/22_create_api_keys.sql."
+            )
+
+    def _ensure_partita_draft_table(self):
+        """Crea (o aggiorna) la tabella catasto.partita_draft se mancante.
+
+        Equivale alla migrazione `migrations/21_create_partita_draft.sql`
+        ma applicata automaticamente all'avvio. Best-effort: non blocca
+        l'avvio.
+
+        Aggiorna anche la tabella esistente aggiungendo la colonna
+        `wizard_kind` (introdotta per supportare più wizard) se mancante.
+        """
+        try:
+            with self._get_connection() as conn:
+                with conn.cursor() as cur:
+                    cur.execute(
+                        "SELECT 1 FROM information_schema.tables "
+                        "WHERE table_schema = %s AND table_name = 'partita_draft'",
+                        (self.schema,)
+                    )
+                    table_exists = cur.fetchone() is not None
+
+                    if not table_exists:
+                        # Verifica che la tabella utente esista per la FK
+                        cur.execute(
+                            "SELECT 1 FROM information_schema.tables "
+                            "WHERE table_schema = %s AND table_name = 'utente'",
+                            (self.schema,)
+                        )
+                        has_utente = cur.fetchone() is not None
+                        fk_clause = (
+                            f"REFERENCES {self.schema}.utente(id) ON DELETE SET NULL"
+                            if has_utente else ""
+                        )
+                        try:
+                            cur.execute(
+                                f"CREATE TABLE IF NOT EXISTS {self.schema}.partita_draft ("
+                                f"  id          SERIAL PRIMARY KEY,"
+                                f"  utente_id   INTEGER NULL {fk_clause},"
+                                f"  wizard_kind VARCHAR(64) NOT NULL DEFAULT 'nuova_partita_wizard',"
+                                f"  titolo      VARCHAR(255) NOT NULL,"
+                                f"  payload     JSONB NOT NULL,"
+                                f"  app_version VARCHAR(32),"
+                                f"  created_at  TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,"
+                                f"  updated_at  TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP"
+                                f")"
+                            )
+                            cur.execute(
+                                f"CREATE INDEX IF NOT EXISTS idx_partita_draft_utente "
+                                f"ON {self.schema}.partita_draft(utente_id, wizard_kind, updated_at DESC)"
+                            )
+                            self.logger.info(
+                                "Tabella %s.partita_draft creata automaticamente all'avvio.",
+                                self.schema,
+                            )
+                        except psycopg2.Error as e:
+                            conn.rollback()
+                            self.logger.warning(
+                                "Impossibile creare la tabella %s.partita_draft "
+                                "(%s). Applicare come superuser "
+                                "sql_scripts/migrations/21_create_partita_draft.sql; "
+                                "fino ad allora la funzione 'Salva bozza' dei "
+                                "wizard partita non sarà disponibile.",
+                                self.schema, e
+                            )
+                        return
+
+                    # Tabella già presente: verifica colonna wizard_kind
+                    cur.execute(
+                        "SELECT 1 FROM information_schema.columns "
+                        "WHERE table_schema = %s AND table_name = 'partita_draft' "
+                        "  AND column_name = 'wizard_kind'",
+                        (self.schema,)
+                    )
+                    if cur.fetchone():
+                        return  # già aggiornata
+                    try:
+                        cur.execute(
+                            f"ALTER TABLE {self.schema}.partita_draft "
+                            f"ADD COLUMN IF NOT EXISTS wizard_kind VARCHAR(64) "
+                            f"NOT NULL DEFAULT 'nuova_partita_wizard'"
+                        )
+                        # Indice nuovo (vecchio resta come fallback)
+                        cur.execute(
+                            f"CREATE INDEX IF NOT EXISTS idx_partita_draft_utente_kind "
+                            f"ON {self.schema}.partita_draft(utente_id, wizard_kind, updated_at DESC)"
+                        )
+                        self.logger.info(
+                            "Colonna wizard_kind aggiunta a %s.partita_draft.",
+                            self.schema,
+                        )
+                    except psycopg2.Error as e:
+                        conn.rollback()
+                        self.logger.warning(
+                            "Impossibile aggiornare %s.partita_draft con la colonna "
+                            "wizard_kind (%s). Le bozze esistenti continueranno a "
+                            "funzionare nel wizard Nuova Partita.",
+                            self.schema, e
+                        )
+        except Exception as e:
+            self.logger.debug(f"_ensure_partita_draft_table: {e}")
+
+    def _ensure_audit_view(self):
+        """Crea la vista catasto.v_audit_dettagliato se mancante.
+
+        Equivale alla migrazione `migrations/19_create_v_audit_dettagliato.sql`
+        ma applicata automaticamente all'avvio. Best-effort: non blocca
+        l'avvio. Se la CREATE fallisce per privilegi insufficienti viene
+        loggato un warning che rimanda alla migrazione manuale.
+        """
+        try:
+            with self._get_connection() as conn:
+                with conn.cursor() as cur:
+                    cur.execute(
+                        "SELECT 1 FROM information_schema.views "
+                        "WHERE table_schema = %s AND table_name = 'v_audit_dettagliato'",
+                        (self.schema,)
+                    )
+                    if cur.fetchone():
+                        return  # vista già presente
+                    cur.execute(
+                        "SELECT 1 FROM information_schema.tables "
+                        "WHERE table_schema = %s "
+                        "  AND table_name IN ('audit_log', 'utente')",
+                        (self.schema,)
+                    )
+                    # Devono esistere entrambe (audit_log + utente) per costruirla
+                    if cur.rowcount < 2:
+                        return
+                    try:
+                        cur.execute(
+                            f"CREATE OR REPLACE VIEW {self.schema}.v_audit_dettagliato AS "
+                            f"SELECT al.id, CAST(al.timestamp AS TIMESTAMP(0)) AS timestamp, "
+                            f"  al.app_user_id, u.username, u.nome_completo, al.session_id, "
+                            f"  al.tabella, al.operazione, al.record_id, al.ip_address, "
+                            f"  al.utente AS db_user, al.dati_prima, al.dati_dopo "
+                            f"FROM {self.schema}.audit_log al "
+                            f"LEFT JOIN {self.schema}.utente u ON al.app_user_id = u.id"
+                        )
+                        self.logger.info(
+                            "Vista %s.v_audit_dettagliato creata automaticamente all'avvio.",
+                            self.schema,
+                        )
+                    except psycopg2.Error as e:
+                        # Tipicamente 42501 (insufficient_privilege): l'utente
+                        # del DB non può creare viste. L'audit viewer resterà
+                        # vuoto finché un amministratore non applica la
+                        # migrazione 19 come superuser.
+                        conn.rollback()
+                        self.logger.warning(
+                            "Impossibile creare la vista %s.v_audit_dettagliato "
+                            "(%s). Applicare come superuser "
+                            "sql_scripts/migrations/19_create_v_audit_dettagliato.sql; "
+                            "fino ad allora il visualizzatore audit log "
+                            "resterà vuoto.", self.schema, e
+                        )
+        except Exception as e:
+            self.logger.debug(f"_ensure_audit_view: {e}")
+
+    def _ensure_mv_ownership(self):
+        """Allinea all'utente connesso l'ownership delle viste materializzate.
+
+        `REFRESH MATERIALIZED VIEW` richiede di essere proprietari della MV:
+        PostgreSQL non offre un GRANT equivalente. Se le MV sono di un altro
+        ruolo — tipicamente `postgres`, che le crea durante il setup — il
+        refresh dalla GUI fallisce con InsufficientPrivilege. Equivale a
+        `sql_scripts/admin/05_fix_mv_ownership.sql` applicato all'avvio
+        (best-effort, non bloccante).
+
+        Riesce solo se l'utente connesso è superuser o proprietario corrente
+        delle MV; altrimenti lo script admin va eseguito come superuser.
+        """
+        try:
+            with self._get_connection() as conn:
+                with conn.cursor() as cur:
+                    cur.execute(
+                        "SELECT matviewname FROM pg_matviews "
+                        "WHERE schemaname = %s AND matviewowner <> current_user",
+                        (self.schema,)
+                    )
+                    pending = [row[0] for row in cur.fetchall()]
+                    if not pending:
+                        return
+                    for mv_name in pending:
+                        try:
+                            cur.execute(
+                                f"ALTER MATERIALIZED VIEW {self.schema}.{mv_name} "
+                                f"OWNER TO CURRENT_USER"
+                            )
+                        except psycopg2.Error as e:
+                            conn.rollback()
+                            self.logger.warning(
+                                "Impossibile allineare l'ownership delle viste "
+                                "materializzate: l'utente del database non è "
+                                "superuser né proprietario. Il refresh delle "
+                                "statistiche resta disabilitato finché un "
+                                "amministratore non esegue "
+                                "sql_scripts/admin/05_fix_mv_ownership.sql. "
+                                f"Dettaglio: {e}"
+                            )
+                            return  # stesso esito per le altre MV: inutile ritentare
+                    self.logger.info(
+                        f"Ownership di {len(pending)} vista/e materializzata/e "
+                        f"allineata all'utente connesso."
+                    )
+        except Exception as e:
+            self.logger.debug(f"_ensure_mv_ownership: {e}")
+
+    def _ensure_mv_unique_indexes(self):
+        """Crea gli indici UNIQUE mancanti sulle viste materializzate.
+
+        Prerequisito per `REFRESH MATERIALIZED VIEW CONCURRENTLY`: PostgreSQL
+        richiede almeno un indice UNIQUE senza clausola WHERE sulla MV.
+        Equivale alla migrazione `migrations/add_unique_indexes_mv.sql` ma
+        applicata automaticamente all'avvio (best-effort, non bloccante).
+        """
+        # MV → (nome_indice, lista colonne)
+        mv_indexes = {
+            "mv_immobili_per_tipologia": ("idx_mv_immobili_tipologia_unique",
+                                          "comune_nome, classificazione"),
+            "mv_partite_complete":       ("idx_mv_partite_complete_partita_id",
+                                          "partita_id"),
+            "mv_cronologia_variazioni":  ("idx_mv_variazioni_var_id",
+                                          "variazione_id"),
+            "mv_statistiche_comune":     ("idx_mv_statistiche_comune", "comune"),
+        }
+        try:
+            with self._get_connection() as conn:
+                with conn.cursor() as cur:
+                    cur.execute(
+                        "SELECT matviewname FROM pg_matviews WHERE schemaname = %s",
+                        (self.schema,)
+                    )
+                    existing_mvs = {row[0] for row in cur.fetchall()}
+
+                    for mv_name, (idx_name, cols) in mv_indexes.items():
+                        if mv_name not in existing_mvs:
+                            continue
+                        try:
+                            cur.execute(
+                                f"CREATE UNIQUE INDEX IF NOT EXISTS {idx_name} "
+                                f"ON {self.schema}.{mv_name} ({cols})"
+                            )
+                            self.logger.debug(
+                                f"Indice UNIQUE garantito su {self.schema}.{mv_name} ({cols})"
+                            )
+                        except psycopg2.Error as e:
+                            # Es. duplicati nella MV — non blocchiamo l'avvio.
+                            self.logger.warning(
+                                f"Impossibile creare {idx_name} su {mv_name}: {e}"
+                            )
+                            conn.rollback()
+        except Exception as e:
+            self.logger.debug(f"_ensure_mv_unique_indexes: {e}")
 
     def close_pool(self):
         """
@@ -367,7 +730,10 @@ class DBConnectionBase:
         """
         Context manager per ottenere e rilasciare in sicurezza una connessione dal pool.
         Garantisce che putconn() sia sempre chiamato.
-        TIER 3 Phase 2: Tracked metrics su salute pool.
+
+        Thread-safety: ThreadedConnectionPool.getconn() è thread-safe; ogni chiamante
+        riceve una connessione dedicata. NON conservare il conn fuori dal blocco `with`
+        né passarlo ad altri thread — le connessioni psycopg2 non sono thread-safe.
         """
         conn = None
         try:
@@ -380,8 +746,14 @@ class DBConnectionBase:
         except psycopg2.pool.PoolError as pe:
             self._pool_metrics["connection_errors"] += 1
             self._pool_metrics["last_error_time"] = datetime.now()
-            self.logger.error(f"Errore critico nell'ottenere una connessione dal pool: {pe}")
-            raise psycopg2.OperationalError(f"Impossibile ottenere una connessione valida dal pool: {pe}")
+            self.logger.error(
+                "Pool connessioni esaurito (max=%s in uso). Dettaglio: %s",
+                getattr(self.pool, '_maxconn', '?'), pe,
+            )
+            raise psycopg2.OperationalError(
+                "Il database è al massimo delle connessioni attive. "
+                "Attendere un momento e riprovare l'operazione."
+            ) from pe
         except Exception as e:
             if conn:
                 try:
@@ -550,8 +922,7 @@ class DBConnectionBase:
             try:
                 # CORREZIONE: Usa 'with' per ottenere e rilasciare automaticamente la connessione.
                 # Se questo blocco viene eseguito senza errori, significa che il pool funziona.
-                with self._get_connection() as conn_test:
-                    # La connessione è valida se siamo arrivati qui. Non dobbiamo fare altro.
+                with self._get_connection():
                     self.logger.info("Pool ricreato/verificato e testato con successo dopo riconnessione.")
                 return True
             except (DBMError, psycopg2.pool.PoolError) as e:
@@ -674,7 +1045,6 @@ class DBConnectionBase:
                 {"numero_partita": 1, "stato": "Attiva"},
                 {"numero_partita": 2, "stato": "Inattiva"},
             ])
-            print(f"Inserted: {len(result['success'])}, Errors: {len(result['errors'])}")
         """
         if not records:
             return {"success": [], "errors": []}

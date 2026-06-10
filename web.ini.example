@@ -1,0 +1,13 @@
+[database]
+host     = localhost
+port     = 5432
+name     = catasto_storico
+schema   = catasto
+user     = postgres
+password = CAMBIA_QUESTA_PASSWORD
+
+[server]
+; Usa 0.0.0.0 per rendere il server accessibile da tutta la rete
+; Usa 127.0.0.1 per accesso solo dal PC locale
+host = 0.0.0.0
+port = 8000
