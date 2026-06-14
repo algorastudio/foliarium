@@ -185,6 +185,7 @@ Se il file è **vuoto / appena creato**, incolla tutto:
       "args": ["-m", "mcp_server"],
       "cwd": "C:\\Users\\TUO_UTENTE\\foliarium",
       "env": {
+        "PYTHONPATH": "C:\\Users\\TUO_UTENTE\\foliarium",
         "FOLIARIUM_API_BASE_URL": "http://localhost:8765",
         "FOLIARIUM_API_KEY": "flr_la_tua_chiave_qui"
       }
@@ -196,7 +197,7 @@ Se il file è **vuoto / appena creato**, incolla tutto:
 Se il file **c'era già** e aveva altri server MCP, aggiungi solo la
 voce `"foliarium": { … }` dentro `"mcpServers": { … }`.
 
-### Sostituisci 4 cose
+### Sostituisci 5 cose
 
 1. **`"command"`** → il percorso al Python della tua **venv** del progetto
    (importante! Vedi sotto perché).
@@ -206,10 +207,24 @@ voce `"foliarium": { … }` dentro `"mcpServers": { … }`.
    contiene la sotto-cartella `mcp_server/`).
    Su Windows ricorda di mettere `\\` (doppia barra) al posto di `\`.
    Esempio reale: `"C:\\Users\\Marco\\foliarium"`.
-3. **`FOLIARIUM_API_BASE_URL`** → l'URL del passo 2 (la porta giusta!).
-4. **`FOLIARIUM_API_KEY`** → la chiave segreta del passo 3.
+3. **`"PYTHONPATH"`** → lo **stesso** percorso del `cwd`. Serve perché
+   alcune versioni di Claude Desktop ignorano `cwd`: senza questo, il
+   server non parte ("Could not attach to MCP server" / `No module named
+   mcp_server`). Vedi il box qui sotto.
+4. **`FOLIARIUM_API_BASE_URL`** → l'URL del passo 2 (la porta giusta!).
+5. **`FOLIARIUM_API_KEY`** → la chiave segreta del passo 3.
 
 Salva il file.
+
+!!! warning "Perché serve `PYTHONPATH` oltre a `cwd`"
+    `python -m mcp_server` cerca il pacchetto nella cartella da cui viene
+    lanciato. Diverse versioni di Claude Desktop **non rispettano `cwd`** e
+    lanciano il processo da un'altra cartella: il risultato è "Could not
+    attach to MCP server foliarium" (nel log:
+    `%APPDATA%\Claude\logs\mcp-server-foliarium.log` →
+    `No module named mcp_server`). Impostando `PYTHONPATH` con il percorso
+    del progetto, Python trova sempre il pacchetto a prescindere dalla
+    cartella di lancio.
 
 !!! warning "Perché il Python della venv e non solo `python`?"
     Se metti `"command": "python"`, Claude Desktop usa il **Python di
@@ -269,7 +284,7 @@ Altri prompt da provare:
 
 | Sintomo nei log di Claude | Cosa fare |
 |---|---|
-| `No module named mcp_server` | Il `command` punta al Python sbagliato (di sistema) oppure il `cwd` non è la cartella di Foliarium. Usa il Python della **venv** (`.venv\Scripts\python.exe`) e controlla che `cwd` punti alla cartella che contiene la sotto-cartella `mcp_server/`. |
+| `No module named mcp_server` / "Could not attach to MCP server" | Il `command` punta al Python sbagliato (di sistema), oppure Claude lancia da una cartella diversa (ignora `cwd`). Usa il Python della **venv** (`.venv\Scripts\python.exe`) e aggiungi `PYTHONPATH` nel blocco `env` con il percorso della cartella che contiene `mcp_server/`. |
 | `No module named mcp` (o `httpx`) | Dipendenze MCP non installate nella venv. Esegui `<venv>\Scripts\pip install mcp httpx`. |
 | Claude non vede il server "foliarium" | Esegui `python bin\test_mcp_e2e.py` con il Python della venv — se passa, l'errore è nel `claude_desktop_config.json` (di solito virgolette o backslash singoli su Windows: ricorda `\\`). |
 | Tutti i tool dicono "Chiave API non valida" | La chiave è scaduta o l'hai revocata. Torna al passo 3 e generane una nuova. |
