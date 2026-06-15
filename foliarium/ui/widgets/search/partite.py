@@ -69,6 +69,7 @@ class PartitaResultCard(QFrame):
     """Card cliccabile per un risultato di ricerca partite."""
     card_clicked = pyqtSignal(int)
     context_menu_requested = pyqtSignal(int, QPoint)
+    edit_requested = pyqtSignal(int)
 
     def __init__(self, partita_data: dict, parent=None):
         super().__init__(parent)
@@ -79,9 +80,7 @@ class PartitaResultCard(QFrame):
         self.setFrameShape(QFrame.Shape.StyledPanel)
         self.setFrameShadow(QFrame.Shadow.Raised)
         self.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
-        self.customContextMenuRequested.connect(
-            lambda pos: self.context_menu_requested.emit(
-                self._partita_id, self.mapToGlobal(pos)))
+        self.customContextMenuRequested.connect(self._on_context_menu)
 
         layout = QVBoxLayout(self)
         layout.setContentsMargins(12, 8, 12, 8)
@@ -130,6 +129,22 @@ class PartitaResultCard(QFrame):
         self.setProperty("selected", "true" if selected else "false")
         self.style().unpolish(self)
         self.style().polish(self)
+
+    def _on_context_menu(self, pos: QPoint):
+        # Backward compat: i consumer che ascoltano il segnale ricevono ancora
+        # la richiesta con la posizione globale.
+        self.context_menu_requested.emit(self._partita_id, self.mapToGlobal(pos))
+        # Menu self-contained con apri dettagli + modifica.
+        menu = QMenu(self)
+        menu.addAction(
+            QApplication.style().standardIcon(QStyle.StandardPixmap.SP_FileDialogContentsView),
+            "Apri Dettagli Completi"
+        ).triggered.connect(lambda: self.card_clicked.emit(self._partita_id))
+        menu.addAction(
+            QApplication.style().standardIcon(QStyle.StandardPixmap.SP_FileDialogDetailedView),
+            "Modifica Partita"
+        ).triggered.connect(lambda: self.edit_requested.emit(self._partita_id))
+        menu.exec(self.mapToGlobal(pos))
 
 
 _PARTITE_COLS = ["ID", "N° Partita", "Comune", "Stato", "Tipo", "Data Impianto"]
