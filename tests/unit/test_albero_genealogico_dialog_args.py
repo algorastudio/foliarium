@@ -120,3 +120,69 @@ def test_apri_albero_callsite_uses_correct_order(qapp, mock_db):
 
     # Il dialog ha chiamato il metodo sul vero db_manager
     mock_db.get_genealogia_partita.assert_called_with(92)
+
+
+def test_apri_modifica_partita_opens_dialog_and_refreshes(qapp, mock_db):
+    """La Ricerca Partite deve poter aprire la modifica direttamente dai
+    risultati: _apri_modifica_partita costruisce ModificaPartitaDialog con
+    (db_manager, partita_id, self) e, al salvataggio, ricarica la ricerca.
+    """
+    from unittest.mock import patch
+    from PyQt6.QtWidgets import QDialog
+    from foliarium.ui.widgets.search.partite import RicercaPartiteWidget
+
+    w = RicercaPartiteWidget(mock_db)
+    w._selected_partita_id = 77
+
+    with patch("foliarium.ui.dialogs.partita.ModificaPartitaDialog") as DlgCls, \
+            patch.object(w, "do_search") as mock_search:
+        DlgCls.return_value.exec.return_value = QDialog.DialogCode.Accepted
+        try:
+            w._apri_modifica_partita()
+        finally:
+            w.deleteLater()
+
+    # Costruito con l'ordine corretto (db_manager, partita_id, parent)
+    args = DlgCls.call_args.args
+    assert args[0] is mock_db
+    assert args[1] == 77
+    # Al salvataggio la ricerca viene ricaricata (refresh in-place)
+    mock_search.assert_called_once()
+
+
+def test_vista_schede_popola_card_e_collega_segnali(qapp, mock_db):
+    """La vista a schede deve creare una card per partita e collegare i
+    segnali: card_clicked seleziona+apre dettagli, edit_requested apre la
+    modifica con l'ordine argomenti corretto.
+    """
+    from unittest.mock import patch
+    from PyQt6.QtWidgets import QDialog
+    from foliarium.ui.widgets.search.partite import RicercaPartiteWidget
+
+    w = RicercaPartiteWidget(mock_db)
+    partite = [
+        {"id": 1, "numero_partita": 10, "comune_nome": "A", "stato": "attiva", "tipo": "Principale"},
+        {"id": 2, "numero_partita": 11, "comune_nome": "B", "stato": "attiva", "tipo": "Principale"},
+    ]
+    w._all_partite = partite
+    w._model.load(partite)
+
+    # Passa alla vista a schede: deve generare una card per partita.
+    w._view_combo.setCurrentIndex(1)
+    assert set(w._cards.keys()) == {1, 2}
+
+    # card_clicked → seleziona e apre i dettagli.
+    with patch.object(w, "show_details") as mock_details:
+        w._cards[1].card_clicked.emit(1)
+    assert w._selected_partita_id == 1
+    mock_details.assert_called_once()
+
+    # edit_requested → ModificaPartitaDialog(db_manager, partita_id, parent).
+    with patch("foliarium.ui.dialogs.partita.ModificaPartitaDialog") as DlgCls, \
+            patch.object(w, "do_search"):
+        DlgCls.return_value.exec.return_value = QDialog.DialogCode.Accepted
+        w._cards[2].edit_requested.emit(2)
+    assert DlgCls.call_args.args[0] is mock_db
+    assert DlgCls.call_args.args[1] == 2
+
+    w.deleteLater()

@@ -17,8 +17,8 @@ from PyQt6.QtCore import (
 from PyQt6.QtWidgets import (
     QAbstractItemView, QApplication, QComboBox, QDialog, QFrame,
     QGridLayout, QGroupBox, QHBoxLayout, QHeaderView, QLabel, QLineEdit,
-    QMenu, QMessageBox, QProgressBar, QPushButton, QSpinBox, QStyle,
-    QTableView, QVBoxLayout, QWidget,
+    QMenu, QMessageBox, QProgressBar, QPushButton, QScrollArea, QSpinBox,
+    QStackedWidget, QStyle, QTableView, QVBoxLayout, QWidget,
 )
 
 from foliarium.ui.widgets.custom import show_status_message as _show_status_message
@@ -69,6 +69,7 @@ class PartitaResultCard(QFrame):
     """Card cliccabile per un risultato di ricerca partite."""
     card_clicked = pyqtSignal(int)
     context_menu_requested = pyqtSignal(int, QPoint)
+    edit_requested = pyqtSignal(int)
 
     def __init__(self, partita_data: dict, parent=None):
         super().__init__(parent)
@@ -79,9 +80,7 @@ class PartitaResultCard(QFrame):
         self.setFrameShape(QFrame.Shape.StyledPanel)
         self.setFrameShadow(QFrame.Shadow.Raised)
         self.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
-        self.customContextMenuRequested.connect(
-            lambda pos: self.context_menu_requested.emit(
-                self._partita_id, self.mapToGlobal(pos)))
+        self.customContextMenuRequested.connect(self._on_context_menu)
 
         layout = QVBoxLayout(self)
         layout.setContentsMargins(12, 8, 12, 8)
@@ -130,6 +129,22 @@ class PartitaResultCard(QFrame):
         self.setProperty("selected", "true" if selected else "false")
         self.style().unpolish(self)
         self.style().polish(self)
+
+    def _on_context_menu(self, pos: QPoint):
+        # Backward compat: i consumer che ascoltano il segnale ricevono ancora
+        # la richiesta con la posizione globale.
+        self.context_menu_requested.emit(self._partita_id, self.mapToGlobal(pos))
+        # Menu self-contained con apri dettagli + modifica.
+        menu = QMenu(self)
+        menu.addAction(
+            QApplication.style().standardIcon(QStyle.StandardPixmap.SP_FileDialogContentsView),
+            "Apri Dettagli Completi"
+        ).triggered.connect(lambda: self.card_clicked.emit(self._partita_id))
+        menu.addAction(
+            QApplication.style().standardIcon(QStyle.StandardPixmap.SP_FileDialogDetailedView),
+            "Modifica Partita"
+        ).triggered.connect(lambda: self.edit_requested.emit(self._partita_id))
+        menu.exec(self.mapToGlobal(pos))
 
 
 _PARTITE_COLS = ["ID", "N° Partita", "Comune", "Stato", "Tipo", "Data Impianto"]
@@ -258,6 +273,7 @@ class RicercaPartiteWidget(QWidget):
         self._all_partite: list[dict] = []
         self._comune_id: Optional[int] = None
         self._search_worker: Optional[_PartiteSearchWorker] = None
+        self._cards: dict[int, PartitaResultCard] = {}
 
         main_layout = QVBoxLayout(self)
         main_layout.setContentsMargins(0, 0, 0, 0)
@@ -371,9 +387,16 @@ class RicercaPartiteWidget(QWidget):
         self._loading_bar.setTextVisible(False)
         group_layout.addWidget(self._loading_bar)
 
-        # Conteggio risultati
+        # Conteggio risultati + toggle vista (Tabella / Schede)
         count_layout = QHBoxLayout()
         count_layout.setContentsMargins(0, 0, 0, 0)
+        _lbl_vista = QLabel("Vista:")
+        count_layout.addWidget(_lbl_vista)
+        self._view_combo = QComboBox()
+        self._view_combo.addItems(["Tabella", "Schede"])
+        self._view_combo.setToolTip("Cambia tra vista a tabella e vista a schede")
+        self._view_combo.currentIndexChanged.connect(self._on_view_mode_changed)
+        count_layout.addWidget(self._view_combo)
         self._count_label = QLabel("Nessuna ricerca eseguita.")
         self._count_label.setObjectName("resultCountLabel")
         count_layout.addStretch()
@@ -416,7 +439,25 @@ class RicercaPartiteWidget(QWidget):
         self._table.selectionModel().currentRowChanged.connect(self._on_current_row_changed)
         self._table.doubleClicked.connect(lambda: self.show_details())
         self._table.customContextMenuRequested.connect(self._on_context_menu)
-        group_layout.addWidget(self._table, 1)
+
+        # ─────────────────────────────────────────────────────────
+        # Vista a schede — QScrollArea con PartitaResultCard
+        # ─────────────────────────────────────────────────────────
+        self._cards_scroll = QScrollArea()
+        self._cards_scroll.setWidgetResizable(True)
+        self._cards_scroll.setFrameShape(QFrame.Shape.NoFrame)
+        cards_container = QWidget()
+        self._cards_layout = QVBoxLayout(cards_container)
+        self._cards_layout.setContentsMargins(0, 0, 0, 0)
+        self._cards_layout.setSpacing(8)
+        self._cards_layout.addStretch()  # spinge le card in alto
+        self._cards_scroll.setWidget(cards_container)
+
+        # Stack tabella (0) / schede (1)
+        self._view_stack = QStackedWidget()
+        self._view_stack.addWidget(self._table)
+        self._view_stack.addWidget(self._cards_scroll)
+        group_layout.addWidget(self._view_stack, 1)
 
         # ─────────────────────────────────────────────────────────
         # Bottoni azione (come ElencoComuniWidget)
@@ -429,6 +470,13 @@ class RicercaPartiteWidget(QWidget):
         self._btn_open_full.setEnabled(False)
         self._btn_open_full.clicked.connect(self.show_details)
         action_layout.addWidget(self._btn_open_full)
+
+        self._btn_modifica = QPushButton("Modifica Partita")
+        self._btn_modifica.setObjectName("secondaryButton")
+        self._btn_modifica.setEnabled(False)
+        self._btn_modifica.setToolTip("Modifica la partita selezionata senza cambiare pagina")
+        self._btn_modifica.clicked.connect(lambda: self._apri_modifica_partita())
+        action_layout.addWidget(self._btn_modifica)
 
         self._btn_albero = QPushButton("Albero Genealogico")
         self._btn_albero.setObjectName("secondaryButton")
@@ -479,9 +527,10 @@ class RicercaPartiteWidget(QWidget):
         self._model.load([])
         self._proxy.set_stato("")
         self._all_partite.clear()
+        self._clear_cards()
         self._selected_partita_id = None
         self._count_label.setText("Nessuna ricerca eseguita.")
-        for btn in (self._btn_open_full, self._btn_albero, self._btn_copy_id, self._btn_archivia):
+        for btn in (self._btn_open_full, self._btn_modifica, self._btn_albero, self._btn_copy_id, self._btn_archivia):
             btn.setEnabled(False)
 
     def _on_stato_combo_changed(self, text: str):
@@ -501,6 +550,60 @@ class RicercaPartiteWidget(QWidget):
             self._count_label.setText(f"{visible} di {total} partite mostrate.")
         else:
             self._count_label.setText(f"{total} partite trovate.")
+
+        # Mantiene la vista a schede sincronizzata col filtro corrente.
+        if self._view_combo.currentIndex() == 1:
+            self._rebuild_cards(self._filtered_partite())
+
+    # ── Vista a schede ────────────────────────────────────────────
+    def _filtered_partite(self) -> list[dict]:
+        """Lista partite correnti filtrate come la tabella (per stato)."""
+        stato = self._stato_combo.currentText()
+        if stato == "Tutte":
+            return list(self._all_partite)
+        s = stato.lower()
+        return [p for p in self._all_partite
+                if (p.get('stato') or '').strip().lower() == s]
+
+    def _on_view_mode_changed(self, index: int):
+        self._view_stack.setCurrentIndex(index)
+        if index == 1:  # Schede
+            self._rebuild_cards(self._filtered_partite())
+
+    def _clear_cards(self):
+        for card in self._cards.values():
+            card.setParent(None)
+            card.deleteLater()
+        self._cards.clear()
+
+    def _rebuild_cards(self, partite: list[dict]):
+        self._clear_cards()
+        for p in partite:
+            pid = p.get('id')
+            if pid is None:
+                continue
+            card = PartitaResultCard(p)
+            card.card_clicked.connect(self._on_card_activated)
+            card.edit_requested.connect(self._apri_modifica_partita)
+            card.set_selected(pid == self._selected_partita_id)
+            # Inserisce prima dello stretch finale così le card restano in alto.
+            self._cards_layout.insertWidget(self._cards_layout.count() - 1, card)
+            self._cards[pid] = card
+
+    def _on_card_activated(self, partita_id: int):
+        """Click su una card: seleziona e apre i dettagli completi."""
+        self._select_partita(partita_id)
+        self.show_details()
+
+    def _select_partita(self, partita_id: Optional[int]):
+        """Imposta la partita selezionata e sincronizza bottoni + card."""
+        self._selected_partita_id = partita_id
+        enabled = partita_id is not None
+        for btn in (self._btn_open_full, self._btn_modifica, self._btn_albero,
+                    self._btn_copy_id, self._btn_archivia):
+            btn.setEnabled(enabled)
+        for cid, card in self._cards.items():
+            card.set_selected(cid == partita_id)
 
     def do_search(self):
         # Cancel any running search
@@ -537,7 +640,7 @@ class RicercaPartiteWidget(QWidget):
         self._model.load(self._all_partite)
 
         self._selected_partita_id = None
-        for btn in (self._btn_open_full, self._btn_albero, self._btn_copy_id, self._btn_archivia):
+        for btn in (self._btn_open_full, self._btn_modifica, self._btn_albero, self._btn_copy_id, self._btn_archivia):
             btn.setEnabled(False)
 
         self._update_row_visibility()
@@ -562,7 +665,7 @@ class RicercaPartiteWidget(QWidget):
         partita_id = self._model.partita_id_at(source.row()) if source.isValid() else None
         self._selected_partita_id = partita_id
         enabled = partita_id is not None
-        for btn in (self._btn_open_full, self._btn_albero, self._btn_copy_id, self._btn_archivia):
+        for btn in (self._btn_open_full, self._btn_modifica, self._btn_albero, self._btn_copy_id, self._btn_archivia):
             btn.setEnabled(enabled)
 
     def show_details(self):
@@ -577,6 +680,25 @@ class RicercaPartiteWidget(QWidget):
                 dlg.exec()
         except Exception as e:
             QMessageBox.critical(self, "Errore", f"Impossibile caricare i dettagli: {e}")
+
+    def _apri_modifica_partita(self, partita_id: Optional[int] = None):
+        """Apre la modifica partita direttamente dai risultati di ricerca.
+
+        Al salvataggio ricarica la ricerca corrente così la tabella riflette
+        subito le modifiche, senza dover cambiare pagina.
+        """
+        pid = partita_id or self._selected_partita_id
+        if not pid:
+            QMessageBox.warning(self, "Attenzione", "Seleziona una partita dalla lista.")
+            return
+        try:
+            from foliarium.ui.dialogs.partita import ModificaPartitaDialog
+            dlg = ModificaPartitaDialog(self.db_manager, pid, self)
+            if dlg.exec() == QDialog.DialogCode.Accepted:
+                self.do_search()
+                _show_status_message("Modifiche alla partita salvate.", 4000)
+        except Exception as e:
+            QMessageBox.critical(self, "Errore", f"Impossibile aprire la modifica: {e}")
 
     def _apri_albero(self):
         if not self._selected_partita_id:
@@ -607,6 +729,10 @@ class RicercaPartiteWidget(QWidget):
             QApplication.style().standardIcon(QStyle.StandardPixmap.SP_FileDialogContentsView),
             "Apri Dettagli Completi"
         ).triggered.connect(self.show_details)
+        menu.addAction(
+            QApplication.style().standardIcon(QStyle.StandardPixmap.SP_FileDialogDetailedView),
+            f"Modifica Partita N. {numero_text}"
+        ).triggered.connect(lambda: self._apri_modifica_partita(partita_id))
         menu.addSeparator()
         menu.addAction(f"Copia Numero Partita ({numero_text})").triggered.connect(
             lambda: QApplication.clipboard().setText(numero_text))
