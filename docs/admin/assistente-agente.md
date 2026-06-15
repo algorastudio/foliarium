@@ -96,6 +96,57 @@ Approccio consigliato: trattare la privacy come **feature configurabile**
 (assistente attivabile dall'admin, scelta scope read-only/write, disclaimer su
 cosa viene inviato), non come ostacolo.
 
+## Ruoli e responsabilità GDPR
+
+!!! warning "Non è un parere legale"
+    Questo schema serve a impostare la discussione. Per un ente pubblico
+    italiano va validato dal DPO / ufficio legale; possono valere regole
+    specifiche per la PA e per i dati d'archivio.
+
+I **ruoli** non dipendono dalla proprietà della chiave Anthropic — dipendono
+da chi decide finalità e mezzi del trattamento:
+
+| Ruolo | Chi | Nota |
+|---|---|---|
+| **Titolare del trattamento** | **Archivio di Stato** | Decide finalità e mezzi. Resta titolare qualunque cosa accada con la chiave; l'accountability ultima è dell'ente. |
+| **Responsabile del trattamento** | **Algora Studio** | Tratta i dati per conto dell'ente, in quanto fornitore del software. |
+| **Sub-responsabile** | **Anthropic** | Elabora il testo della conversazione (che può includere nominativi/partite). |
+
+La proprietà della chiave **non cambia chi è il titolare**: cambia *dove si
+colloca il contratto e chi porta l'esposizione diretta* sul tratto
+"dati → Anthropic".
+
+| | Chiave del **Fornitore (Algora)** | **BYO-key (Archivio)** |
+|---|---|---|
+| Account su cui transitano i dati verso Anthropic | Algora | Archivio |
+| Chi deve avere il **DPA con Anthropic** | Algora (Anthropic è *suo* sub-responsabile) | L'Archivio direttamente |
+| Catena di autorizzazione | L'Archivio deve autorizzare Algora a usare Anthropic come sub-responsabile | Più corta: rapporto diretto |
+| Esposizione diretta sul tratto verso Anthropic | Su Algora | Sull'Archivio |
+
+**In sintesi:** con la chiave del fornitore, Algora si assume il ruolo di chi
+fa transitare i dati dell'ente sul proprio account e deve reggere il DPA con
+Anthropic dichiarandolo come sub-trattamento. Con BYO-key quel tratto è in
+capo all'ente — allocazione più pulita, e per una PA spesso più difendibile.
+In **nessuno** dei due casi la chiave scarica Algora dal ruolo di
+*responsabile del trattamento*: quello resta in quanto fornitore del software.
+
+### Da gestire comunque, a prescindere dalla chiave
+
+1. **Trasferimento internazionale.** Anthropic è USA → i dati escono dall'UE:
+   serve un meccanismo di garanzia (Clausole Contrattuali Standard / decisione
+   di adeguatezza).
+2. **Il DPA deve esistere nella catena** + autorizzazione del titolare alla
+   sub-catena. La chiave decide *dove* sta il DPA, non *se* serve.
+
+### Cosa serve in ogni caso
+
+- DPA **Algora ↔ Archivio** (Algora come responsabile).
+- Copertura del tratto **verso Anthropic** (Algora↔Anthropic dichiarato come
+  sub-responsabile, *oppure* Archivio↔Anthropic diretto se BYO-key).
+- Gestione del **trasferimento extra-UE** (SCC).
+- Mitigazioni tecniche a monte: **ZDR**, modalità **read-only**, eventuale
+  modalità "solo aggregati" che non invii nominativi.
+
 ## Sicurezza operativa — già coperta dall'esistente
 
 Il lavoro fatto sull'MCP paga:
