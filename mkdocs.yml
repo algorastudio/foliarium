@@ -37,6 +37,7 @@ nav:
       - REST API & Integrazioni: admin/api.md
       - "Claude + Foliarium (guida rapida)": admin/mcp-quickstart.md
       - Integrazione Claude (MCP, dettagli): admin/mcp.md
+      - "Assistente/Agente intelligente (analisi)": admin/assistente-agente.md
   - Riferimento:
       - FAQ: riferimento/faq.md
       - Changelog: riferimento/changelog.md
