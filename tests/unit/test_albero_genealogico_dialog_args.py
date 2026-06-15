@@ -120,3 +120,31 @@ def test_apri_albero_callsite_uses_correct_order(qapp, mock_db):
 
     # Il dialog ha chiamato il metodo sul vero db_manager
     mock_db.get_genealogia_partita.assert_called_with(92)
+
+
+def test_apri_modifica_partita_opens_dialog_and_refreshes(qapp, mock_db):
+    """La Ricerca Partite deve poter aprire la modifica direttamente dai
+    risultati: _apri_modifica_partita costruisce ModificaPartitaDialog con
+    (db_manager, partita_id, self) e, al salvataggio, ricarica la ricerca.
+    """
+    from unittest.mock import patch
+    from PyQt6.QtWidgets import QDialog
+    from foliarium.ui.widgets.search.partite import RicercaPartiteWidget
+
+    w = RicercaPartiteWidget(mock_db)
+    w._selected_partita_id = 77
+
+    with patch("foliarium.ui.dialogs.partita.ModificaPartitaDialog") as DlgCls, \
+            patch.object(w, "do_search") as mock_search:
+        DlgCls.return_value.exec.return_value = QDialog.DialogCode.Accepted
+        try:
+            w._apri_modifica_partita()
+        finally:
+            w.deleteLater()
+
+    # Costruito con l'ordine corretto (db_manager, partita_id, parent)
+    args = DlgCls.call_args.args
+    assert args[0] is mock_db
+    assert args[1] == 77
+    # Al salvataggio la ricerca viene ricaricata (refresh in-place)
+    mock_search.assert_called_once()

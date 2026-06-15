@@ -430,6 +430,13 @@ class RicercaPartiteWidget(QWidget):
         self._btn_open_full.clicked.connect(self.show_details)
         action_layout.addWidget(self._btn_open_full)
 
+        self._btn_modifica = QPushButton("Modifica Partita")
+        self._btn_modifica.setObjectName("secondaryButton")
+        self._btn_modifica.setEnabled(False)
+        self._btn_modifica.setToolTip("Modifica la partita selezionata senza cambiare pagina")
+        self._btn_modifica.clicked.connect(lambda: self._apri_modifica_partita())
+        action_layout.addWidget(self._btn_modifica)
+
         self._btn_albero = QPushButton("Albero Genealogico")
         self._btn_albero.setObjectName("secondaryButton")
         self._btn_albero.setEnabled(False)
@@ -481,7 +488,7 @@ class RicercaPartiteWidget(QWidget):
         self._all_partite.clear()
         self._selected_partita_id = None
         self._count_label.setText("Nessuna ricerca eseguita.")
-        for btn in (self._btn_open_full, self._btn_albero, self._btn_copy_id, self._btn_archivia):
+        for btn in (self._btn_open_full, self._btn_modifica, self._btn_albero, self._btn_copy_id, self._btn_archivia):
             btn.setEnabled(False)
 
     def _on_stato_combo_changed(self, text: str):
@@ -537,7 +544,7 @@ class RicercaPartiteWidget(QWidget):
         self._model.load(self._all_partite)
 
         self._selected_partita_id = None
-        for btn in (self._btn_open_full, self._btn_albero, self._btn_copy_id, self._btn_archivia):
+        for btn in (self._btn_open_full, self._btn_modifica, self._btn_albero, self._btn_copy_id, self._btn_archivia):
             btn.setEnabled(False)
 
         self._update_row_visibility()
@@ -562,7 +569,7 @@ class RicercaPartiteWidget(QWidget):
         partita_id = self._model.partita_id_at(source.row()) if source.isValid() else None
         self._selected_partita_id = partita_id
         enabled = partita_id is not None
-        for btn in (self._btn_open_full, self._btn_albero, self._btn_copy_id, self._btn_archivia):
+        for btn in (self._btn_open_full, self._btn_modifica, self._btn_albero, self._btn_copy_id, self._btn_archivia):
             btn.setEnabled(enabled)
 
     def show_details(self):
@@ -577,6 +584,25 @@ class RicercaPartiteWidget(QWidget):
                 dlg.exec()
         except Exception as e:
             QMessageBox.critical(self, "Errore", f"Impossibile caricare i dettagli: {e}")
+
+    def _apri_modifica_partita(self, partita_id: Optional[int] = None):
+        """Apre la modifica partita direttamente dai risultati di ricerca.
+
+        Al salvataggio ricarica la ricerca corrente così la tabella riflette
+        subito le modifiche, senza dover cambiare pagina.
+        """
+        pid = partita_id or self._selected_partita_id
+        if not pid:
+            QMessageBox.warning(self, "Attenzione", "Seleziona una partita dalla lista.")
+            return
+        try:
+            from foliarium.ui.dialogs.partita import ModificaPartitaDialog
+            dlg = ModificaPartitaDialog(self.db_manager, pid, self)
+            if dlg.exec() == QDialog.DialogCode.Accepted:
+                self.do_search()
+                _show_status_message("Modifiche alla partita salvate.", 4000)
+        except Exception as e:
+            QMessageBox.critical(self, "Errore", f"Impossibile aprire la modifica: {e}")
 
     def _apri_albero(self):
         if not self._selected_partita_id:
@@ -607,6 +633,10 @@ class RicercaPartiteWidget(QWidget):
             QApplication.style().standardIcon(QStyle.StandardPixmap.SP_FileDialogContentsView),
             "Apri Dettagli Completi"
         ).triggered.connect(self.show_details)
+        menu.addAction(
+            QApplication.style().standardIcon(QStyle.StandardPixmap.SP_FileDialogDetailedView),
+            f"Modifica Partita N. {numero_text}"
+        ).triggered.connect(lambda: self._apri_modifica_partita(partita_id))
         menu.addSeparator()
         menu.addAction(f"Copia Numero Partita ({numero_text})").triggered.connect(
             lambda: QApplication.clipboard().setText(numero_text))
