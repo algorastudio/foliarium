@@ -17,8 +17,8 @@ from PyQt6.QtCore import (
 from PyQt6.QtWidgets import (
     QAbstractItemView, QApplication, QComboBox, QDialog, QFrame,
     QGridLayout, QGroupBox, QHBoxLayout, QHeaderView, QLabel, QLineEdit,
-    QMenu, QMessageBox, QProgressBar, QPushButton, QSpinBox, QStyle,
-    QTableView, QVBoxLayout, QWidget,
+    QMenu, QMessageBox, QProgressBar, QPushButton, QScrollArea, QSpinBox,
+    QStackedWidget, QStyle, QTableView, QVBoxLayout, QWidget,
 )
 
 from foliarium.ui.widgets.custom import show_status_message as _show_status_message
@@ -273,6 +273,7 @@ class RicercaPartiteWidget(QWidget):
         self._all_partite: list[dict] = []
         self._comune_id: Optional[int] = None
         self._search_worker: Optional[_PartiteSearchWorker] = None
+        self._cards: dict[int, PartitaResultCard] = {}
 
         main_layout = QVBoxLayout(self)
         main_layout.setContentsMargins(0, 0, 0, 0)
@@ -386,9 +387,16 @@ class RicercaPartiteWidget(QWidget):
         self._loading_bar.setTextVisible(False)
         group_layout.addWidget(self._loading_bar)
 
-        # Conteggio risultati
+        # Conteggio risultati + toggle vista (Tabella / Schede)
         count_layout = QHBoxLayout()
         count_layout.setContentsMargins(0, 0, 0, 0)
+        _lbl_vista = QLabel("Vista:")
+        count_layout.addWidget(_lbl_vista)
+        self._view_combo = QComboBox()
+        self._view_combo.addItems(["Tabella", "Schede"])
+        self._view_combo.setToolTip("Cambia tra vista a tabella e vista a schede")
+        self._view_combo.currentIndexChanged.connect(self._on_view_mode_changed)
+        count_layout.addWidget(self._view_combo)
         self._count_label = QLabel("Nessuna ricerca eseguita.")
         self._count_label.setObjectName("resultCountLabel")
         count_layout.addStretch()
@@ -431,7 +439,25 @@ class RicercaPartiteWidget(QWidget):
         self._table.selectionModel().currentRowChanged.connect(self._on_current_row_changed)
         self._table.doubleClicked.connect(lambda: self.show_details())
         self._table.customContextMenuRequested.connect(self._on_context_menu)
-        group_layout.addWidget(self._table, 1)
+
+        # ─────────────────────────────────────────────────────────
+        # Vista a schede — QScrollArea con PartitaResultCard
+        # ─────────────────────────────────────────────────────────
+        self._cards_scroll = QScrollArea()
+        self._cards_scroll.setWidgetResizable(True)
+        self._cards_scroll.setFrameShape(QFrame.Shape.NoFrame)
+        cards_container = QWidget()
+        self._cards_layout = QVBoxLayout(cards_container)
+        self._cards_layout.setContentsMargins(0, 0, 0, 0)
+        self._cards_layout.setSpacing(8)
+        self._cards_layout.addStretch()  # spinge le card in alto
+        self._cards_scroll.setWidget(cards_container)
+
+        # Stack tabella (0) / schede (1)
+        self._view_stack = QStackedWidget()
+        self._view_stack.addWidget(self._table)
+        self._view_stack.addWidget(self._cards_scroll)
+        group_layout.addWidget(self._view_stack, 1)
 
         # ─────────────────────────────────────────────────────────
         # Bottoni azione (come ElencoComuniWidget)
@@ -501,6 +527,7 @@ class RicercaPartiteWidget(QWidget):
         self._model.load([])
         self._proxy.set_stato("")
         self._all_partite.clear()
+        self._clear_cards()
         self._selected_partita_id = None
         self._count_label.setText("Nessuna ricerca eseguita.")
         for btn in (self._btn_open_full, self._btn_modifica, self._btn_albero, self._btn_copy_id, self._btn_archivia):
@@ -523,6 +550,60 @@ class RicercaPartiteWidget(QWidget):
             self._count_label.setText(f"{visible} di {total} partite mostrate.")
         else:
             self._count_label.setText(f"{total} partite trovate.")
+
+        # Mantiene la vista a schede sincronizzata col filtro corrente.
+        if self._view_combo.currentIndex() == 1:
+            self._rebuild_cards(self._filtered_partite())
+
+    # ── Vista a schede ────────────────────────────────────────────
+    def _filtered_partite(self) -> list[dict]:
+        """Lista partite correnti filtrate come la tabella (per stato)."""
+        stato = self._stato_combo.currentText()
+        if stato == "Tutte":
+            return list(self._all_partite)
+        s = stato.lower()
+        return [p for p in self._all_partite
+                if (p.get('stato') or '').strip().lower() == s]
+
+    def _on_view_mode_changed(self, index: int):
+        self._view_stack.setCurrentIndex(index)
+        if index == 1:  # Schede
+            self._rebuild_cards(self._filtered_partite())
+
+    def _clear_cards(self):
+        for card in self._cards.values():
+            card.setParent(None)
+            card.deleteLater()
+        self._cards.clear()
+
+    def _rebuild_cards(self, partite: list[dict]):
+        self._clear_cards()
+        for p in partite:
+            pid = p.get('id')
+            if pid is None:
+                continue
+            card = PartitaResultCard(p)
+            card.card_clicked.connect(self._on_card_activated)
+            card.edit_requested.connect(self._apri_modifica_partita)
+            card.set_selected(pid == self._selected_partita_id)
+            # Inserisce prima dello stretch finale così le card restano in alto.
+            self._cards_layout.insertWidget(self._cards_layout.count() - 1, card)
+            self._cards[pid] = card
+
+    def _on_card_activated(self, partita_id: int):
+        """Click su una card: seleziona e apre i dettagli completi."""
+        self._select_partita(partita_id)
+        self.show_details()
+
+    def _select_partita(self, partita_id: Optional[int]):
+        """Imposta la partita selezionata e sincronizza bottoni + card."""
+        self._selected_partita_id = partita_id
+        enabled = partita_id is not None
+        for btn in (self._btn_open_full, self._btn_modifica, self._btn_albero,
+                    self._btn_copy_id, self._btn_archivia):
+            btn.setEnabled(enabled)
+        for cid, card in self._cards.items():
+            card.set_selected(cid == partita_id)
 
     def do_search(self):
         # Cancel any running search
