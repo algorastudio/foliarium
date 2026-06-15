@@ -461,11 +461,14 @@ class TestImmobiliMixin:
         assert result is False
 
     def test_delete_immobile_restituisce_true(self, mgr):
-        """delete_immobile deve chiamare la funzione SQL e restituire True."""
+        """delete_immobile deve chiamare CALL elimina_immobile e restituire True."""
         conn_cm, cur = make_mock_conn()
         with patch.object(mgr, "_get_connection", return_value=conn_cm):
             result = mgr.delete_immobile(immobile_id=7)
         assert result is True
+        sql = cur.execute.call_args.args[0]
+        assert "CALL" in sql.upper()
+        assert "elimina_immobile" in sql
 
     def test_delete_immobile_db_error_restituisce_false(self, mgr):
         """delete_immobile deve restituire False su errore."""

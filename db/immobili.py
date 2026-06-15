@@ -151,10 +151,10 @@ class DBImmobiliMixin:
 
     def delete_immobile(self, immobile_id: int) -> bool:
         """
-        Elimina un immobile tramite la funzione SQL delete_immobile_by_id.
+        Elimina un immobile tramite la procedura SQL elimina_immobile.
         Il commit e il rollback sono gestiti automaticamente dal context manager _get_connection.
         """
-        call_proc = f"SELECT {self.schema}.delete_immobile_by_id(%s);"
+        call_proc = f"CALL {self.schema}.elimina_immobile(%s);"
         try:
             with self._get_connection() as conn:
                 with conn.cursor() as cur:
