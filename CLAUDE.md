@@ -264,8 +264,12 @@ Always use the full three-part path `Module.EnumClass.Value`.
 Package top-level che espone l'API REST come tool MCP (Model Context Protocol)
 invocabili da **Claude Desktop** e altri client MCP.
 
-- `mcp_server/server.py` — `FastMCP("foliarium")` con 8 tool: `elenca_comuni`, `elenca_localita`, `cerca_partite`, `dettagli_partita`, `cerca_possessori`, `dettagli_possessore`, `genealogia_partita`, `timeline_partita`.
-- `mcp_server/client.py` — `FoliariumApiClient` (httpx sync) con header `X-Foliarium-Api-Key`. Mappa 401/403/404/5xx in `FoliariumApiError` con messaggi umani (suggerisce "Genera nuova chiave da Gestione Chiavi API…", "Esporta log per supporto", ecc.).
+- `mcp_server/server.py` — `FastMCP("foliarium")` con 23 tool su tre famiglie:
+  - **lettura** (sola lettura, scope `read:*`): `elenca_comuni`, `elenca_localita`, `cerca_partite`, `dettagli_partita`, `cerca_possessori`, `dettagli_possessore`, `genealogia_partita`, `timeline_partita`, `elenca_immobili`, `statistiche_dashboard`, `analytics_dashboard`, `registro_audit`, `riepilogo_audit`.
+  - **scrittura "sicura"** (scope `write:*`): `crea_comune`, `crea_possessore`, `crea_partita`, `aggiungi_immobile`, `aggiungi_variazione`, `aggiungi_possessore_a_partita`.
+  - **scrittura distruttiva** (scope `write:*`): `aggiorna_partita`, `rimuovi_immobile`, `rimuovi_variazione`, `rimuovi_possessore_da_partita`.
+  - **Conferma esplicita:** tutti i tool di scrittura accettano `confirm: bool = False`. Senza `confirm=True` restituiscono un'anteprima testuale dell'operazione e **non** chiamano l'API (`_needs_confirm` in `server.py`). Protegge da scritture accidentali da prompt ambigui.
+- `mcp_server/client.py` — `FoliariumApiClient` (httpx sync) con header `X-Foliarium-Api-Key`. Primitiva `_get` per le letture e `_send` (POST/PATCH/DELETE) per le scritture; il 204 (No Content delle DELETE) viene mappato in `{"ok": True}`. Mappa 401/403/404/5xx in `FoliariumApiError` con messaggi umani (suggerisce "Genera nuova chiave da Gestione Chiavi API…", "Esporta log per supporto", ecc.).
 - `mcp_server/__main__.py` — entry point `python -m mcp_server`, stdio mode (default Claude Desktop).
 - Configurazione via env: `FOLIARIUM_API_BASE_URL` + `FOLIARIUM_API_KEY`.
 - Documentazione utente: `docs/admin/api.md` (REST API + esempi curl) e `docs/admin/mcp.md` (guida Claude Desktop con esempio `claude_desktop_config.json`).

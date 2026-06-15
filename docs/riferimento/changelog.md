@@ -1,5 +1,25 @@
 # Changelog
 
+## (non rilasciato) — Ampliamento operazioni MCP
+
+- **MCP server da 8 a 23 tool.** Il server MCP ora espone, oltre alla
+  consultazione esistente, anche statistiche, audit e — per la prima volta —
+  operazioni di **scrittura** sull'archivio:
+    - **Nuova lettura:** `elenca_immobili`, `statistiche_dashboard`,
+      `analytics_dashboard`, `registro_audit`, `riepilogo_audit`.
+    - **Scrittura "sicura":** `crea_comune`, `crea_possessore`,
+      `crea_partita`, `aggiungi_immobile`, `aggiungi_variazione`,
+      `aggiungi_possessore_a_partita`.
+    - **Scrittura distruttiva:** `aggiorna_partita`, `rimuovi_immobile`,
+      `rimuovi_variazione`, `rimuovi_possessore_da_partita`.
+- **Conferma esplicita per le scritture.** Ogni tool che modifica l'archivio
+  accetta `confirm` (default `False`): senza `confirm=true` restituisce
+  un'anteprima dell'operazione e non chiama l'API, prevenendo modifiche
+  accidentali da prompt ambigui. Il controllo di accesso resta lo **scope
+  della chiave API** (i tool di scrittura richiedono `write:*`).
+- Documentazione (`docs/admin/mcp.md`, `docs/admin/mcp-quickstart.md`) e
+  script E2E (`bin/test_mcp_e2e.py`) aggiornati di conseguenza.
+
 ## v1.0.2 — 2026-05-19 — Sprint 3 six-hats — Refactoring strutturale + tooling
 
 Release di consolidamento: refactor strutturale completo (Sprint 3 in 9

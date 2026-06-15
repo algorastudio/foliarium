@@ -79,7 +79,12 @@ l'URL completo. Ti serve nel passo 4.
       tra un anno. Così, anche se la chiave sfugge, scade da sola.
     - **Scope concessi**: lascia spuntati tutti i `read:*` che sono
       preselezionati. Sono "permessi di sola lettura": Claude potrà
-      *leggere* l'archivio ma non *modificare* nulla.
+      *leggere* l'archivio ma non *modificare* nulla. Se vuoi che Claude
+      possa anche **creare o modificare** record (partite, possessori,
+      immobili, variazioni), spunta anche gli scope `write:*` — ma
+      concedili solo se ti serve davvero. Anche con i permessi di
+      scrittura, ogni operazione che modifica l'archivio chiede una
+      conferma esplicita prima di essere eseguita.
 4. Clicca **Crea chiave**.
 
 Si aprirà una finestra con la chiave in chiaro, qualcosa tipo:
@@ -126,8 +131,8 @@ Lo script controlla in 4 step:
 
 1. **Configurazione**: URL e chiave sono presenti.
 2. **Connettività**: l'API risponde e la chiave è valida.
-3. **8 tool MCP**: ognuno chiama l'API correttamente.
-4. **Registrazione**: il server MCP espone tutti gli 8 tool.
+3. **Tool MCP di lettura**: ognuno chiama l'API correttamente.
+4. **Registrazione**: il server MCP espone tutti i tool (lettura + scrittura).
 
 Se vedi alla fine:
 

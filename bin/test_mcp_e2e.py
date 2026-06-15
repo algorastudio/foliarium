@@ -6,9 +6,11 @@ Verifica passo per passo che tutta la catena per Claude Desktop funzioni:
 
   1. L'API REST di Foliarium risponde su FOLIARIUM_API_BASE_URL.
   2. La chiave FOLIARIUM_API_KEY è valida e ha gli scope necessari.
-  3. Ognuno degli 8 tool MCP riesce a chiamare l'API senza errori.
+  3. Ognuno dei tool MCP di lettura riesce a chiamare l'API senza errori.
 
-Lo script NON modifica dati: usa solo endpoint di lettura.
+Lo script NON modifica dati: esercita solo gli endpoint di lettura. I tool
+di scrittura (crea_*, aggiungi_*, aggiorna_*, rimuovi_*) vengono verificati
+solo a livello di registrazione nel server MCP, non invocati.
 
 Usage:
     # Imposta credenziali nell'ambiente (stesso pattern di Claude Desktop)
@@ -162,7 +164,7 @@ def step_connectivity(base_url: str, api_key: str):
 # ─────────────────────────────────────────────────────────────────────
 
 def step_tools(client, comuni: list) -> int:
-    _section(3, "Test degli 8 tool MCP")
+    _section(3, "Test dei tool MCP di lettura")
 
     from mcp_server.client import FoliariumApiError
 
@@ -232,6 +234,21 @@ def step_tools(client, comuni: list) -> int:
     else:
         _info("timeline_partita     →  skip (nessuna partita di test)")
 
+    # 9. elenca_immobili (filtra per comune di test)
+    _run("elenca_immobili     ", client.search_immobili, comune_id=first_id)
+
+    # 10. statistiche_dashboard
+    _run("statistiche_dashboard", client.get_dashboard_stats)
+
+    # 11. analytics_dashboard
+    _run("analytics_dashboard ", client.get_dashboard_analytics)
+
+    # 12. registro_audit
+    _run("registro_audit      ", client.list_audit, page_size=5)
+
+    # 13. riepilogo_audit
+    _run("riepilogo_audit     ", client.get_audit_summary)
+
     return len(failures)
 
 
@@ -249,12 +266,22 @@ def step_mcp_registration():
     server = build_server(client=MagicMock())
     tools = asyncio.run(server.list_tools())
 
-    expected = {
+    expected_read = {
         "elenca_comuni", "elenca_localita",
         "cerca_partite", "dettagli_partita",
         "cerca_possessori", "dettagli_possessore",
         "genealogia_partita", "timeline_partita",
+        "elenca_immobili", "statistiche_dashboard",
+        "analytics_dashboard", "registro_audit", "riepilogo_audit",
     }
+    expected_write = {
+        "crea_comune", "crea_possessore", "crea_partita",
+        "aggiungi_immobile", "aggiungi_variazione",
+        "aggiungi_possessore_a_partita",
+        "aggiorna_partita", "rimuovi_immobile", "rimuovi_variazione",
+        "rimuovi_possessore_da_partita",
+    }
+    expected = expected_read | expected_write
     got = {t.name for t in tools}
 
     missing = expected - got
@@ -263,9 +290,10 @@ def step_mcp_registration():
         _fail(f"Tool mancanti nel server MCP: {sorted(missing)}")
         return False
     if extra:
-        _info(f"Tool extra registrati (non previsti dall'E2E): {sorted(extra)}")
+        _info(f"Tool extra registrati (non previsti): {sorted(extra)}")
 
-    _ok("Tutti gli 8 tool registrati nel server MCP")
+    _ok(f"Tutti i {len(expected)} tool registrati nel server MCP "
+        f"({len(expected_read)} lettura + {len(expected_write)} scrittura)")
     for t in sorted(tools, key=lambda t: t.name):
         first_line = (t.description or "").split("\n", 1)[0]
         print(f"      {C.DIM}- {t.name}: {first_line}{C.RESET}")
