@@ -117,6 +117,12 @@ mostrare "foliarium" come server connesso.
 
 ## Tool disponibili
 
+I tool si dividono in tre famiglie: **lettura** (sola consultazione),
+**scrittura "sicura"** (creazione/inserimento) e **scrittura distruttiva**
+(aggiornamento/rimozione).
+
+### Lettura (scope `read:*`)
+
 | Tool | Cosa fa |
 |---|---|
 | `elenca_comuni` | Elenco completo dei comuni (id, nome, provincia) |
@@ -127,6 +133,39 @@ mostrare "foliarium" come server connesso.
 | `dettagli_possessore` | Dati anagrafici di un possessore |
 | `genealogia_partita` | Predecessori e successori di una partita |
 | `timeline_partita` | Variazioni cronologiche di una partita |
+| `elenca_immobili` | Immobili filtrati per partita e/o comune |
+| `statistiche_dashboard` | Totali aggregati (partite, comuni, possessori, immobili) |
+| `analytics_dashboard` | KPI, top comuni, distribuzione documenti, qualità dati |
+| `registro_audit` | Consultazione del registro di audit (filtri + paginazione) |
+| `riepilogo_audit` | KPI di audit della giornata corrente |
+
+### Scrittura "sicura" (scope `write:*`)
+
+| Tool | Cosa fa |
+|---|---|
+| `crea_comune` | Registra un nuovo comune |
+| `crea_possessore` | Registra un nuovo possessore |
+| `crea_partita` | Crea una nuova partita catastale |
+| `aggiungi_immobile` | Aggiunge un immobile a una partita |
+| `aggiungi_variazione` | Registra una variazione (vendita, successione, …) |
+| `aggiungi_possessore_a_partita` | Associa un possessore esistente a una partita |
+
+### Scrittura distruttiva (scope `write:*`)
+
+| Tool | Cosa fa |
+|---|---|
+| `aggiorna_partita` | Modifica i campi di una partita (es. chiusura) |
+| `rimuovi_immobile` | Rimuove un immobile da una partita (irreversibile) |
+| `rimuovi_variazione` | Rimuove una variazione (irreversibile) |
+| `rimuovi_possessore_da_partita` | Dissocia un possessore da una partita (irreversibile) |
+
+!!! warning "I tool di scrittura richiedono conferma esplicita"
+    Tutti i tool che modificano l'archivio accettano un parametro
+    `confirm`. Se lo invochi **senza** `confirm=true`, il tool non
+    esegue nulla: restituisce un'anteprima dell'operazione e ti chiede
+    di richiamarlo con `confirm=true`. Questo evita modifiche accidentali
+    a partire da richieste ambigue. Inoltre la chiave API deve avere uno
+    scope `write:*`: una chiave solo `read:*` riceverà "Permesso negato".
 
 ## Esempi di prompt
 
@@ -144,6 +183,15 @@ inclusi i frazionamenti.
 Cerca i possessori con cognome "Garibaldi" e per ognuno mostra in quante
 partite compare come intestatario.
 ```
+
+```
+Crea una nuova partita n. 1450 nel Comune di Albenga, impianto 1905-03-12,
+poi associa come intestatario il possessore "Bianchi Giovanni".
+```
+
+(Per i prompt di scrittura Claude ti mostrerà prima un'anteprima
+dell'operazione e la eseguirà solo dopo conferma — vedi il riquadro
+sopra sulla `confirm`.)
 
 ## Troubleshooting
 
@@ -242,7 +290,13 @@ deve contenere la sotto-cartella `mcp_server/`.)
   proteggi il file con permessi adeguati (`chmod 600` su macOS/Linux,
   cartella utente protetta su Windows).
 - Genera chiavi con il **principio del minimo privilegio**: per un uso
-  read-only basta `read:*`, non serve `*:*`.
+  di sola consultazione basta `read:*`, non serve `*:*`. Concedi gli
+  scope `write:*` **solo** se vuoi che Claude possa creare o modificare
+  record dell'archivio.
+- Anche con scope di scrittura, i tool che modificano l'archivio non
+  eseguono nulla finché non vengono richiamati con `confirm=true`: è
+  una protezione aggiuntiva contro le scritture accidentali, ma il
+  controllo di accesso vero resta lo **scope della chiave API**.
 
 ## Vedi anche
 

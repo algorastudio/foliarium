@@ -72,6 +72,26 @@ class FoliariumApiClient:
             ) from e
         return _decode(r, path=path)
 
+    def _send(self, method: str, path: str,
+              json_body: Optional[dict] = None,
+              params: Optional[dict] = None) -> Any:
+        """Primitiva per POST/PATCH/DELETE con body JSON opzionale.
+
+        I parametri ``None`` del body vengono ripuliti per non sovrascrivere
+        i default lato API con ``null``.
+        """
+        try:
+            r = self._client.request(
+                method, path,
+                params=_clean_params(params),
+                json=_clean_params(json_body),
+            )
+        except httpx.RequestError as e:
+            raise FoliariumApiError(
+                f"Impossibile contattare {self.base_url}{path}: {e}"
+            ) from e
+        return _decode(r, path=path)
+
     # ── endpoint wrapper ───────────────────────────────────────────
     def list_comuni(self) -> list[dict]:
         return self._get("/api/v1/comuni") or []
@@ -109,6 +129,149 @@ class FoliariumApiClient:
 
     def get_timeline_partita(self, partita_id: int) -> list[dict]:
         return self._get(f"/api/v1/timeline/partita/{partita_id}") or []
+
+    # ── lettura aggiuntiva ─────────────────────────────────────────
+    def search_immobili(
+        self,
+        partita_id: Optional[int] = None,
+        comune_id: Optional[int] = None,
+    ) -> list[dict]:
+        return self._get("/api/v1/immobili", params={
+            "partita_id": partita_id,
+            "comune_id": comune_id,
+        }) or []
+
+    def get_dashboard_stats(self) -> dict:
+        return self._get("/api/v1/dashboard/stats")
+
+    def get_dashboard_analytics(self) -> dict:
+        return self._get("/api/v1/dashboard/analytics")
+
+    def list_audit(
+        self,
+        table_name: Optional[str] = None,
+        username: Optional[str] = None,
+        operation: Optional[str] = None,
+        page: int = 1,
+        page_size: int = 50,
+    ) -> dict:
+        return self._get("/api/v1/audit", params={
+            "table_name": table_name,
+            "username": username,
+            "operation": operation,
+            "page": page,
+            "page_size": page_size,
+        })
+
+    def get_audit_summary(self) -> dict:
+        return self._get("/api/v1/audit/summary")
+
+    # ── scrittura: comuni / possessori ─────────────────────────────
+    def create_comune(self, nome: str, provincia: str, regione: str,
+                       codice_catastale: Optional[str] = None) -> dict:
+        return self._send("POST", "/api/v1/comuni", json_body={
+            "nome": nome,
+            "provincia": provincia,
+            "regione": regione,
+            "codice_catastale": codice_catastale,
+        })
+
+    def create_possessore(self, nome_completo: str, comune_id: int,
+                          cognome_nome: Optional[str] = None,
+                          paternita: Optional[str] = None) -> dict:
+        return self._send("POST", "/api/v1/possessori", json_body={
+            "nome_completo": nome_completo,
+            "comune_id": comune_id,
+            "cognome_nome": cognome_nome,
+            "paternita": paternita,
+        })
+
+    # ── scrittura: partite ─────────────────────────────────────────
+    def create_partita(self, comune_id: int, numero_partita: int,
+                       suffisso_partita: Optional[str] = None,
+                       data_impianto: Optional[str] = None,
+                       tipo: str = "Principale", stato: str = "attiva",
+                       numero_provenienza: Optional[int] = None) -> dict:
+        return self._send("POST", "/api/v1/partite", json_body={
+            "comune_id": comune_id,
+            "numero_partita": numero_partita,
+            "suffisso_partita": suffisso_partita,
+            "data_impianto": data_impianto,
+            "tipo": tipo,
+            "stato": stato,
+            "numero_provenienza": numero_provenienza,
+        })
+
+    def update_partita(self, partita_id: int,
+                      stato: Optional[str] = None,
+                      data_chiusura: Optional[str] = None,
+                      suffisso_partita: Optional[str] = None,
+                      numero_provenienza: Optional[int] = None,
+                      tipo: Optional[str] = None) -> dict:
+        return self._send("PATCH", f"/api/v1/partite/{partita_id}", json_body={
+            "stato": stato,
+            "data_chiusura": data_chiusura,
+            "suffisso_partita": suffisso_partita,
+            "numero_provenienza": numero_provenienza,
+            "tipo": tipo,
+        })
+
+    # ── scrittura: immobili ────────────────────────────────────────
+    def add_immobile(self, partita_id: int, localita_nome: str,
+                    tipologia_stradale: str, natura: str,
+                    numero_civico: Optional[str] = None,
+                    numero_piani: Optional[int] = None,
+                    numero_vani: Optional[int] = None,
+                    consistenza: Optional[str] = None,
+                    classificazione: Optional[str] = None) -> dict:
+        return self._send("POST", f"/api/v1/partite/{partita_id}/immobili", json_body={
+            "localita_nome": localita_nome,
+            "tipologia_stradale": tipologia_stradale,
+            "natura": natura,
+            "numero_civico": numero_civico,
+            "numero_piani": numero_piani,
+            "numero_vani": numero_vani,
+            "consistenza": consistenza,
+            "classificazione": classificazione,
+        })
+
+    def remove_immobile(self, partita_id: int, immobile_id: int) -> dict:
+        return self._send(
+            "DELETE", f"/api/v1/partite/{partita_id}/immobili/{immobile_id}")
+
+    # ── scrittura: variazioni ──────────────────────────────────────
+    def add_variazione(self, partita_id: int, tipo: str, data_variazione: str,
+                     partita_destinazione_id: Optional[int] = None,
+                     numero_riferimento: Optional[str] = None,
+                     nominativo_riferimento: Optional[str] = None) -> dict:
+        return self._send("POST", f"/api/v1/partite/{partita_id}/variazioni", json_body={
+            "tipo": tipo,
+            "data_variazione": data_variazione,
+            "partita_destinazione_id": partita_destinazione_id,
+            "numero_riferimento": numero_riferimento,
+            "nominativo_riferimento": nominativo_riferimento,
+        })
+
+    def remove_variazione(self, partita_id: int, variazione_id: int) -> dict:
+        return self._send(
+            "DELETE", f"/api/v1/partite/{partita_id}/variazioni/{variazione_id}")
+
+    # ── scrittura: legame partita ↔ possessore ─────────────────────
+    def add_possessore_to_partita(self, partita_id: int, possessore_id: int,
+                                titolo: str = "proprietà esclusiva",
+                                quota: Optional[str] = None,
+                                tipo_partita: Optional[str] = None) -> dict:
+        return self._send("POST", f"/api/v1/partite/{partita_id}/possessori", json_body={
+            "possessore_id": possessore_id,
+            "titolo": titolo,
+            "quota": quota,
+            "tipo_partita": tipo_partita,
+        })
+
+    def remove_possessore_from_partita(self, partita_id: int,
+                                     possessore_id: int) -> dict:
+        return self._send(
+            "DELETE", f"/api/v1/partite/{partita_id}/possessori/{possessore_id}")
 
 
 # ─────────────────────────────────────────────────────────────────────
@@ -154,6 +317,9 @@ def _decode(response: httpx.Response, *, path: str) -> Any:
             f"Errore {response.status_code} su {path}: {detail}",
             status=response.status_code, detail=detail,
         )
+    # 204 No Content (tipico delle DELETE) — nessun body da decodificare.
+    if response.status_code == 204 or not response.content:
+        return {"ok": True}
     try:
         return response.json()
     except ValueError:
