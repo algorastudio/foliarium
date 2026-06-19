@@ -65,6 +65,10 @@ ENV_DB_NAME = _ini_get('database', 'dbname', os.environ.get('DB_NAME', 'catasto_
 ENV_DB_USER = _ini_get('database', 'user', os.environ.get('DB_USER', 'postgres'))
 ENV_DB_PASS = _ini_get('database', 'password', os.environ.get('DB_PASS', ''))
 ENV_DB_PORT = _ini_get('database', 'port', os.environ.get('DB_PORT', '5432'))
+# Modalita' TLS della connessione PostgreSQL (libpq sslmode). Vuoto = automatico:
+# 'prefer' per host locali, 'require' per host remoti (TLS obbligatorio).
+# Valori validi: disable, allow, prefer, require, verify-ca, verify-full.
+ENV_DB_SSLMODE = _ini_get('database', 'sslmode', os.environ.get('DB_SSLMODE', '')).strip()
 
 # True se la password DB e' stata fornita esplicitamente (config.ini o env var).
 # Una password vuota implicita in produzione e' un errore di configurazione:

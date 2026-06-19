@@ -68,18 +68,52 @@ def db_handle_errors(method: Callable) -> Callable:
 # -------------------------------------------------
 
 class DBConnectionBase:
-    
+
+    # Host considerati locali: per questi il default TLS è 'prefer' (TLS se il
+    # server lo offre, altrimenti connessione in chiaro accettabile sul loopback).
+    _LOCAL_HOSTS = frozenset({"", "localhost", "127.0.0.1", "::1", "::ffff:127.0.0.1"})
+
+    @staticmethod
+    def _resolve_sslmode(sslmode, host):
+        """Determina il sslmode effettivo per la connessione PostgreSQL.
+
+        Precedenza:
+          1. valore esplicito passato al costruttore;
+          2. override da config (config.ini [database].sslmode / env DB_SSLMODE);
+          3. default basato sull'host: 'prefer' per host locali, 'require' per
+             host remoti (TLS obbligatorio — le credenziali e i dati personali
+             dei possessori non viaggiano mai in chiaro su rete).
+
+        Valori libpq validi: disable, allow, prefer, require, verify-ca,
+        verify-full.
+        """
+        if sslmode:
+            return sslmode
+        try:
+            import config as _cfg
+            configured = (getattr(_cfg, "ENV_DB_SSLMODE", "") or "").strip()
+        except Exception:
+            configured = ""
+        if configured:
+            return configured
+        if (host or "").strip().lower() in DBConnectionBase._LOCAL_HOSTS:
+            return "prefer"
+        return "require"
+
     def __init__(self, dbname, user, password, host, port,
                  schema="catasto",
                  application_name="CatastoApp_Pool",
                  log_file="catasto_db_manager.log",
                  log_level=logging.DEBUG, # O il suo default
                  min_conn=2,
-                 max_conn=20):
-       
-        
-        self._main_db_conn_params = {"dbname": dbname, "user": user, "password": password, "host": host, "port": port}
-        self._maintenance_db_name = "postgres" 
+                 max_conn=20,
+                 sslmode=None):
+
+
+        effective_sslmode = self._resolve_sslmode(sslmode, host)
+        self._main_db_conn_params = {"dbname": dbname, "user": user, "password": password,
+                                     "host": host, "port": port, "sslmode": effective_sslmode}
+        self._maintenance_db_name = "postgres"
         self.schema = schema
         self.application_name = application_name
         self._min_conn_pool = min_conn
@@ -90,7 +124,7 @@ class DBConnectionBase:
 
         self.logger = logging.getLogger(f"CatastoDB_{dbname}_{host}_{port}")
         # ... (resto della configurazione del logger come prima) ...
-        self.logger.info(f"Inizializzato gestore DB (parametri memorizzati) per {dbname}@{host}")
+        self.logger.info(f"Inizializzato gestore DB (parametri memorizzati) per {dbname}@{host} (sslmode={effective_sslmode})")
         self.pool = None # Il pool viene inizializzato esplicitamente dopo
 
         # --- TIER 3 Phase 2: Pool health metrics ---

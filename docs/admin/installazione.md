@@ -220,6 +220,16 @@ Foliarium legge le credenziali del database dalle **variabili d'ambiente** di Wi
 | `DB_PASS` | *(vuoto)* | Password del database |
 | `DB_NAME` | `catasto_storico` | Nome del database |
 | `DB_PORT` | `5432` | Porta TCP |
+| `DB_SSLMODE` | *(automatico)* | Modalità TLS libpq. Vuoto = `prefer` per host locali, `require` per host remoti |
+
+!!! warning "TLS su database remoto"
+    Quando il database **non** è in locale (`DB_HOST` diverso da `localhost`/`127.0.0.1`),
+    Foliarium impone per default `sslmode=require`: la connessione fallisce se il
+    server PostgreSQL non offre TLS, evitando che credenziali e dati personali dei
+    possessori viaggino in chiaro sulla rete. Per una verifica completa del
+    certificato del server impostare `DB_SSLMODE=verify-full` (richiede una CA
+    configurata). Valori validi: `disable`, `allow`, `prefer`, `require`,
+    `verify-ca`, `verify-full`.
 
 #### Impostazione variabili su Windows
 
