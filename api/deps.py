@@ -23,6 +23,7 @@ from fastapi import Depends, HTTPException, Request, status
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 
 from api.auth import get_session
+from api.rate_limit import check_and_increment
 
 _bearer = HTTPBearer(auto_error=False)
 
@@ -60,6 +61,7 @@ def _principal_from_api_key(plaintext: str) -> Optional[dict]:
         "scopes": info.get("scopes") or [],
         "api_key_id": info["id"],
         "api_key_name": info["name"],
+        "rate_limit_per_min": info.get("rate_limit_per_min"),
     }
 
 
@@ -76,6 +78,19 @@ def get_current_session(
     if api_key:
         principal = _principal_from_api_key(api_key)
         if principal is not None:
+            allowed, retry_after = check_and_increment(
+                principal.get("api_key_id"), principal.get("rate_limit_per_min")
+            )
+            if not allowed:
+                raise HTTPException(
+                    status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+                    detail=(
+                        "Limite di richieste superato per la chiave API "
+                        f"(max {principal.get('rate_limit_per_min')}/min). "
+                        f"Riprovare tra {retry_after}s."
+                    ),
+                    headers={"Retry-After": str(retry_after)},
+                )
             return principal
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,

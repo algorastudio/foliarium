@@ -4,7 +4,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel
 import psycopg2.extras
 
-from api.deps import get_db, get_current_session
+from api.deps import get_db, require_scope
 
 router = APIRouter(prefix="/possessori", tags=["possessori"])
 
@@ -27,7 +27,7 @@ class AssegnaPossessoreRequest(BaseModel):
 @router.get("")
 def search_possessori(
     q: Optional[str] = Query(None, description="Termine di ricerca"),
-    session=Depends(get_current_session),
+    session=Depends(require_scope("read:possessori")),
     db=Depends(get_db),
 ):
     if not q or len(q.strip()) < 2:
@@ -36,7 +36,7 @@ def search_possessori(
 
 
 @router.post("/assegna", status_code=201)
-def assegna_possessore(req: AssegnaPossessoreRequest, session=Depends(get_current_session), db=Depends(get_db)):
+def assegna_possessore(req: AssegnaPossessoreRequest, session=Depends(require_scope("write:possessori")), db=Depends(get_db)):
     try:
         ok = db.aggiungi_possessore_a_partita(
             partita_id=req.partita_id,
@@ -55,7 +55,7 @@ def assegna_possessore(req: AssegnaPossessoreRequest, session=Depends(get_curren
 
 
 @router.get("/{possessore_id}")
-def get_possessore(possessore_id: int, session=Depends(get_current_session), db=Depends(get_db)):
+def get_possessore(possessore_id: int, session=Depends(require_scope("read:possessori")), db=Depends(get_db)):
     schema = db.schema
     with db._get_connection() as conn:
         with conn.cursor(cursor_factory=psycopg2.extras.DictCursor) as cur:
@@ -73,7 +73,7 @@ def get_possessore(possessore_id: int, session=Depends(get_current_session), db=
 
 
 @router.post("", status_code=201)
-def create_possessore(req: NuovoPossessoreRequest, session=Depends(get_current_session), db=Depends(get_db)):
+def create_possessore(req: NuovoPossessoreRequest, session=Depends(require_scope("write:possessori")), db=Depends(get_db)):
     try:
         possessore_id = db.create_possessore(
             nome_completo=req.nome_completo.strip(),

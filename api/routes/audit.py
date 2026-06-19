@@ -4,7 +4,7 @@ from typing import Optional
 
 from fastapi import APIRouter, Depends, Query
 
-from api.deps import get_db, get_current_session
+from api.deps import get_db, require_scope
 
 router = APIRouter(prefix="/audit", tags=["audit"])
 
@@ -37,7 +37,7 @@ def list_audit(
     operation: Optional[str] = Query(None, description="I, U, D, S"),
     page: int = Query(1, ge=1),
     page_size: int = Query(50, ge=1, le=500),
-    session=Depends(get_current_session),
+    session=Depends(require_scope("read:audit")),
     db=Depends(get_db),
 ):
     filters: dict = {}
@@ -65,7 +65,7 @@ def list_audit(
 
 
 @router.get("/summary")
-def audit_summary(session=Depends(get_current_session), db=Depends(get_db)):
+def audit_summary(session=Depends(require_scope("read:audit")), db=Depends(get_db)):
     """KPI per la pagina audit: azioni oggi, utenti attivi, export, anomalie."""
     today = date.today()
     start = datetime.combine(today, datetime.min.time())
