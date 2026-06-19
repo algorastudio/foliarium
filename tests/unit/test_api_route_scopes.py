@@ -36,7 +36,9 @@ def app_factory():
     from fastapi.testclient import TestClient
     from api.main import create_app
     import api.deps as deps
+    import api.rate_limit as rl
 
+    rl.reset()
     created = []
 
     def _factory(scopes):

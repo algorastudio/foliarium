@@ -305,6 +305,15 @@ def _decode(response: httpx.Response, *, path: str) -> Any:
         raise FoliariumApiError(
             f"Risorsa non trovata: {path}", status=404,
         )
+    if response.status_code == 429:
+        retry_after = response.headers.get("Retry-After", "qualche")
+        raise FoliariumApiError(
+            f"Limite di richieste superato per la chiave API. "
+            f"Attendere {retry_after}s e riprovare. "
+            f"Per un tetto più alto, aumentare il rate limit della chiave "
+            f"in Impostazioni → Gestione Chiavi API… di Foliarium.",
+            status=429, detail=_safe_detail(response),
+        )
     if response.status_code >= 500:
         raise FoliariumApiError(
             f"Errore server Foliarium ({response.status_code}) su {path}. "
