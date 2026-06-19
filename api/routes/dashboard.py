@@ -3,7 +3,7 @@ import logging
 
 from fastapi import APIRouter, Depends
 
-from api.deps import get_db, get_current_session
+from api.deps import get_db, require_scope
 
 logger = logging.getLogger("FoliariumAPI.dashboard")
 
@@ -11,7 +11,7 @@ router = APIRouter(prefix="/dashboard", tags=["dashboard"])
 
 
 @router.get("/stats")
-def get_stats(session=Depends(get_current_session), db=Depends(get_db)):
+def get_stats(session=Depends(require_scope("read:dashboard")), db=Depends(get_db)):
     """Statistiche aggregate base — usate dalla pagina Analytics."""
     try:
         stats_comune = db.get_statistiche_comune() or []
@@ -38,7 +38,7 @@ def get_stats(session=Depends(get_current_session), db=Depends(get_db)):
 
 
 @router.get("/analytics")
-def get_analytics(session=Depends(get_current_session), db=Depends(get_db)):
+def get_analytics(session=Depends(require_scope("read:dashboard")), db=Depends(get_db)):
     """Aggregati per la dashboard analytics: KPI + breakdown per comune e tipologia."""
     try:
         stats_comune = db.get_statistiche_comune() or []

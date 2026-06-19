@@ -5,7 +5,7 @@ from pydantic import BaseModel
 from datetime import date
 import psycopg2.extras
 
-from api.deps import get_db, get_current_session
+from api.deps import get_db, require_scope
 from catasto_exceptions import DBMError
 
 router = APIRouter(prefix="/partite", tags=["partite"])
@@ -65,7 +65,7 @@ def search_partite(
     possessore: Optional[str] = Query(None),
     immobile_natura: Optional[str] = Query(None),
     suffisso: Optional[str] = Query(None),
-    session=Depends(get_current_session),
+    session=Depends(require_scope("read:partite")),
     db=Depends(get_db),
 ):
     return db.search_partite(
@@ -78,7 +78,7 @@ def search_partite(
 
 
 @router.get("/{partita_id}")
-def get_partita(partita_id: int, session=Depends(get_current_session), db=Depends(get_db)):
+def get_partita(partita_id: int, session=Depends(require_scope("read:partite")), db=Depends(get_db)):
     try:
         detail = db.get_partita_details(partita_id)
     except Exception as e:
@@ -92,7 +92,7 @@ def get_partita(partita_id: int, session=Depends(get_current_session), db=Depend
 def patch_partita(
     partita_id: int,
     req: PatchPartitaRequest,
-    session=Depends(get_current_session),
+    session=Depends(require_scope("write:partite")),
     db=Depends(get_db),
 ):
     dati = req.model_dump(exclude_unset=True)
@@ -106,7 +106,7 @@ def patch_partita(
 
 
 @router.post("", status_code=201)
-def create_partita(req: NuovaPartitaRequest, session=Depends(get_current_session), db=Depends(get_db)):
+def create_partita(req: NuovaPartitaRequest, session=Depends(require_scope("write:partite")), db=Depends(get_db)):
     try:
         partita_id = db.create_partita(
             comune_id=req.comune_id,
@@ -126,7 +126,7 @@ def create_partita(req: NuovaPartitaRequest, session=Depends(get_current_session
 def add_immobile(
     partita_id: int,
     req: NuovoImmobileRequest,
-    session=Depends(get_current_session),
+    session=Depends(require_scope("write:partite")),
     db=Depends(get_db),
 ):
     schema = db.schema
@@ -176,7 +176,7 @@ def add_immobile(
 def remove_immobile(
     partita_id: int,
     immobile_id: int,
-    session=Depends(get_current_session),
+    session=Depends(require_scope("write:partite")),
     db=Depends(get_db),
 ):
     ok = db.delete_immobile(immobile_id)
@@ -188,7 +188,7 @@ def remove_immobile(
 def add_variazione(
     partita_id: int,
     req: NuovaVariazioneRequest,
-    session=Depends(get_current_session),
+    session=Depends(require_scope("write:partite")),
     db=Depends(get_db),
 ):
     if req.tipo not in TIPI_VARIAZIONE:
@@ -218,7 +218,7 @@ def add_variazione(
 def remove_variazione(
     partita_id: int,
     variazione_id: int,
-    session=Depends(get_current_session),
+    session=Depends(require_scope("write:partite")),
     db=Depends(get_db),
 ):
     ok = db.delete_variazione(variazione_id)
@@ -230,7 +230,7 @@ def remove_variazione(
 def add_possessore_to_partita(
     partita_id: int,
     req: AggiungiPossessoreRequest,
-    session=Depends(get_current_session),
+    session=Depends(require_scope("write:partite")),
     db=Depends(get_db),
 ):
     schema = db.schema
@@ -265,7 +265,7 @@ def add_possessore_to_partita(
 def remove_possessore_from_partita(
     partita_id: int,
     possessore_id: int,
-    session=Depends(get_current_session),
+    session=Depends(require_scope("write:partite")),
     db=Depends(get_db),
 ):
     schema = db.schema

@@ -14,7 +14,7 @@ Scope tipici esposti nella UI:
 
 * ``read:comuni``, ``read:partite``, ``read:possessori``, ``read:audit``,
   ``read:dashboard``, ``read:genealogia``, ``read:timeline``
-* ``write:partite``, ``write:possessori``
+* ``write:comuni``, ``write:partite``, ``write:possessori``
 * wildcard: ``read:*``, ``*:*``
 """
 
@@ -66,6 +66,7 @@ DEFAULT_SCOPES: list[tuple[str, str]] = [
     ("read:dashboard",   "Lettura statistiche dashboard"),
     ("read:genealogia",  "Lettura albero genealogico partite"),
     ("read:timeline",    "Lettura timeline variazioni"),
+    ("write:comuni",     "Creazione/modifica comuni"),
     ("write:partite",    "Creazione/modifica partite"),
     ("write:possessori", "Creazione/modifica possessori"),
     ("read:*",           "Lettura completa (wildcard)"),

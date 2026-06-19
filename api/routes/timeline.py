@@ -4,7 +4,7 @@ from typing import Any
 
 from fastapi import APIRouter, Depends, HTTPException
 
-from api.deps import get_db, get_current_session
+from api.deps import get_db, require_scope
 
 router = APIRouter(prefix="/timeline", tags=["timeline"])
 
@@ -16,7 +16,7 @@ def _iso(v: Any) -> Any:
 
 
 @router.get("/partita/{partita_id}")
-def partita_timeline(partita_id: int, session=Depends(get_current_session), db=Depends(get_db)):
+def partita_timeline(partita_id: int, session=Depends(require_scope("read:timeline")), db=Depends(get_db)):
     """Eventi cronologici di una partita: impianto + variazioni in entrata/uscita + chiusura."""
     try:
         gen = db.get_genealogia_partita(partita_id)

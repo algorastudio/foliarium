@@ -2,7 +2,7 @@
 from typing import Optional
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
-from api.deps import get_db, get_current_session
+from api.deps import get_db, require_scope
 
 router = APIRouter(prefix="/comuni", tags=["comuni"])
 
@@ -15,7 +15,7 @@ class NuovoComuneRequest(BaseModel):
 
 
 @router.get("")
-def list_comuni(session=Depends(get_current_session), db=Depends(get_db)):
+def list_comuni(session=Depends(require_scope("read:comuni")), db=Depends(get_db)):
     rows = db.get_elenco_comuni_semplice()
     result = []
     for r in rows:
@@ -27,7 +27,7 @@ def list_comuni(session=Depends(get_current_session), db=Depends(get_db)):
 
 
 @router.post("", status_code=201)
-def create_comune(req: NuovoComuneRequest, session=Depends(get_current_session), db=Depends(get_db)):
+def create_comune(req: NuovoComuneRequest, session=Depends(require_scope("write:comuni")), db=Depends(get_db)):
     try:
         cid = db.registra_comune_nel_db(
             nome=req.nome.strip(),
@@ -44,6 +44,6 @@ def create_comune(req: NuovoComuneRequest, session=Depends(get_current_session),
 
 
 @router.get("/{comune_id}/localita")
-def list_localita(comune_id: int, session=Depends(get_current_session), db=Depends(get_db)):
+def list_localita(comune_id: int, session=Depends(require_scope("read:comuni")), db=Depends(get_db)):
     rows = db.get_localita_by_comune(comune_id)
     return rows
