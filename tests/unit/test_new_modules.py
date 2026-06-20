@@ -172,14 +172,14 @@ class TestFieldValidatorCodiceCatastale:
 class TestFieldValidatorPassword:
     def test_strong_password(self):
         from validators import FieldValidator
-        r = FieldValidator.password_strength("Sicura123")
+        r = FieldValidator.password_strength("SicuraXy123")
         assert r.is_valid
 
     def test_too_short(self):
         from validators import FieldValidator
-        r = FieldValidator.password_strength("abc1")
+        r = FieldValidator.password_strength("Abc1")
         assert not r.is_valid
-        assert "8" in r.error_message
+        assert "10" in r.error_message
 
     def test_no_digit(self):
         from validators import FieldValidator

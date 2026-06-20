@@ -267,21 +267,44 @@ class TestFieldValidatorCodiciCatastali:
 class TestFieldValidatorSicurezza:
 
     def test_password_strength_valida(self):
-        """password_strength con password valida (8+ chars, almeno 1 digit)."""
-        result = FieldValidator.password_strength("MyPass123")
+        """password_strength con password valida (10+ chars, maiusc/minusc/cifra)."""
+        result = FieldValidator.password_strength("MyPassw0rdX")
         assert result.is_valid is True
 
     def test_password_strength_troppo_corta(self):
-        """password_strength deve rifiutare password < 8 caratteri."""
-        result = FieldValidator.password_strength("Pass1")
+        """password_strength deve rifiutare password < 10 caratteri."""
+        result = FieldValidator.password_strength("MyPass12")
         assert result.is_valid is False
-        assert "8 caratteri" in result.error_message.lower()
+        assert "10 caratteri" in result.error_message.lower()
 
     def test_password_strength_senza_cifra(self):
         """password_strength deve rifiutare password senza cifra."""
-        result = FieldValidator.password_strength("MyPassword")
+        result = FieldValidator.password_strength("MyPasswordXY")
         assert result.is_valid is False
         assert "cifra" in result.error_message.lower()
+
+    def test_password_strength_senza_maiuscola(self):
+        """password_strength deve rifiutare password senza lettera maiuscola."""
+        result = FieldValidator.password_strength("mypassw0rdx")
+        assert result.is_valid is False
+        assert "maiuscola" in result.error_message.lower()
+
+    def test_password_strength_senza_minuscola(self):
+        """password_strength deve rifiutare password senza lettera minuscola."""
+        result = FieldValidator.password_strength("MYPASSW0RDX")
+        assert result.is_valid is False
+        assert "minuscola" in result.error_message.lower()
+
+    def test_password_strength_comune_rifiutata(self):
+        """password_strength deve rifiutare password comuni anche se ben composte."""
+        result = FieldValidator.password_strength("Password123")
+        assert result.is_valid is False
+        assert "comune" in result.error_message.lower()
+
+    def test_password_strength_vuota(self):
+        result = FieldValidator.password_strength("")
+        assert result.is_valid is False
+        assert "obbligatoria" in result.error_message.lower()
 
     def test_username_valido(self):
         """username con nome valido (3+ chars, alfanumerico/dash/underscore)."""
