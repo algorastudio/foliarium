@@ -23,6 +23,23 @@ from typing import Any, List, Optional
 
 
 # ---------------------------------------------------------------------------
+# Policy password
+# ---------------------------------------------------------------------------
+
+#: Lunghezza minima della password.
+MIN_PASSWORD_LENGTH = 10
+
+#: Password comuni/banali rifiutate a prescindere dalla composizione.
+#: Confronto case-insensitive sull'intera stringa.
+COMMON_WEAK_PASSWORDS = frozenset({
+    "password", "password1", "password12", "password123", "passw0rd1",
+    "12345678", "123456789", "1234567890", "qwertyuiop", "qwerty1234",
+    "admin12345", "administrator", "amministratore", "foliarium1", "foliarium12",
+    "letmein123", "welcome123", "iloveyou12", "changeme123", "benvenuto1",
+})
+
+
+# ---------------------------------------------------------------------------
 # Risultato di validazione
 # ---------------------------------------------------------------------------
 
@@ -259,18 +276,33 @@ class FieldValidator:
     def password_strength(value: str) -> ValidationResult:
         """
         Policy password Foliarium:
-        - minimo 8 caratteri
+        - minimo 10 caratteri
+        - almeno 1 lettera minuscola
+        - almeno 1 lettera maiuscola
         - almeno 1 cifra
+        - non deve essere una password comune/banale
         """
         if not value:
             return ValidationResult.fail("La password è obbligatoria.")
-        if len(value) < 8:
+        if len(value) < MIN_PASSWORD_LENGTH:
             return ValidationResult.fail(
-                "La password deve contenere almeno 8 caratteri."
+                f"La password deve contenere almeno {MIN_PASSWORD_LENGTH} caratteri."
+            )
+        if not any(c.islower() for c in value):
+            return ValidationResult.fail(
+                "La password deve contenere almeno una lettera minuscola."
+            )
+        if not any(c.isupper() for c in value):
+            return ValidationResult.fail(
+                "La password deve contenere almeno una lettera maiuscola."
             )
         if not any(c.isdigit() for c in value):
             return ValidationResult.fail(
                 "La password deve contenere almeno una cifra."
+            )
+        if value.lower() in COMMON_WEAK_PASSWORDS:
+            return ValidationResult.fail(
+                "La password è troppo comune: sceglierne una meno prevedibile."
             )
         return ValidationResult.ok(value)
 

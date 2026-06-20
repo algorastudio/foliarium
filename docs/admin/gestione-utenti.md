@@ -25,7 +25,7 @@ Foliarium implementa tre livelli di accesso:
    - **Nome utente** (username): stringa alfanumerica, case-insensitive
    - **Nome completo**: nome visualizzato nell'interfaccia
    - **Ruolo**: Guest / Utente / Amministratore
-   - **Password**: minimo 8 caratteri e almeno 1 cifra
+   - **Password**: minimo 10 caratteri, con almeno una lettera maiuscola, una minuscola e una cifra (le password troppo comuni vengono rifiutate)
 3. Fare clic su **Salva**
 
 > 📸 **Screenshot:** Dialog di creazione nuovo utente con campi username, nome completo, ruolo, password.
@@ -51,7 +51,7 @@ Foliarium implementa tre livelli di accesso:
 
 1. Selezionare l'utente
 2. Fare clic su **Reimposta Password**
-3. Inserire la nuova password (minimo 8 caratteri, almeno 1 cifra) e confermarla
+3. Inserire la nuova password (minimo 10 caratteri, con maiuscola, minuscola e cifra) e confermarla
 4. Comunicare la nuova password all'utente
 
 !!! warning "L'utente deve cambiare la password"

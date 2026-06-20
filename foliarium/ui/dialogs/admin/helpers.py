@@ -36,15 +36,12 @@ def datetime_to_qdate(dt_date: Optional[date]) -> QDate:
         return QDate()  # Restituisce una QDate "nulla"
     return QDate(dt_date.year, dt_date.month, dt_date.day)
 def _validate_password_strength(password: str) -> tuple:
-    """Verifica i requisiti minimi della password.
+    """Verifica i requisiti della password (delega a FieldValidator, fonte unica).
     Restituisce (True, '') se valida, oppure (False, messaggio_errore).
-    Requisiti: almeno 8 caratteri, almeno 1 cifra.
     """
-    if len(password) < 8:
-        return False, "La password deve essere di almeno 8 caratteri."
-    if not any(c.isdigit() for c in password):
-        return False, "La password deve contenere almeno un numero."
-    return True, ""
+    from validators import FieldValidator
+    result = FieldValidator.password_strength(password or "")
+    return (result.is_valid, "" if result.is_valid else result.error_message)
 
 
 # Hash/verifica password: logica centralizzata in core.auth_manager (_AuthManager importato a riga 44)
