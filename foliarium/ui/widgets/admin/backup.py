@@ -11,9 +11,11 @@ from PyQt6.QtCore import (
 )
 from PyQt6.QtWidgets import (
     QApplication,
-    QComboBox, QFileDialog, QFormLayout, QGroupBox, QHBoxLayout, QInputDialog, QLabel, QLineEdit, QMessageBox, QProgressBar, QPushButton, QStyle,
+    QCheckBox, QComboBox, QFileDialog, QFormLayout, QGroupBox, QHBoxLayout, QInputDialog, QLabel, QLineEdit, QMessageBox, QProgressBar, QPushButton, QStyle,
     QTextEdit, QVBoxLayout, QWidget,
 )
+
+from foliarium.core.services import backup_crypto
 
 
 if TYPE_CHECKING:
@@ -36,6 +38,11 @@ class BackupWidget(QWidget):
         self.process.readyReadStandardOutput.connect(self._handle_stdout)
         self.process.readyReadStandardError.connect(self._handle_stderr)
         self.process.finished.connect(self._handle_process_finished)
+
+        # Stato cifratura backup (consumato in _handle_process_finished)
+        self._pending_backup_path: str | None = None
+        self._pending_encrypt: bool = False
+        self._restore_temp_path: str | None = None
 
         self._init_ui()
 
@@ -89,6 +96,17 @@ class BackupWidget(QWidget):
             "Plain SQL (testo semplice)"
         ])
         backup_layout.addRow("Formato Backup:", self.backup_format_combo)
+
+        # Cifratura at-rest del file di backup (AES-256-GCM, chiave nel keyring).
+        self.encrypt_checkbox = QCheckBox(
+            "Cifra il file di backup (consigliato — protegge i dati personali se il file viene sottratto)")
+        _crypto_ok = backup_crypto.is_available()
+        self.encrypt_checkbox.setChecked(_crypto_ok)
+        self.encrypt_checkbox.setEnabled(_crypto_ok)
+        if not _crypto_ok:
+            self.encrypt_checkbox.setToolTip(
+                "Cifratura non disponibile: libreria 'cryptography' o 'keyring' assente.")
+        backup_layout.addRow("Sicurezza:", self.encrypt_checkbox)
 
         self.pg_dump_path_edit = QLineEdit()
         self.pg_dump_path_edit.setPlaceholderText(
@@ -169,11 +187,22 @@ class BackupWidget(QWidget):
             self.backup_file_path_edit.setText(filePath)
 
     def _browse_restore_file_open_path(self):
-        filter_str = "File di Backup PostgreSQL (*.dump *.backup *.sql);;File Custom (*.dump *.backup);;File SQL (*.sql);;Tutti i file (*)"
+        filter_str = "File di Backup (*.dump *.backup *.sql *.enc);;Backup cifrati Foliarium (*.enc);;File Custom (*.dump *.backup);;File SQL (*.sql);;Tutti i file (*)"
         filePath, _ = QFileDialog.getOpenFileName(
             self, "Seleziona File di Backup per Ripristino", "", filter_str)
         if filePath:
             self.restore_file_path_edit.setText(filePath)
+
+    def _cleanup_restore_temp(self):
+        """Rimuove in sicurezza il file temporaneo decifrato per il ripristino."""
+        tmp = self._restore_temp_path
+        self._restore_temp_path = None
+        if tmp:
+            try:
+                backup_crypto.secure_delete(tmp)
+                self._log_to_output_box("File temporaneo di ripristino rimosso.", "DEBUG")
+            except Exception as e:
+                self._log_to_output_box(f"Avviso: impossibile rimuovere il file temporaneo: {e}", "WARNING")
 
     def _update_ui_for_process(self, is_running: bool):
         self.backup_button.setEnabled(not is_running)
@@ -253,7 +282,38 @@ class BackupWidget(QWidget):
             message_box_type = QMessageBox.Icon.Information
             self._log_to_output_box(
                 f"Comando di {operation_name_display.lower()} terminato (exit code 0).", "SUCCESS")
+
+            # Cifratura del file di backup appena prodotto.
+            if not is_restore and self._pending_encrypt and self._pending_backup_path:
+                try:
+                    self._log_to_output_box("Cifratura del file di backup in corso...", "INFO")
+                    QApplication.processEvents()
+                    enc_path = backup_crypto.encrypt_backup(self._pending_backup_path)
+                    import os as _os
+                    self._log_to_output_box(
+                        f"Backup cifrato: {_os.path.basename(enc_path)} "
+                        "(file in chiaro rimosso).", "SUCCESS")
+                    user_message_text += (
+                        f"\n\nIl backup è stato cifrato (AES-256) in "
+                        f"'{_os.path.basename(enc_path)}'. La chiave è custodita nel "
+                        "keyring di questa macchina: conservala/esportala in modo sicuro, "
+                        "senza di essa il backup non è ripristinabile.")
+                except Exception as e:
+                    self._log_to_output_box(
+                        f"ATTENZIONE: cifratura del backup fallita: {e}. "
+                        "Il file di backup è rimasto IN CHIARO.", "ERROR")
+                    message_box_type = QMessageBox.Icon.Warning
+                    user_message_text += (
+                        "\n\nATTENZIONE: la cifratura del backup è fallita e il file è "
+                        f"rimasto in chiaro su disco. Dettaglio: {e}")
             
+        # Reset stato cifratura backup e pulizia dell'eventuale file temporaneo
+        # decifrato per il ripristino.
+        self._pending_encrypt = False
+        self._pending_backup_path = None
+        if is_restore:
+            self._cleanup_restore_temp()
+
         # --- Gestione Riconnessione Pool e Messaggio Finale per l'Utente ---
         if is_restore:
             self._log_to_output_box("Tentativo di ripristinare le connessioni dell'applicazione al database...", "INFO")
@@ -353,6 +413,13 @@ class BackupWidget(QWidget):
             self._log_to_output_box(
                 "Il backup potrebbe fallire o rimanere bloccato.", "WARNING")
 
+        # Memorizza l'intento di cifratura: il file viene cifrato a backup
+        # completato con successo (in _handle_process_finished).
+        self._pending_backup_path = backup_file
+        self._pending_encrypt = (
+            self.encrypt_checkbox.isChecked() and backup_crypto.is_available()
+        )
+
         self.process.setProperty("is_restore_operation", False)
         self.process.start(executable, args)
 
@@ -439,12 +506,36 @@ class BackupWidget(QWidget):
         self._log_to_output_box("Connessioni dell'applicazione al database chiuse temporaneamente.", "INFO")
         QApplication.processEvents()
 
+        # Se il backup è cifrato, decifralo in un file temporaneo prima del restore.
+        self._restore_temp_path = None
+        restore_path_effective = restore_file
+        if backup_crypto.is_encrypted_file(restore_file):
+            self._log_to_output_box("File di backup cifrato: decifratura in corso...", "INFO")
+            QApplication.processEvents()
+            try:
+                self._restore_temp_path = backup_crypto.decrypt_backup_to_temp(restore_file)
+                restore_path_effective = self._restore_temp_path
+                self._log_to_output_box("Decifratura completata.", "SUCCESS")
+            except Exception as e:
+                self._log_to_output_box(f"FALLITO: decifratura del backup non riuscita: {e}", "ERROR")
+                self.db_manager.reconnect_pool_if_needed()
+                self._update_ui_for_process(False)
+                QMessageBox.critical(
+                    self, "Errore Decifratura",
+                    "Impossibile decifrare il file di backup.\n\n"
+                    "La chiave di backup nel keyring di questa macchina è assente o "
+                    "il file è stato manomesso. Il ripristino è stato annullato e le "
+                    "connessioni sono state ripristinate.\n\n"
+                    f"Dettaglio: {e}")
+                return
+
         command_parts = self.db_manager.get_restore_command_parts(
-            backup_file_path=restore_file,
+            backup_file_path=restore_path_effective,
             pg_tool_executable_path_ui=self.pg_restore_path_edit.text().strip()
         )
 
         if not command_parts:
+            self._cleanup_restore_temp()
             self._log_to_output_box(
                 "ERRORE: Impossibile costruire il comando di ripristino. Controllare il percorso dell'eseguibile e i log.", "ERROR")
             self._update_ui_for_process(False)

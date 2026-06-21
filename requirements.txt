@@ -1,5 +1,6 @@
 backports.tarfile==1.2.0
 bcrypt==4.3.0
+cryptography>=41.0
 defusedxml==0.7.1
 et_xmlfile==2.0.0
 fonttools==4.58.1
