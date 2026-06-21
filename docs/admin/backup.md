@@ -26,6 +26,37 @@ foliarium_backup_2026-03-02_14-30-00.backup
 
 ---
 
+## Cifratura del backup (consigliata)
+
+Nella sezione Backup è disponibile l'opzione **"Cifra il file di backup"** (attiva
+per impostazione predefinita). Quando attiva, al termine del `pg_dump` Foliarium
+cifra il file con **AES-256-GCM** e rimuove la copia in chiaro, producendo un file
+con estensione `.enc` (es. `..._backup.dump.enc`).
+
+La **chiave di cifratura** (256 bit) viene generata automaticamente alla prima
+cifratura e custodita nel **keyring di sistema** della macchina (Gestione
+credenziali di Windows), sotto il servizio `Foliarium_BackupKey`. Il file `.enc`
+è quindi inutilizzabile se sottratto (USB, disco, copia di rete) senza accesso al
+keyring di quella macchina.
+
+Il **ripristino** di un file `.enc` è trasparente: Foliarium rileva la cifratura,
+decifra il backup in un file temporaneo, esegue il ripristino e poi rimuove il
+temporaneo.
+
+!!! danger "Conserva la chiave di backup"
+    Se il keyring della macchina viene perso (reinstallazione del sistema, cambio
+    PC, profilo utente eliminato) **i backup cifrati non sono più ripristinabili**.
+    Per il disaster recovery, conserva una copia sicura della chiave del servizio
+    `Foliarium_BackupKey` (es. esportandola dalla Gestione credenziali) in un luogo
+    protetto e separato dai backup.
+
+!!! note "Cancellazione sicura"
+    La rimozione del file in chiaro dopo la cifratura è *best-effort*: su unità
+    SSD/flash la sovrascrittura non è garantita. Per una protezione completa si
+    raccomanda comunque la cifratura dell'intero disco (BitLocker).
+
+---
+
 ## Cartella backup predefinita
 
 Il backup viene salvato nella cartella configurata nelle impostazioni. Il percorso predefinito è:

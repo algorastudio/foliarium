@@ -45,7 +45,7 @@ foliarium/
 ├── validators.py                 # Validatori campi form
 │
 ├── foliarium/                    # Package principale (servizi + UI estratti)
-│   ├── core/services/            # email.py, license.py, update_checker.py, demo_launcher.py
+│   ├── core/services/            # email.py, license.py, update_checker.py, demo_launcher.py, backup_crypto.py
 │   ├── reporting/                # PDF reports (post-refactor Sprint 3.1)
 │   │   └── pdf.py                # ModernCatastoPDF + PDFPartita/Possessore/Generic/Bulk
 │   └── ui/
