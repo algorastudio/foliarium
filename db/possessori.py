@@ -20,6 +20,10 @@ from catasto_exceptions import (
 from db.base import db_handle_errors
 
 
+#: Segnaposto usato per i dati personali di un possessore anonimizzato (GDPR).
+POSSESSORE_ANONYMIZED_LABEL = "[Possessore anonimizzato]"
+
+
 class DBPossessoriMixin:
     """Mixin CRUD per Possessori."""
 
@@ -424,6 +428,61 @@ class DBPossessoriMixin:
                 exc_info=True,
             )
             raise DBMError(f"Impossibile aggiornare il possessore: {e}") from e
+
+    def anonimizza_possessore(
+        self, possessore_id: int, eseguito_da: Optional[str] = None
+    ) -> bool:
+        """Anonimizza in-place i dati personali di un possessore (GDPR art. 17).
+
+        Sostituisce ``nome_completo`` / ``cognome_nome`` con un segnaposto e
+        azzera ``paternita``, **mantenendo** il record e i collegamenti con le
+        partite per preservare l'integrità storica dell'archivio. Pensata per
+        rispondere a una richiesta di cancellazione quando non sussiste una base
+        giuridica di conservazione del dato personale.
+
+        L'operazione è **irreversibile**: i dati personali originali non sono
+        recuperabili dopo l'anonimizzazione.
+
+        Args:
+            possessore_id: ID del possessore.
+            eseguito_da: username dell'operatore (solo per il log).
+
+        Returns:
+            True se un record è stato anonimizzato, False se l'ID non esiste.
+        """
+        if not isinstance(possessore_id, int) or possessore_id <= 0:
+            raise DBDataError(f"ID possessore non valido: {possessore_id}")
+
+        nome_anon = f"{POSSESSORE_ANONYMIZED_LABEL} #{possessore_id}"
+        query = (
+            f"UPDATE {self.schema}.possessore "
+            f"SET nome_completo = %s, cognome_nome = %s, paternita = NULL, "
+            f"    data_modifica = CURRENT_TIMESTAMP "
+            f"WHERE id = %s"
+        )
+        try:
+            with self._get_connection() as conn:
+                with conn.cursor() as cur:
+                    cur.execute(query, (nome_anon, POSSESSORE_ANONYMIZED_LABEL, possessore_id))
+                    affected = cur.rowcount
+            if affected:
+                self.logger.info(
+                    "Possessore ID %s anonimizzato (GDPR) da '%s'.",
+                    possessore_id, eseguito_da or "n/d",
+                )
+            else:
+                self.logger.warning(
+                    "anonimizza_possessore: nessun possessore con ID %s.", possessore_id
+                )
+            return affected > 0
+        except DBDataError:
+            raise
+        except Exception as e:
+            self.logger.error(
+                "Errore DB anonimizzando possessore %s: %s", possessore_id, e,
+                exc_info=True,
+            )
+            raise DBMError(f"Impossibile anonimizzare il possessore: {e}") from e
 
     def get_possessore_full_details(
         self, possessore_id: int

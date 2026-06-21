@@ -31,6 +31,7 @@ nav:
       - Panoramica: admin/index.md
       - Installazione e Configurazione: admin/installazione.md
       - Gestione Utenti: admin/gestione-utenti.md
+      - Privacy e GDPR: admin/privacy-gdpr.md
       - Backup e Ripristino: admin/backup.md
       - Import Massivo: admin/import-massivo.md
       - Migrazioni Schema: admin/migrazioni.md
