@@ -108,6 +108,23 @@ class BackupWidget(QWidget):
                 "Cifratura non disponibile: libreria 'cryptography' o 'keyring' assente.")
         backup_layout.addRow("Sicurezza:", self.encrypt_checkbox)
 
+        # Export/import della chiave di backup (disaster recovery del keyring).
+        self.export_key_button = QPushButton("Esporta chiave...")
+        self.export_key_button.setToolTip(
+            "Salva una copia della chiave di cifratura protetta da passphrase.")
+        self.export_key_button.clicked.connect(self._export_backup_key)
+        self.import_key_button = QPushButton("Importa chiave...")
+        self.import_key_button.setToolTip(
+            "Ripristina la chiave di cifratura da un file esportato (su una nuova macchina).")
+        self.import_key_button.clicked.connect(self._import_backup_key)
+        for _b in (self.export_key_button, self.import_key_button):
+            _b.setEnabled(_crypto_ok)
+        key_btn_layout = QHBoxLayout()
+        key_btn_layout.addWidget(self.export_key_button)
+        key_btn_layout.addWidget(self.import_key_button)
+        key_btn_layout.addStretch()
+        backup_layout.addRow("Chiave di cifratura:", key_btn_layout)
+
         self.pg_dump_path_edit = QLineEdit()
         self.pg_dump_path_edit.setPlaceholderText(
             "Es. C:\\Program Files\\PostgreSQL\\17\\bin\\pg_dump.exe (opzionale)")
@@ -192,6 +209,93 @@ class BackupWidget(QWidget):
             self, "Seleziona File di Backup per Ripristino", "", filter_str)
         if filePath:
             self.restore_file_path_edit.setText(filePath)
+
+    def _export_backup_key(self):
+        """Esporta la chiave di cifratura in un file protetto da passphrase."""
+        if not backup_crypto.is_available():
+            QMessageBox.warning(self, "Funzione non disponibile",
+                                "La cifratura non è disponibile su questa installazione.")
+            return
+
+        passphrase, ok = QInputDialog.getText(
+            self, "Passphrase di protezione",
+            "Imposta una passphrase per proteggere il file della chiave\n"
+            "(servirà per reimportarla):",
+            QLineEdit.EchoMode.Password)
+        if not ok:
+            return
+        if len(passphrase) < 8:
+            QMessageBox.warning(self, "Passphrase troppo corta",
+                                "La passphrase deve contenere almeno 8 caratteri.")
+            return
+        confirm, ok = QInputDialog.getText(
+            self, "Conferma Passphrase", "Reinserisci la passphrase:",
+            QLineEdit.EchoMode.Password)
+        if not ok:
+            return
+        if confirm != passphrase:
+            QMessageBox.warning(self, "Passphrase non coincidenti",
+                                "Le due passphrase non coincidono. Riprova.")
+            return
+
+        default_name = "foliarium_backup.key"
+        file_path, _ = QFileDialog.getSaveFileName(
+            self, "Esporta chiave di backup", default_name,
+            "File chiave Foliarium (*.key);;Tutti i file (*)")
+        if not file_path:
+            return
+        try:
+            backup_crypto.export_key_to_file(file_path, passphrase)
+            QMessageBox.information(
+                self, "Chiave esportata",
+                "La chiave di backup è stata esportata in modo cifrato.\n\n"
+                "Conserva questo file e la passphrase in un luogo sicuro e separato "
+                "dai backup: insieme permettono di ripristinare i backup cifrati su "
+                "un'altra macchina.")
+        except Exception as e:
+            QMessageBox.critical(self, "Errore Esportazione",
+                                 f"Impossibile esportare la chiave di backup.\n\nDettaglio: {e}")
+
+    def _import_backup_key(self):
+        """Importa la chiave di cifratura da un file esportato."""
+        if not backup_crypto.is_available():
+            QMessageBox.warning(self, "Funzione non disponibile",
+                                "La cifratura non è disponibile su questa installazione.")
+            return
+
+        file_path, _ = QFileDialog.getOpenFileName(
+            self, "Importa chiave di backup", "",
+            "File chiave Foliarium (*.key);;Tutti i file (*)")
+        if not file_path:
+            return
+        passphrase, ok = QInputDialog.getText(
+            self, "Passphrase", "Inserisci la passphrase del file chiave:",
+            QLineEdit.EchoMode.Password)
+        if not ok:
+            return
+
+        overwrite = False
+        if backup_crypto.has_backup_key():
+            reply = QMessageBox.warning(
+                self, "Chiave già presente",
+                "Su questa macchina esiste già una chiave di backup.\n\n"
+                "Sovrascriverla renderà NON ripristinabili i backup cifrati con la "
+                "chiave attuale. Procedere solo se sai cosa stai facendo.\n\n"
+                "Vuoi sovrascrivere la chiave esistente?",
+                QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.Cancel,
+                QMessageBox.StandardButton.Cancel)
+            if reply != QMessageBox.StandardButton.Yes:
+                return
+            overwrite = True
+        try:
+            backup_crypto.import_key_from_file(file_path, passphrase, overwrite=overwrite)
+            QMessageBox.information(
+                self, "Chiave importata",
+                "La chiave di backup è stata importata nel keyring di questa macchina.\n"
+                "Ora è possibile ripristinare i backup cifrati con questa chiave.")
+        except Exception as e:
+            QMessageBox.critical(self, "Errore Importazione",
+                                 f"Impossibile importare la chiave di backup.\n\nDettaglio: {e}")
 
     def _cleanup_restore_temp(self):
         """Rimuove in sicurezza il file temporaneo decifrato per il ripristino."""

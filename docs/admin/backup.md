@@ -46,9 +46,25 @@ temporaneo.
 !!! danger "Conserva la chiave di backup"
     Se il keyring della macchina viene perso (reinstallazione del sistema, cambio
     PC, profilo utente eliminato) **i backup cifrati non sono più ripristinabili**.
-    Per il disaster recovery, conserva una copia sicura della chiave del servizio
-    `Foliarium_BackupKey` (es. esportandola dalla Gestione credenziali) in un luogo
-    protetto e separato dai backup.
+    Per il disaster recovery usa **Esporta chiave...** (vedi sotto) e conserva il
+    file insieme alla passphrase in un luogo protetto e separato dai backup.
+
+### Esporta / importa la chiave di cifratura
+
+Nella sezione Backup, accanto all'opzione di cifratura, sono disponibili due pulsanti:
+
+- **Esporta chiave...** — salva una copia della chiave in un file `.key` **protetto
+  da passphrase** (la chiave non viene mai scritta in chiaro: è incapsulata con una
+  chiave derivata dalla passphrase tramite *scrypt* + AES-256-GCM). Conserva il file
+  e la passphrase in luoghi sicuri e separati dai backup.
+- **Importa chiave...** — su una nuova macchina (o dopo una reinstallazione),
+  ripristina la chiave nel keyring a partire dal file `.key` e dalla relativa
+  passphrase. Se sulla macchina esiste già una chiave, l'app chiede conferma prima
+  di sovrascriverla (operazione che renderebbe non ripristinabili i backup cifrati
+  con la chiave precedente).
+
+Procedura tipica di disaster recovery: installa Foliarium sulla nuova macchina →
+**Importa chiave...** con il file e la passphrase salvati → ripristina il backup `.enc`.
 
 !!! note "Cancellazione sicura"
     La rimozione del file in chiaro dopo la cifratura è *best-effort*: su unità

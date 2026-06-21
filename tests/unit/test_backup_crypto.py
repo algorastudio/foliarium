@@ -196,3 +196,75 @@ class TestKeyringManagement:
         fake_keyring[(bc.KEYRING_SERVICE, bc.KEYRING_USERNAME)] = "!!!not-base64!!!"
         with pytest.raises(bc.BackupCryptoError):
             bc.get_backup_key(create=True)
+
+    def test_has_backup_key(self, fake_keyring):
+        assert bc.has_backup_key() is False
+        bc.get_backup_key(create=True)
+        assert bc.has_backup_key() is True
+
+
+@requires_crypto
+class TestKeyExportImport:
+    """Export/import della chiave protetta da passphrase (disaster recovery)."""
+
+    @pytest.fixture
+    def fake_keyring(self, monkeypatch):
+        keyring = pytest.importorskip("keyring", reason="keyring non disponibile")
+        store = {}
+        monkeypatch.setattr(keyring, "get_password",
+                            lambda s, u: store.get((s, u)))
+        monkeypatch.setattr(keyring, "set_password",
+                            lambda s, u, v: store.__setitem__((s, u), v))
+        return store
+
+    def test_export_import_roundtrip(self, tmp_path, fake_keyring):
+        original = bc.get_backup_key(create=True)
+        keyfile = tmp_path / "foliarium_backup.key"
+        bc.export_key_to_file(str(keyfile), "passphrase-robusta-123")
+        # Simula una macchina nuova: keyring vuoto.
+        fake_keyring.clear()
+        assert bc.has_backup_key() is False
+        imported = bc.import_key_from_file(str(keyfile), "passphrase-robusta-123")
+        assert imported == original
+        assert bc.get_backup_key(create=False) == original
+
+    def test_keyfile_is_not_plaintext_key(self, tmp_path, fake_keyring):
+        key = bc.get_backup_key(create=True)
+        keyfile = tmp_path / "k.key"
+        bc.export_key_to_file(str(keyfile), "pw-lunga-sicura", key=key)
+        blob = keyfile.read_bytes()
+        assert key not in blob  # la chiave non compare in chiaro
+
+    def test_wrong_passphrase_fails(self, tmp_path, fake_keyring):
+        bc.get_backup_key(create=True)
+        keyfile = tmp_path / "k.key"
+        bc.export_key_to_file(str(keyfile), "passphrase-corretta")
+        fake_keyring.clear()
+        with pytest.raises(bc.BackupCryptoError):
+            bc.import_key_from_file(str(keyfile), "passphrase-SBAGLIATA")
+
+    def test_import_does_not_overwrite_without_flag(self, tmp_path, fake_keyring):
+        bc.get_backup_key(create=True)
+        keyfile = tmp_path / "k.key"
+        bc.export_key_to_file(str(keyfile), "pw")
+        # keyring ha ancora una chiave → import senza overwrite deve fallire
+        with pytest.raises(bc.BackupCryptoError):
+            bc.import_key_from_file(str(keyfile), "pw")
+
+    def test_import_overwrite_flag(self, tmp_path, fake_keyring):
+        bc.get_backup_key(create=True)
+        keyfile = tmp_path / "k.key"
+        bc.export_key_to_file(str(keyfile), "pw")
+        imported = bc.import_key_from_file(str(keyfile), "pw", overwrite=True)
+        assert len(imported) == 32
+
+    def test_empty_passphrase_rejected(self, tmp_path, fake_keyring):
+        bc.get_backup_key(create=True)
+        with pytest.raises(bc.BackupCryptoError):
+            bc.export_key_to_file(str(tmp_path / "k.key"), "")
+
+    def test_import_unrecognized_file(self, tmp_path, fake_keyring):
+        bad = tmp_path / "bad.key"
+        bad.write_bytes(b"not a foliarium key file")
+        with pytest.raises(bc.BackupCryptoError):
+            bc.import_key_from_file(str(bad), "pw")
