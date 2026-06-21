@@ -222,6 +222,116 @@ def encrypt_backup(plaintext_path: str, *, remove_plaintext: bool = True,
     return enc_path
 
 
+def has_backup_key() -> bool:
+    """True se una chiave di backup è già presente nel keyring."""
+    try:
+        import keyring
+    except Exception:
+        return False
+    try:
+        return bool(keyring.get_password(KEYRING_SERVICE, KEYRING_USERNAME))
+    except Exception:
+        return False
+
+
+# ---------------------------------------------------------------------------
+# Export / import della chiave (disaster recovery del keyring)
+# ---------------------------------------------------------------------------
+#
+# La chiave di backup viene esportata in un file **protetto da passphrase**:
+# da quest'ultima si deriva (scrypt) una key-encryption-key con cui si wrappa
+# la chiave a 256 bit (AES-256-GCM). Il file esportato non è quindi un segreto
+# in chiaro e può essere conservato come copia di sicurezza separata.
+
+_KEYFILE_MAGIC = b"FLRKEY1\n"
+_SALT_LEN = 16
+_SCRYPT_N = 2 ** 14
+_SCRYPT_R = 8
+_SCRYPT_P = 1
+
+
+def _derive_kek(passphrase: str, salt: bytes) -> bytes:
+    from cryptography.hazmat.primitives.kdf.scrypt import Scrypt
+    kdf = Scrypt(salt=salt, length=_KEY_BYTES, n=_SCRYPT_N, r=_SCRYPT_R, p=_SCRYPT_P)
+    return kdf.derive(passphrase.encode("utf-8"))
+
+
+def export_key_to_file(path: str, passphrase: str, key: Optional[bytes] = None) -> None:
+    """Esporta la chiave di backup in un file cifrato con ``passphrase``.
+
+    Se ``key`` non è fornita, usa (creandola se assente) quella del keyring.
+    """
+    if not passphrase:
+        raise BackupCryptoError("La passphrase non può essere vuota.")
+    if key is None:
+        key = get_backup_key(create=True)
+    salt = os.urandom(_SALT_LEN)
+    kek = _derive_kek(passphrase, salt)
+    nonce = os.urandom(_NONCE_LEN)
+    ct = _aesgcm(kek).encrypt(nonce, key, _KEYFILE_MAGIC)
+    try:
+        with open(path, "wb") as f:
+            f.write(_KEYFILE_MAGIC)
+            f.write(salt)
+            f.write(nonce)
+            f.write(ct)
+            f.flush()
+            os.fsync(f.fileno())
+    except OSError as e:
+        raise BackupCryptoError(f"Errore di scrittura del file chiave: {e}") from e
+
+
+def import_key_from_file(path: str, passphrase: str, overwrite: bool = False) -> bytes:
+    """Importa nel keyring una chiave di backup da un file esportato.
+
+    Args:
+        overwrite: se False (default) e una chiave è già presente nel keyring,
+            solleva ``BackupCryptoError`` per non sovrascriverla per errore.
+
+    Returns:
+        La chiave importata (32 byte).
+    """
+    from cryptography.exceptions import InvalidTag
+    if not passphrase:
+        raise BackupCryptoError("La passphrase non può essere vuota.")
+    try:
+        with open(path, "rb") as f:
+            data = f.read()
+    except OSError as e:
+        raise BackupCryptoError(f"Errore di lettura del file chiave: {e}") from e
+
+    if not data.startswith(_KEYFILE_MAGIC):
+        raise BackupCryptoError("File non riconosciuto come chiave di backup Foliarium.")
+    off = len(_KEYFILE_MAGIC)
+    salt = data[off:off + _SALT_LEN]
+    off += _SALT_LEN
+    nonce = data[off:off + _NONCE_LEN]
+    off += _NONCE_LEN
+    ct = data[off:]
+    if len(salt) != _SALT_LEN or len(nonce) != _NONCE_LEN or not ct:
+        raise BackupCryptoError("File chiave troncato o corrotto.")
+
+    kek = _derive_kek(passphrase, salt)
+    try:
+        key = _aesgcm(kek).decrypt(nonce, ct, _KEYFILE_MAGIC)
+    except InvalidTag as e:
+        raise BackupCryptoError("Passphrase errata o file chiave manomesso.") from e
+    if len(key) != _KEY_BYTES:
+        raise BackupCryptoError("Chiave importata di lunghezza non valida.")
+
+    import keyring
+    existing = keyring.get_password(KEYRING_SERVICE, KEYRING_USERNAME)
+    if existing and not overwrite:
+        raise BackupCryptoError(
+            "Una chiave di backup è già presente nel keyring. "
+            "Confermare la sovrascrittura per procedere."
+        )
+    keyring.set_password(
+        KEYRING_SERVICE, KEYRING_USERNAME, base64.b64encode(key).decode("ascii")
+    )
+    return key
+
+
 def decrypt_backup_to_temp(enc_path: str, *, key: Optional[bytes] = None) -> str:
     """Decifra un backup cifrato in un file temporaneo per il ripristino.
 
@@ -244,7 +354,8 @@ def decrypt_backup_to_temp(enc_path: str, *, key: Optional[bytes] = None) -> str
 
 __all__ = [
     "BackupCryptoError", "ENC_SUFFIX", "KEYRING_SERVICE", "KEYRING_USERNAME",
-    "is_available", "generate_key", "get_backup_key",
+    "is_available", "generate_key", "get_backup_key", "has_backup_key",
     "is_encrypted_file", "encrypt_file", "decrypt_file",
     "secure_delete", "encrypt_backup", "decrypt_backup_to_temp",
+    "export_key_to_file", "import_key_from_file",
 ]

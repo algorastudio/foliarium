@@ -6,7 +6,7 @@ from typing import Optional, Dict, Any
 
 from PyQt6.QtWidgets import (QApplication,
                              QCheckBox, QComboBox, QDialog, QFormLayout,
-                             QHBoxLayout, QLabel, QLineEdit, QMessageBox, QPushButton, QStyle,
+                             QHBoxLayout, QInputDialog, QLabel, QLineEdit, QMessageBox, QPushButton, QStyle,
                              QVBoxLayout, QDialogButtonBox)
 
 from catasto_db_manager import CatastoDBManager
@@ -208,6 +208,13 @@ class ModificaPossessoreDialog(QDialog):
         self.btn_archivia.setObjectName("dangerButton")
         self.btn_archivia.setToolTip("Archivia questo possessore (non viene eliminato, solo nascosto)")
         self.btn_archivia.clicked.connect(self._archivia_possessore)
+        self.btn_anonimizza = QPushButton("Anonimizza (GDPR)")
+        self.btn_anonimizza.setObjectName("dangerButton")
+        self.btn_anonimizza.setToolTip(
+            "Rimuove in modo irreversibile i dati personali (nome, cognome, paternità) "
+            "mantenendo i collegamenti storici con le partite. Per richieste di "
+            "cancellazione ai sensi del GDPR.")
+        self.btn_anonimizza.clicked.connect(self._anonimizza_possessore_gdpr)
         self.save_button = QPushButton(QApplication.style().standardIcon(
             QStyle.StandardPixmap.SP_DialogSaveButton), "Salva Modifiche")
         self.save_button.clicked.connect(self._save_changes)
@@ -216,6 +223,7 @@ class ModificaPossessoreDialog(QDialog):
         self.cancel_button.clicked.connect(self.reject)
 
         buttons_layout.addWidget(self.btn_archivia)
+        buttons_layout.addWidget(self.btn_anonimizza)
         buttons_layout.addStretch()
         buttons_layout.addWidget(self.save_button)
         buttons_layout.addWidget(self.cancel_button)
@@ -239,6 +247,61 @@ class ModificaPossessoreDialog(QDialog):
 
         self.nome_completo_edit.setText(full_name)
         self.logger.debug(f"Nome completo generato: '{full_name}'")
+
+    def _current_username(self) -> Optional[str]:
+        """Best-effort: recupera lo username dell'operatore per il log GDPR."""
+        try:
+            mw = getattr(QApplication.instance(), "main_window", None)
+            info = getattr(mw, "logged_in_user_info", None)
+            if isinstance(info, dict):
+                return info.get("username")
+        except Exception:
+            pass
+        return None
+
+    def _anonimizza_possessore_gdpr(self):
+        """Anonimizza in modo irreversibile i dati personali del possessore (GDPR)."""
+        nome = self.nome_completo_edit.text().strip() or f"ID {self.possessore_id}"
+        reply = QMessageBox.warning(
+            self, "Anonimizzazione GDPR",
+            f"<b>ATTENZIONE: operazione irreversibile.</b><br><br>"
+            f"Stai per rimuovere definitivamente i dati personali del possessore "
+            f"<b>{nome}</b> (nome, cognome, paternità). Il record e i suoi "
+            f"collegamenti con le partite restano per l'integrità storica "
+            f"dell'archivio, ma i dati anagrafici <b>non saranno più recuperabili</b>.<br><br>"
+            f"Procedi solo se non sussiste una base giuridica per la conservazione "
+            f"del dato (es. obbligo di legge o interesse pubblico dell'archivio).<br><br>"
+            f"Vuoi continuare?",
+            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.Cancel,
+            QMessageBox.StandardButton.Cancel)
+        if reply != QMessageBox.StandardButton.Yes:
+            return
+
+        conferma, ok = QInputDialog.getText(
+            self, "Conferma Anonimizzazione",
+            "Per confermare digita ANONIMIZZA (in maiuscolo):")
+        if not ok or conferma.strip() != "ANONIMIZZA":
+            self.logger.info("Anonimizzazione GDPR annullata (conferma non superata).")
+            return
+
+        try:
+            ok = self.db_manager.anonimizza_possessore(
+                self.possessore_id, eseguito_da=self._current_username())
+        except Exception as e:
+            self.logger.error("Errore anonimizzazione possessore %s: %s",
+                              self.possessore_id, e, exc_info=True)
+            QMessageBox.critical(self, "Errore Anonimizzazione",
+                                 f"Impossibile anonimizzare il possessore.\n\nDettaglio: {e}")
+            return
+
+        if ok:
+            QMessageBox.information(
+                self, "Anonimizzazione completata",
+                "I dati personali del possessore sono stati anonimizzati.")
+            self.accept()
+        else:
+            QMessageBox.warning(self, "Possessore non trovato",
+                                "Nessun possessore corrispondente da anonimizzare.")
 
     def _load_possessore_data(self):
         # Metodo da creare in CatastoDBManager: get_possessore_details(possessore_id)
