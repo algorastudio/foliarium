@@ -13,12 +13,14 @@ from PyQt6.QtCore import (
 from PyQt6.QtGui import QFont
 from PyQt6.QtWidgets import (
     QAbstractItemView, QApplication,
-    QComboBox, QDateTimeEdit, QFileDialog, QFrame, QGroupBox, QHBoxLayout, QHeaderView,
+    QCheckBox, QComboBox, QDateTimeEdit, QFileDialog, QFrame, QGroupBox, QHBoxLayout, QHeaderView,
     QLabel, QLineEdit, QMenu,
     QMessageBox, QPushButton, QSpinBox, QStyle,
     QTableView, QTextEdit, QVBoxLayout, QWidget,
     QSplitter,
 )
+
+from foliarium.core.services import audit_retention
 
 from catasto_exceptions import (
     DBMError,
@@ -236,7 +238,16 @@ class AuditLogViewerWidget(LazyLoadedWidget):
         self.btn_cleanup_logs.setIcon(self.style().standardIcon(QStyle.StandardPixmap.SP_TrashIcon))
         self.btn_cleanup_logs.clicked.connect(self._confirm_and_cleanup_logs)
         cleanup_layout.addWidget(self.btn_cleanup_logs)
-        
+
+        # Retention automatica all'avvio: persiste la policy (giorni) in QSettings.
+        self.auto_retention_checkbox = QCheckBox("Applica all'avvio")
+        self.auto_retention_checkbox.setToolTip(
+            "Se attiva, all'avvio l'app elimina automaticamente i log più vecchi "
+            "del periodo impostato qui sopra.")
+        self.auto_retention_checkbox.toggled.connect(self._persist_auto_retention)
+        cleanup_layout.addWidget(self.auto_retention_checkbox)
+        self._load_auto_retention_state()
+
         actions_toolbar.addWidget(cleanup_frame)
         actions_toolbar.addStretch()
         
@@ -402,6 +413,27 @@ class AuditLogViewerWidget(LazyLoadedWidget):
         elif unit_index == 2: # Anni
             return value * 365
         return value # Giorni
+
+    def _load_auto_retention_state(self):
+        """Inizializza la checkbox dalla policy salvata in QSettings."""
+        try:
+            days = audit_retention.get_retention_days()
+        except Exception:
+            days = 0
+        if days > 0:
+            self.days_to_keep_spinbox.setValue(min(max(days, 1), 3650))
+            self.days_unit_combo.setCurrentIndex(0)  # Giorni
+            self.auto_retention_checkbox.setChecked(True)
+
+    def _persist_auto_retention(self, checked: bool):
+        """Salva (o azzera) la policy di retention automatica."""
+        try:
+            days = self._get_days_from_ui_input() if checked else 0
+            audit_retention.set_retention_days(days)
+            self.logger.info("Retention automatica audit %s (giorni=%s).",
+                             "attivata" if checked else "disattivata", days)
+        except Exception as e:
+            self.logger.warning("Impossibile salvare la policy di retention: %s", e)
 
     def _confirm_and_cleanup_logs(self):
         """Chiede conferma all'utente e poi avvia la pulizia dei log."""

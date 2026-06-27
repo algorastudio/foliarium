@@ -298,6 +298,16 @@ class CatastoMainWindow(QMainWindow):
             # ha completato il login: senza login l'API non avrebbe il pool DB.
             self._start_api_server_if_needed()
 
+            # --- Retention dei log di audit (best-effort, all'avvio) ---
+            if db_connected and self.db_manager:
+                try:
+                    from foliarium.core.services import audit_retention
+                    n = audit_retention.run_startup_retention(self.db_manager)
+                    if n:
+                        self.logger.info("Retention audit: eliminati %s record all'avvio.", n)
+                except Exception as _e:
+                    self.logger.warning(f"Retention audit non applicata all'avvio: {_e}")
+
             # --- Notifica email login ---
             try:
                 from foliarium.core.services.email import EmailService, EmailWorker

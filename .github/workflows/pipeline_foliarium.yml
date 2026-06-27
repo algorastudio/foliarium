@@ -170,6 +170,9 @@ jobs:
       run: pyinstaller foliarium.spec
 
     - name: Compilazione Installer con Inno Setup
+      # Build non firmata (la firma Authenticode è locale al rilascio: vedi
+      # signing/README.md — Certum SimplySign cloud + OTP, non automatizzabile
+      # sui runner GitHub-hosted).
       run: iscc Foliarium_Installer.iss
 
     - name: Caricamento Installer Finito

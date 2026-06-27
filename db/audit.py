@@ -371,12 +371,12 @@ class DBAuditMixin:
 
         query = f"""
             DELETE FROM {self.schema}.audit_log
-            WHERE timestamp < NOW() - INTERVAL '{days_to_keep} days';
+            WHERE timestamp < NOW() - make_interval(days => %s);
         """
         try:
             with self._get_connection() as conn:
                 with conn.cursor() as cur:
-                    cur.execute(query)
+                    cur.execute(query, (days_to_keep,))
                     deleted_rows = cur.rowcount
             self.logger.info(
                 f"Eliminati {deleted_rows} record di audit log più vecchi di {days_to_keep} giorni."
