@@ -32,6 +32,12 @@ nav:
       - Installazione e Configurazione: admin/installazione.md
       - Gestione Utenti: admin/gestione-utenti.md
       - Privacy e GDPR: admin/privacy-gdpr.md
+      - "Modelli GDPR (bozze)":
+          - Indice: compliance/README.md
+          - Informativa privacy: compliance/informativa-privacy.md
+          - Registro dei trattamenti: compliance/registro-trattamenti.md
+          - Valutazione d'impatto (DPIA): compliance/dpia.md
+          - Misure di sicurezza: compliance/misure-sicurezza.md
       - Backup e Ripristino: admin/backup.md
       - Import Massivo: admin/import-massivo.md
       - Migrazioni Schema: admin/migrazioni.md

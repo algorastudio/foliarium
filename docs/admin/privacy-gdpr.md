@@ -61,3 +61,17 @@ Nella schermata **Audit Log** (Amministrazione) è possibile:
     La retention automatica è disattivata per impostazione predefinita: nessun
     log viene eliminato finché un amministratore non imposta esplicitamente una
     policy.
+
+## Modelli documentali (compliance)
+
+A supporto degli adempimenti del Titolare sono disponibili modelli (bozze) di
+documenti privacy nella cartella `docs/compliance/` del repository:
+
+- Informativa privacy (artt. 13-14)
+- Registro dei trattamenti / RoPA (art. 30)
+- Valutazione d'impatto / DPIA (art. 35)
+- Misure tecniche e organizzative (art. 32)
+
+!!! warning
+    Sono **bozze** con segnaposto da completare: non costituiscono consulenza
+    legale e vanno validate da un consulente/DPO prima dell'adozione.
