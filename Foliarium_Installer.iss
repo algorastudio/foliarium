@@ -39,6 +39,15 @@ WizardStyle=modern
 PrivilegesRequired=admin
 ArchitecturesInstallIn64BitMode=x64compatible
 
+; --- Firma del codice (opt-in) ---
+; Attiva solo se si compila con  /DSIGN  e si definisce il SignTool 'certum'
+; via  /Scertum="..."  (vedi signing/build-signed-installer.ps1).
+; Senza /DSIGN l'installer si compila normalmente, non firmato.
+#ifdef SIGN
+SignTool=certum
+SignedUninstaller=yes
+#endif
+
 VersionInfoVersion={#MyAppVersion}
 VersionInfoCompany={#MyAppPublisher}
 VersionInfoDescription=Installazione di {#MyAppName}
