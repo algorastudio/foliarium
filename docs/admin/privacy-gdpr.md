@@ -44,5 +44,20 @@ e viene registrata nel log applicativo con l'operatore che l'ha eseguita.
 ## Retention dei log di audit
 
 I log di audit registrano gli accessi e le modifiche ai dati. La loro
-conservazione va limitata al tempo necessario: vedere la procedura di pulizia
-periodica dei log nella sezione amministrativa.
+conservazione va limitata al tempo necessario alle finalità (principio di
+minimizzazione).
+
+Nella schermata **Audit Log** (Amministrazione) è possibile:
+
+- **Pulizia manuale** — impostare un periodo (giorni/mesi/anni) e premere
+  **Pulisci** per eliminare subito i log più vecchi.
+- **Pulizia automatica all'avvio** — attivare la casella **Applica all'avvio**:
+  la policy (numero di giorni) viene memorizzata e, a ogni avvio
+  dell'applicazione, i log più vecchi del periodo impostato vengono eliminati
+  automaticamente. Deselezionando la casella la retention automatica è
+  disattivata.
+
+!!! note
+    La retention automatica è disattivata per impostazione predefinita: nessun
+    log viene eliminato finché un amministratore non imposta esplicitamente una
+    policy.

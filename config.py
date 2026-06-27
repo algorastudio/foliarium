@@ -115,6 +115,12 @@ SETTINGS_UI_CURRENT_STYLE = "UI/CurrentStyle"
 SETTINGS_UI_AUTO_THEME = "UI/AutoTheme"
 SETTINGS_UI_WIN11_STYLE = "UI/Win11NativeStyle"
 
+# --- Retention dei log di audit ---
+# Giorni di conservazione dei log di audit. 0 = retention disattivata
+# (nessuna eliminazione automatica). Se > 0, all'avvio l'app elimina i log
+# più vecchi di N giorni.
+SETTINGS_AUDIT_RETENTION_DAYS = "Audit/RetentionDays"
+
 # --- Notifiche email (SMTP) ---
 SETTINGS_SMTP_ENABLED   = "Email/Enabled"
 SETTINGS_SMTP_HOST      = "Email/Host"
