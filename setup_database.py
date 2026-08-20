@@ -60,7 +60,7 @@ from pathlib import Path
 # ============================================================================
 # Costanti
 # ============================================================================
-DB_NAME = "catasto_storico"
+DB_NAME = "foliarium"
 DB_USER = "foliarium"
 SERVICE_NAME = "FoliariumDB"
 DEFAULT_PORT = 5432
