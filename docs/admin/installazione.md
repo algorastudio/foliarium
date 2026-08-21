@@ -13,7 +13,8 @@ menu Start. **Non è più necessario installare PostgreSQL separatamente.**
 2. Eseguire come **amministratore** (richiesto per registrare il servizio Windows)
 3. Seguire la procedura guidata (Next → Install)
 4. Attendere la fase "Configurazione database in corso…" (30–60 s)
-5. Al termine viene mostrata la password admin temporanea (`admin / admin123`)
+5. Al termine viene mostrata la password temporanea dell'utente `admin`,
+   generata casualmente dall'installer: **annotarla subito**
 
 Durante l'installazione vengono eseguite automaticamente tutte le fasi:
 
@@ -23,11 +24,11 @@ Durante l'installazione vengono eseguite automaticamente tutte le fasi:
 4. Configurazione `pg_hba.conf` con `scram-sha-256`
 5. Registrazione del servizio Windows `FoliariumDB` (avvio automatico)
 6. Esecuzione degli script SQL di schema, procedure, user management
-7. Creazione utente admin applicativo (`admin / admin123`)
+7. Creazione utente admin applicativo (`admin` + password generata)
 8. Scrittura di `config.ini` accanto a `Foliarium.exe`
 
 !!! warning "Cambia la password admin al primo accesso"
-    La password di default `admin123` è generata per comodità dell'installazione.
+    La password temporanea è generata dall'installer e mostrata una sola volta.
     **Deve essere cambiata immediatamente** al primo accesso tramite
     *Impostazioni → Cambia Password*.
 
