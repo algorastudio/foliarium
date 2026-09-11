@@ -46,6 +46,8 @@ from dialogs import (
     PossessoriComuneDialog,
 )
 from foliarium.ui.widgets.custom import LazyLoadedWidget, show_status_message as _show_status_message
+from foliarium.ui.errors import show_user_error
+from foliarium.ui.undo import registra_azione_annullabile
 
 if TYPE_CHECKING:
     from catasto_db_manager import CatastoDBManager  # noqa: F401
@@ -379,8 +381,16 @@ class ElencoComuniWidget(LazyLoadedWidget):
             self.db_manager.archivia_comune(comune_id)
             self.load_data()
             _show_status_message(f"Comune '{nome}' archiviato con successo.", 4000)
+            # L'inverso esiste gia' nel layer DB ed e' guardato sullo stato:
+            # se un altro utente ripristina nel frattempo, l'annullamento
+            # fallisce con un errore esplicito invece di sovrascriverlo.
+            registra_azione_annullabile(
+                f"Comune «{nome}» archiviato",
+                lambda: self.db_manager.ripristina_comune(comune_id),
+                al_termine=self.load_data,
+            )
         except Exception as e:
-            QMessageBox.critical(self, "Errore", f"Impossibile archiviare il comune:\n{e}")
+            show_user_error(self, "Archiviazione comune", e, logger=getattr(self, "logger", None))
 
     def _slot_vedi_partite_comune(self, comune_id: int, nome_comune: str):
         self.logger.info(f"Azione: Visualizza partite per comune ID {comune_id} ('{nome_comune}')")

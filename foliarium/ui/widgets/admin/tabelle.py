@@ -31,6 +31,7 @@ logger = logging.getLogger("CatastoGUI.admin_widgets")
 
 
 from foliarium.ui.widgets.custom import show_status_message as _show_status_message
+from foliarium.ui.errors import show_user_error
 
 
 class GestioneTipiLocalitaWidget(LazyLoadedWidget):
@@ -93,7 +94,7 @@ class GestioneTipiLocalitaWidget(LazyLoadedWidget):
                 self.table.setItem(row, 2, QTableWidgetItem(tipo.get('descrizione', '')))
             self.table.resizeColumnToContents(0) # Adatta solo la colonna ID
         except DBMError as e:
-            QMessageBox.critical(self, "Errore Caricamento", str(e))
+            show_user_error(self, "Caricamento tipologie di località", e, logger=getattr(self, "logger", None))
 
     def _load_data_on_first_show(self):
         """
@@ -123,7 +124,7 @@ class GestioneTipiLocalitaWidget(LazyLoadedWidget):
                     self.db_manager.gestisci_tipo_localita(tipo_id, nome, desc)
                     self.load_data()
                 except (DBMError, DBDataError, DBUniqueConstraintError) as e:
-                    QMessageBox.critical(self, "Errore", str(e))
+                    show_user_error(self, "Salvataggio tipologia di località", e, logger=getattr(self, "logger", None))
 
     def _delete_item(self):
         selected_items = self.table.selectedItems()
@@ -141,7 +142,7 @@ class GestioneTipiLocalitaWidget(LazyLoadedWidget):
                 self.db_manager.elimina_tipo_localita(tipo_id)
                 self.load_data()
             except DBMError as e:
-                QMessageBox.critical(self, "Errore Eliminazione", str(e))
+                show_user_error(self, "Eliminazione tipologia di località", e, logger=getattr(self, "logger", None))
 
 
 class GestionePeriodiStoriciWidget(LazyLoadedWidget):
@@ -211,7 +212,7 @@ class GestionePeriodiStoriciWidget(LazyLoadedWidget):
                 self.table.setItem(row, 3, QTableWidgetItem(periodo.get('descrizione', '')))
             self.table.resizeColumnsToContents()
         except DBMError as e:
-            QMessageBox.critical(self, "Errore di Caricamento", str(e))
+            show_user_error(self, "Caricamento periodi storici", e, logger=getattr(self, "logger", None))
         finally:
             self.table.setSortingEnabled(True)
 
@@ -245,7 +246,7 @@ class GestionePeriodiStoriciWidget(LazyLoadedWidget):
                 self.db_manager.elimina_periodo_storico(periodo_id)
                 self.load_data()
             except DBMError as e:
-                QMessageBox.critical(self, "Errore Eliminazione", str(e))
+                show_user_error(self, "Eliminazione periodo storico", e, logger=getattr(self, "logger", None))
 
 
 
@@ -319,7 +320,7 @@ class TipiPossessoWidget(LazyLoadedWidget):
                 self.table.setItem(i, 2, QTableWidgetItem(tipo.get('descrizione') or ''))
         except Exception as e:
             self.logger.error(f"Errore caricamento tipi possesso: {e}")
-            QMessageBox.critical(self, "Errore", f"Impossibile caricare i tipi di possesso:\n{e}")
+            show_user_error(self, "Caricamento tipi di possesso", e, logger=getattr(self, "logger", None))
 
     def _on_selection_changed(self):
         """Abilita/disabilita i bottoni modifica/elimina."""
@@ -358,7 +359,7 @@ class TipiPossessoWidget(LazyLoadedWidget):
                 self.load_data()
                 _show_status_message(f"Tipo '{nome}' aggiunto.", 4000)
             except Exception as e:
-                QMessageBox.critical(self, "Errore", f"Impossibile aggiungere il tipo:\n{e}")
+                show_user_error(self, "Creazione tipo di possesso", e, logger=getattr(self, "logger", None))
 
     def _modifica_tipo(self):
         """Modifica il tipo selezionato."""
@@ -401,7 +402,7 @@ class TipiPossessoWidget(LazyLoadedWidget):
                 self.load_data()
                 _show_status_message(f"Tipo '{nome}' aggiornato.", 4000)
             except Exception as e:
-                QMessageBox.critical(self, "Errore", f"Impossibile aggiornare il tipo:\n{e}")
+                show_user_error(self, "Aggiornamento tipo di possesso", e, logger=getattr(self, "logger", None))
 
     def _elimina_tipo(self):
         """Elimina il tipo selezionato."""
@@ -428,7 +429,7 @@ class TipiPossessoWidget(LazyLoadedWidget):
             self.load_data()
             _show_status_message(f"Tipo '{nome}' eliminato.", 4000)
         except Exception as e:
-            QMessageBox.critical(self, "Errore", f"Impossibile eliminare il tipo:\n{e}")
+            show_user_error(self, "Eliminazione tipo di possesso", e, logger=getattr(self, "logger", None))
 
 
 class TabelleDiSistemaWidget(QWidget):

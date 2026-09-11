@@ -87,7 +87,8 @@ QPlainTextEdit[readOnly="true"] {
     border-color: #D5D9EA;
 }
 QLineEdit[error="true"], QTextEdit[error="true"], QPlainTextEdit[error="true"],
-QComboBox[error="true"], QDateEdit[error="true"] {
+QComboBox[error="true"], QDateEdit[error="true"],
+QPushButton[error="true"] {
     border: 1.5px solid #C62828;
     background-color: #FFF5F5;
 }
@@ -878,6 +879,18 @@ QLabel#resultCountLabel {
 }
 #staleDataBar QLabel {
     color: #664D03;
+    font-weight: 600;
+    background: transparent;
+}
+
+/* Barra di annullamento: informativa, non un avviso — colore distinto
+   dall'ambra di staleDataBar, che segnala invece un problema. */
+#undoBar {
+    background: #E8F0FE;
+    border-bottom: 1px solid #AECBFA;
+}
+#undoBar QLabel {
+    color: #1A3C6E;
     font-weight: 600;
     background: transparent;
 }

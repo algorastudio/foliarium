@@ -16,6 +16,34 @@ from app_paths import get_icon_path
 class SidebarWidget(QWidget):
     page_requested = pyqtSignal(str)
 
+    #: Descrizione mostrata al passaggio del mouse su ogni voce di menu.
+    #: Serve soprattutto alle voci il cui nome non basta a spiegarne lo scopo
+    #: (es. "Operazioni", "Reg. Proprietà").
+    _TOOLTIPS: dict[str, str] = {
+        "home":            "Riepilogo dell'archivio, ricerca rapida e ultime attività",
+        "comuni":          "Elenco dei comuni presenti in archivio, con partite e possessori collegati",
+        "partite":         "Cerca le partite catastali per comune, numero, possessore o immobile",
+        "immobili":        "Cerca gli immobili per natura, classificazione, consistenza e località",
+        "documenti":       "Cerca i documenti allegati alle partite (atti, mappe, scansioni)",
+        "fuzzy":           "Ricerca unica su comuni, possessori, partite e immobili, tollerante agli errori di battitura",
+        "archivio":        "Elementi archiviati: consultali, ripristinali o eliminali definitivamente",
+        "ins_wizard":      "Creazione guidata di una partita in 4 passi, con salvataggio in bozza",
+        "ins_comune":      "Registra un nuovo comune nell'archivio catastale",
+        "ins_possessore":  "Registra l'anagrafica di un nuovo possessore",
+        "ins_partita":     "Registra una nuova partita catastale compilando un singolo modulo",
+        "ins_localita":    "Registra una nuova località o via di un comune",
+        "reg_proprieta":   "Registra una proprietà completa: partita, possessori e immobili in un'unica operazione",
+        "reg_consult":     "Annota la consultazione dell'archivio da parte di un utente esterno",
+        "esportazioni":    "Esporta partite, possessori e immobili in CSV, Excel, JSON o PDF",
+        "report":          "Genera report predefiniti in PDF (per comune, possessore, periodo)",
+        "statistiche":     "Indicatori e grafici di sintesi sul contenuto dell'archivio",
+        "operazioni":      "Operazioni sulle partite esistenti: passaggi di proprietà, frazionamenti, chiusure",
+        "utenti":          "Crea, modifica, disattiva ed elimina gli utenti dell'applicazione",
+        "backup":          "Esegui il backup del database e ripristina una copia salvata",
+        "audit":           "Registro delle operazioni eseguite dagli utenti sull'archivio",
+        "tabelle_sistema": "Valori di riferimento: tipi di località, periodi storici, tipi di possesso",
+    }
+
     def __init__(self, parent=None):
         super().__init__(parent)
         self.setObjectName("sidebar")
@@ -56,7 +84,8 @@ class SidebarWidget(QWidget):
         layout = self._nav_layout
 
         def insert(lbl, page, icon=""):
-            self._add_nav_button(layout, lbl, page, icon)
+            self._add_nav_button(layout, lbl, page, icon,
+                                 self._TOOLTIPS.get(page, ""))
 
         # Home
         insert("Home", "home", "home")
@@ -108,9 +137,12 @@ class SidebarWidget(QWidget):
         layout.addWidget(lbl)
 
     def _add_nav_button(self, layout: QVBoxLayout, label: str, page_name: str,
-                        icon_name: str = ""):
+                        icon_name: str = "", tooltip: str = ""):
         btn = QPushButton(label)
         btn.setObjectName("navButton")
+        if tooltip:
+            btn.setToolTip(tooltip)
+            btn.setStatusTip(tooltip)
         btn.setFlat(True)
         btn.setCheckable(False)
         btn.setProperty("active", "false")

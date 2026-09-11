@@ -25,6 +25,8 @@ from foliarium.ui.widgets.custom import show_status_message as _show_status_mess
 from dialogs import (
     ComuneSelectionDialog,
 )
+from foliarium.ui.undo import registra_azione_annullabile
+from foliarium.ui.errors import show_user_error
 
 try:
     from catasto_db_manager import DBMError
@@ -760,8 +762,14 @@ class RicercaPartiteWidget(QWidget):
             self.db_manager.archivia_partita(partita_id)
             self.do_search()
             _show_status_message(f"Partita N. {numero_text} archiviata con successo.", 4000)
+            registra_azione_annullabile(
+                f"Partita N. {numero_text} archiviata",
+                lambda: self.db_manager.ripristina_partita(partita_id),
+                al_termine=self.do_search,
+            )
         except Exception as e:
-            QMessageBox.critical(self, "Errore", f"Impossibile archiviare la partita:\n{e}")
+            show_user_error(self, "Archiviazione partita", e,
+                            logger=getattr(self, "logger", None))
 
     def _azione_archivia_partita(self):
         """Archivia la partita selezionata tramite pulsante."""

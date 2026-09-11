@@ -34,6 +34,7 @@ logger = logging.getLogger("CatastoGUI.admin_widgets")
 
 
 from foliarium.ui.widgets.custom import show_status_message as _show_status_message
+from config import DATETIME_DISPLAY_FORMAT
 
 
 _AUDIT_COLS = ["ID", "Data/Ora", "Utente", "Sessione", "Tabella", "Azione", "Record", "IP"]
@@ -181,7 +182,7 @@ class AuditLogViewerWidget(LazyLoadedWidget):
         self.filter_start_datetime_edit = QDateTimeEdit()
         self.filter_start_datetime_edit.setDateTime(QDateTime.currentDateTime().addDays(-7))
         self.filter_start_datetime_edit.setCalendarPopup(True)
-        self.filter_start_datetime_edit.setDisplayFormat("dd/MM/yyyy HH:mm")
+        self.filter_start_datetime_edit.setDisplayFormat(DATETIME_DISPLAY_FORMAT)
         self.filter_start_datetime_edit.setMaximumWidth(150)
         filters_row2.addWidget(self.filter_start_datetime_edit)
         
@@ -189,7 +190,7 @@ class AuditLogViewerWidget(LazyLoadedWidget):
         self.filter_end_datetime_edit = QDateTimeEdit()
         self.filter_end_datetime_edit.setDateTime(QDateTime.currentDateTime())
         self.filter_end_datetime_edit.setCalendarPopup(True)
-        self.filter_end_datetime_edit.setDisplayFormat("dd/MM/yyyy HH:mm")
+        self.filter_end_datetime_edit.setDisplayFormat(DATETIME_DISPLAY_FORMAT)
         self.filter_end_datetime_edit.setMaximumWidth(150)
         filters_row2.addWidget(self.filter_end_datetime_edit)
         

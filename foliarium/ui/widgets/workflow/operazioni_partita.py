@@ -32,6 +32,8 @@ from dialogs import (
 from foliarium.ui.widgets.genealogia_widget import GenealogiaTimelineWidget  # noqa: F401  backward compat
 from foliarium.ui.widgets.genealogia_graph import GenealogiaGraphWidget
 from foliarium.ui.widgets.workflow.bulk_successione import BulkSuccessioneWizard
+from config import DATE_DISPLAY_FORMAT
+from foliarium.ui.errors import show_user_error
 
 try:
     from catasto_db_manager import (
@@ -306,7 +308,7 @@ class OperazioniPartitaWidget(QWidget):
             "Tipo Variazione (*):", self.pp_tipo_variazione_combo)
 
         self.pp_data_variazione_edit = QDateEdit(calendarPopup=True)
-        self.pp_data_variazione_edit.setDisplayFormat("yyyy-MM-dd")
+        self.pp_data_variazione_edit.setDisplayFormat(DATE_DISPLAY_FORMAT)
         self.pp_data_variazione_edit.setDate(QDate.currentDate())
         passaggio_form_layout.addRow(
             "Data Variazione (*):", self.pp_data_variazione_edit)
@@ -335,7 +337,7 @@ class OperazioniPartitaWidget(QWidget):
             "Tipo Atto/Contratto (*):", self.pp_tipo_contratto_combo) # USATO IL NUOVO WIDGET
 
         self.pp_data_contratto_edit = QDateEdit(calendarPopup=True)
-        self.pp_data_contratto_edit.setDisplayFormat("yyyy-MM-dd")
+        self.pp_data_contratto_edit.setDisplayFormat(DATE_DISPLAY_FORMAT)
         self.pp_data_contratto_edit.setDate(QDate.currentDate())
         passaggio_form_layout.addRow(
             "Data Atto/Contratto (*):", self.pp_data_contratto_edit)
@@ -680,7 +682,7 @@ class OperazioniPartitaWidget(QWidget):
                                     f"nel comune '{self.selected_partita_comune_nome_source}'.")
                 return
         except DBMError as e:
-            QMessageBox.critical(self, "Errore Verifica Partita", f"Errore durante la verifica del numero partita:\n{str(e)}")
+            show_user_error(self, "Verifica numero partita", e, logger=getattr(self, "logger", None))
             return
         
         mant_poss = self.duplica_mantieni_poss_check.isChecked()
@@ -706,7 +708,7 @@ class OperazioniPartitaWidget(QWidget):
             else:
                 QMessageBox.critical(self, "Errore Operazione", "La duplicazione della partita non è stata completata.")
         except DBMError as e:
-            QMessageBox.critical(self, "Errore Duplicazione", f"Impossibile duplicare la partita:\n{str(e)}")
+            show_user_error(self, "Duplicazione partita", e, logger=getattr(self, "logger", None))
         except Exception as e_gen:
             self.logger.critical(f"Errore imprevisto durante la duplicazione: {e_gen}", exc_info=True)
             QMessageBox.critical(self, "Errore Imprevisto", f"Errore di sistema:\n{str(e_gen)}")
@@ -1015,7 +1017,7 @@ class OperazioniPartitaWidget(QWidget):
             return
         except Exception as e:
             self.logger.critical(f"Errore imprevisto durante la verifica di esistenza della nuova partita: {e}", exc_info=True)
-            QMessageBox.critical(self, "Errore Imprevisto", f"Si è verificato un errore inatteso durante la verifica del numero partita:\n{str(e)}")
+            show_user_error(self, "Verifica numero partita", e, logger=getattr(self, "logger", None))
             return
 
 

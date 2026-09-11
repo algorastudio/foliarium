@@ -14,6 +14,8 @@ from PyQt6.QtWidgets import (
 )
 
 from foliarium.ui.widgets.custom import LazyLoadedWidget
+from foliarium.ui.errors import show_user_error
+from foliarium.ui.undo import registra_azione_annullabile
 
 if TYPE_CHECKING:
     from catasto_db_manager import CatastoDBManager
@@ -208,7 +210,7 @@ class ArchivioWidget(LazyLoadedWidget):
         try:
             data = self.db_manager.get_tutti_archiviati()
         except Exception as e:
-            QMessageBox.critical(self, "Errore", f"Impossibile caricare l'archivio:\n{e}")
+            show_user_error(self, "Caricamento elementi archiviati", e, logger=getattr(self, "logger", None))
             return
         self._fill_comuni(data.get("comuni", []))
         self._fill_possessori(data.get("possessori", []))
@@ -302,11 +304,26 @@ class ArchivioWidget(LazyLoadedWidget):
         if risposta != QMessageBox.StandardButton.Yes:
             return
 
+        archivia_fn = {
+            "comuni":     self.db_manager.archivia_comune,
+            "possessori": self.db_manager.archivia_possessore,
+            "localita":   self.db_manager.archivia_localita,
+            "partite":    self.db_manager.archivia_partita,
+        }
+        entita = self._current_entity
+
         try:
-            ripristina_fn[self._current_entity](record_id)
+            ripristina_fn[entita](record_id)
             self.load_data()
+            # Anche il ripristino ha il suo inverso: si puo' disfare come
+            # tutto il resto, con la stessa guardia di stato lato database.
+            registra_azione_annullabile(
+                f"{label.capitalize()} «{nome}» ripristinato",
+                lambda: archivia_fn[entita](record_id),
+                al_termine=self.load_data,
+            )
         except Exception as e:
-            QMessageBox.critical(self, "Errore", f"Impossibile ripristinare:\n{e}")
+            show_user_error(self, "Ripristino elemento", e, logger=getattr(self, "logger", None))
 
     # ── eliminazione definitiva ──────────────────────────────────────────────
 

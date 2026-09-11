@@ -61,17 +61,30 @@ class DBPartiteMixin:
                     )
 
     def _insert_partite_records(
-        self, records: List[Dict], comune_id: int, comune_nome: str
+        self, records: List[Dict], comune_id: int, comune_nome: str,
+        progress_cb=None,
     ) -> Dict[str, list]:
-        """Helper condiviso: inserisce una lista di record-partita con SAVEPOINT per riga."""
+        """Helper condiviso: inserisce una lista di record-partita con SAVEPOINT per riga.
+
+        Args:
+            progress_cb: opzionale, invocata a ogni riga con
+                ``(elaborate, totali)``. Se restituisce False l'import si
+                ferma: le righe gia' inserite restano (l'operazione e'
+                transazionale per riga, non per file) e il riepilogo
+                segnala l'interruzione.
+        """
         if not records:
-            return {"success": [], "errors": []}
+            return {"success": [], "errors": [], "interrotto": False}
         success_rows: List[Dict] = []
         error_rows: list = []
+        interrotto = False
         try:
             with self._get_connection() as conn:
                 with conn.cursor() as cur:
                     for i, record in enumerate(records):
+                        if progress_cb is not None and not progress_cb(i, len(records)):
+                            interrotto = True
+                            break
                         line_num = i + 2
                         cur.execute("SAVEPOINT record_savepoint")
                         try:
@@ -121,9 +134,17 @@ class DBPartiteMixin:
                             cur.execute("ROLLBACK TO SAVEPOINT record_savepoint")
                             error_rows.append((line_num, record, str(error)))
             self.logger.info(
-                f"Import partite completato. Successi: {len(success_rows)}, Errori: {len(error_rows)}"
+                "Import partite %s. Successi: %s, Errori: %s",
+                "interrotto dall'utente" if interrotto else "completato",
+                len(success_rows), len(error_rows),
             )
-            return {"success": success_rows, "errors": error_rows}
+            if progress_cb is not None:
+                progress_cb(len(success_rows) + len(error_rows), len(records))
+            return {
+                "success": success_rows,
+                "errors": error_rows,
+                "interrotto": interrotto,
+            }
         except Exception as e:
             self.logger.error(f"Errore critico import partite: {e}", exc_info=True)
             raise DBMError(
@@ -131,7 +152,8 @@ class DBPartiteMixin:
             ) from e
 
     def import_partite_from_csv(
-        self, file_path: str, comune_id: int, comune_nome: str
+        self, file_path: str, comune_id: int, comune_nome: str,
+        progress_cb=None,
     ) -> Dict[str, list]:
         """Importa partite da un file CSV (delimitatore ';')."""
         records: List[Dict] = []
@@ -151,10 +173,12 @@ class DBPartiteMixin:
                     records.append(dict(row))
         except Exception as e:
             raise IOError(f"Errore leggendo il file CSV: {e}")
-        return self._insert_partite_records(records, comune_id, comune_nome)
+        return self._insert_partite_records(
+            records, comune_id, comune_nome, progress_cb=progress_cb)
 
     def import_partite_from_xlsx(
-        self, file_path: str, comune_id: int, comune_nome: str
+        self, file_path: str, comune_id: int, comune_nome: str,
+        progress_cb=None,
     ) -> Dict[str, list]:
         """Importa partite da un file Excel (.xlsx). Stesse colonne del CSV."""
         required = {"numero_partita", "data_impianto", "stato", "tipo"}
@@ -189,7 +213,8 @@ class DBPartiteMixin:
             )
         except Exception as e:
             raise IOError(f"Errore leggendo il file Excel: {e}")
-        return self._insert_partite_records(records, comune_id, comune_nome)
+        return self._insert_partite_records(
+            records, comune_id, comune_nome, progress_cb=progress_cb)
 
     def create_partita(
         self,

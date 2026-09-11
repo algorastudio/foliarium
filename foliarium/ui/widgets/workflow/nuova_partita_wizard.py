@@ -35,6 +35,7 @@ from dialogs import (
     ComuneSelectionDialog, CreateLocalitaDialog, CreatePossessoreDialog,
 )
 from foliarium.ui.dialogs.partita.bozze import BozzePartitaDialog
+from config import DATE_DISPLAY_FORMAT
 
 try:
     from catasto_db_manager import (
@@ -214,7 +215,7 @@ class NuovaPartitaWizardWidget(QWidget):
         self._s1_data_imp = QDateEdit()
         self._s1_data_imp.setCalendarPopup(True)
         self._s1_data_imp.setDate(QDate.currentDate())
-        self._s1_data_imp.setDisplayFormat("dd/MM/yyyy")
+        self._s1_data_imp.setDisplayFormat(DATE_DISPLAY_FORMAT)
         self._s1_data_imp.dateChanged.connect(self._mark_dirty)
         form_layout.addRow("Data Impianto: *", self._s1_data_imp)
 
@@ -818,6 +819,34 @@ td {{ padding:4px 8px; border-bottom:1px solid #EEE; }}
         suf_disp = f"/{suf}" if suf else ""
         comune = self._comune_nome or "senza comune"
         return f"{comune} N.{n}{suf_disp} — {datetime.now():%d/%m/%Y %H:%M}"
+
+    # ------------------------------------------------------------------
+    # Modifiche non salvate (protocollo usato da CatastoMainWindow)
+    # ------------------------------------------------------------------
+
+    def has_unsaved_changes(self) -> bool:
+        """True se c'e' del lavoro compilato e non ancora registrato.
+
+        Il solo flag _dirty non basta: si attiva anche al primo tocco di uno
+        spinbox, e avvisare per quello sarebbe fastidioso. Serve anche del
+        contenuto reale da perdere.
+        """
+        return bool(self._dirty) and self._has_meaningful_content()
+
+    def save_pending_changes(self) -> bool:
+        """Salva il lavoro come bozza riprendibile. True se salvata."""
+        titolo = None if self._current_draft_id is not None else self._default_draft_title()
+        saved_id = self._persist_draft(title=titolo)
+        if saved_id is None:
+            return False
+        self._dirty = False
+        self._update_draft_status()
+        return True
+
+    def discard_pending_changes(self) -> None:
+        """L'utente ha scelto di perdere i dati: si evita di riavvisare."""
+        self._dirty = False
+        self._update_draft_status()
 
     def _mark_dirty(self):
         if self._restoring:

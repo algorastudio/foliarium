@@ -27,6 +27,15 @@ from db.base import db_handle_errors
 WIZARD_KIND_NUOVA_PARTITA = "nuova_partita_wizard"
 WIZARD_KIND_REGISTRAZIONE_PROPRIETA = "registrazione_proprieta"
 
+# Moduli di inserimento semplice. Usano la stessa tabella dei wizard: il
+# payload e' lo stato dei campi del modulo, non c'e' ragione di duplicare
+# lo schema. Il wizard_kind tiene separate le liste, cosi' la ripresa di
+# una bozza non propone moduli di tipo diverso.
+FORM_KIND_INSERIMENTO_COMUNE = "form_inserimento_comune"
+FORM_KIND_INSERIMENTO_POSSESSORE = "form_inserimento_possessore"
+FORM_KIND_INSERIMENTO_LOCALITA = "form_inserimento_localita"
+FORM_KIND_INSERIMENTO_PARTITA = "form_inserimento_partita"
+
 
 class DBDraftsMixin:
     """CRUD per le bozze dei wizard partita."""

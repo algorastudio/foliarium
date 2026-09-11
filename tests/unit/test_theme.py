@@ -170,3 +170,39 @@ class TestApplyInitialThemeFromSettings:
         with patch.object(theme, "apply_auto_theme") as mock_auto:
             theme.apply_initial_theme_from_settings(app)
             mock_auto.assert_called_once()
+
+
+class TestIsDarkTheme:
+    """is_dark_theme() serve ai contenuti HTML renderizzati dentro l'app
+    (manuale utente), che il QSS di Qt non raggiunge."""
+
+    def test_stylesheet_chiaro_non_e_dark(self, app, isolated_settings):
+        from foliarium.ui import theme
+        with patch("foliarium.ui.theme.QSettings", return_value=isolated_settings):
+            isolated_settings.setValue("UI/AutoTheme", False)
+            isolated_settings.setValue("UI/Win11NativeStyle", False)
+            isolated_settings.setValue("UI/CurrentStyle", "foliarium_styles.qss")
+            assert theme.is_dark_theme() is False
+
+    @pytest.mark.parametrize("qss", ["dark_mode_stylesheet.qss", "moderno_dark.qss"])
+    def test_stylesheet_scuro_e_dark(self, app, isolated_settings, qss):
+        from foliarium.ui import theme
+        with patch("foliarium.ui.theme.QSettings", return_value=isolated_settings):
+            isolated_settings.setValue("UI/AutoTheme", False)
+            isolated_settings.setValue("UI/Win11NativeStyle", False)
+            isolated_settings.setValue("UI/CurrentStyle", qss)
+            assert theme.is_dark_theme() is True
+
+    @pytest.mark.parametrize(
+        "scheme,atteso",
+        [(Qt.ColorScheme.Dark, True), (Qt.ColorScheme.Light, False)],
+    )
+    def test_tema_automatico_segue_lo_schema_os(self, app, isolated_settings,
+                                                scheme, atteso):
+        from foliarium.ui import theme
+        with patch("foliarium.ui.theme.QSettings", return_value=isolated_settings), \
+             patch.object(theme.QGuiApplication, "styleHints") as style_hints:
+            style_hints.return_value.colorScheme.return_value = scheme
+            isolated_settings.setValue("UI/AutoTheme", True)
+            isolated_settings.setValue("UI/Win11NativeStyle", False)
+            assert theme.is_dark_theme() is atteso

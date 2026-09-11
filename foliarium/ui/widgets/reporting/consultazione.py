@@ -16,6 +16,7 @@ from PyQt6.QtWidgets import (
 )
 
 from catasto_exceptions import DBMError, DBDataError, DBNotFoundError, DBUniqueConstraintError  # noqa: F401
+from config import DATE_DISPLAY_FORMAT
 
 if TYPE_CHECKING:
     from catasto_db_manager import CatastoDBManager
@@ -43,7 +44,7 @@ class RegistraConsultazioneWidget(QWidget):
         self.data_consultazione_edit = QDateEdit(
             calendarPopup=True)  # Nome UI: data_consultazione_edit
         self.data_consultazione_edit.setDate(QDate.currentDate())
-        self.data_consultazione_edit.setDisplayFormat("yyyy-MM-dd")
+        self.data_consultazione_edit.setDisplayFormat(DATE_DISPLAY_FORMAT)
         form_layout.addRow("Data Consultazione (*):",
                            self.data_consultazione_edit)  # Colonna DB: data
 
