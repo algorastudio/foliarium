@@ -167,3 +167,163 @@ class TestManualeTemaScuro:
     def test_i_due_temi_hanno_sfondi_diversi(self):
         from foliarium.ui.dialogs.admin.help_viewer import _build_help_css
         assert _build_help_css(False) != _build_help_css(True)
+
+
+class TestAiutoContestuale:
+    """F1 deve aprire la sezione che riguarda la schermata in uso."""
+
+    def test_ogni_documento_mappato_esiste(self):
+        import pathlib
+        import gui_main
+        radice = pathlib.Path(__file__).resolve().parents[2] / "docs"
+        mancanti = [
+            doc for doc in gui_main.CatastoMainWindow._AIUTO_CONTESTUALE.values()
+            if not (radice / doc).exists()
+        ]
+        assert mancanti == []
+
+    def test_le_pagine_principali_sono_coperte(self):
+        import gui_main
+        mappa = gui_main.CatastoMainWindow._AIUTO_CONTESTUALE
+        attese = {"home", "comuni", "partite", "immobili", "ins_comune",
+                  "ins_possessore", "esportazioni", "report", "statistiche",
+                  "utenti", "backup"}
+        assert attese <= set(mappa)
+
+
+class TestRicercaNelManuale:
+
+    @pytest.fixture
+    def manuale(self, app):
+        from foliarium.ui.dialogs.admin.help_viewer import HelpViewerDialog
+        dlg = HelpViewerDialog()
+        yield dlg
+        dlg.deleteLater()
+
+    def test_apertura_su_una_pagina_specifica(self, app):
+        from foliarium.ui.dialogs.admin.help_viewer import HelpViewerDialog
+        dlg = HelpViewerDialog(pagina_iniziale="inserimento.md")
+        try:
+            assert dlg._history[dlg._history_pos] == "inserimento.md"
+        finally:
+            dlg.deleteLater()
+
+    def test_termine_presente_trova_pagine(self, manuale):
+        risultati = manuale._raccogli_risultati("possessore")
+        assert risultati, "il manuale parla di possessori: la ricerca deve trovarli"
+        for percorso, titolo, estratto in risultati:
+            assert percorso.endswith(".md")
+            assert titolo
+            assert "<b>" in estratto   # il termine è evidenziato
+
+    def test_termine_assente_non_trova_nulla(self, manuale):
+        assert manuale._raccogli_risultati("qwertyzxcvb") == []
+
+    def test_pagina_dei_risultati_vuota_lo_dice(self, manuale):
+        manuale.search_edit.setText("qwertyzxcvb")
+        manuale._cerca_nel_manuale()
+        assert "Nessun risultato" in manuale.content.toPlainText()
+
+    def test_query_troppo_corta_non_cerca(self, manuale):
+        manuale._load_page("index.md")
+        prima = manuale.lbl_title.text()
+        manuale.search_edit.setText("a")
+        manuale._cerca_nel_manuale()
+        assert manuale.lbl_title.text() == prima
+
+    def test_link_dei_risultati_sono_relativi_alla_radice(self, manuale):
+        """Un risultato aperto da una sottocartella non va risolto lì."""
+        from PyQt6.QtCore import QUrl
+
+        manuale._load_page("admin/backup.md")
+        manuale._on_link_clicked(QUrl("foliarium-doc:inserimento.md"))
+        assert manuale._history[manuale._history_pos] == "inserimento.md"
+
+    def test_i_link_interni_restano_relativi_al_documento(self, manuale):
+        from PyQt6.QtCore import QUrl
+
+        manuale._load_page("admin/backup.md")
+        manuale._on_link_clicked(QUrl("index.md"))
+        assert manuale._history[manuale._history_pos] == "admin/index.md"
+
+
+class TestAccessibilitaModuli:
+
+    @pytest.fixture(params=["comune", "possessore", "localita", "partita"])
+    def modulo(self, request, app):
+        from unittest.mock import MagicMock
+        from foliarium.ui.widgets.insertion import (
+            InserimentoComuneWidget, InserimentoLocalitaWidget,
+            InserimentoPartitaWidget, InserimentoPossessoreWidget,
+        )
+        db = MagicMock()
+        db.get_elenco_comuni_semplice.return_value = [(1, "Savona")]
+        db.get_historical_periods.return_value = []
+        costruttori = {
+            "comune": lambda: InserimentoComuneWidget(db, {"username": "u"}),
+            "possessore": lambda: InserimentoPossessoreWidget(db),
+            "localita": lambda: InserimentoLocalitaWidget(db),
+            "partita": lambda: InserimentoPartitaWidget(db),
+        }
+        w = costruttori[request.param]()
+        for metodo in ("load_initial_data", "_load_data_on_first_show"):
+            if hasattr(w, metodo):
+                getattr(w, metodo)()
+                break
+        yield w
+        w.deleteLater()
+
+    def test_ogni_campo_ha_un_nome_accessibile(self, modulo):
+        """Senza nome accessibile uno screen reader annuncia 'casella di testo'."""
+        from PyQt6.QtWidgets import (QComboBox, QDateEdit, QLineEdit, QSpinBox,
+                                     QTextEdit, QWidget)
+        tipi = (QLineEdit, QComboBox, QTextEdit, QSpinBox, QDateEdit)
+        senza_nome = [
+            c.objectName() or type(c).__name__
+            for c in modulo.findChildren(QWidget)
+            if isinstance(c, tipi) and not c.accessibleName()
+            and not c.objectName().startswith("qt_")
+        ]
+        assert senza_nome == []
+
+    def test_nessun_mnemonic_in_conflitto(self, modulo):
+        """Due pulsanti con la stessa lettera rendono la scorciatoia inutile."""
+        import re
+        from PyQt6.QtWidgets import QPushButton
+
+        lettere = [
+            m.group(1).lower()
+            for b in modulo.findChildren(QPushButton)
+            if (m := re.search(r"&(\w)", b.text()))
+        ]
+        assert len(lettere) == len(set(lettere)), f"lettere ripetute: {lettere}"
+
+    #: Primo campo che il tab deve raggiungere in ciascun modulo.
+    PRIMO_CAMPO = {
+        "InserimentoComuneWidget": "nome_comune_edit",
+        "InserimentoPossessoreWidget": "cognome_nome_edit",
+        "InserimentoLocalitaWidget": "comune_button",
+        "InserimentoPartitaWidget": "comune_combo",
+    }
+
+    def test_l_ordine_di_tabulazione_parte_dal_primo_campo(self, modulo, app):
+        """Chi naviga da tastiera deve entrare dal campo in cima al modulo.
+
+        Nei layout a griglia l'ordine di tabulazione segue la costruzione,
+        non la posizione: se divergesse servirebbe un setTabOrder esplicito.
+        """
+        from PyQt6.QtCore import Qt
+        from PyQt6.QtWidgets import QWidget
+
+        modulo.show()
+        app.processEvents()
+        atteso = getattr(modulo, self.PRIMO_CAMPO[type(modulo).__name__])
+        raggiungibili = [
+            c for c in modulo.findChildren(QWidget)
+            if c.focusPolicy() != Qt.FocusPolicy.NoFocus and c.isVisible()
+            and not c.objectName().startswith("qt_")
+        ]
+        assert raggiungibili[0] is atteso, (
+            f"il tab entra da {type(raggiungibili[0]).__name__} invece che "
+            f"da {self.PRIMO_CAMPO[type(modulo).__name__]}"
+        )

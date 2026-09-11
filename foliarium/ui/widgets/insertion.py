@@ -24,7 +24,13 @@ from PyQt6.QtWidgets import (
     QVBoxLayout, QWidget, QCompleter,
 )
 
-from foliarium.ui.widgets.custom import LazyLoadedWidget, UnsavedFormMixin
+from foliarium.ui.widgets.custom import (FormDraftMixin, LazyLoadedWidget,
+                                         UnsavedFormMixin,
+                                         imposta_nomi_accessibili)
+from db.drafts import (FORM_KIND_INSERIMENTO_COMUNE,
+                       FORM_KIND_INSERIMENTO_LOCALITA,
+                       FORM_KIND_INSERIMENTO_PARTITA,
+                       FORM_KIND_INSERIMENTO_POSSESSORE)
 from catasto_exceptions import DBMError, DBUniqueConstraintError, DBDataError
 from dialogs import ComuneSelectionDialog
 from config import DATE_DISPLAY_FORMAT
@@ -98,7 +104,10 @@ def _check_required(fields) -> bool:
 
 # ---------------------------------------------------------------------------
 
-class InserimentoComuneWidget(UnsavedFormMixin, LazyLoadedWidget):
+class InserimentoComuneWidget(FormDraftMixin, UnsavedFormMixin, LazyLoadedWidget):
+    _DRAFT_KIND = FORM_KIND_INSERIMENTO_COMUNE
+    _DRAFT_ETICHETTA = "Comune"
+
     comune_appena_inserito = pyqtSignal(int)
     import_csv_requested = pyqtSignal()
     scarica_csv_requested = pyqtSignal()
@@ -179,29 +188,36 @@ class InserimentoComuneWidget(UnsavedFormMixin, LazyLoadedWidget):
         button_layout.setSpacing(8)
 
         # CSV utilities a sinistra (secondari)
-        btn_import = QPushButton("Importa CSV")
+        btn_import = QPushButton("Impor&ta CSV")
         btn_import.setObjectName("secondaryButton")
         btn_import.clicked.connect(self.import_csv_requested.emit)
         btn_import.setToolTip("Importa più comuni da un file CSV")
-        btn_scarica = QPushButton("Scarica CSV")
+        btn_scarica = QPushButton("S&carica CSV")
         btn_scarica.setObjectName("secondaryButton")
         btn_scarica.clicked.connect(self.scarica_csv_requested.emit)
         btn_scarica.setToolTip("Scarica i comuni esistenti come file CSV")
-        btn_template = QPushButton("Scarica template")
+        btn_template = QPushButton("Scarica temp&late")
         btn_template.setObjectName("secondaryButton")
         btn_template.clicked.connect(self._scarica_template_csv)
         btn_template.setToolTip("Scarica un file CSV di esempio con le colonne corrette")
+        btn_bozza = QPushButton("&Riprendi bozza…")
+        btn_bozza.setObjectName("secondaryButton")
+        btn_bozza.setToolTip(
+            "Riapri un modulo lasciato a metà. Le bozze si salvano quando "
+            "esci da un modulo compilato.")
+        btn_bozza.clicked.connect(self._riprendi_bozza)
         button_layout.addWidget(btn_import)
         button_layout.addWidget(btn_scarica)
         button_layout.addWidget(btn_template)
+        button_layout.addWidget(btn_bozza)
         button_layout.addStretch()
 
         # Azioni primarie a destra
-        self.clear_button = QPushButton("Pulisci Campi")
+        self.clear_button = QPushButton("&Pulisci Campi")
         self.clear_button.setObjectName("secondaryButton")
         self.clear_button.clicked.connect(self.pulisci_campi)
         self.clear_button.setToolTip("Azzera tutti i campi del form")
-        self.submit_button = QPushButton("Inserisci Comune")
+        self.submit_button = QPushButton("&Inserisci Comune")
         self.submit_button.clicked.connect(self.inserisci_comune)
         self.submit_button.setDefault(True)
         self.submit_button.setToolTip("Salva il comune nel database (Invio)")
@@ -213,6 +229,16 @@ class InserimentoComuneWidget(UnsavedFormMixin, LazyLoadedWidget):
 
     def _load_data_on_first_show(self):
         """Metodo per il lazy loading, chiamato la prima volta."""
+        imposta_nomi_accessibili(self, {
+            "nome_comune_edit": "Nome del comune (obbligatorio)",
+            "provincia_edit": "Sigla della provincia (obbligatorio)",
+            "regione_edit": "Regione (obbligatorio)",
+            "codice_catastale_edit": "Codice catastale del comune",
+            "note_edit": "Note sul comune",
+            "periodo_combo": "Periodo storico di riferimento",
+            "data_istituzione_edit": "Data di istituzione del comune",
+            "data_soppressione_edit": "Data di soppressione del comune",
+        })
         self.logger.info("InserimentoComuneWidget: Esecuzione lazy loading dei periodi storici...")
         self._carica_elenco_periodi()
         # Da qui in poi il form e' pulito: e' la base per rilevare
@@ -300,7 +326,10 @@ class InserimentoComuneWidget(UnsavedFormMixin, LazyLoadedWidget):
         except (DBUniqueConstraintError, DBDataError, DBMError) as e:
             show_user_error(self, "Inserimento comune", e, logger=getattr(self, "logger", None))
 
-class InserimentoPossessoreWidget(UnsavedFormMixin, LazyLoadedWidget):
+class InserimentoPossessoreWidget(FormDraftMixin, UnsavedFormMixin, LazyLoadedWidget):
+    _DRAFT_KIND = FORM_KIND_INSERIMENTO_POSSESSORE
+    _DRAFT_ETICHETTA = "Possessore"
+
     import_csv_requested = pyqtSignal()
     scarica_csv_requested = pyqtSignal()
 
@@ -344,7 +373,7 @@ class InserimentoPossessoreWidget(UnsavedFormMixin, LazyLoadedWidget):
         self.paternita_edit = QLineEdit()
         form_layout.addWidget(self.paternita_edit, 1, 1)
 
-        self.btn_genera_nome_completo = QPushButton("Genera Nome Completo")
+        self.btn_genera_nome_completo = QPushButton("&Genera Nome Completo")
         self.btn_genera_nome_completo.setObjectName("secondaryButton")
         self.btn_genera_nome_completo.clicked.connect(self._genera_e_imposta_nome_completo)
         form_layout.addWidget(self.btn_genera_nome_completo, 2, 1, Qt.AlignmentFlag.AlignLeft)
@@ -379,28 +408,35 @@ class InserimentoPossessoreWidget(UnsavedFormMixin, LazyLoadedWidget):
         button_layout = QHBoxLayout()
         button_layout.setSpacing(8)
 
-        btn_import = QPushButton("Importa CSV")
+        btn_import = QPushButton("Impor&ta CSV")
         btn_import.setObjectName("secondaryButton")
         btn_import.clicked.connect(self.import_csv_requested.emit)
         btn_import.setToolTip("Importa più possessori da un file CSV")
-        btn_scarica = QPushButton("Scarica CSV")
+        btn_scarica = QPushButton("S&carica CSV")
         btn_scarica.setObjectName("secondaryButton")
         btn_scarica.clicked.connect(self.scarica_csv_requested.emit)
         btn_scarica.setToolTip("Scarica i possessori esistenti come file CSV")
-        btn_template = QPushButton("Scarica template")
+        btn_template = QPushButton("Scarica temp&late")
         btn_template.setObjectName("secondaryButton")
         btn_template.clicked.connect(self._scarica_template_csv)
         btn_template.setToolTip("Scarica un file CSV di esempio con le colonne corrette")
+        btn_bozza = QPushButton("&Riprendi bozza…")
+        btn_bozza.setObjectName("secondaryButton")
+        btn_bozza.setToolTip(
+            "Riapri un modulo lasciato a metà. Le bozze si salvano quando "
+            "esci da un modulo compilato.")
+        btn_bozza.clicked.connect(self._riprendi_bozza)
         button_layout.addWidget(btn_import)
         button_layout.addWidget(btn_scarica)
         button_layout.addWidget(btn_template)
+        button_layout.addWidget(btn_bozza)
         button_layout.addStretch()
 
-        self.clear_button = QPushButton("Pulisci Campi")
+        self.clear_button = QPushButton("&Pulisci Campi")
         self.clear_button.setObjectName("secondaryButton")
         self.clear_button.clicked.connect(self._pulisci_campi_possessore)
         self.clear_button.setToolTip("Azzera tutti i campi del form")
-        self.save_button = QPushButton("Salva Possessore")
+        self.save_button = QPushButton("&Salva Possessore")
         self.save_button.setDefault(True)
         self.save_button.clicked.connect(self._salva_possessore)
         self.save_button.setToolTip("Salva il possessore nel database (Invio)")
@@ -412,6 +448,13 @@ class InserimentoPossessoreWidget(UnsavedFormMixin, LazyLoadedWidget):
 
     def _load_data_on_first_show(self):
         """Metodo per il lazy loading: carica i comuni la prima volta che il tab viene visualizzato."""
+        imposta_nomi_accessibili(self, {
+            "cognome_nome_edit": "Cognome e nome del possessore (obbligatorio)",
+            "paternita_edit": "Paternità, ad esempio fu Carlo",
+            "nome_completo_edit": "Nome completo del possessore (obbligatorio)",
+            "comune_combo": "Comune di riferimento (obbligatorio)",
+            "attivo_checkbox": "Possessore attivo",
+        })
         self.logger.info("InserimentoPossessoreWidget: Esecuzione lazy loading dei comuni...")
         self._load_comuni_for_combo()
         # Da qui in poi il form e' pulito: e' la base per rilevare
@@ -571,7 +614,10 @@ class InserimentoPossessoreWidget(UnsavedFormMixin, LazyLoadedWidget):
 
 
 # --- Scheda per Localita ---
-class InserimentoLocalitaWidget(UnsavedFormMixin, QWidget):
+class InserimentoLocalitaWidget(FormDraftMixin, UnsavedFormMixin, QWidget):
+    _DRAFT_KIND = FORM_KIND_INSERIMENTO_LOCALITA
+    _DRAFT_ETICHETTA = "Località"
+
     import_csv_requested = pyqtSignal()
     scarica_csv_requested = pyqtSignal()
 
@@ -604,7 +650,7 @@ class InserimentoLocalitaWidget(UnsavedFormMixin, QWidget):
 
         comune_label = QLabel('Comune <span style="color:#C62828;font-weight:600;">*</span>:')
         comune_label.setAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
-        self.comune_button = QPushButton("Seleziona Comune...")
+        self.comune_button = QPushButton("Selezi&ona Comune…")
         self.comune_button.setObjectName("secondaryButton")
         self.comune_button.clicked.connect(self.select_comune)
         self.comune_display = QLabel("Nessun comune selezionato")
@@ -636,28 +682,35 @@ class InserimentoLocalitaWidget(UnsavedFormMixin, QWidget):
         button_layout = QHBoxLayout()
         button_layout.setSpacing(8)
 
-        btn_import = QPushButton("Importa CSV")
+        btn_import = QPushButton("Impor&ta CSV")
         btn_import.setObjectName("secondaryButton")
         btn_import.clicked.connect(self.import_csv_requested.emit)
         btn_import.setToolTip("Importa più località da un file CSV")
-        btn_scarica = QPushButton("Scarica CSV")
+        btn_scarica = QPushButton("S&carica CSV")
         btn_scarica.setObjectName("secondaryButton")
         btn_scarica.clicked.connect(self.scarica_csv_requested.emit)
         btn_scarica.setToolTip("Scarica le località esistenti come file CSV")
-        btn_template = QPushButton("Scarica template")
+        btn_template = QPushButton("Scarica temp&late")
         btn_template.setObjectName("secondaryButton")
         btn_template.clicked.connect(self._scarica_template_csv)
         btn_template.setToolTip("Scarica un file CSV di esempio con le colonne corrette")
+        btn_bozza = QPushButton("&Riprendi bozza…")
+        btn_bozza.setObjectName("secondaryButton")
+        btn_bozza.setToolTip(
+            "Riapri un modulo lasciato a metà. Le bozze si salvano quando "
+            "esci da un modulo compilato.")
+        btn_bozza.clicked.connect(self._riprendi_bozza)
         button_layout.addWidget(btn_import)
         button_layout.addWidget(btn_scarica)
         button_layout.addWidget(btn_template)
+        button_layout.addWidget(btn_bozza)
         button_layout.addStretch()
 
-        btn_pulisci = QPushButton("Pulisci Campi")
+        btn_pulisci = QPushButton("&Pulisci Campi")
         btn_pulisci.setObjectName("secondaryButton")
         btn_pulisci.clicked.connect(self._pulisci_campi)
         btn_pulisci.setToolTip("Azzera tutti i campi del form")
-        btn_inserisci = QPushButton("Inserisci Località")
+        btn_inserisci = QPushButton("&Inserisci Località")
         btn_inserisci.setDefault(True)
         btn_inserisci.clicked.connect(self.insert_localita)
         btn_inserisci.setToolTip("Salva la località nel database (Invio)")
@@ -669,6 +722,11 @@ class InserimentoLocalitaWidget(UnsavedFormMixin, QWidget):
         layout.addStretch(1)
 
         self.setLayout(layout)
+        imposta_nomi_accessibili(self, {
+            "comune_button": "Comune della località (obbligatorio)",
+            "nome_edit": "Nome della località (obbligatorio)",
+            "tipo_combo": "Tipologia stradale, ad esempio Via o Piazza (obbligatorio)",
+        })
         self.mark_form_clean()
 
     def trigger_primary_action(self) -> None:
@@ -751,7 +809,10 @@ class InserimentoLocalitaWidget(UnsavedFormMixin, QWidget):
         except (DBMError, DBDataError, DBUniqueConstraintError) as e:
             show_user_error(self, "Inserimento località", e, logger=getattr(self, "logger", None))
 
-class InserimentoPartitaWidget(UnsavedFormMixin, QWidget):
+class InserimentoPartitaWidget(FormDraftMixin, UnsavedFormMixin, QWidget):
+    _DRAFT_KIND = FORM_KIND_INSERIMENTO_PARTITA
+    _DRAFT_ETICHETTA = "Partita"
+
     import_csv_requested = pyqtSignal()
     scarica_csv_requested = pyqtSignal()
 
@@ -836,28 +897,35 @@ class InserimentoPartitaWidget(UnsavedFormMixin, QWidget):
         button_layout = QHBoxLayout()
         button_layout.setSpacing(8)
 
-        btn_import = QPushButton("Importa CSV")
+        btn_import = QPushButton("Impor&ta CSV")
         btn_import.setObjectName("secondaryButton")
         btn_import.clicked.connect(self.import_csv_requested.emit)
         btn_import.setToolTip("Importa più partite da un file CSV o Excel")
-        btn_scarica = QPushButton("Scarica CSV")
+        btn_scarica = QPushButton("S&carica CSV")
         btn_scarica.setObjectName("secondaryButton")
         btn_scarica.clicked.connect(self.scarica_csv_requested.emit)
         btn_scarica.setToolTip("Scarica le partite esistenti come file CSV")
-        btn_template = QPushButton("Scarica template")
+        btn_template = QPushButton("Scarica temp&late")
         btn_template.setObjectName("secondaryButton")
         btn_template.clicked.connect(self._scarica_template_csv)
         btn_template.setToolTip("Scarica un file CSV di esempio con le colonne corrette")
+        btn_bozza = QPushButton("&Riprendi bozza…")
+        btn_bozza.setObjectName("secondaryButton")
+        btn_bozza.setToolTip(
+            "Riapri un modulo lasciato a metà. Le bozze si salvano quando "
+            "esci da un modulo compilato.")
+        btn_bozza.clicked.connect(self._riprendi_bozza)
         button_layout.addWidget(btn_import)
         button_layout.addWidget(btn_scarica)
         button_layout.addWidget(btn_template)
+        button_layout.addWidget(btn_bozza)
         button_layout.addStretch()
 
-        btn_pulisci = QPushButton("Pulisci Campi")
+        btn_pulisci = QPushButton("&Pulisci Campi")
         btn_pulisci.setObjectName("secondaryButton")
         btn_pulisci.clicked.connect(self._pulisci_campi)
         btn_pulisci.setToolTip("Azzera tutti i campi del form")
-        btn_salva = QPushButton("Salva Partita")
+        btn_salva = QPushButton("&Salva Partita")
         btn_salva.setDefault(True)
         btn_salva.clicked.connect(self._salva_partita)
         btn_salva.setToolTip("Salva la partita nel database (Invio)")
@@ -901,6 +969,16 @@ class InserimentoPartitaWidget(UnsavedFormMixin, QWidget):
 
     def load_initial_data(self):
         """Metodo per caricare i dati necessari, come la lista dei comuni."""
+        imposta_nomi_accessibili(self, {
+            "comune_combo": "Comune della partita (obbligatorio)",
+            "numero_partita_spin": "Numero della partita",
+            "suffisso_edit": "Suffisso del numero di partita",
+            "data_impianto_edit": "Data di impianto della partita",
+            "data_chiusura_edit": "Data di chiusura della partita",
+            "numero_provenienza_edit": "Numero di provenienza",
+            "tipo_combo": "Tipo di partita",
+            "stato_combo": "Stato della partita",
+        })
         try:
             comuni = self.db_manager.get_elenco_comuni_semplice()
             self.comune_combo.clear()

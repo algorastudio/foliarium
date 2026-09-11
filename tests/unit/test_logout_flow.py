@@ -53,6 +53,10 @@ def window(app):
     win.logged_in_user_info = {"username": "mrossi", "ruolo": "archivista"}
     win.current_session_id = "abcdef12-0000-0000-0000-000000000000"
     yield win
+    # La finestra installa un filtro eventi sull'intera QApplication e lo
+    # rimuove solo in closeEvent: senza questo resterebbe agganciato a un
+    # oggetto distrutto per tutto il resto della sessione di test.
+    QApplication.instance().removeEventFilter(win)
     win.deleteLater()
 
 

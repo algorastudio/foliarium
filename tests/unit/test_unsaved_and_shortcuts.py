@@ -155,6 +155,7 @@ class TestScorciatoie:
             assert "Ctrl+/" not in registrate
             assert {"Ctrl+K", "Ctrl+S", "Ctrl+F", "Alt+Left"} <= registrate
         finally:
+            QApplication.instance().removeEventFilter(finestra)
             finestra.deleteLater()
 
     def test_installazione_idempotente(self, app):
@@ -168,6 +169,7 @@ class TestScorciatoie:
             finestra._install_shortcuts()
             assert len(finestra._shortcut_objects) == quante
         finally:
+            QApplication.instance().removeEventFilter(finestra)
             finestra.deleteLater()
 
 
@@ -242,6 +244,7 @@ class TestCronologiaNavigazione:
         for _ in range(3):
             w.stack.addWidget(QWidget())
         yield w
+        QApplication.instance().removeEventFilter(w)
         w.deleteLater()
 
     def test_senza_cronologia_avvisa_e_non_naviga(self, finestra):

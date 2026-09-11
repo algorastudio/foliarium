@@ -883,6 +883,18 @@ QLabel#resultCountLabel {
     background: transparent;
 }
 
+/* Barra di annullamento: informativa, non un avviso — colore distinto
+   dall'ambra di staleDataBar, che segnala invece un problema. */
+#undoBar {
+    background: #E8F0FE;
+    border-bottom: 1px solid #AECBFA;
+}
+#undoBar QLabel {
+    color: #1A3C6E;
+    font-weight: 600;
+    background: transparent;
+}
+
 /* Info box per riepiloghi (partita sorgente/destinazione, etc.) */
 QLabel#infoBox {
     padding: 5px 8px;

@@ -230,6 +230,27 @@ class CatastoMainWindow(QMainWindow):
         self.main_layout.addWidget(self.stale_data_bar)
         self.stale_data_bar.hide()
 
+        # --- Barra annullamento ultima operazione ---
+        self.undo_bar = QFrame()
+        self.undo_bar.setObjectName("undoBar")
+        undo_layout = QHBoxLayout(self.undo_bar)
+        undo_layout.setContentsMargins(16, 8, 16, 8)
+        self.undo_label = QLabel("")
+        self.undo_button = QPushButton("Annulla")
+        self.undo_button.setObjectName("secondaryButton")
+        self.undo_button.setToolTip("Annulla l'ultima operazione (Ctrl+Z)")
+        self.undo_button.clicked.connect(self._annulla_ultima_operazione)
+        undo_layout.addWidget(self.undo_label)
+        undo_layout.addStretch()
+        undo_layout.addWidget(self.undo_button)
+        self.main_layout.addWidget(self.undo_bar)
+        self.undo_bar.hide()
+
+        from foliarium.ui.undo import gestore_annullamento
+        self._undo = gestore_annullamento()
+        self._undo.disponibile.connect(self._mostra_barra_annullamento)
+        self._undo.esaurito.connect(self.undo_bar.hide)
+
         # --- Barra modalità offline ---
         self.offline_bar = QFrame()
         self.offline_bar.setObjectName("offlineBar")
@@ -904,6 +925,14 @@ class CatastoMainWindow(QMainWindow):
         self.inserimento_localita_widget_ref.scarica_csv_requested.connect(self._scarica_csv_localita)
         _add_page("ins_localita", self.inserimento_localita_widget_ref)
 
+        # Le bozze dei moduli sono legate a chi le ha scritte: senza questo
+        # finirebbero fra le bozze "orfane" e sarebbero visibili a chiunque.
+        for _modulo in (self.inserimento_comune_widget_ref,
+                        self.inserimento_possessore_widget_ref,
+                        self.inserimento_partite_widget_ref,
+                        self.inserimento_localita_widget_ref):
+            _modulo.utente_id = self.logged_in_user_id
+
         self.nuova_partita_wizard_ref = NuovaPartitaWizardWidget(
             self.db_manager, self.logged_in_user_info, self.stack,
             utente_id=self.logged_in_user_id)
@@ -978,6 +1007,7 @@ class CatastoMainWindow(QMainWindow):
         ("Ctrl+F",   "Ricerca globale",              "_shortcut_ricerca_globale", False),
         ("Ctrl+N",   "Nuova partita (wizard)",       "_shortcut_nuova_partita",   False),
         ("Ctrl+S",   "Salva il modulo in corso",     "_shortcut_salva",           False),
+        ("Ctrl+Z",   "Annulla l'ultima operazione",  "_annulla_ultima_operazione", False),
         ("Ctrl+H",   "Torna alla Home",              "_shortcut_home",            False),
         ("Alt+Left", "Pagina precedente",            "_shortcut_indietro",        False),
         ("F5",       "Ricarica i dati della pagina", "_handle_f5_refresh",        False),
@@ -1078,6 +1108,33 @@ class CatastoMainWindow(QMainWindow):
         )
         box.setStandardButtons(QMessageBox.StandardButton.Ok)
         box.exec()
+
+    # ------------------------------------------------------------------
+    # Annullamento dell'ultima operazione
+    # ------------------------------------------------------------------
+
+    @pyqtSlot(str)
+    def _mostra_barra_annullamento(self, descrizione: str):
+        """Offre l'annullamento dell'operazione appena eseguita."""
+        self.undo_label.setText(f"{descrizione}.")
+        self.undo_bar.show()
+
+    def _annulla_ultima_operazione(self):
+        """Ctrl+Z o pulsante: esegue l'operazione inversa."""
+        if not self._undo.ha_azione():
+            self.statusBar().showMessage(
+                "Non c'è nessuna operazione recente da annullare.", 3000)
+            return
+        try:
+            descrizione = self._undo.annulla_ultima()
+        except Exception as e:
+            # Caso tipico: un altro archivista è già intervenuto sullo stesso
+            # record e l'operazione inversa non trova più lo stato atteso.
+            from foliarium.ui.errors import show_user_error
+            show_user_error(self, "Annullamento operazione", e, logger=self.logger)
+            return
+        if descrizione:
+            self.statusBar().showMessage(f"Annullato: {descrizione.lower()}.", 5000)
 
     def _open_command_palette(self):
         """Ctrl+K: apre la command palette per navigazione rapida."""
@@ -1471,12 +1528,26 @@ class CatastoMainWindow(QMainWindow):
             self._inactivity_timer.stop()
 
     def eventFilter(self, obj, event):
-        """Resetta il timer di inattività ad ogni interazione utente."""
+        """Resetta il timer di inattività ad ogni interazione utente.
+
+        Il filtro è installato sull'intera QApplication e viene rimosso in
+        closeEvent. Se la finestra viene distrutta per altra via, Qt può
+        chiamarlo ancora su un oggetto i cui attributi Python non ci sono
+        più: da qui gli accessi difensivi, che altrimenti farebbero
+        abortire il processo dentro il ciclo di eventi.
+        """
         from PyQt6.QtCore import QEvent
-        if self.logged_in_user_id is not None and self._inactivity_timer.isActive():
-            if event.type() in (QEvent.Type.MouseMove, QEvent.Type.MouseButtonPress,
-                                 QEvent.Type.KeyPress, QEvent.Type.Wheel):
-                self._inactivity_timer.start()  # riavvia con l'intervallo già impostato
+        timer = getattr(self, "_inactivity_timer", None)
+        if timer is None:
+            return False
+        try:
+            if getattr(self, "logged_in_user_id", None) is not None and timer.isActive():
+                if event.type() in (QEvent.Type.MouseMove, QEvent.Type.MouseButtonPress,
+                                    QEvent.Type.KeyPress, QEvent.Type.Wheel):
+                    timer.start()  # riavvia con l'intervallo già impostato
+        except RuntimeError:
+            # Oggetto C++ sottostante già distrutto: niente da fare.
+            return False
         return super().eventFilter(obj, event)
 
     def _on_inactivity_timeout(self):
@@ -1573,6 +1644,8 @@ class CatastoMainWindow(QMainWindow):
             w.deleteLater()  # Previene il memory leak a ogni logout
         self._page_index.clear()
         self._nav_history.clear()
+        # Un'operazione dell'utente precedente non va offerta al successivo.
+        self._undo.dimentica()
 
     def handle_logout(self):
         if self.logged_in_user_id is not None and self.current_session_id and self.db_manager:
@@ -2019,11 +2092,47 @@ class CatastoMainWindow(QMainWindow):
         
         # Chiamiamo la funzione di refresh esistente, mostrando il messaggio di successo
         self.db_manager.refresh_materialized_views(show_success_message=True)
+    #: Pagina dell'applicazione -> documento del manuale che la riguarda.
+    #: F1 deve aprire la sezione utile a chi la preme, non l'indice: chi
+    #: chiede aiuto sta guardando una schermata precisa.
+    _AIUTO_CONTESTUALE = {
+        "home":            "index.md",
+        "comuni":          "consultazione.md",
+        "partite":         "consultazione.md",
+        "documenti":       "consultazione.md",
+        "immobili":        "ricerca-avanzata.md",
+        "fuzzy":           "ricerca-avanzata.md",
+        "archivio":        "consultazione.md",
+        "ins_wizard":      "inserimento.md",
+        "ins_comune":      "inserimento.md",
+        "ins_possessore":  "inserimento.md",
+        "ins_partita":     "inserimento.md",
+        "ins_localita":    "inserimento.md",
+        "reg_proprieta":   "inserimento.md",
+        "reg_consult":     "inserimento.md",
+        "operazioni":      "inserimento.md",
+        "tabelle_sistema": "inserimento.md",
+        "esportazioni":    "esportazioni.md",
+        "report":          "reportistica.md",
+        "statistiche":     "statistiche.md",
+        "utenti":          "admin/gestione-utenti.md",
+        "backup":          "admin/backup.md",
+        "audit":           "admin/index.md",
+    }
+
+    def _documento_aiuto_corrente(self) -> str:
+        """Documento del manuale che corrisponde alla pagina visualizzata."""
+        indice = self.stack.currentIndex()
+        for nome, idx in self._page_index.items():
+            if idx == indice:
+                return self._AIUTO_CONTESTUALE.get(nome, "")
+        return ""
+
     def _apri_manuale_utente(self):
         """Apre il manuale utente integrato (Markdown → QTextBrowser)."""
         try:
             from dialogs import HelpViewerDialog
-            dlg = HelpViewerDialog(self)
+            dlg = HelpViewerDialog(self, pagina_iniziale=self._documento_aiuto_corrente())
             dlg.exec()
         except Exception as e:
             self.logger.error(f"Errore apertura manuale: {e}", exc_info=True)

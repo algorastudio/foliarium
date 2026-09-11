@@ -5,7 +5,7 @@ from __future__ import annotations
 from PyQt6.QtCore import (Qt)
 from PyQt6.QtGui import (QDesktopServices, QFont)
 from PyQt6.QtWidgets import (QDialog,
-                             QHBoxLayout, QLabel, QPushButton, QSplitter, QTreeWidget, QTreeWidgetItem, QVBoxLayout,
+                             QHBoxLayout, QLabel, QLineEdit, QPushButton, QSplitter, QTreeWidget, QTreeWidgetItem, QVBoxLayout,
                              QTextBrowser)
 from app_paths import get_resource_path, get_resource_path as resource_path, get_doc_path  # noqa: F401
 from catasto_exceptions import DBMError, DBUniqueConstraintError, DBNotFoundError, DBDataError  # noqa: F401
@@ -139,6 +139,11 @@ hr {{ border: none; border-top: 1px solid {border}; margin: 16px 0; }}
 
 _MKDOCS_YML = "mkdocs.yml"
 
+#: Schema usato nei link della pagina dei risultati. Serve a distinguerli
+#: dai link interni al testo, che sono relativi al documento che li contiene:
+#: un risultato punta invece sempre alla radice di docs/.
+_SCHEMA_RISULTATO = "foliarium-doc:"
+
 
 # ---------------------------------------------------------------------------
 # HelpViewerDialog — Manuale utente integrato (Markdown → QTextBrowser)
@@ -152,8 +157,15 @@ class HelpViewerDialog(QDialog):
     in un QTextBrowser con navigazione ad albero sul lato sinistro.
     """
 
-    def __init__(self, parent=None):
+    def __init__(self, parent=None, pagina_iniziale: str = ""):
+        """
+        Args:
+            pagina_iniziale: documento da aprire subito (es. "inserimento.md").
+                Serve all'aiuto contestuale: F1 apre la sezione che riguarda
+                la pagina in cui l'utente si trova, non l'indice generale.
+        """
         super().__init__(parent)
+        self._pagina_iniziale = pagina_iniziale
         self.setWindowTitle("Manuale Utente \u2014 Foliarium")
         self.setMinimumSize(900, 620)
         self.resize(1100, 720)
@@ -177,13 +189,17 @@ class HelpViewerDialog(QDialog):
         self._build_ui()
         self._populate_nav()
 
-        # Apri la prima pagina disponibile
-        root = self.nav_tree.invisibleRootItem()
-        if root.childCount():
-            first = root.child(0)
-            if first.childCount():
-                first = first.child(0)
-            self.nav_tree.setCurrentItem(first)
+        if self._pagina_iniziale and (self._docs_dir / self._pagina_iniziale).exists():
+            self._load_page(self._pagina_iniziale)
+            self._sync_tree(self._pagina_iniziale)
+        else:
+            # Apri la prima pagina disponibile
+            root = self.nav_tree.invisibleRootItem()
+            if root.childCount():
+                first = root.child(0)
+                if first.childCount():
+                    first = first.child(0)
+                self.nav_tree.setCurrentItem(first)
 
     # ------------------------------------------------------------------
     # Costruzione UI
@@ -211,6 +227,19 @@ class HelpViewerDialog(QDialog):
         toolbar.addSpacing(12)
         toolbar.addWidget(self.lbl_title)
         toolbar.addStretch()
+
+        # Ricerca su tutto il manuale: con oltre venti pagine, sfogliare
+        # l'albero per trovare una parola non e' praticabile.
+        self.search_edit = QLineEdit()
+        self.search_edit.setPlaceholderText("Cerca nel manuale…")
+        self.search_edit.setClearButtonEnabled(True)
+        self.search_edit.setMaximumWidth(260)
+        self.search_edit.returnPressed.connect(self._cerca_nel_manuale)
+        toolbar.addWidget(self.search_edit)
+        btn_cerca = QPushButton("Cerca")
+        btn_cerca.clicked.connect(self._cerca_nel_manuale)
+        toolbar.addWidget(btn_cerca)
+
         layout.addLayout(toolbar)
 
         # Splitter: albero a sinistra, contenuto a destra
@@ -352,6 +381,88 @@ class HelpViewerDialog(QDialog):
         self._update_nav_buttons()
         self._sync_tree(rel_path)
 
+    # ------------------------------------------------------------------
+    # Ricerca nel manuale
+    # ------------------------------------------------------------------
+
+    def _cerca_nel_manuale(self):
+        """Cerca il testo digitato in tutti i documenti e mostra i risultati."""
+        query = self.search_edit.text().strip()
+        if len(query) < 2:
+            self.search_edit.setFocus()
+            return
+
+        risultati = self._raccogli_risultati(query)
+        self.lbl_title.setText(f"Risultati per «{query}»")
+        self.content.setHtml(self._html_risultati(query, risultati))
+
+    def _raccogli_risultati(self, query: str, massimo: int = 40) -> list:
+        """Cerca query nei .md di docs/. Ritorna (percorso, titolo, estratto)."""
+        ago = query.lower()
+        trovati = []
+        for percorso in sorted(self._docs_dir.rglob("*.md")):
+            try:
+                testo = percorso.read_text(encoding="utf-8")
+            except Exception:
+                continue
+            if ago not in testo.lower():
+                continue
+            rel = percorso.relative_to(self._docs_dir).as_posix()
+            trovati.append((rel, self._titolo_documento(testo, percorso),
+                            self._estratto(testo, ago)))
+            if len(trovati) >= massimo:
+                break
+        return trovati
+
+    @staticmethod
+    def _titolo_documento(testo: str, percorso) -> str:
+        """Primo titolo di primo livello del documento, o il nome del file."""
+        for riga in testo.splitlines():
+            if riga.startswith("# "):
+                return riga[2:].strip()
+        return percorso.stem.replace("-", " ").replace("_", " ").title()
+
+    @staticmethod
+    def _estratto(testo: str, ago: str, contorno: int = 90) -> str:
+        """Frammento attorno alla prima occorrenza, con il termine evidenziato."""
+        from html import escape
+        posizione = testo.lower().find(ago)
+        if posizione < 0:
+            return ""
+        inizio = max(0, posizione - contorno)
+        fine = min(len(testo), posizione + len(ago) + contorno)
+        frammento = testo[inizio:fine].replace("\n", " ").strip()
+        trovato = testo[posizione:posizione + len(ago)]
+        frammento = escape(frammento).replace(
+            escape(trovato), f"<b>{escape(trovato)}</b>", 1)
+        prefisso = "… " if inizio > 0 else ""
+        suffisso = " …" if fine < len(testo) else ""
+        return f"{prefisso}{frammento}{suffisso}"
+
+    def _html_risultati(self, query: str, risultati: list) -> str:
+        """Pagina dei risultati, con la stessa veste del resto del manuale."""
+        from html import escape
+        if not risultati:
+            corpo = (
+                f"<h1>Nessun risultato</h1>"
+                f"<p>Non ho trovato <b>{escape(query)}</b> nel manuale.</p>"
+                f"<p>Prova con una parola sola o con un termine più generico.</p>"
+            )
+        else:
+            voci = "".join(
+                f'<li><a href="{_SCHEMA_RISULTATO}{escape(rel)}">{escape(titolo)}</a>'
+                f'<br><span style="font-size:0.92em">{estratto}</span></li>'
+                for rel, titolo, estratto in risultati
+            )
+            plurale = "pagina" if len(risultati) == 1 else "pagine"
+            corpo = (
+                f"<h1>Risultati per «{escape(query)}»</h1>"
+                f"<p>{len(risultati)} {plurale} contengono il termine cercato.</p>"
+                f"<ul>{voci}</ul>"
+            )
+        return ("<!DOCTYPE html><html><head>" + self._help_css
+                + "</head><body>" + corpo + "</body></html>")
+
     def _sync_tree(self, rel_path):
         """Seleziona nel tree il nodo corrispondente alla pagina corrente."""
         def _find(item):
@@ -386,6 +497,10 @@ class HelpViewerDialog(QDialog):
         href = url.toString()
         if href.startswith("http://") or href.startswith("https://"):
             QDesktopServices.openUrl(url)
+            return
+        if href.startswith(_SCHEMA_RISULTATO):
+            # Arriva dalla pagina dei risultati: gia' relativo a docs/.
+            self._load_page(href[len(_SCHEMA_RISULTATO):])
             return
         if self._history_pos >= 0:
             from pathlib import PurePosixPath

@@ -93,6 +93,220 @@ class QPasswordLineEdit(QLineEdit):
 # In custom_widgets.py
 
 
+class FormDraftMixin:
+    """Salva e riprende il contenuto di un modulo come bozza sul database.
+
+    I wizard avevano gia' le bozze (``catasto.partita_draft``); i moduli di
+    inserimento semplice no, quindi un modulo compilato a meta' si perdeva
+    a fine giornata. Qui si riusa la stessa tabella: il payload e' lo stato
+    dei campi, indicizzato per nome di attributo, e ``wizard_kind`` tiene
+    separate le liste per tipo di modulo.
+
+    Il modulo che adotta il mixin deve dichiarare:
+        _DRAFT_KIND      costante wizard_kind del modulo
+        _DRAFT_ETICHETTA descrizione breve usata nei messaggi
+    e avere gli attributi ``db_manager`` e (se disponibile) ``utente_id``.
+
+    Il salvataggio non ha un pulsante dedicato: passa dal dialogo che
+    compare quando si lascia un modulo compilato. Aggiungere due bottoni in
+    una barra che ne ha gia' cinque avrebbe peggiorato proprio cio' che
+    questa revisione cerca di alleggerire.
+    """
+
+    _DRAFT_KIND: str = ""
+    _DRAFT_ETICHETTA: str = "modulo"
+
+    # -- raccolta dei campi -------------------------------------------------
+
+    def _campi_bozza(self) -> dict:
+        """Campi di input del modulo, per nome di attributo.
+
+        Il nome dell'attributo e' una chiave stabile fra sessioni e
+        versioni, a differenza dell'ordine dei widget nel layout.
+        """
+        from PyQt6.QtWidgets import (QCheckBox, QComboBox, QDateEdit,
+                                     QLineEdit, QSpinBox, QTextEdit)
+        tipi = (QLineEdit, QTextEdit, QSpinBox, QCheckBox, QDateEdit, QComboBox)
+        return {
+            nome: valore for nome, valore in vars(self).items()
+            if isinstance(valore, tipi)
+        }
+
+    def serializza_bozza(self) -> dict:
+        """Stato corrente dei campi, in una forma salvabile come JSON."""
+        from PyQt6.QtWidgets import (QCheckBox, QComboBox, QDateEdit,
+                                     QLineEdit, QSpinBox, QTextEdit)
+        stato = {}
+        for nome, campo in self._campi_bozza().items():
+            if isinstance(campo, QLineEdit):
+                stato[nome] = {"tipo": "testo", "valore": campo.text()}
+            elif isinstance(campo, QTextEdit):
+                stato[nome] = {"tipo": "testo_lungo", "valore": campo.toPlainText()}
+            elif isinstance(campo, QSpinBox):
+                stato[nome] = {"tipo": "numero", "valore": campo.value()}
+            elif isinstance(campo, QCheckBox):
+                stato[nome] = {"tipo": "spunta", "valore": campo.isChecked()}
+            elif isinstance(campo, QDateEdit):
+                stato[nome] = {"tipo": "data",
+                               "valore": campo.date().toString("yyyy-MM-dd")}
+            elif isinstance(campo, QComboBox):
+                # Si salvano sia il dato sia il testo: alla ripresa il menu
+                # puo' essere stato ripopolato in ordine diverso, e il testo
+                # permette di ritrovare la voce giusta.
+                dato = campo.currentData()
+                stato[nome] = {
+                    "tipo": "scelta",
+                    "valore": dato if isinstance(dato, (int, str, type(None))) else None,
+                    "testo": campo.currentText(),
+                }
+        return stato
+
+    def ripristina_bozza(self, stato: dict) -> None:
+        """Riporta i campi allo stato salvato, ignorando quelli spariti."""
+        from PyQt6.QtCore import QDate
+        from PyQt6.QtWidgets import (QCheckBox, QComboBox, QDateEdit,
+                                     QLineEdit, QSpinBox, QTextEdit)
+        campi = self._campi_bozza()
+        for nome, voce in (stato or {}).items():
+            campo = campi.get(nome)
+            if campo is None or not isinstance(voce, dict):
+                continue      # il modulo e' cambiato: si salta il campo
+            valore = voce.get("valore")
+            if isinstance(campo, QLineEdit):
+                campo.setText(str(valore or ""))
+            elif isinstance(campo, QTextEdit):
+                campo.setPlainText(str(valore or ""))
+            elif isinstance(campo, QSpinBox):
+                if isinstance(valore, int):
+                    campo.setValue(valore)
+            elif isinstance(campo, QCheckBox):
+                campo.setChecked(bool(valore))
+            elif isinstance(campo, QDateEdit):
+                data = QDate.fromString(str(valore or ""), "yyyy-MM-dd")
+                if data.isValid():
+                    campo.setDate(data)
+            elif isinstance(campo, QComboBox):
+                indice = campo.findData(valore) if valore is not None else -1
+                if indice < 0 and voce.get("testo"):
+                    indice = campo.findText(voce["testo"])
+                if indice >= 0:
+                    campo.setCurrentIndex(indice)
+
+    # -- persistenza --------------------------------------------------------
+
+    def _titolo_bozza(self) -> str:
+        from datetime import datetime
+        return f"{self._DRAFT_ETICHETTA} — {datetime.now():%d/%m/%Y %H:%M}"
+
+    def save_pending_changes(self) -> bool:
+        """Salva il modulo come bozza riprendibile. True se salvata.
+
+        Fa parte del protocollo letto da CatastoMainWindow: la sua presenza
+        e' cio' che fa comparire "Salva bozza" nel dialogo di uscita.
+        """
+        if not self._DRAFT_KIND or getattr(self, "db_manager", None) is None:
+            return False
+        try:
+            draft_id = self.db_manager.save_partita_draft(
+                utente_id=getattr(self, "utente_id", None),
+                titolo=self._titolo_bozza(),
+                payload=self.serializza_bozza(),
+                draft_id=getattr(self, "_draft_id_corrente", None),
+                wizard_kind=self._DRAFT_KIND,
+            )
+        except Exception:
+            self.logger.error("Salvataggio bozza fallito", exc_info=True)
+            raise
+        self._draft_id_corrente = int(draft_id)
+        show_status_message(
+            f"Bozza salvata: puoi riprenderla da «Riprendi bozza…».", 5000)
+        if hasattr(self, "mark_form_clean"):
+            self.mark_form_clean()
+        return True
+
+    def elenca_bozze(self) -> list:
+        """Bozze salvate per questo tipo di modulo, più recenti prima."""
+        if not self._DRAFT_KIND or getattr(self, "db_manager", None) is None:
+            return []
+        return self.db_manager.list_partita_drafts(
+            utente_id=getattr(self, "utente_id", None),
+            wizard_kind=self._DRAFT_KIND,
+        )
+
+    def _riprendi_bozza(self) -> None:
+        """Chiede quale bozza riaprire e la carica nei campi del modulo."""
+        from PyQt6.QtWidgets import QInputDialog, QMessageBox
+
+        try:
+            bozze = self.elenca_bozze()
+        except Exception as e:
+            from foliarium.ui.errors import show_user_error
+            show_user_error(self, "Elenco bozze", e,
+                            logger=getattr(self, "logger", None))
+            return
+
+        if not bozze:
+            QMessageBox.information(
+                self, "Nessuna bozza",
+                "Non ci sono bozze salvate per questo modulo.\n\n"
+                "Una bozza viene proposta quando lasci un modulo compilato "
+                "senza averlo salvato.",
+            )
+            return
+
+        etichette = [
+            f"{b.get('titolo') or 'senza titolo'}"
+            f"  (aggiornata il {b['updated_at']:%d/%m/%Y %H:%M})"
+            if b.get("updated_at") else (b.get("titolo") or "senza titolo")
+            for b in bozze
+        ]
+        scelta, ok = QInputDialog.getItem(
+            self, "Riprendi bozza", "Bozza da riaprire:", etichette, 0, False)
+        if not ok or not scelta:
+            return
+
+        bozza = bozze[etichette.index(scelta)]
+        try:
+            self.carica_bozza(int(bozza["id"]))
+        except Exception as e:
+            from foliarium.ui.errors import show_user_error
+            show_user_error(self, "Caricamento bozza", e,
+                            logger=getattr(self, "logger", None))
+            return
+        show_status_message("Bozza caricata nel modulo.", 4000)
+
+    def carica_bozza(self, draft_id: int) -> None:
+        """Carica la bozza indicata nei campi del modulo."""
+        bozza = self.db_manager.load_partita_draft(
+            draft_id,
+            utente_id=getattr(self, "utente_id", None),
+            wizard_kind=self._DRAFT_KIND,
+        )
+        self.ripristina_bozza(bozza.get("payload") or {})
+        self._draft_id_corrente = int(draft_id)
+        if hasattr(self, "mark_form_clean"):
+            self.mark_form_clean()
+
+
+def imposta_nomi_accessibili(contenitore, nomi: dict) -> None:
+    """Dà un nome parlante ai campi per le tecnologie assistive.
+
+    Le etichette dei moduli sono QLabel separate, per giunta in rich text
+    (contengono l'asterisco rosso dei campi obbligatori): Qt non le associa
+    da solo al campo che descrivono, quindi uno screen reader annuncia
+    "casella di testo" e basta. ``setAccessibleName`` colma la distanza
+    senza toccare quello che si vede a schermo.
+
+    Args:
+        contenitore: il widget del modulo.
+        nomi: attributo del widget -> nome da annunciare.
+    """
+    for attributo, nome in nomi.items():
+        campo = getattr(contenitore, attributo, None)
+        if campo is not None:
+            campo.setAccessibleName(nome)
+
+
 class UnsavedFormMixin:
     """Rileva se un form contiene dati compilati e non ancora salvati.
 
