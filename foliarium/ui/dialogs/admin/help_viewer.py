@@ -30,59 +30,112 @@ except ImportError:
 # HelpViewerDialog — Manuale utente integrato (Markdown → QTextBrowser)
 # ---------------------------------------------------------------------------
 
-_HELP_CSS = """
+#: Palette del manuale per tema chiaro e scuro. Il QSS di Qt non raggiunge
+#: l'HTML renderizzato dentro il QTextBrowser, quindi i colori del documento
+#: vanno dichiarati qui, altrimenti in tema scuro il manuale si aprirebbe
+#: come una pagina bianca accecante.
+_HELP_PALETTES = {
+    "light": {
+        "bg":          "#ffffff",
+        "fg":          "#212121",
+        "h1":          "#1a237e",
+        "h2":          "#283593",
+        "h3":          "#303f9f",
+        "h4":          "#3949ab",
+        "rule":        "#3949ab",
+        "rule_soft":   "#c5cae9",
+        "link":        "#1565c0",
+        "code_bg":     "#f0f0f0",
+        "code_fg":     "#c62828",
+        "pre_bg":      "#f5f5f5",
+        "quote_bg":    "#e8eaf6",
+        "quote_fg":    "#37474f",
+        "th_bg":       "#3949ab",
+        "th_fg":       "#ffffff",
+        "border":      "#e0e0e0",
+        "row_alt":     "#f5f5f5",
+    },
+    "dark": {
+        "bg":          "#1e1f26",
+        "fg":          "#e4e6eb",
+        "h1":          "#9fa8da",
+        "h2":          "#9fa8da",
+        "h3":          "#b39ddb",
+        "h4":          "#b0bec5",
+        "rule":        "#5c6bc0",
+        "rule_soft":   "#3a3f55",
+        "link":        "#82b1ff",
+        "code_bg":     "#2a2c36",
+        "code_fg":     "#ff8a80",
+        "pre_bg":      "#24262f",
+        "quote_bg":    "#262a3d",
+        "quote_fg":    "#cfd8dc",
+        "th_bg":       "#3a416b",
+        "th_fg":       "#ffffff",
+        "border":      "#3a3f55",
+        "row_alt":     "#24262f",
+    },
+}
+
+
+def _build_help_css(dark: bool) -> str:
+    """Compone il foglio di stile del manuale per il tema attivo."""
+    c = _HELP_PALETTES["dark" if dark else "light"]
+    return """
 <style>
-body {
+body {{
     font-family: Segoe UI, Arial, sans-serif;
     font-size: 13px;
     line-height: 1.65;
-    color: #212121;
+    color: {fg};
+    background-color: {bg};
     max-width: 860px;
     margin: 0 auto;
     padding: 16px 24px;
-}
-h1 { font-size: 1.7em; color: #1a237e; border-bottom: 2px solid #3949ab; padding-bottom: 6px; margin-top: 0; }
-h2 { font-size: 1.35em; color: #283593; border-bottom: 1px solid #c5cae9; padding-bottom: 4px; margin-top: 1.4em; }
-h3 { font-size: 1.1em; color: #303f9f; margin-top: 1.2em; }
-h4 { font-size: 1em; color: #3949ab; }
-a  { color: #1565c0; text-decoration: none; }
-a:hover { text-decoration: underline; }
-code {
-    background: #f0f0f0;
+}}
+h1 {{ font-size: 1.7em; color: {h1}; border-bottom: 2px solid {rule}; padding-bottom: 6px; margin-top: 0; }}
+h2 {{ font-size: 1.35em; color: {h2}; border-bottom: 1px solid {rule_soft}; padding-bottom: 4px; margin-top: 1.4em; }}
+h3 {{ font-size: 1.1em; color: {h3}; margin-top: 1.2em; }}
+h4 {{ font-size: 1em; color: {h4}; }}
+a  {{ color: {link}; text-decoration: none; }}
+a:hover {{ text-decoration: underline; }}
+code {{
+    background: {code_bg};
     border-radius: 3px;
     padding: 1px 5px;
     font-family: Consolas, monospace;
     font-size: 0.88em;
-    color: #c62828;
-}
-pre {
-    background: #f5f5f5;
-    border-left: 4px solid #3949ab;
+    color: {code_fg};
+}}
+pre {{
+    background: {pre_bg};
+    border-left: 4px solid {rule};
     border-radius: 3px;
     padding: 10px 14px;
     overflow-x: auto;
     font-family: Consolas, monospace;
     font-size: 0.85em;
     line-height: 1.5;
-}
-pre code { background: none; padding: 0; color: inherit; }
-blockquote {
-    background: #e8eaf6;
-    border-left: 4px solid #3949ab;
+}}
+pre code {{ background: none; padding: 0; color: inherit; }}
+blockquote {{
+    background: {quote_bg};
+    border-left: 4px solid {rule};
     margin: 10px 0;
     padding: 8px 14px;
     border-radius: 0 4px 4px 0;
-    color: #37474f;
-}
-table { border-collapse: collapse; width: 100%; margin: 12px 0; font-size: 0.92em; }
-th { background: #3949ab; color: #fff; padding: 7px 12px; text-align: left; }
-td { padding: 6px 12px; border-bottom: 1px solid #e0e0e0; }
-tr:nth-child(even) td { background: #f5f5f5; }
-ul, ol { padding-left: 1.5em; margin: 6px 0; }
-li { margin: 3px 0; }
-hr { border: none; border-top: 1px solid #e0e0e0; margin: 16px 0; }
+    color: {quote_fg};
+}}
+table {{ border-collapse: collapse; width: 100%; margin: 12px 0; font-size: 0.92em; }}
+th {{ background: {th_bg}; color: {th_fg}; padding: 7px 12px; text-align: left; }}
+td {{ padding: 6px 12px; border-bottom: 1px solid {border}; }}
+tr:nth-child(even) td {{ background: {row_alt}; }}
+ul, ol {{ padding-left: 1.5em; margin: 6px 0; }}
+li {{ margin: 3px 0; }}
+hr {{ border: none; border-top: 1px solid {border}; margin: 16px 0; }}
 </style>
-"""
+""".format(**c)
+
 
 _MKDOCS_YML = "mkdocs.yml"
 
@@ -91,61 +144,6 @@ _MKDOCS_YML = "mkdocs.yml"
 # HelpViewerDialog — Manuale utente integrato (Markdown → QTextBrowser)
 # ---------------------------------------------------------------------------
 
-_HELP_CSS = """
-<style>
-body {
-    font-family: Segoe UI, Arial, sans-serif;
-    font-size: 13px;
-    line-height: 1.65;
-    color: #212121;
-    max-width: 860px;
-    margin: 0 auto;
-    padding: 16px 24px;
-}
-h1 { font-size: 1.7em; color: #1a237e; border-bottom: 2px solid #3949ab; padding-bottom: 6px; margin-top: 0; }
-h2 { font-size: 1.35em; color: #283593; border-bottom: 1px solid #c5cae9; padding-bottom: 4px; margin-top: 1.4em; }
-h3 { font-size: 1.1em; color: #303f9f; margin-top: 1.2em; }
-h4 { font-size: 1em; color: #3949ab; }
-a  { color: #1565c0; text-decoration: none; }
-a:hover { text-decoration: underline; }
-code {
-    background: #f0f0f0;
-    border-radius: 3px;
-    padding: 1px 5px;
-    font-family: Consolas, monospace;
-    font-size: 0.88em;
-    color: #c62828;
-}
-pre {
-    background: #f5f5f5;
-    border-left: 4px solid #3949ab;
-    border-radius: 3px;
-    padding: 10px 14px;
-    overflow-x: auto;
-    font-family: Consolas, monospace;
-    font-size: 0.85em;
-    line-height: 1.5;
-}
-pre code { background: none; padding: 0; color: inherit; }
-blockquote {
-    background: #e8eaf6;
-    border-left: 4px solid #3949ab;
-    margin: 10px 0;
-    padding: 8px 14px;
-    border-radius: 0 4px 4px 0;
-    color: #37474f;
-}
-table { border-collapse: collapse; width: 100%; margin: 12px 0; font-size: 0.92em; }
-th { background: #3949ab; color: #fff; padding: 7px 12px; text-align: left; }
-td { padding: 6px 12px; border-bottom: 1px solid #e0e0e0; }
-tr:nth-child(even) td { background: #f5f5f5; }
-ul, ol { padding-left: 1.5em; margin: 6px 0; }
-li { margin: 3px 0; }
-hr { border: none; border-top: 1px solid #e0e0e0; margin: 16px 0; }
-</style>
-"""
-
-_MKDOCS_YML = "mkdocs.yml"
 
 
 class HelpViewerDialog(QDialog):
@@ -165,6 +163,16 @@ class HelpViewerDialog(QDialog):
         self._docs_dir = get_doc_path()
         self._history = []
         self._history_pos = -1
+
+        # Il manuale viene renderizzato come HTML dentro un QTextBrowser:
+        # i colori vanno scelti ora, in base al tema attivo, perche' il QSS
+        # dell'applicazione non raggiunge il contenuto del documento.
+        try:
+            from foliarium.ui.theme import is_dark_theme
+            self._dark = is_dark_theme()
+        except Exception:
+            self._dark = False
+        self._help_css = _build_help_css(self._dark)
 
         self._build_ui()
         self._populate_nav()
@@ -217,6 +225,10 @@ class HelpViewerDialog(QDialog):
 
         self.content = QTextBrowser()
         self.content.setOpenLinks(False)
+        # Evita il lampo di sfondo chiaro tra un caricamento e l'altro:
+        # il viewport usa lo stesso colore dichiarato nel CSS del documento.
+        _bg = _HELP_PALETTES["dark" if self._dark else "light"]["bg"]
+        self.content.setStyleSheet(f"QTextBrowser {{ background-color: {_bg}; }}")
         self.content.anchorClicked.connect(self._on_link_clicked)
         self.content.setFont(QFont("Segoe UI", 10))
 
@@ -316,7 +328,7 @@ class HelpViewerDialog(QDialog):
             )
             html = (
                 "<!DOCTYPE html><html><head>"
-                + _HELP_CSS
+                + self._help_css
                 + "</head><body>"
                 + body
                 + "</body></html>"

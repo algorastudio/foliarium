@@ -319,6 +319,14 @@ class CatastoMainWindow(QMainWindow):
                         _username = (self.logged_in_user_info or {}).get('username', 'N/D')
                         _nome = (self.logged_in_user_info or {}).get('nome_completo') or _username
                         _to, _subj, _body = _svc.notify_login(_user_email, _username, _nome)
+                        # Con il cambio operatore questo metodo puo' essere
+                        # rieseguito a sessione aperta: attende il worker del
+                        # login precedente prima di sostituirne il riferimento,
+                        # altrimenti un QThread ancora vivo verrebbe distrutto.
+                        _prev = getattr(self, '_login_email_worker', None)
+                        if _prev is not None and _prev.isRunning():
+                            _prev.quit()
+                            _prev.wait(2000)
                         self._login_email_worker = EmailWorker(_svc, _to, _subj, _body)
                         self._login_email_worker.result.connect(
                             lambda ok, err: self.logger.warning(f"Email login: {err}") if not ok else None)
@@ -353,15 +361,21 @@ class CatastoMainWindow(QMainWindow):
         logging.getLogger("CatastoGUI").info(
             ">>> CatastoMainWindow: self.show() completato. Fine perform_initial_setup")
 
-        # Connette il segnale OS dark/light mode per aggiornare il tema in tempo reale
-        QGuiApplication.styleHints().colorSchemeChanged.connect(self._on_color_scheme_changed)
+        # Connette il segnale OS dark/light mode per aggiornare il tema in tempo
+        # reale. Una sola volta: perform_initial_setup viene rieseguito a ogni
+        # login (cambio operatore), e riconnettere duplicherebbe le chiamate.
+        if not getattr(self, '_color_scheme_signal_connected', False):
+            QGuiApplication.styleHints().colorSchemeChanged.connect(self._on_color_scheme_changed)
+            self._color_scheme_signal_connected = True
 
         self.check_mv_refresh_status()
         self._check_offline_mode()
         QTimer.singleShot(800, self._check_db_schema_migrations)
 
         # --- Refresh periodico del seat di rete (ogni 60 secondi) ---
-        if hasattr(self, '_license_manager') and self._license_manager:
+        # Anche qui una sola volta: il seat resta acquisito per tutta la durata
+        # del processo, non per singola sessione utente.
+        if self._seat_refresh_timer is None and getattr(self, '_license_manager', None):
             self._seat_refresh_timer = QTimer(self)
             self._seat_refresh_timer.timeout.connect(self._license_manager.refresh_seat)
             self._seat_refresh_timer.start(60_000)
@@ -564,7 +578,10 @@ class CatastoMainWindow(QMainWindow):
             self.auto_theme_action.setChecked(False)
             if self.win11_action:
                 self.win11_action.setChecked(False)
-            QMessageBox.information(self, "Cambio Tema", f"Tema '{filename.replace('.qss', '').title()}' applicato con successo.")
+            # Il risultato e' gia' visibile a schermo: basta una conferma
+            # non bloccante nella status bar, senza modale da chiudere.
+            self.statusBar().showMessage(
+                f"Tema '{filename.replace('.qss', '').title()}' applicato.", 4000)
         else:
             QMessageBox.warning(self, "Errore Tema", f"Impossibile caricare il file di stile '{filename}'.")
 
@@ -815,11 +832,7 @@ class CatastoMainWindow(QMainWindow):
             w = self.stack.widget(0)
             self.stack.removeWidget(w)
             # Ferma in modo sicuro eventuali thread in esecuzione per evitare crash
-            for worker_attr in ['_dash_loader', '_loader', '_search_worker', 'search_thread']:
-                worker = getattr(w, worker_attr, None)
-                if worker and worker.isRunning():
-                    worker.quit()
-                    worker.wait(500)
+            self._stop_page_workers(w)
             w.deleteLater()  # Previene un grave memory leak eliminando il widget
         self._page_index.clear()
 
@@ -934,11 +947,15 @@ class CatastoMainWindow(QMainWindow):
         self.sidebar.build_nav(is_admin=is_admin, fuzzy_available=FUZZY_SEARCH_AVAILABLE)
         self.sidebar.show()
 
-        self._f5_shortcut = QShortcut(QKeySequence("F5"), self)
-        self._f5_shortcut.activated.connect(self._handle_f5_refresh)
+        # Le scorciatoie appartengono alla finestra, non alle pagine: vanno
+        # create una volta sola, altrimenti a ogni nuovo login Qt si trova due
+        # QShortcut sulla stessa sequenza e la segnala come ambigua.
+        if not hasattr(self, '_f5_shortcut'):
+            self._f5_shortcut = QShortcut(QKeySequence("F5"), self)
+            self._f5_shortcut.activated.connect(self._handle_f5_refresh)
 
-        self._cmd_palette_shortcut = QShortcut(QKeySequence("Ctrl+K"), self)
-        self._cmd_palette_shortcut.activated.connect(self._open_command_palette)
+            self._cmd_palette_shortcut = QShortcut(QKeySequence("Ctrl+K"), self)
+            self._cmd_palette_shortcut.activated.connect(self._open_command_palette)
 
         # Vai alla home
         self.navigate_to("home")
@@ -1321,12 +1338,42 @@ class CatastoMainWindow(QMainWindow):
             msg = f"Timeout impostato a {value} minuti." if value > 0 else "Timeout sessione disabilitato."
             self.statusBar().showMessage(msg, 4000)
 
+    def _stop_page_workers(self, widget) -> None:
+        """Ferma i thread di caricamento di una pagina prima di distruggerla."""
+        for worker_attr in ['_dash_loader', '_loader', '_search_worker', 'search_thread']:
+            worker = getattr(widget, worker_attr, None)
+            if worker and worker.isRunning():
+                worker.quit()
+                worker.wait(500)
+
+    def _clear_session_state(self) -> None:
+        """Azzera sessione utente, top bar, sidebar e pagine caricate.
+
+        Usato dal logout: riporta la finestra allo stato pre-login senza
+        toccare la connessione al database, che resta valida per l'utente
+        successivo.
+        """
+        self._inactivity_timer.stop()
+        self.logged_in_user_id = None
+        self.logged_in_user_info = None
+        self.current_session_id = None
+        self.session.logout()  # Sincronizza il SessionManager centralizzato
+
+        self.top_bar.update_user_info("", "", False)
+        self.top_bar.set_logout_enabled(False)
+        self.sidebar.hide()
+
+        while self.stack.count():
+            w = self.stack.widget(0)
+            self.stack.removeWidget(w)
+            self._stop_page_workers(w)
+            w.deleteLater()  # Previene il memory leak a ogni logout
+        self._page_index.clear()
+
     def handle_logout(self):
         if self.logged_in_user_id is not None and self.current_session_id and self.db_manager:
             # Chiama il logout_user del db_manager passando l'ID utente e l'ID sessione correnti
             if self.db_manager.logout_user(self.logged_in_user_id, self.current_session_id, self.client_ip_address_gui):
-                QMessageBox.information(
-                    self, "Logout", "Logout effettuato con successo.")
                 logging.getLogger("CatastoGUI").info(
                     f"Logout utente ID {self.logged_in_user_id}, sessione {self.current_session_id[:8]}... registrato nel DB.")
             else:
@@ -1336,39 +1383,33 @@ class CatastoMainWindow(QMainWindow):
                 logging.getLogger("CatastoGUI").warning(
                     f"Logout utente ID {self.logged_in_user_id}, sessione {self.current_session_id[:8]}... Errore registrazione DB.")
 
-            self._inactivity_timer.stop()
-            # Resetta le informazioni utente e sessione nella GUI
-            self.logged_in_user_id = None
-            self.logged_in_user_info = None
-            self.current_session_id = None
-            self.session.logout()  # Sincronizza il SessionManager centralizzato
+            self._clear_session_state()
+            self.statusBar().showMessage("Logout effettuato.", 4000)
 
-            # Aggiorna la top bar e nasconde la sidebar
-            self.top_bar.update_user_info("", "", False)
-            self.sidebar.hide()
-
-            # Svuota lo stack
-            while self.stack.count():
-                w = self.stack.widget(0)
-                self.stack.removeWidget(w)
-                # Ferma in modo sicuro eventuali thread in esecuzione per evitare crash
-                for worker_attr in ['_dash_loader', '_loader', '_search_worker', 'search_thread']:
-                    worker = getattr(w, worker_attr, None)
-                    if worker and worker.isRunning():
-                        worker.quit()
-                        worker.wait(500)
-                w.deleteLater()  # Previene il memory leak a ogni logout
-            self._page_index.clear()
-
-            self.statusBar().showMessage("Logout effettuato. L'applicazione verrà chiusa.")
-
-            # Chiude l'applicazione dopo un breve ritardo per permettere all'utente di leggere il messaggio
-            from PyQt6.QtCore import QTimer
-            QTimer.singleShot(1500, self.close)  # Chiude dopo 1.5 secondi
+            # Il logout non chiude piu' l'applicazione: su una postazione
+            # condivisa il cambio operatore deve costare un login, non un
+            # riavvio. Il pool DB resta aperto e viene riusato.
+            self._login_another_user()
 
         else:
             logging.getLogger("CatastoGUI").warning(
                 "Tentativo di logout senza una sessione utente valida o db_manager.")
+
+    def _login_another_user(self):
+        """Riapre il login dopo un logout. Se annullato, chiude l'applicazione."""
+        login_dialog = LoginDialog(
+            self.db_manager, self.client_ip_address_gui, parent=self)
+        if login_dialog.exec() != QDialog.DialogCode.Accepted:
+            self.logger.info("Login annullato dopo il logout: chiusura applicazione.")
+            self.close()
+            return
+
+        self.perform_initial_setup(
+            self.db_manager,
+            login_dialog.logged_in_user_id,
+            login_dialog.logged_in_user_info,
+            login_dialog.current_session_id_from_dialog,
+        )
 
     def closeEvent(self, event: QCloseEvent):
         logging.getLogger("CatastoGUI").info(
@@ -1415,12 +1456,7 @@ class CatastoMainWindow(QMainWindow):
 
         # Ferma i thread attivi nello stack prima di uscire per prevenire segfault
         for i in range(self.stack.count()):
-            w = self.stack.widget(i)
-            for worker_attr in ['_dash_loader', '_loader', '_search_worker', 'search_thread']:
-                worker = getattr(w, worker_attr, None)
-                if worker and worker.isRunning():
-                    worker.quit()
-                    worker.wait(500)
+            self._stop_page_workers(self.stack.widget(i))
 
         if hasattr(self, '_login_email_worker') and self._login_email_worker and self._login_email_worker.isRunning():
             self._login_email_worker.quit()
@@ -1722,9 +1758,11 @@ class CatastoMainWindow(QMainWindow):
         if ok:
             # Salva il nuovo valore nelle impostazioni dell'applicazione
             settings.setValue("General/StaleDataThresholdHours", new_threshold)
-            QMessageBox.information(self, "Impostazione Salvata",
-                                    f"La nuova soglia di {new_threshold} ore è stata salvata.\n"
-                                    "La modifica sarà effettiva al prossimo riavvio dell'applicazione.")
+            # La soglia viene riletta da QSettings a ogni controllo: si puo'
+            # applicare subito, senza chiedere un riavvio all'utente.
+            self.check_mv_refresh_status()
+            self.statusBar().showMessage(
+                f"Soglia dati obsoleti impostata a {new_threshold} ore.", 5000)
 
 
     def _handle_stale_data_refresh_click(self):

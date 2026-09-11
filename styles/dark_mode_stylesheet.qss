@@ -335,7 +335,8 @@ QStackedWidget { background: #1A1A1A; }
 
 /* Form validation error state — gestito da _set_field_error() */
 QLineEdit[error="true"], QTextEdit[error="true"], QPlainTextEdit[error="true"],
-QComboBox[error="true"], QDateEdit[error="true"], QSpinBox[error="true"] {
+QComboBox[error="true"], QDateEdit[error="true"], QSpinBox[error="true"],
+QPushButton[error="true"] {
     border: 1.5px solid #e74c3c;
 }
 

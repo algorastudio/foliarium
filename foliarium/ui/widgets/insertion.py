@@ -27,6 +27,7 @@ from PyQt6.QtWidgets import (
 from foliarium.ui.widgets.custom import LazyLoadedWidget
 from catasto_exceptions import DBMError, DBUniqueConstraintError, DBDataError
 from dialogs import ComuneSelectionDialog
+from config import DATE_DISPLAY_FORMAT
 
 if TYPE_CHECKING:
     from catasto_db_manager import CatastoDBManager
@@ -63,6 +64,35 @@ def _show_status_message(message: str, timeout_ms: int = 4000) -> None:
     win = QApplication.activeWindow()
     if win and hasattr(win, "statusBar"):
         win.statusBar().showMessage(message, timeout_ms)
+
+
+def _check_required(fields) -> bool:
+    """Verifica i campi obbligatori di un form, segnalando cosa manca.
+
+    ``fields`` e' una sequenza di tuple ``(widget, compilato, etichetta)``.
+    Ogni widget viene marcato (o smarcato) con il bordo di errore; se
+    qualcosa manca, la status bar elenca i campi da compilare e il focus
+    va sul primo di essi.
+
+    Senza questo riscontro il salvataggio fallirebbe in silenzio: l'utente
+    preme "Inserisci" e, se il campo mancante e' fuori dalla porzione di
+    form che sta guardando, non vede accadere nulla.
+
+    Ritorna True se tutti i campi obbligatori sono compilati.
+    """
+    mancanti = [(w, etichetta) for w, compilato, etichetta in fields if not compilato]
+    for widget, compilato, _ in fields:
+        _set_field_error(widget, not compilato)
+    if not mancanti:
+        return True
+
+    etichette = ", ".join(etichetta for _, etichetta in mancanti)
+    if len(mancanti) == 1:
+        _show_status_message(f"Campo obbligatorio mancante: {etichette}.", 6000)
+    else:
+        _show_status_message(f"Campi obbligatori mancanti: {etichette}.", 6000)
+    mancanti[0][0].setFocus()
+    return False
 
 
 # ---------------------------------------------------------------------------
@@ -125,14 +155,14 @@ class InserimentoComuneWidget(LazyLoadedWidget): # Eredita da LazyLoadedWidget
         form_layout.addRow("Codice Catastale:", self.codice_catastale_edit)
         self.data_istituzione_check = QCheckBox("Imposta data istituzione")
         self.data_istituzione_edit = QDateEdit(calendarPopup=True)
-        self.data_istituzione_edit.setDisplayFormat("yyyy-MM-dd")
+        self.data_istituzione_edit.setDisplayFormat(DATE_DISPLAY_FORMAT)
         self.data_istituzione_edit.setEnabled(False)
         self.data_istituzione_check.toggled.connect(self.data_istituzione_edit.setEnabled)
         data_istituzione_layout = QHBoxLayout(); data_istituzione_layout.addWidget(self.data_istituzione_check); data_istituzione_layout.addWidget(self.data_istituzione_edit)
         form_layout.addRow("Data Istituzione:", data_istituzione_layout)
         self.data_soppressione_check = QCheckBox("Imposta data soppressione")
         self.data_soppressione_edit = QDateEdit(calendarPopup=True)
-        self.data_soppressione_edit.setDisplayFormat("yyyy-MM-dd")
+        self.data_soppressione_edit.setDisplayFormat(DATE_DISPLAY_FORMAT)
         self.data_soppressione_edit.setEnabled(False)
         self.data_soppressione_check.toggled.connect(self.data_soppressione_edit.setEnabled)
         data_soppressione_layout = QHBoxLayout(); data_soppressione_layout.addWidget(self.data_soppressione_check); data_soppressione_layout.addWidget(self.data_soppressione_edit)
@@ -208,7 +238,7 @@ class InserimentoComuneWidget(LazyLoadedWidget): # Eredita da LazyLoadedWidget
             with open(path, "w", encoding="utf-8-sig") as f:
                 f.write("nome;provincia;regione;codice_catastale;data_istituzione;data_soppressione;note\n")
                 f.write("Roma;RM;Lazio;H501;1871-01-01;;\n")
-            QMessageBox.information(self, "Template salvato", f"Template salvato in:\n{path}")
+            _show_status_message(f"Template CSV salvato in: {path}", 6000)
         except Exception as e:
             QMessageBox.critical(self, "Errore", str(e))
 
@@ -239,10 +269,11 @@ class InserimentoComuneWidget(LazyLoadedWidget): # Eredita da LazyLoadedWidget
         data_ist = self.data_istituzione_edit.date().toPyDate() if self.data_istituzione_check.isChecked() else None
         data_sopp = self.data_soppressione_edit.date().toPyDate() if self.data_soppressione_check.isChecked() else None
 
-        _set_field_error(self.nome_comune_edit, not nome_comune)
-        _set_field_error(self.provincia_edit, not provincia)
-        _set_field_error(self.regione_edit, not regione)
-        if not all([nome_comune, provincia, regione]):
+        if not _check_required([
+            (self.nome_comune_edit, bool(nome_comune), "Nome Comune"),
+            (self.provincia_edit, bool(provincia), "Provincia"),
+            (self.regione_edit, bool(regione), "Regione"),
+        ]):
             return
 
         username_per_log = self.utente_attuale_info.get('username', 'utente_sconosciuto') if self.utente_attuale_info else 'utente_sconosciuto'
@@ -450,7 +481,7 @@ class InserimentoPossessoreWidget(LazyLoadedWidget):
             with open(path, "w", encoding="utf-8-sig") as f:
                 f.write("cognome_nome;nome_completo;paternita\n")
                 f.write("Rossi Mario;Mario Rossi;fu Giovanni\n")
-            QMessageBox.information(self, "Template salvato", f"Template salvato in:\n{path}")
+            _show_status_message(f"Template CSV salvato in: {path}", 6000)
         except Exception as e:
             QMessageBox.critical(self, "Errore", str(e))
 
@@ -485,16 +516,11 @@ class InserimentoPossessoreWidget(LazyLoadedWidget):
 
         attivo = self.attivo_checkbox.isChecked()
 
-        _set_field_error(self.nome_completo_edit, not nome_completo_input)
-        _set_field_error(self.cognome_nome_edit, not cognome_nome_input)
-        _set_field_error(self.comune_combo, comune_id_selezionato is None)
-        if not nome_completo_input or not cognome_nome_input or comune_id_selezionato is None:
-            if not nome_completo_input:
-                self.nome_completo_edit.setFocus()
-            elif not cognome_nome_input:
-                self.cognome_nome_edit.setFocus()
-            else:
-                self.comune_combo.setFocus()
+        if not _check_required([
+            (self.cognome_nome_edit, bool(cognome_nome_input), "Cognome e Nome"),
+            (self.nome_completo_edit, bool(nome_completo_input), "Nome Completo"),
+            (self.comune_combo, comune_id_selezionato is not None, "Comune di Riferimento"),
+        ]):
             return
 
         try:
@@ -646,7 +672,7 @@ class InserimentoLocalitaWidget(QWidget):
                 f.write("Roma;Via\n")
                 f.write("Garibaldi;Piazza\n")
                 f.write("Pianello;Borgata\n")
-            QMessageBox.information(self, "Template salvato", f"Template salvato in:\n{path}")
+            _show_status_message(f"Template CSV salvato in: {path}", 6000)
         except Exception as e:
             QMessageBox.critical(self, "Errore", str(e))
 
@@ -673,6 +699,7 @@ class InserimentoLocalitaWidget(QWidget):
         if dialog.exec() == QDialog.DialogCode.Accepted and dialog.selected_comune_id:
             self.comune_id = dialog.selected_comune_id
             self.comune_display.setText(dialog.selected_comune_name)
+            _set_field_error(self.comune_button, False)
             self._load_tipi_localita()
 
     def insert_localita(self):
@@ -681,11 +708,11 @@ class InserimentoLocalitaWidget(QWidget):
             self.tipo_combo.currentText() if self.tipo_combo.currentData() else None
         )
 
-        _set_field_error(self.nome_edit, not nome)
-        _set_field_error(self.tipo_combo, not tipologia_stradale)
-        if not self.comune_id or not nome or not tipologia_stradale:
-            if not tipologia_stradale:
-                _show_status_message("Selezionare la tipologia stradale (Via, Piazza, ...).", 4000)
+        if not _check_required([
+            (self.comune_button, bool(self.comune_id), "Comune"),
+            (self.tipo_combo, bool(tipologia_stradale), "Tipologia (Via, Piazza, ...)"),
+            (self.nome_edit, bool(nome), "Nome della località"),
+        ]):
             return
 
         try:
@@ -746,7 +773,7 @@ class InserimentoPartitaWidget(QWidget):
         form_layout.addRow("Suffisso Partita:", self.suffisso_edit)
 
         self.data_impianto_edit = QDateEdit(calendarPopup=True)
-        self.data_impianto_edit.setDisplayFormat("yyyy-MM-dd")
+        self.data_impianto_edit.setDisplayFormat(DATE_DISPLAY_FORMAT)
         self.data_impianto_edit.setDate(QDate.currentDate())
         _lbl_data = QLabel('Data Impianto <span style="color:#C62828;font-weight:600;">*</span>:')
         form_layout.addRow(_lbl_data, self.data_impianto_edit)
@@ -755,7 +782,7 @@ class InserimentoPartitaWidget(QWidget):
         self.data_chiusura_check = QCheckBox("Imposta data chiusura")
         self.data_chiusura_check.toggled.connect(self._toggle_data_chiusura)
         self.data_chiusura_edit = QDateEdit(calendarPopup=True)
-        self.data_chiusura_edit.setDisplayFormat("yyyy-MM-dd")
+        self.data_chiusura_edit.setDisplayFormat(DATE_DISPLAY_FORMAT)
         self.data_chiusura_edit.setEnabled(False) # Inizia disabilitato
         data_chiusura_layout = QHBoxLayout()
         data_chiusura_layout.addWidget(self.data_chiusura_check)
@@ -886,14 +913,15 @@ class InserimentoPartitaWidget(QWidget):
             with open(path, "w", encoding="utf-8-sig") as f:
                 f.write("comune_nome;numero_partita;suffisso_partita;data_impianto;tipo_partita;numero_provenienza;stato\n")
                 f.write("Roma;1;;1900-01-01;principale;;attiva\n")
-            QMessageBox.information(self, "Template salvato", f"Template salvato in:\n{path}")
+            _show_status_message(f"Template CSV salvato in: {path}", 6000)
         except Exception as e:
             QMessageBox.critical(self, "Errore", str(e))
 
     def _salva_partita(self):
         comune_id = self.comune_combo.currentData()
-        _set_field_error(self.comune_combo, not comune_id)
-        if not comune_id:
+        if not _check_required([
+            (self.comune_combo, bool(comune_id), "Comune"),
+        ]):
             return
 
         # Recupera i dati dai campi, inclusi i nuovi

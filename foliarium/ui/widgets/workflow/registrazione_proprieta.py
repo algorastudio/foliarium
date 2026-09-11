@@ -35,6 +35,7 @@ from dialogs import (
     DettagliLegamePossessoreDialog,
 )
 from foliarium.ui.dialogs.partita.bozze import BozzePartitaDialog
+from config import DATE_DISPLAY_FORMAT
 
 try:
     from catasto_db_manager import (
@@ -204,7 +205,7 @@ class RegistrazioneProprietaWidget(LazyLoadedWidget):
         self._s1_data_imp = QDateEdit()
         self._s1_data_imp.setCalendarPopup(True)
         self._s1_data_imp.setDate(QDate.currentDate())
-        self._s1_data_imp.setDisplayFormat("dd/MM/yyyy")
+        self._s1_data_imp.setDisplayFormat(DATE_DISPLAY_FORMAT)
         self._s1_data_imp.dateChanged.connect(self._mark_dirty)
         form_layout.addRow("Data Impianto: *", self._s1_data_imp)
 

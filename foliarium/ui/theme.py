@@ -88,6 +88,29 @@ def apply_auto_theme(app: Optional[QApplication] = None,
     return theme_file
 
 
+def is_dark_theme() -> bool:
+    """True se l'interfaccia sta usando un tema scuro.
+
+    Replica l'ordine di precedenza di apply_initial_theme_from_settings():
+    stile nativo Windows 11 e tema automatico seguono lo schema colori del
+    sistema operativo; altrimenti decide il nome del file QSS salvato.
+
+    Serve ai contenuti HTML renderizzati dentro l'app (manuale utente,
+    anteprime): il loro CSS non e' coperto dal QSS di Qt e senza questa
+    informazione resterebbe chiaro anche in tema scuro.
+    """
+    settings = QSettings()
+
+    if settings.value(SETTINGS_UI_WIN11_STYLE, False, type=bool) \
+            or settings.value(SETTINGS_UI_AUTO_THEME, False, type=bool):
+        return QGuiApplication.styleHints().colorScheme() == Qt.ColorScheme.Dark
+
+    current_style_file = settings.value(
+        SETTINGS_UI_CURRENT_STYLE, AUTO_THEME_LIGHT, type=str,
+    )
+    return "dark" in (current_style_file or "").lower()
+
+
 def is_win11_style_available() -> bool:
     """True se lo stile nativo Windows 11 e' disponibile in questa build di Qt."""
     return "windows11" in QStyleFactory.keys()
@@ -151,5 +174,6 @@ __all__ = [
     "apply_auto_theme",
     "apply_win11_style",
     "is_win11_style_available",
+    "is_dark_theme",
     "apply_initial_theme_from_settings",
 ]

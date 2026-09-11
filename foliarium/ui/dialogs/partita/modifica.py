@@ -29,6 +29,7 @@ except ImportError:
 from foliarium.ui.dialogs.partita.immobili import ModificaImmobileDialog, ImmobileDialog
 from foliarium.ui.dialogs.partita.selezione import PossessoreSelectionDialog
 from foliarium.ui.dialogs.partita.documento import AggiungiDocumentoDialog
+from config import DATE_DISPLAY_FORMAT
 
 
 class ModificaPartitaDialog(QDialog):
@@ -67,9 +68,9 @@ class ModificaPartitaDialog(QDialog):
         form_layout_generali.addRow("Numero Partita (*):", self.numero_partita_spinbox)
         self.suffisso_partita_edit = QLineEdit(); self.suffisso_partita_edit.setPlaceholderText("Es. bis, A")
         form_layout_generali.addRow("Suffisso Partita (opz.):", self.suffisso_partita_edit)
-        self.data_impianto_edit = QDateEdit(calendarPopup=True); self.data_impianto_edit.setDisplayFormat("yyyy-MM-dd")
+        self.data_impianto_edit = QDateEdit(calendarPopup=True); self.data_impianto_edit.setDisplayFormat(DATE_DISPLAY_FORMAT)
         form_layout_generali.addRow("Data Impianto (*):", self.data_impianto_edit)
-        self.data_chiusura_check = QCheckBox("Imposta data chiusura"); self.data_chiusura_edit = QDateEdit(calendarPopup=True); self.data_chiusura_edit.setDisplayFormat("yyyy-MM-dd"); self.data_chiusura_edit.setEnabled(False); self.data_chiusura_check.toggled.connect(self._toggle_data_chiusura)
+        self.data_chiusura_check = QCheckBox("Imposta data chiusura"); self.data_chiusura_edit = QDateEdit(calendarPopup=True); self.data_chiusura_edit.setDisplayFormat(DATE_DISPLAY_FORMAT); self.data_chiusura_edit.setEnabled(False); self.data_chiusura_check.toggled.connect(self._toggle_data_chiusura)
         data_chiusura_layout = QHBoxLayout(); data_chiusura_layout.addWidget(self.data_chiusura_check); data_chiusura_layout.addWidget(self.data_chiusura_edit); form_layout_generali.addRow("Data Chiusura:", data_chiusura_layout)
         self.numero_provenienza_edit = QLineEdit(); self.numero_provenienza_edit.setPlaceholderText("Numero o testo di riferimento (opzionale)"); self.numero_provenienza_edit.setMaxLength(50)
         form_layout_generali.addRow("Numero Provenienza:", self.numero_provenienza_edit)

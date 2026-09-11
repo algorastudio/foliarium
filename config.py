@@ -115,6 +115,13 @@ SETTINGS_UI_CURRENT_STYLE = "UI/CurrentStyle"
 SETTINGS_UI_AUTO_THEME = "UI/AutoTheme"
 SETTINGS_UI_WIN11_STYLE = "UI/Win11NativeStyle"
 
+# --- Formati data mostrati nell'interfaccia ---
+# Formato italiano (giorno/mese/anno): usato da tutti i QDateEdit e dalle
+# etichette che mostrano una data all'utente. Il valore salvato sul DB non
+# dipende da questa costante (si legge sempre con QDate.toPyDate()).
+DATE_DISPLAY_FORMAT = "dd/MM/yyyy"
+DATETIME_DISPLAY_FORMAT = "dd/MM/yyyy HH:mm"
+
 # --- Retention dei log di audit ---
 # Giorni di conservazione dei log di audit. 0 = retention disattivata
 # (nessuna eliminazione automatica). Se > 0, all'avvio l'app elimina i log

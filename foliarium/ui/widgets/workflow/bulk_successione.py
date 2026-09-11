@@ -39,6 +39,7 @@ from foliarium.ui.widgets.custom import (
 from dialogs import (
     ComuneSelectionDialog, CreatePossessoreDialog,
 )
+from config import DATE_DISPLAY_FORMAT
 
 if TYPE_CHECKING:
     from catasto_db_manager import CatastoDBManager  # noqa: F401
@@ -600,13 +601,13 @@ class BulkSuccessioneWizard(QWidget):
         self._s4_data_variazione = QDateEdit()
         self._s4_data_variazione.setCalendarPopup(True)
         self._s4_data_variazione.setDate(QDate.currentDate())
-        self._s4_data_variazione.setDisplayFormat("dd/MM/yyyy")
+        self._s4_data_variazione.setDisplayFormat(DATE_DISPLAY_FORMAT)
         form.addRow("Data Variazione: *", self._s4_data_variazione)
 
         self._s4_data_contratto = QDateEdit()
         self._s4_data_contratto.setCalendarPopup(True)
         self._s4_data_contratto.setDate(QDate.currentDate())
-        self._s4_data_contratto.setDisplayFormat("dd/MM/yyyy")
+        self._s4_data_contratto.setDisplayFormat(DATE_DISPLAY_FORMAT)
         form.addRow("Data Contratto: *", self._s4_data_contratto)
 
         self._s4_notaio = QLineEdit()

@@ -32,6 +32,7 @@ from dialogs import (
 from foliarium.ui.widgets.genealogia_widget import GenealogiaTimelineWidget  # noqa: F401  backward compat
 from foliarium.ui.widgets.genealogia_graph import GenealogiaGraphWidget
 from foliarium.ui.widgets.workflow.bulk_successione import BulkSuccessioneWizard
+from config import DATE_DISPLAY_FORMAT
 
 try:
     from catasto_db_manager import (
@@ -306,7 +307,7 @@ class OperazioniPartitaWidget(QWidget):
             "Tipo Variazione (*):", self.pp_tipo_variazione_combo)
 
         self.pp_data_variazione_edit = QDateEdit(calendarPopup=True)
-        self.pp_data_variazione_edit.setDisplayFormat("yyyy-MM-dd")
+        self.pp_data_variazione_edit.setDisplayFormat(DATE_DISPLAY_FORMAT)
         self.pp_data_variazione_edit.setDate(QDate.currentDate())
         passaggio_form_layout.addRow(
             "Data Variazione (*):", self.pp_data_variazione_edit)
@@ -335,7 +336,7 @@ class OperazioniPartitaWidget(QWidget):
             "Tipo Atto/Contratto (*):", self.pp_tipo_contratto_combo) # USATO IL NUOVO WIDGET
 
         self.pp_data_contratto_edit = QDateEdit(calendarPopup=True)
-        self.pp_data_contratto_edit.setDisplayFormat("yyyy-MM-dd")
+        self.pp_data_contratto_edit.setDisplayFormat(DATE_DISPLAY_FORMAT)
         self.pp_data_contratto_edit.setDate(QDate.currentDate())
         passaggio_form_layout.addRow(
             "Data Atto/Contratto (*):", self.pp_data_contratto_edit)

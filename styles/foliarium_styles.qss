@@ -87,7 +87,8 @@ QPlainTextEdit[readOnly="true"] {
     border-color: #D5D9EA;
 }
 QLineEdit[error="true"], QTextEdit[error="true"], QPlainTextEdit[error="true"],
-QComboBox[error="true"], QDateEdit[error="true"] {
+QComboBox[error="true"], QDateEdit[error="true"],
+QPushButton[error="true"] {
     border: 1.5px solid #C62828;
     background-color: #FFF5F5;
 }

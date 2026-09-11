@@ -25,6 +25,7 @@ except ImportError:
     class DBDataError(DBMError): pass
 
 from foliarium.ui.dialogs.entity.possessore import ModificaPossessoreDialog
+from config import DATE_DISPLAY_FORMAT
 
 
 class ModificaComuneDialog(QDialog):
@@ -73,13 +74,13 @@ class ModificaComuneDialog(QDialog):
         form_layout.addRow("Periodo Storico:", self.periodo_combo)
 
         self.data_istituzione_edit = QDateEdit(calendarPopup=True)
-        self.data_istituzione_edit.setDisplayFormat("yyyy-MM-dd")
+        self.data_istituzione_edit.setDisplayFormat(DATE_DISPLAY_FORMAT)
         self.data_istituzione_edit.setSpecialValueText(" ")
         self.data_istituzione_edit.setDate(QDate())
         form_layout.addRow("Data Istituzione:", self.data_istituzione_edit)
         
         self.data_soppressione_edit = QDateEdit(calendarPopup=True)
-        self.data_soppressione_edit.setDisplayFormat("yyyy-MM-dd")
+        self.data_soppressione_edit.setDisplayFormat(DATE_DISPLAY_FORMAT)
         self.data_soppressione_edit.setSpecialValueText(" ")
         self.data_soppressione_edit.setDate(QDate())
         form_layout.addRow("Data Soppressione:", self.data_soppressione_edit)
