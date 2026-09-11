@@ -36,6 +36,7 @@ from dialogs import (
 )
 from foliarium.ui.dialogs.partita.bozze import BozzePartitaDialog
 from config import DATE_DISPLAY_FORMAT
+from foliarium.ui.errors import show_user_error
 
 try:
     from catasto_db_manager import (
@@ -751,11 +752,11 @@ class RegistrazioneProprietaWidget(LazyLoadedWidget):
             )
         except (DBUniqueConstraintError, DBDataError, DBMError) as e:
             self.logger.error(f"Errore DB registrazione proprietà: {e}")
-            QMessageBox.critical(self, "Errore Database", str(e))
+            show_user_error(self, "Registrazione proprietà", e, logger=getattr(self, "logger", None))
             return
         except Exception as e:
             self.logger.error(f"Errore imprevisto registrazione proprietà: {e}", exc_info=True)
-            QMessageBox.critical(self, "Errore Imprevisto", str(e))
+            show_user_error(self, "Registrazione proprietà", e, logger=getattr(self, "logger", None))
             return
 
         suf_disp = f" ({suffisso})" if suffisso else ""
@@ -857,6 +858,34 @@ class RegistrazioneProprietaWidget(LazyLoadedWidget):
         suf_disp = f"/{suf}" if suf else ""
         comune = self._comune_nome or "senza comune"
         return f"{comune} N.{n}{suf_disp} — {datetime.now():%d/%m/%Y %H:%M}"
+
+    # ------------------------------------------------------------------
+    # Modifiche non salvate (protocollo usato da CatastoMainWindow)
+    # ------------------------------------------------------------------
+
+    def has_unsaved_changes(self) -> bool:
+        """True se c'e' del lavoro compilato e non ancora registrato.
+
+        Il solo flag _dirty non basta: si attiva anche al primo tocco di uno
+        spinbox, e avvisare per quello sarebbe fastidioso. Serve anche del
+        contenuto reale da perdere.
+        """
+        return bool(self._dirty) and self._has_meaningful_content()
+
+    def save_pending_changes(self) -> bool:
+        """Salva il lavoro come bozza riprendibile. True se salvata."""
+        titolo = None if self._current_draft_id is not None else self._default_draft_title()
+        saved_id = self._persist_draft(title=titolo)
+        if saved_id is None:
+            return False
+        self._dirty = False
+        self._update_draft_status()
+        return True
+
+    def discard_pending_changes(self) -> None:
+        """L'utente ha scelto di perdere i dati: si evita di riavvisare."""
+        self._dirty = False
+        self._update_draft_status()
 
     def _mark_dirty(self):
         if self._restoring:

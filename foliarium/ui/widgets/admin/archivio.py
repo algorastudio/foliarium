@@ -14,6 +14,7 @@ from PyQt6.QtWidgets import (
 )
 
 from foliarium.ui.widgets.custom import LazyLoadedWidget
+from foliarium.ui.errors import show_user_error
 
 if TYPE_CHECKING:
     from catasto_db_manager import CatastoDBManager
@@ -208,7 +209,7 @@ class ArchivioWidget(LazyLoadedWidget):
         try:
             data = self.db_manager.get_tutti_archiviati()
         except Exception as e:
-            QMessageBox.critical(self, "Errore", f"Impossibile caricare l'archivio:\n{e}")
+            show_user_error(self, "Caricamento elementi archiviati", e, logger=getattr(self, "logger", None))
             return
         self._fill_comuni(data.get("comuni", []))
         self._fill_possessori(data.get("possessori", []))
@@ -306,7 +307,7 @@ class ArchivioWidget(LazyLoadedWidget):
             ripristina_fn[self._current_entity](record_id)
             self.load_data()
         except Exception as e:
-            QMessageBox.critical(self, "Errore", f"Impossibile ripristinare:\n{e}")
+            show_user_error(self, "Ripristino elemento", e, logger=getattr(self, "logger", None))
 
     # ── eliminazione definitiva ──────────────────────────────────────────────
 

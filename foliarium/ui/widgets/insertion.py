@@ -24,10 +24,11 @@ from PyQt6.QtWidgets import (
     QVBoxLayout, QWidget, QCompleter,
 )
 
-from foliarium.ui.widgets.custom import LazyLoadedWidget
+from foliarium.ui.widgets.custom import LazyLoadedWidget, UnsavedFormMixin
 from catasto_exceptions import DBMError, DBUniqueConstraintError, DBDataError
 from dialogs import ComuneSelectionDialog
 from config import DATE_DISPLAY_FORMAT
+from foliarium.ui.errors import show_user_error
 
 if TYPE_CHECKING:
     from catasto_db_manager import CatastoDBManager
@@ -97,7 +98,7 @@ def _check_required(fields) -> bool:
 
 # ---------------------------------------------------------------------------
 
-class InserimentoComuneWidget(LazyLoadedWidget): # Eredita da LazyLoadedWidget
+class InserimentoComuneWidget(UnsavedFormMixin, LazyLoadedWidget):
     comune_appena_inserito = pyqtSignal(int)
     import_csv_requested = pyqtSignal()
     scarica_csv_requested = pyqtSignal()
@@ -214,6 +215,9 @@ class InserimentoComuneWidget(LazyLoadedWidget): # Eredita da LazyLoadedWidget
         """Metodo per il lazy loading, chiamato la prima volta."""
         self.logger.info("InserimentoComuneWidget: Esecuzione lazy loading dei periodi storici...")
         self._carica_elenco_periodi()
+        # Da qui in poi il form e' pulito: e' la base per rilevare
+        # le modifiche non salvate.
+        self.mark_form_clean()
 
     def _carica_elenco_periodi(self):
         self.periodo_combo.clear()
@@ -225,7 +229,7 @@ class InserimentoComuneWidget(LazyLoadedWidget): # Eredita da LazyLoadedWidget
                     display_text = f"{periodo.get('nome')} ({periodo.get('anno_inizio')} - {periodo.get('anno_fine', 'oggi')})"
                     self.periodo_combo.addItem(display_text, periodo.get('id'))
         except DBMError as e:
-            QMessageBox.critical(self, "Errore Caricamento", f"Impossibile caricare l'elenco dei periodi storici:\n{e}")
+            show_user_error(self, "Caricamento periodi storici", e, logger=getattr(self, "logger", None))
 
 
     def _scarica_template_csv(self):
@@ -242,6 +246,10 @@ class InserimentoComuneWidget(LazyLoadedWidget): # Eredita da LazyLoadedWidget
         except Exception as e:
             QMessageBox.critical(self, "Errore", str(e))
 
+    def trigger_primary_action(self) -> None:
+        """Azione primaria del modulo (Ctrl+S): salva quanto compilato."""
+        self.inserisci_comune()
+
     def pulisci_campi(self):
         self.nome_comune_edit.clear(); self.provincia_edit.setText("SV"); self.regione_edit.clear()
         self.codice_catastale_edit.clear(); self.note_edit.clear()
@@ -255,6 +263,7 @@ class InserimentoComuneWidget(LazyLoadedWidget): # Eredita da LazyLoadedWidget
         for w in (self.nome_comune_edit, self.provincia_edit, self.regione_edit):
             _set_field_error(w, False)
         self.nome_comune_edit.setFocus()
+        self.mark_form_clean()
 
     def inserisci_comune(self):
         # Raccoglie i dati da tutti i campi
@@ -289,9 +298,9 @@ class InserimentoComuneWidget(LazyLoadedWidget): # Eredita da LazyLoadedWidget
             self.pulisci_campi()
             self.comune_appena_inserito.emit(comune_id)
         except (DBUniqueConstraintError, DBDataError, DBMError) as e:
-            QMessageBox.critical(self, "Errore Inserimento", str(e))
+            show_user_error(self, "Inserimento comune", e, logger=getattr(self, "logger", None))
 
-class InserimentoPossessoreWidget(LazyLoadedWidget):
+class InserimentoPossessoreWidget(UnsavedFormMixin, LazyLoadedWidget):
     import_csv_requested = pyqtSignal()
     scarica_csv_requested = pyqtSignal()
 
@@ -405,6 +414,9 @@ class InserimentoPossessoreWidget(LazyLoadedWidget):
         """Metodo per il lazy loading: carica i comuni la prima volta che il tab viene visualizzato."""
         self.logger.info("InserimentoPossessoreWidget: Esecuzione lazy loading dei comuni...")
         self._load_comuni_for_combo()
+        # Da qui in poi il form e' pulito: e' la base per rilevare
+        # le modifiche non salvate.
+        self.mark_form_clean()
 
     def _load_comuni_for_combo(self):
         """Carica e popola il QComboBox con l'elenco dei comuni."""
@@ -485,6 +497,10 @@ class InserimentoPossessoreWidget(LazyLoadedWidget):
         except Exception as e:
             QMessageBox.critical(self, "Errore", str(e))
 
+    def trigger_primary_action(self) -> None:
+        """Azione primaria del modulo (Ctrl+S): salva quanto compilato."""
+        self._salva_possessore()
+
     def _pulisci_campi_possessore(self):
         """Pulisce i campi del form possessore."""
         self.cognome_nome_edit.clear()
@@ -496,6 +512,7 @@ class InserimentoPossessoreWidget(LazyLoadedWidget):
         for w in (self.cognome_nome_edit, self.nome_completo_edit, self.comune_combo):
             _set_field_error(w, False)
         self.cognome_nome_edit.setFocus()
+        self.mark_form_clean()
 
     def _salva_possessore(self):
         # Ora 'cognome_nome' è l'input primario per nome/cognome
@@ -549,12 +566,12 @@ class InserimentoPossessoreWidget(LazyLoadedWidget):
             QMessageBox.critical(self, "Errore Database", f"Si è verificato un errore durante la creazione del possessore:\n{dbe.message}")
         except Exception as e:
             logging.getLogger("CatastoGUI").critical(f"Errore critico imprevisto salvando possessore '{nome_completo_input}': {e}", exc_info=True)
-            QMessageBox.critical(self, "Errore Critico Imprevisto", f"Errore di sistema imprevisto:\n{type(e).__name__}: {e}")
+            show_user_error(self, "Inserimento possessore", e, logger=getattr(self, "logger", None))
 
 
 
 # --- Scheda per Localita ---
-class InserimentoLocalitaWidget(QWidget):
+class InserimentoLocalitaWidget(UnsavedFormMixin, QWidget):
     import_csv_requested = pyqtSignal()
     scarica_csv_requested = pyqtSignal()
 
@@ -652,13 +669,18 @@ class InserimentoLocalitaWidget(QWidget):
         layout.addStretch(1)
 
         self.setLayout(layout)
+        self.mark_form_clean()
 
+    def trigger_primary_action(self) -> None:
+        """Azione primaria del modulo (Ctrl+S): salva quanto compilato."""
+        self.insert_localita()
 
     def _pulisci_campi(self):
         self.nome_edit.clear()
         for w in (self.nome_edit, self.tipo_combo):
             _set_field_error(w, False)
         self.nome_edit.setFocus()
+        self.mark_form_clean()
 
     def _scarica_template_csv(self):
         path, _ = QFileDialog.getSaveFileName(
@@ -692,7 +714,7 @@ class InserimentoLocalitaWidget(QWidget):
         except DBMError as e:
             self.tipo_combo.addItem("Errore caricamento", None)
             self.tipo_combo.setEnabled(False)
-            QMessageBox.critical(self, "Errore", f"Impossibile caricare le tipologie di località:\n{e}")
+            show_user_error(self, "Caricamento tipologie di località", e, logger=getattr(self, "logger", None))
 
     def select_comune(self):
         dialog = ComuneSelectionDialog(self.db_manager, self)
@@ -701,6 +723,9 @@ class InserimentoLocalitaWidget(QWidget):
             self.comune_display.setText(dialog.selected_comune_name)
             _set_field_error(self.comune_button, False)
             self._load_tipi_localita()
+            # Scegliere il comune popola il menu delle tipologie: si riparte
+            # da qui, cosi' il solo cambio di comune non risulta "da salvare".
+            self.mark_form_clean()
 
     def insert_localita(self):
         nome = self.nome_edit.text().strip()
@@ -722,10 +747,11 @@ class InserimentoLocalitaWidget(QWidget):
                 5000,
             )
             self.nome_edit.clear()
+            self.mark_form_clean()
         except (DBMError, DBDataError, DBUniqueConstraintError) as e:
-            QMessageBox.critical(self, "Errore Inserimento", str(e))
+            show_user_error(self, "Inserimento località", e, logger=getattr(self, "logger", None))
 
-class InserimentoPartitaWidget(QWidget):
+class InserimentoPartitaWidget(UnsavedFormMixin, QWidget):
     import_csv_requested = pyqtSignal()
     scarica_csv_requested = pyqtSignal()
 
@@ -882,8 +908,11 @@ class InserimentoPartitaWidget(QWidget):
             for id_comune, nome in comuni:
                 self.comune_combo.addItem(nome, id_comune)
         except DBMError as e:
-            QMessageBox.critical(self, "Errore Caricamento", f"Impossibile caricare l'elenco dei comuni:\n{e}")
-    
+            show_user_error(self, "Caricamento elenco comuni", e, logger=getattr(self, "logger", None))
+        # Da qui in poi il form e' pulito: e' la base per rilevare
+        # le modifiche non salvate.
+        self.mark_form_clean()
+
     def _toggle_data_chiusura(self, checked):
         """Abilita o disabilita il QDateEdit per la data di chiusura."""
         self.data_chiusura_edit.setEnabled(checked)
@@ -891,6 +920,10 @@ class InserimentoPartitaWidget(QWidget):
             self.data_chiusura_edit.setDate(QDate.currentDate())
         else:
             self.data_chiusura_edit.setDate(QDate()) # Data nulla
+
+    def trigger_primary_action(self) -> None:
+        """Azione primaria del modulo (Ctrl+S): salva quanto compilato."""
+        self._salva_partita()
 
     def _pulisci_campi(self):
         self.comune_combo.setCurrentIndex(0)
@@ -902,6 +935,7 @@ class InserimentoPartitaWidget(QWidget):
         self.tipo_combo.setCurrentIndex(0)
         self.stato_combo.setCurrentIndex(0)
         _set_field_error(self.comune_combo, False)
+        self.mark_form_clean()
 
     def _scarica_template_csv(self):
         path, _ = QFileDialog.getSaveFileName(
@@ -942,6 +976,6 @@ class InserimentoPartitaWidget(QWidget):
             _show_status_message(f"Partita creata con successo (ID: {new_id}).", 5000)
             self._pulisci_campi()
         except (DBMError, DBUniqueConstraintError, DBDataError) as e:
-            QMessageBox.critical(self, "Errore Salvataggio", f"Impossibile salvare la partita:\n{e}")
+            show_user_error(self, "Salvataggio partita", e, logger=getattr(self, "logger", None))
 
 

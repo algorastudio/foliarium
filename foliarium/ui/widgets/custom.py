@@ -93,6 +93,82 @@ class QPasswordLineEdit(QLineEdit):
 # In custom_widgets.py
 
 
+class UnsavedFormMixin:
+    """Rileva se un form contiene dati compilati e non ancora salvati.
+
+    Invece di elencare i campi a mano form per form, confronta lo stato
+    corrente dei widget di input con uno scatto preso quando il form era
+    pulito. Cosi' un default (la provincia "SV", la data di oggi) non viene
+    scambiato per lavoro dell'utente.
+
+    Il form deve chiamare ``mark_form_clean()`` quando torna in uno stato
+    pulito: dopo il caricamento iniziale dei menu a tendina, dopo "Pulisci
+    campi" e dopo un salvataggio riuscito. Finche' non viene chiamato,
+    ``has_unsaved_changes()`` risponde False: meglio nessun avviso che un
+    avviso sbagliato.
+    """
+
+    _form_baseline = None
+
+    def _form_snapshot(self) -> tuple:
+        """Stato dei campi, diviso fra testo digitato e selezioni.
+
+        La distinzione serve alla soglia di ``has_unsaved_changes()``: del
+        testo scritto a mano e' lavoro da proteggere, un indice di menu a
+        tendina cambiato da solo no.
+        """
+        from PyQt6.QtWidgets import (QCheckBox, QComboBox, QDateEdit,
+                                     QLineEdit, QSpinBox, QTextEdit)
+        testo = {}
+        for campo in self.findChildren(QLineEdit):
+            testo[id(campo)] = campo.text()
+        for campo in self.findChildren(QTextEdit):
+            testo[id(campo)] = campo.toPlainText()
+
+        selezioni = {}
+        for campo in self.findChildren(QSpinBox):
+            selezioni[id(campo)] = campo.value()
+        for campo in self.findChildren(QCheckBox):
+            selezioni[id(campo)] = campo.isChecked()
+        for campo in self.findChildren(QDateEdit):
+            selezioni[id(campo)] = campo.date()
+        for campo in self.findChildren(QComboBox):
+            selezioni[id(campo)] = campo.currentIndex()
+        return testo, selezioni
+
+    def mark_form_clean(self) -> None:
+        """Registra lo stato attuale come 'nessuna modifica da salvare'."""
+        self._form_baseline = self._form_snapshot()
+
+    def has_unsaved_changes(self) -> bool:
+        """True se c'e' lavoro dell'utente che andrebbe perso.
+
+        Soglia deliberatamente alta: del testo digitato basta da solo, ma
+        per le sole selezioni ne servono almeno due. Un utente che apre il
+        modulo e sfiora un menu a tendina non deve ricevere un avviso —
+        avvisi che si rivelano infondati insegnano a ignorarli.
+        """
+        if self._form_baseline is None:
+            return False
+        try:
+            testo, selezioni = self._form_snapshot()
+        except RuntimeError:
+            # Widget gia' distrutti durante la chiusura: niente da salvare.
+            return False
+
+        testo_base, selezioni_base = self._form_baseline
+        if any(valore != testo_base.get(chiave, valore)
+               for chiave, valore in testo.items()):
+            return True
+        cambiate = sum(1 for chiave, valore in selezioni.items()
+                       if valore != selezioni_base.get(chiave, valore))
+        return cambiate >= 2
+
+    def discard_pending_changes(self) -> None:
+        """L'utente ha accettato di perdere i dati: non si riavvisa."""
+        self.mark_form_clean()
+
+
 class LazyLoadedWidget(QWidget):
     """
     Una classe base per tutti i widget che necessitano di caricare dati

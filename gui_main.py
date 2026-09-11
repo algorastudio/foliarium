@@ -47,6 +47,7 @@ from gui_widgets import (
 from foliarium.ui.widgets.admin import TabelleDiSistemaWidget
 
 from foliarium.core.services import update_checker
+from foliarium.ui.errors import show_user_error
 
 
 from config import (
@@ -166,6 +167,9 @@ class CatastoMainWindow(QMainWindow):
 
         # Indice pagine sidebar: page_name -> QStackedWidget index
         self._page_index: dict = {}
+
+        # Pagine visitate, per la scorciatoia Alt+Sinistra
+        self._nav_history: list[str] = []
 
         self.setWindowTitle("Foliarium — Archivio Catastale Storico")
         self.setMinimumSize(1024, 600)
@@ -549,6 +553,13 @@ class CatastoMainWindow(QMainWindow):
         show_manual_action.setShortcut(QKeySequence("F1"))
         show_manual_action.triggered.connect(self._apri_manuale_utente)
         help_menu.addAction(show_manual_action)
+
+        shortcuts_action = QAction("Scorciatoie da tastiera...", self)
+        shortcuts_action.setShortcut(QKeySequence("Ctrl+/"))
+        shortcuts_action.setStatusTip(
+            "Elenco dei tasti rapidi per navigare e salvare senza mouse")
+        shortcuts_action.triggered.connect(self._mostra_scorciatoie)
+        help_menu.addAction(shortcuts_action)
         help_menu.addSeparator()
 
         esporta_log_action = QAction(
@@ -950,16 +961,123 @@ class CatastoMainWindow(QMainWindow):
         # Le scorciatoie appartengono alla finestra, non alle pagine: vanno
         # create una volta sola, altrimenti a ogni nuovo login Qt si trova due
         # QShortcut sulla stessa sequenza e la segnala come ambigua.
-        if not hasattr(self, '_f5_shortcut'):
-            self._f5_shortcut = QShortcut(QKeySequence("F5"), self)
-            self._f5_shortcut.activated.connect(self._handle_f5_refresh)
-
-            self._cmd_palette_shortcut = QShortcut(QKeySequence("Ctrl+K"), self)
-            self._cmd_palette_shortcut.activated.connect(self._open_command_palette)
+        self._install_shortcuts()
 
         # Vai alla home
         self.navigate_to("home")
         self.logger.info("Setup pagine completato (layout sidebar).")
+
+    #: Scorciatoie della finestra: (sequenza, descrizione, metodo, gia_a_menu).
+    #: Unica fonte sia per i QShortcut sia per la finestra di riepilogo, cosi'
+    #: l'elenco mostrato all'utente non puo' divergere da quello attivo.
+    #: Le voci con gia_a_menu=True hanno la scorciatoia sulla QAction del menu:
+    #: registrarne una seconda renderebbe la sequenza ambigua per Qt, che in
+    #: quel caso non attiva nulla.
+    _SHORTCUTS = (
+        ("Ctrl+K",   "Vai a… (elenco pagine)",       "_open_command_palette",     False),
+        ("Ctrl+F",   "Ricerca globale",              "_shortcut_ricerca_globale", False),
+        ("Ctrl+N",   "Nuova partita (wizard)",       "_shortcut_nuova_partita",   False),
+        ("Ctrl+S",   "Salva il modulo in corso",     "_shortcut_salva",           False),
+        ("Ctrl+H",   "Torna alla Home",              "_shortcut_home",            False),
+        ("Alt+Left", "Pagina precedente",            "_shortcut_indietro",        False),
+        ("F5",       "Ricarica i dati della pagina", "_handle_f5_refresh",        False),
+        ("Ctrl+Q",   "Esci da Foliarium",            "close",                     False),
+        ("F1",       "Manuale utente",               "_apri_manuale_utente",      True),
+        ("Ctrl+/",   "Elenco delle scorciatoie",     "_mostra_scorciatoie",       True),
+    )
+
+    def _install_shortcuts(self) -> None:
+        """Registra le scorciatoie della finestra (una sola volta)."""
+        if getattr(self, "_shortcuts_installed", False):
+            return
+        self._shortcut_objects = []
+        for sequenza, _descrizione, metodo, gia_a_menu in self._SHORTCUTS:
+            if gia_a_menu:
+                continue
+            azione = QShortcut(QKeySequence(sequenza), self)
+            azione.activated.connect(getattr(self, metodo))
+            self._shortcut_objects.append(azione)
+        self._shortcuts_installed = True
+
+    # --- Azioni collegate alle scorciatoie ---
+
+    def _shortcut_home(self):
+        self.navigate_to("home")
+
+    def _shortcut_indietro(self):
+        """Alt+←: torna alla pagina visitata in precedenza."""
+        if len(self._nav_history) < 2:
+            self.statusBar().showMessage("Nessuna pagina precedente.", 3000)
+            return
+        prima = list(self._nav_history)
+        cronologia = list(prima)
+        cronologia.pop()                    # la pagina corrente
+        precedente = cronologia.pop()       # verra' re-inserita da navigate_to
+        self._nav_history = cronologia
+        if not self.navigate_to(precedente):
+            # Navigazione non avvenuta (l'utente ha annullato al prompt sulle
+            # modifiche non salvate): la cronologia torna esattamente com'era,
+            # altrimenti il prossimo Alt+← salterebbe una pagina.
+            self._nav_history = prima
+
+    def _shortcut_ricerca_globale(self):
+        """Ctrl+F: apre la ricerca globale col cursore già nel campo."""
+        if "fuzzy" in self._page_index:
+            self.navigate_to("fuzzy")
+            widget = getattr(self, "fuzzy_search_widget", None)
+            campo = getattr(widget, "search_edit", None)
+            if campo is not None:
+                campo.setFocus()
+                campo.selectAll()
+        elif "partite" in self._page_index:
+            self.navigate_to("partite")
+        else:
+            self.statusBar().showMessage("Ricerca non disponibile.", 3000)
+
+    def _shortcut_nuova_partita(self):
+        """Ctrl+N: apre il wizard di creazione partita, se permesso al ruolo."""
+        if "ins_wizard" in self._page_index:
+            self.navigate_to("ins_wizard")
+        else:
+            self.statusBar().showMessage(
+                "Inserimento non disponibile per questo ruolo.", 4000)
+
+    def _shortcut_salva(self):
+        """Ctrl+S: esegue l'azione di salvataggio della pagina corrente.
+
+        Le pagine partecipano per duck typing: un wizard salva la bozza
+        (save_pending_changes), un modulo di inserimento esegue il proprio
+        salvataggio (trigger_primary_action).
+        """
+        pagina = self.stack.currentWidget()
+        for nome_metodo in ("save_pending_changes", "trigger_primary_action"):
+            azione = getattr(pagina, nome_metodo, None)
+            if callable(azione):
+                try:
+                    azione()
+                except Exception as e:
+                    from foliarium.ui.errors import show_user_error
+                    show_user_error(self, "Salvataggio", e, logger=self.logger)
+                return
+        self.statusBar().showMessage(
+            "In questa pagina non c'è nulla da salvare.", 3000)
+
+    def _mostra_scorciatoie(self):
+        """Ctrl+/: elenco delle scorciatoie attive."""
+        righe = "".join(
+            f"<tr><td style='padding:3px 18px 3px 0'><b>{sequenza}</b></td>"
+            f"<td style='padding:3px 0'>{descrizione}</td></tr>"
+            for sequenza, descrizione, _metodo, _a_menu in self._SHORTCUTS
+        )
+        box = QMessageBox(self)
+        box.setWindowTitle("Scorciatoie da tastiera")
+        box.setTextFormat(Qt.TextFormat.RichText)
+        box.setText(
+            "<b>Scorciatoie da tastiera</b><br><br>"
+            f"<table>{righe}</table>"
+        )
+        box.setStandardButtons(QMessageBox.StandardButton.Ok)
+        box.exec()
 
     def _open_command_palette(self):
         """Ctrl+K: apre la command palette per navigazione rapida."""
@@ -1066,22 +1184,106 @@ class CatastoMainWindow(QMainWindow):
         elif isinstance(widget, InserimentoPartitaWidget):
             widget.comune_combo.setFocus()
 
-    def navigate_to(self, page_name: str):
-        """Naviga alla pagina con transizione fade (80ms out + 100ms in)."""
+    # ------------------------------------------------------------------
+    # Modifiche non salvate
+    # ------------------------------------------------------------------
+    #
+    # Le pagine partecipano per duck typing, non per ereditarieta': i widget
+    # di inserimento derivano da LazyLoadedWidget, quelli di workflow da
+    # QWidget. Una pagina puo' esporre:
+    #
+    #   has_unsaved_changes() -> bool     obbligatorio per essere interrogata
+    #   save_pending_changes() -> bool    opzionale: abilita "Salva bozza"
+    #   discard_pending_changes()         opzionale: azzera dopo lo scarto
+
+    @staticmethod
+    def _page_has_unsaved_changes(widget) -> bool:
+        """True se la pagina dichiara modifiche non ancora salvate."""
+        verifica = getattr(widget, "has_unsaved_changes", None)
+        if not callable(verifica):
+            return False
+        try:
+            return bool(verifica())
+        except Exception:
+            # Una pagina che non sa rispondere non deve bloccare l'utente.
+            return False
+
+    def _confirm_leaving_page(self, widget, descrizione: str) -> bool:
+        """Chiede conferma prima di abbandonare dati non salvati.
+
+        Ritorna True se si puo' procedere, False se l'utente ha annullato.
+        """
+        if not self._page_has_unsaved_changes(widget):
+            return True
+
+        box = QMessageBox(self)
+        box.setIcon(QMessageBox.Icon.Warning)
+        box.setWindowTitle("Modifiche non salvate")
+        box.setText("<b>Ci sono dati compilati e non ancora salvati.</b>")
+        box.setInformativeText(descrizione)
+
+        salva = getattr(widget, "save_pending_changes", None)
+        btn_salva = None
+        if callable(salva):
+            btn_salva = box.addButton("Salva bozza", QMessageBox.ButtonRole.AcceptRole)
+        btn_scarta = box.addButton("Esci senza salvare", QMessageBox.ButtonRole.DestructiveRole)
+        btn_resta = box.addButton("Continua a compilare", QMessageBox.ButtonRole.RejectRole)
+        box.setDefaultButton(btn_salva or btn_resta)
+        box.exec()
+
+        premuto = box.clickedButton()
+        if premuto is btn_resta:
+            return False
+        if premuto is btn_salva:
+            try:
+                if not salva():
+                    return False   # salvataggio annullato o fallito: si resta
+            except Exception as e:
+                from foliarium.ui.errors import show_user_error
+                show_user_error(self, "Salvataggio bozza", e, logger=self.logger)
+                return False
+            return True
+
+        scarta = getattr(widget, "discard_pending_changes", None)
+        if callable(scarta):
+            try:
+                scarta()
+            except Exception:
+                self.logger.debug("discard_pending_changes fallita", exc_info=True)
+        return True
+
+    def navigate_to(self, page_name: str) -> bool:
+        """Naviga alla pagina con transizione fade (80ms out + 100ms in).
+
+        Ritorna False se la navigazione non è avvenuta: pagina inesistente,
+        già attiva, oppure annullata dall'utente al prompt sulle modifiche
+        non salvate.
+        """
         if page_name not in self._page_index:
             self.logger.warning(f"navigate_to: pagina '{page_name}' non trovata.")
-            return
+            return False
         new_idx = self._page_index[page_name]
         if self.stack.currentIndex() == new_idx:
-            return
+            return False
+
+        if not self._confirm_leaving_page(
+            self.stack.currentWidget(),
+            "Se cambi pagina ora, i dati inseriti in questo modulo andranno persi.",
+        ):
+            return False
 
         self.sidebar.set_active(page_name)
+
+        # Cronologia per Alt+Sinistra; tetto basso, serve solo a tornare
+        # indietro di qualche passo.
+        self._nav_history.append(page_name)
+        del self._nav_history[:-20]
 
         old_widget = self.stack.currentWidget()
         if old_widget is None:
             self.stack.setCurrentIndex(new_idx)
             self._on_stack_changed(new_idx)
-            return
+            return True
 
         eff_out = QGraphicsOpacityEffect(old_widget)
         old_widget.setGraphicsEffect(eff_out)
@@ -1113,6 +1315,7 @@ class CatastoMainWindow(QMainWindow):
         anim_out.finished.connect(_do_switch)
         anim_out.start()
         self._anim_out = anim_out
+        return True
 
     def update_ui_based_on_role(self):
         """Controlla la visibilità dei bottoni nav in base al ruolo utente."""
@@ -1369,6 +1572,7 @@ class CatastoMainWindow(QMainWindow):
             self._stop_page_workers(w)
             w.deleteLater()  # Previene il memory leak a ogni logout
         self._page_index.clear()
+        self._nav_history.clear()
 
     def handle_logout(self):
         if self.logged_in_user_id is not None and self.current_session_id and self.db_manager:
@@ -1414,6 +1618,22 @@ class CatastoMainWindow(QMainWindow):
     def closeEvent(self, event: QCloseEvent):
         logging.getLogger("CatastoGUI").info(
             "Evento closeEvent intercettato in CatastoMainWindow.")
+
+        # Chiusura con dati compilati: si controllano tutte le pagine, non solo
+        # quella in primo piano, perche' un modulo lasciato a meta' in un'altra
+        # sezione sparirebbe senza un avviso.
+        for i in range(self.stack.count()):
+            pagina = self.stack.widget(i)
+            if not self._page_has_unsaved_changes(pagina):
+                continue
+            self.stack.setCurrentIndex(i)   # mostra di quale modulo si tratta
+            if not self._confirm_leaving_page(
+                pagina,
+                "Se chiudi Foliarium ora, i dati inseriti in questo modulo "
+                "andranno persi.",
+            ):
+                event.ignore()
+                return
 
         # Stop pulito del thread API (se attivo)
         api_thread = getattr(self, "_api_thread", None)
@@ -1478,6 +1698,25 @@ class CatastoMainWindow(QMainWindow):
             "Applicazione GUI Catasto Storico terminata via closeEvent.")
         event.accept()
    
+    def _avvisa_se_import_interrotto(self, risultati: dict) -> None:
+        """Dice all'utente cosa resta a terra dopo un import annullato.
+
+        L'import salva riga per riga, quindi un annullamento a meta' lascia
+        registrate le righe gia' elaborate: tacerlo lascerebbe l'archivio in
+        uno stato che l'utente non si aspetta.
+        """
+        if not risultati.get("interrotto"):
+            return
+        gia_importate = len(risultati.get("success", []))
+        QMessageBox.information(
+            self, "Importazione interrotta",
+            f"<b>Importazione interrotta su tua richiesta.</b><br><br>"
+            f"Le righe già elaborate sono state registrate "
+            f"(<b>{gia_importate}</b> inserimenti riusciti). "
+            f"Le righe successive non sono state importate: puoi ripetere "
+            f"l'importazione con un file ridotto alle sole righe mancanti."
+        )
+
     def _import_comuni(self):
         """Apre il dialog per importare comuni da CSV o ISTAT."""
         dlg = ImportComuniDialog(self.db_manager, self)
@@ -1542,10 +1781,17 @@ class CatastoMainWindow(QMainWindow):
             if risposta != QMessageBox.StandardButton.Yes:
                 return
 
-            QApplication.setOverrideCursor(Qt.CursorShape.WaitCursor)
-            import_results = self.db_manager.import_possessori_from_csv(
-                file_path, comune_id_selezionato, nome_comune_selezionato
+            from foliarium.ui.import_progress import esegui_import_con_progresso
+            import_results = esegui_import_con_progresso(
+                self, "Importazione possessori",
+                self.db_manager.import_possessori_from_csv,
+                file_path, comune_id_selezionato, nome_comune_selezionato,
+                logger=self.logger,
             )
+            if import_results is None:
+                return   # errore gia' mostrato all'utente
+
+            self._avvisa_se_import_interrotto(import_results)
             result_dialog = CSVImportResultDialog(
                 import_results.get('success', []),
                 import_results.get('errors', []),
@@ -1558,14 +1804,8 @@ class CatastoMainWindow(QMainWindow):
             if self.elenco_comuni_widget_ref:
                 self.elenco_comuni_widget_ref.load_data() # <-- CORRETTO
 
-        except DBMError as e:
-            self.logger.error(f"Errore DB durante il processo di importazione CSV: {e}", exc_info=True)
-            QMessageBox.critical(self, "Errore Database", f"Si è verificato un errore di database:\n\n{e}")
         except Exception as e:
-            self.logger.error(f"Errore imprevisto durante l'importazione CSV: {e}", exc_info=True)
-            QMessageBox.critical(self, "Errore durante l'importazione", f"Si è verificato un errore imprevisto:\n\n{e}")
-        finally:
-            QApplication.restoreOverrideCursor()
+            show_user_error(self, "Importazione possessori", e, logger=self.logger)
     
     def _import_partite_csv(self):
         """Gestisce l'importazione di partite da CSV o Excel e mostra i risultati."""
@@ -1605,12 +1845,22 @@ class CatastoMainWindow(QMainWindow):
             if risposta != QMessageBox.StandardButton.Yes:
                 return
 
-            QApplication.setOverrideCursor(Qt.CursorShape.WaitCursor)
+            from foliarium.ui.import_progress import esegui_import_con_progresso
+            funzione_import = (
+                self.db_manager.import_partite_from_xlsx
+                if file_path.lower().endswith('.xlsx')
+                else self.db_manager.import_partite_from_csv
+            )
+            import_results = esegui_import_con_progresso(
+                self, "Importazione partite", funzione_import,
+                file_path, comune_id_selezionato, nome_comune_selezionato,
+                logger=self.logger,
+            )
+            if import_results is None:
+                return   # errore gia' mostrato all'utente
 
-            if file_path.lower().endswith('.xlsx'):
-                import_results = self.db_manager.import_partite_from_xlsx(file_path, comune_id_selezionato, nome_comune_selezionato)
-            else:
-                import_results = self.db_manager.import_partite_from_csv(file_path, comune_id_selezionato, nome_comune_selezionato)
+            self._avvisa_se_import_interrotto(import_results)
+
             
             # Crea una versione dei dati di successo adatta al dialogo generico
             success_display_data = []
@@ -1633,10 +1883,7 @@ class CatastoMainWindow(QMainWindow):
                 self.elenco_comuni_widget_ref.load_data() 
 
         except Exception as e:
-            self.logger.error(f"Errore imprevisto durante l'importazione CSV delle partite: {e}", exc_info=True)
-            QMessageBox.critical(self, "Errore Importazione", f"Si è verificato un errore non gestito: {e}")
-        finally:
-            QApplication.restoreOverrideCursor()
+            show_user_error(self, "Importazione partite", e, logger=self.logger)
     def check_mv_refresh_status(self):
         """
         Controlla il timestamp dell'ultimo aggiornamento e mostra la barra di notifica se i dati sono obsoleti.

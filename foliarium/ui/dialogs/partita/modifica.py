@@ -30,6 +30,7 @@ from foliarium.ui.dialogs.partita.immobili import ModificaImmobileDialog, Immobi
 from foliarium.ui.dialogs.partita.selezione import PossessoreSelectionDialog
 from foliarium.ui.dialogs.partita.documento import AggiungiDocumentoDialog
 from config import DATE_DISPLAY_FORMAT
+from foliarium.ui.errors import show_user_error
 
 
 class ModificaPartitaDialog(QDialog):
@@ -343,7 +344,7 @@ class ModificaPartitaDialog(QDialog):
                 self.possessori_table.setSpan(0, 0, 1, self.possessori_table.columnCount())
         except Exception as e:
             self.logger.error(f"Errore durante il popolamento della tabella possessori per partita ID {self.partita_id}: {e}", exc_info=True)
-            QMessageBox.critical(self, "Errore Popolamento Tabella", f"Si è verificato un errore durante la visualizzazione dei possessori associati:\n{e}")
+            show_user_error(self, "Caricamento possessori della partita", e, logger=getattr(self, "logger", None))
         finally:
             self.possessori_table.setSortingEnabled(True)
             self._aggiorna_stato_pulsanti_possessori()
@@ -384,7 +385,7 @@ class ModificaPartitaDialog(QDialog):
                 self.immobili_table.setSpan(0, 0, 1, self.immobili_table.columnCount())
         except Exception as e:
             self.logger.error(f"Errore durante il popolamento della tabella immobili per partita ID {self.partita_id}: {e}", exc_info=True)
-            QMessageBox.critical(self, "Errore Popolamento Tabella", f"Si è verificato un errore durante la visualizzazione degli immobili associati:\n{e}")
+            show_user_error(self, "Caricamento immobili della partita", e, logger=getattr(self, "logger", None))
         finally:
             self.immobili_table.setSortingEnabled(True)
             self._aggiorna_stato_pulsanti_immobili()
@@ -449,7 +450,7 @@ class ModificaPartitaDialog(QDialog):
                 self.variazioni_table.setSpan(0, 0, 1, self.variazioni_table.columnCount())
         except Exception as e:
             self.logger.error(f"Errore durante il popolamento della tabella variazioni per partita ID {self.partita_id}: {e}", exc_info=True)
-            QMessageBox.critical(self, "Errore Popolamento Tabella", f"Si è verificato un errore durante la visualizzazione delle variazioni associate:\n{e}")
+            show_user_error(self, "Caricamento variazioni della partita", e, logger=getattr(self, "logger", None))
         finally:
             self.variazioni_table.setSortingEnabled(True)
             self._aggiorna_stato_pulsanti_variazioni()
@@ -496,7 +497,7 @@ class ModificaPartitaDialog(QDialog):
             # L'eccezione verrà sollevata dal metodo in caso di fallimento
         except DBMError as e:
             self.logger.error(f"Errore durante la duplicazione della partita ID {self.partita_id}: {e}", exc_info=True)
-            QMessageBox.critical(self, "Errore Duplicazione", f"Impossibile duplicare la partita:\n{e}")
+            show_user_error(self, "Duplicazione partita", e, logger=getattr(self, "logger", None))
 
     def _load_documenti_allegati(self):
         """Carica e popola la tabella dei documenti allegati alla partita."""
@@ -549,7 +550,7 @@ class ModificaPartitaDialog(QDialog):
 
         except Exception as e:
             self.logger.error(f"Errore caricamento documenti per partita ID {self.partita_id}: {e}", exc_info=True)
-            QMessageBox.critical(self, "Errore Caricamento Documenti", f"Si è verificato un errore durante il caricamento dei documenti:\n{e}")
+            show_user_error(self, "Caricamento documenti della partita", e, logger=getattr(self, "logger", None))
             # Mostra messaggio di errore nella tabella
             self.documents_table.setRowCount(1)
             error_item = QTableWidgetItem(f"Errore nel caricamento dei documenti: {e}")
@@ -637,10 +638,10 @@ class ModificaPartitaDialog(QDialog):
                 QMessageBox.critical(self, "Errore", "Impossibile aggiungere il possessore alla partita.")
         except (DBUniqueConstraintError, DBDataError, DBMError) as e:
             self.logger.error(f"Errore DB aggiungendo possessore {selected_possessore_id} a partita {self.partita_id}: {e}", exc_info=True)
-            QMessageBox.critical(self, "Errore Database", f"Errore durante l'aggiunta del possessore alla partita:\n{e.message if hasattr(e, 'message') else str(e)}")
+            show_user_error(self, "Aggiunta possessore alla partita", e, logger=getattr(self, "logger", None))
         except Exception as e:
             self.logger.critical(f"Errore imprevisto aggiungendo possessore {selected_possessore_id} a partita {self.partita_id}: {e}", exc_info=True)
-            QMessageBox.critical(self, "Errore Imprevisto", f"Si è verificato un errore: {e}")
+            show_user_error(self, "Aggiunta possessore alla partita", e, logger=getattr(self, "logger", None))
 
     def _modifica_legame_possessore(self):
         from foliarium.ui.dialogs.entity import DettagliLegamePossessoreDialog
@@ -762,10 +763,10 @@ class ModificaPartitaDialog(QDialog):
                     QMessageBox.critical(self, "Errore", "Impossibile aggiungere l'immobile.")
             except (DBDataError, DBMError) as e:
                 self.logger.error(f"Errore DB aggiungendo immobile: {e}", exc_info=True)
-                QMessageBox.critical(self, "Errore Database", f"Errore durante l'aggiunta dell'immobile:\n{e.message if hasattr(e, 'message') else str(e)}")
+                show_user_error(self, "Aggiunta immobile alla partita", e, logger=getattr(self, "logger", None))
             except Exception as e:
                 self.logger.critical(f"Errore imprevisto aggiungendo immobile: {e}", exc_info=True)
-                QMessageBox.critical(self, "Errore Imprevisto", f"Si è verificato un errore: {e}")
+                show_user_error(self, "Aggiunta immobile alla partita", e, logger=getattr(self, "logger", None))
 
     def _modifica_immobile_associato(self):
         selected_items = self.immobili_table.selectedItems()
@@ -840,10 +841,10 @@ class ModificaPartitaDialog(QDialog):
                     QMessageBox.critical(self, "Errore", "Impossibile rimuovere/cancellare l'immobile.")
             except (DBMError, DBDataError) as e:
                 self.logger.error(f"Errore DB rimuovendo immobile: {e}", exc_info=True)
-                QMessageBox.critical(self, "Errore Database", f"Errore durante la rimozione dell'immobile:\n{e.message if hasattr(e, 'message') else str(e)}")
+                show_user_error(self, "Rimozione immobile dalla partita", e, logger=getattr(self, "logger", None))
             except Exception as e:
                 self.logger.critical(f"Errore imprevisto rimuovendo immobile: {e}", exc_info=True)
-                QMessageBox.critical(self, "Errore Imprevisto", f"Si è verificato un errore: {e}")
+                show_user_error(self, "Rimozione immobile dalla partita", e, logger=getattr(self, "logger", None))
 
     # -- Variazioni --
     def _modifica_variazione_selezionata(self):
@@ -902,7 +903,7 @@ class ModificaPartitaDialog(QDialog):
                     QMessageBox.critical(self, "Errore", "Impossibile eliminare la variazione.")
             except (DBMError, DBDataError) as e:
                 self.logger.error(f"Errore DB eliminando variazione: {e}", exc_info=True)
-                QMessageBox.critical(self, "Errore Database", f"Errore durante l'eliminazione della variazione:\n{e.message if hasattr(e, 'message') else str(e)}")
+                show_user_error(self, "Eliminazione variazione", e, logger=getattr(self, "logger", None))
             except Exception as e:
                 self.logger.critical(f"Errore imprevisto eliminando variazione: {e}", exc_info=True)
                 QMessageBox.critical(self, "Errore Imprevisto", f"Si è verificato un errore: {e}")

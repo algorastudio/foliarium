@@ -28,12 +28,20 @@ class DBPossessoriMixin:
     """Mixin CRUD per Possessori."""
 
     def import_possessori_from_csv(
-        self, file_path: str, comune_id: int, comune_nome: str
+        self, file_path: str, comune_id: int, comune_nome: str,
+        progress_cb=None,
     ) -> Dict[str, list]:
         """
         Importa una lista di possessori da un file CSV, gestendo gli errori riga per riga.
         Restituisce un dizionario con i risultati dettagliati ('success' e 'errors').
         L'operazione è transazionale a livello di singola riga usando SAVEPOINT.
+
+        Args:
+            progress_cb: opzionale, invocata a ogni riga con
+                ``(elaborate, totali)``. Se restituisce False l'import si
+                ferma: le righe gia' inserite restano (l'operazione e'
+                transazionale per riga, non per file) e il riepilogo
+                segnala l'interruzione.
         """
         records_to_import = []
         try:
@@ -60,16 +68,21 @@ class DBPossessoriMixin:
             raise IOError(f"Errore leggendo il file CSV: {e}")
 
         if not records_to_import:
-            return {"success": [], "errors": []}
+            return {"success": [], "errors": [], "interrotto": False}
 
         # Liste per raccogliere i risultati
         success_rows = []
         error_rows = []
+        interrotto = False
 
         try:
             with self._get_connection() as conn:
                 with conn.cursor() as cur:
                     for i, record in enumerate(records_to_import):
+                        if progress_cb is not None and not progress_cb(
+                                i, len(records_to_import)):
+                            interrotto = True
+                            break
                         line_num = i + 2
 
                         # Definiamo un SAVEPOINT per isolare la transazione di questa riga
@@ -138,7 +151,14 @@ class DBPossessoriMixin:
             self.logger.info(
                 f"Importazione CSV completata. Successi: {len(success_rows)}, Errori: {len(error_rows)}"
             )
-            return {"success": success_rows, "errors": error_rows}
+            if progress_cb is not None:
+                progress_cb(len(success_rows) + len(error_rows),
+                            len(records_to_import))
+            return {
+                "success": success_rows,
+                "errors": error_rows,
+                "interrotto": interrotto,
+            }
 
         except Exception as e:
             # Questo cattura errori gravi (es. connessione persa)

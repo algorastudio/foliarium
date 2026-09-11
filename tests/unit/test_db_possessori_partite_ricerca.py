@@ -251,7 +251,7 @@ class TestPartiteMixin:
     def test_insert_partite_records_lista_vuota(self, mgr):
         """_insert_partite_records con lista vuota restituisce success=[], errors=[]."""
         result = mgr._insert_partite_records([], comune_id=1, comune_nome="Savona")
-        assert result == {"success": [], "errors": []}
+        assert result == {"success": [], "errors": [], "interrotto": False}
 
     def test_insert_partite_records_inserimento_ok(self, mgr):
         """_insert_partite_records con record valido restituisce un successo."""
@@ -493,3 +493,82 @@ class TestSearchMixin:
         with patch.object(mgr, "_get_connection", side_effect=Exception("errore")):
             result = mgr.verify_gin_indices()
         assert result.get("status") == "ERROR"
+
+
+class TestImportConAvanzamento:
+    """L'import di massa riporta l'avanzamento e si lascia interrompere.
+
+    L'annullamento e' volutamente parziale: ogni riga ha il suo SAVEPOINT,
+    quindi le righe gia' inserite restano e il risultato lo dichiara.
+    """
+
+    @staticmethod
+    def _mock_connection(mgr, fetchone_side_effect):
+        mock_cur = MagicMock()
+        mock_cur.fetchone.side_effect = fetchone_side_effect
+        mock_cursor_cm = MagicMock()
+        mock_cursor_cm.__enter__ = MagicMock(return_value=mock_cur)
+        mock_cursor_cm.__exit__ = MagicMock(return_value=False)
+        mock_conn = MagicMock()
+        mock_conn.cursor.return_value = mock_cursor_cm
+        mock_conn_cm = MagicMock()
+        mock_conn_cm.__enter__ = MagicMock(return_value=mock_conn)
+        mock_conn_cm.__exit__ = MagicMock(return_value=False)
+        return mock_conn_cm
+
+    def _records(self, quanti):
+        return [
+            {"numero_partita": str(100 + i), "data_impianto": "1900-01-01",
+             "stato": "attiva", "tipo": "principale"}
+            for i in range(quanti)
+        ]
+
+    def test_callback_riceve_avanzamento(self, mgr):
+        records = self._records(3)
+        # per ogni riga: nessun duplicato (None) poi l'id inserito
+        side_effect = [None, (1,), None, (2,), None, (3,)]
+        avanzamenti = []
+
+        with patch.object(mgr, "_get_connection",
+                          return_value=self._mock_connection(mgr, side_effect)):
+            result = mgr._insert_partite_records(
+                records, comune_id=1, comune_nome="Savona",
+                progress_cb=lambda fatte, totali: (
+                    avanzamenti.append((fatte, totali)) or True),
+            )
+
+        assert avanzamenti[0] == (0, 3)
+        assert avanzamenti[-1] == (3, 3)   # chiamata finale di chiusura
+        assert result["interrotto"] is False
+        assert len(result["success"]) == 3
+
+    def test_callback_che_annulla_ferma_il_ciclo(self, mgr):
+        records = self._records(5)
+        side_effect = [None, (1,), None, (2,), None, (3,),
+                       None, (4,), None, (5,)]
+
+        def annulla_dopo_due(fatte, totali):
+            return fatte < 2
+
+        with patch.object(mgr, "_get_connection",
+                          return_value=self._mock_connection(mgr, side_effect)):
+            result = mgr._insert_partite_records(
+                records, comune_id=1, comune_nome="Savona",
+                progress_cb=annulla_dopo_due,
+            )
+
+        assert result["interrotto"] is True
+        # le due righe gia' elaborate restano registrate
+        assert len(result["success"]) == 2
+
+    def test_senza_callback_si_comporta_come_prima(self, mgr):
+        records = self._records(2)
+        side_effect = [None, (1,), None, (2,)]
+
+        with patch.object(mgr, "_get_connection",
+                          return_value=self._mock_connection(mgr, side_effect)):
+            result = mgr._insert_partite_records(
+                records, comune_id=1, comune_nome="Savona")
+
+        assert result["interrotto"] is False
+        assert len(result["success"]) == 2
