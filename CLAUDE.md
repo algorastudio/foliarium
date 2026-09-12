@@ -514,6 +514,50 @@ DB live e i numeri risulterebbero fuorvianti. La coverage misurata copre
 
 ---
 
+## Qualità del prodotto
+
+`docs/qualita/iso25010.md` — autovalutazione rispetto alle 8 caratteristiche
+del modello **ISO/IEC 25010:2011**, con evidenze puntuali (file, test,
+funzioni) e un elenco esplicito delle lacune. Serve per le griglie tecniche
+delle gare pubbliche e come preparazione a un'eventuale valutazione
+**ISO/IEC 25051** (l'unico standard della famiglia su cui esiste una
+certificazione di prodotto: 25010 è un modello, non uno schema certificabile).
+
+Il documento cita numeri rilevati a una data precisa (copertura, numero di
+test, righe di codice): **vanno rimisurati a ogni revisione, non copiati.**
+Le lacune dichiarate al §9 — fra cui l'assenza di un test del ciclo
+backup → restore e di misure di prestazioni — sono parte del documento:
+toglierle senza averle colmate lo renderebbe inutilizzabile.
+
+`docs/qualita/iso9241-110.md` — autovalutazione rispetto ai sette **principi
+di interazione della ISO 9241-110:2020**: la formulazione normativa degli
+stessi concetti che le euristiche di Nielsen esprimono in modo informale.
+Sta *dentro* la casella "Usabilità" della 25010 e la riempie di dettaglio.
+Due principi restano `◐` — adeguatezza al compito e coinvolgimento — per
+la stessa ragione: **si verificano solo con utenti reali**, nessun lavoro
+sul codice li porta a presidiati. Il documento dichiara inoltre che la
+**9241-210** (progettazione centrata sull'utente) non è applicata: è una
+norma di processo e servirebbero le evidenze del ciclo, che non esistono.
+
+`docs/qualita/contesto-uso.md` — contesto d'uso secondo **ISO 9241-11**:
+utenti, obiettivi, compiti, risorse, ambiente. È **deliberatamente
+incompleto** e marca ogni voce come ▣ derivata dal codice o ◻ ipotesi non
+rilevata. Le ◻ non vanno cancellate per far sembrare il documento
+completo: sono l'elenco esatto di ciò che non si sa, e il §7 contiene la
+traccia di intervista che le converte. Colmare questa lacuna sblocca gli
+altri documenti: senza contesto d'uso rilevato, due principi della
+9241-110 non possono superare `◐`, la 9241-210 non è applicabile e la
+descrizione del prodotto per la 25051 non è verificabile.
+
+Vale per tutti e tre i documenti: la denominazione dei principi va allineata
+al testo della norma acquistata prima di qualsiasi uso formale, e i
+conteggi vanno rimisurati con i pattern dichiarati. Alla stesura del
+documento 9241 tre numeri del 25010 (classi `QThread`, usi di `SAVEPOINT`,
+punti di `rollback`) si sono rivelati imprecisi e sono stati corretti in
+entrambi: è esattamente il motivo per cui i numeri non vanno copiati.
+
+---
+
 ## PyInstaller paths (onedir bundle)
 
 In a PyInstaller `onedir` bundle there are two distinct roots:
