@@ -166,13 +166,33 @@ class AuthManager:
             self._record_failure(username)
             return False
 
-        # Successo — azzera contatore e apri sessione
+        # Credenziali corrette — azzera il contatore dei tentativi falliti.
         self._reset_failures(username)
+
+        # Il ruolo non ha un valore di ripiego: lo schema lo impone NOT NULL
+        # con un vincolo CHECK, quindi un record senza ruolo (o con un ruolo
+        # sconosciuto) e' un'anomalia del database. Aprire comunque la sessione
+        # assegnando d'ufficio dei permessi sarebbe peggio che fermarsi qui:
+        # l'errore resterebbe invisibile e l'utente si ritroverebbe con dei
+        # diritti che nessuno gli ha attribuito.
+        ruolo = user.get("ruolo")
+        if not Role.is_valid(ruolo or ""):
+            logger.error(
+                "Utente '%s' (id=%s) ha un ruolo non valido: %r",
+                username,
+                user.get("id"),
+                ruolo,
+            )
+            raise AuthenticationError(
+                "Il ruolo associato a questo account non e' valido.\n"
+                "Contattare l'amministratore per correggere il profilo utente."
+            )
+
         self._session.login(
             user_id=user["id"],
             user_info={
                 "nome": user.get("nome", username),
-                "ruolo": user.get("ruolo", Role.VISUALIZZATORE),
+                "ruolo": ruolo,
                 "email": user.get("email"),
                 "username": username,
             },

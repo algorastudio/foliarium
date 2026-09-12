@@ -13,7 +13,7 @@
   cifre; rifiuto delle password comuni.
 - **Protezione anti brute-force**: blocco temporaneo dell'account dopo ripetuti
   tentativi falliti; hash dummy per prevenire l'enumerazione degli utenti.
-- **Ruoli e permessi** differenziati (amministratore / utente / visualizzatore).
+- **Ruoli e permessi** differenziati (`admin` / `archivista` / `consultatore`).
 
 ### Sicurezza dell'interfaccia di integrazione (API)
 - API esposta solo su **localhost** (`127.0.0.1`).

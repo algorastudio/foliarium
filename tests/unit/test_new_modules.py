@@ -9,6 +9,7 @@ Unit test per i nuovi moduli introdotti nel sistema foliarium:
   - core/session_manager.py
 """
 
+import importlib.util
 import pytest
 import sys
 import os
@@ -331,11 +332,18 @@ class TestHandleUiErrors:
 # ===========================================================================
 
 # utils.logger_config e utils.config_manager sono menzionati nel docstring
-# del package utils/ ma non sono mai stati implementati. I test sottostanti
-# vengono saltati finche' i moduli non vengono creati.
-pytest.importorskip("utils.logger_config", reason="utils.logger_config non implementato")
+# del package utils/ ma non sono mai stati implementati. Le classi che li
+# usano vengono saltate finche' i moduli non vengono creati: lo skip deve
+# restare a livello di classe, perche' un importorskip di modulo
+# interromperebbe la raccolta e porterebbe via con se' anche i test che
+# seguono (TestSessionManager compreso).
+_skip_senza_logger_config = pytest.mark.skipif(
+    importlib.util.find_spec("utils.logger_config") is None,
+    reason="utils.logger_config non implementato",
+)
 
 
+@_skip_senza_logger_config
 @pytest.mark.unit
 class TestLoggerConfig:
     def setup_method(self):
@@ -379,9 +387,13 @@ class TestLoggerConfig:
 # utils/config_manager.py
 # ===========================================================================
 
-pytest.importorskip("utils.config_manager", reason="utils.config_manager non implementato")
+_skip_senza_config_manager = pytest.mark.skipif(
+    importlib.util.find_spec("utils.config_manager") is None,
+    reason="utils.config_manager non implementato",
+)
 
 
+@_skip_senza_config_manager
 @pytest.mark.unit
 class TestDatabaseConfig:
     def test_defaults(self):
@@ -436,6 +448,7 @@ class TestDatabaseConfig:
         assert cfg.password == ""  # immutabile
 
 
+@_skip_senza_config_manager
 @pytest.mark.unit
 class TestAppConfig:
     def test_defaults(self):
@@ -510,10 +523,10 @@ class TestSessionManager:
         assert s.has_permission("insert")
         assert not s.has_permission("manage_users")
 
-    def test_has_permission_visualizzatore(self):
+    def test_has_permission_consultatore(self):
         from core.session_manager import SessionManager
         s = SessionManager()
-        s.login(3, {"nome": "View", "ruolo": "visualizzatore"})
+        s.login(3, {"nome": "View", "ruolo": "consultatore"})
         assert s.has_permission("view")
         assert not s.has_permission("insert")
         assert not s.has_permission("delete")
@@ -544,7 +557,7 @@ class TestSessionManager:
     def test_can_any(self):
         from core.session_manager import SessionManager
         s = SessionManager()
-        s.login(3, {"nome": "V", "ruolo": "visualizzatore"})
+        s.login(3, {"nome": "V", "ruolo": "consultatore"})
         assert s.can_any("view", "delete")
         assert not s.can_any("insert", "delete")
 
