@@ -44,6 +44,8 @@ nav:
       - REST API & Integrazioni: admin/api.md
       - "Claude + Foliarium (guida rapida)": admin/mcp-quickstart.md
       - Integrazione Claude (MCP, dettagli): admin/mcp.md
+  - Qualità del prodotto:
+      - "Autovalutazione ISO/IEC 25010": qualita/iso25010.md
   - Riferimento:
       - FAQ: riferimento/faq.md
       - Changelog: riferimento/changelog.md

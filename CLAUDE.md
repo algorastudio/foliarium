@@ -514,6 +514,23 @@ DB live e i numeri risulterebbero fuorvianti. La coverage misurata copre
 
 ---
 
+## Qualità del prodotto
+
+`docs/qualita/iso25010.md` — autovalutazione rispetto alle 8 caratteristiche
+del modello **ISO/IEC 25010:2011**, con evidenze puntuali (file, test,
+funzioni) e un elenco esplicito delle lacune. Serve per le griglie tecniche
+delle gare pubbliche e come preparazione a un'eventuale valutazione
+**ISO/IEC 25051** (l'unico standard della famiglia su cui esiste una
+certificazione di prodotto: 25010 è un modello, non uno schema certificabile).
+
+Il documento cita numeri rilevati a una data precisa (copertura, numero di
+test, righe di codice): **vanno rimisurati a ogni revisione, non copiati.**
+Le lacune dichiarate al §9 — fra cui l'assenza di un test del ciclo
+backup → restore e di misure di prestazioni — sono parte del documento:
+toglierle senza averle colmate lo renderebbe inutilizzabile.
+
+---
+
 ## PyInstaller paths (onedir bundle)
 
 In a PyInstaller `onedir` bundle there are two distinct roots:
