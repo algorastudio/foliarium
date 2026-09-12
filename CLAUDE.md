@@ -529,6 +529,23 @@ Le lacune dichiarate al §9 — fra cui l'assenza di un test del ciclo
 backup → restore e di misure di prestazioni — sono parte del documento:
 toglierle senza averle colmate lo renderebbe inutilizzabile.
 
+`docs/qualita/iso9241-110.md` — autovalutazione rispetto ai sette **principi
+di interazione della ISO 9241-110:2020**: la formulazione normativa degli
+stessi concetti che le euristiche di Nielsen esprimono in modo informale.
+Sta *dentro* la casella "Usabilità" della 25010 e la riempie di dettaglio.
+Due principi restano `◐` — adeguatezza al compito e coinvolgimento — per
+la stessa ragione: **si verificano solo con utenti reali**, nessun lavoro
+sul codice li porta a presidiati. Il documento dichiara inoltre che la
+**9241-210** (progettazione centrata sull'utente) non è applicata: è una
+norma di processo e servirebbero le evidenze del ciclo, che non esistono.
+
+Vale per entrambi i documenti: la denominazione dei principi va allineata
+al testo della norma acquistata prima di qualsiasi uso formale, e i
+conteggi vanno rimisurati con i pattern dichiarati. Alla stesura del
+documento 9241 tre numeri del 25010 (classi `QThread`, usi di `SAVEPOINT`,
+punti di `rollback`) si sono rivelati imprecisi e sono stati corretti in
+entrambi: è esattamente il motivo per cui i numeri non vanno copiati.
+
 ---
 
 ## PyInstaller paths (onedir bundle)
