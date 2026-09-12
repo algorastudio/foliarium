@@ -183,11 +183,11 @@ class TestEmailTemplates:
     def test_notify_role_changed(self):
         to, subject, body = self.svc.notify_role_changed(
             "mario@test.com", "mario.rossi", "Mario Rossi",
-            "visualizzatore", "archivista"
+            "consultatore", "archivista"
         )
         assert to == "mario@test.com"
         assert "ruolo" in subject.lower()
-        assert "visualizzatore" in body
+        assert "consultatore" in body
         assert "archivista" in body
 
     def test_notify_login(self):

@@ -39,11 +39,15 @@ logger = logging.getLogger(__name__)
 # ---------------------------------------------------------------------------
 
 class Role:
+    # I valori DEVONO coincidere con il vincolo CHECK su catasto.utente.ruolo
+    # (sql_scripts/07_user-management.sql). tests/unit/test_roles_schema.py
+    # estrae i valori ammessi dallo script SQL e verifica che _ALL li
+    # rispecchi: un ruolo aggiunto da un lato solo fa fallire quel test.
     ADMIN = "admin"
     ARCHIVISTA = "archivista"
-    VISUALIZZATORE = "visualizzatore"
+    CONSULTATORE = "consultatore"
 
-    _ALL = {ADMIN, ARCHIVISTA, VISUALIZZATORE}
+    _ALL = {ADMIN, ARCHIVISTA, CONSULTATORE}
 
     # Permessi per ruolo: set di stringhe azione
     _PERMISSIONS: Dict[str, set] = {
@@ -56,7 +60,7 @@ class Role:
             "view", "search", "insert", "edit",
             "export", "import",
         },
-        VISUALIZZATORE: {
+        CONSULTATORE: {
             "view", "search", "export",
         },
     }
