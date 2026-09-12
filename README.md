@@ -159,28 +159,37 @@ venv\Scripts\activate        # Windows
 pip install -r requirements.txt
 ```
 
-### 4. Configura il database
+### 4. Inizializza il database
 
-Crea il database PostgreSQL (richiede privilegi superuser):
+Un solo comando crea ruolo e database, applica tutti gli script SQL, crea
+l'utente `admin` applicativo e scrive `config.ini`:
 
 ```bash
-sudo -u postgres psql -f sql_scripts/01_creazione-database.sql
+# Linux / macOS — ricerca automatica dei binari PostgreSQL nel PATH
+python setup_database.py --pg-bin auto --postgres-password <password_postgres>
+
+# Windows
+python setup_database.py --pg-bin "C:\Program Files\PostgreSQL\17\bin" --postgres-password <password_postgres>
 ```
 
-Copia il template di configurazione e personalizzalo con le credenziali del tuo PostgreSQL:
+`--pg-bin` è necessario con un PostgreSQL di sistema: senza, lo script cerca il
+PostgreSQL portabile in `./pgsql/bin` incluso nell'installer.
+Annota la password admin stampata nel riepilogo finale (è generata a caso se non
+passi `--admin-password`).
+
+In alternativa a `config.ini` puoi usare le variabili d'ambiente `DB_HOST`,
+`DB_USER`, `DB_PASS`, `DB_NAME`, `DB_PORT`; il template dei valori è in
+`config.example.ini`.
+
+### 5. Configura la licenza
+
+In modalità normale Foliarium non si avvia senza `foliarium.license` valido.
+Se non l'hai ricevuto da Algora Studio, per un ambiente di sviluppo:
 
 ```bash
-cp config.example.ini config.ini
-# Modifica config.ini con host, dbname, user, password
-```
-
-In alternativa puoi usare variabili d'ambiente (`DB_HOST`, `DB_USER`, `DB_PASS`, `DB_NAME`, `DB_PORT`).
-Se non viene fornita una password in modalità non-demo, Foliarium aprirà il dialogo di configurazione manuale all'avvio.
-
-### 5. Inizializza lo schema
-
-```bash
-python setup_database.py
+python generate_key.py --save-base-dir          # chiave di firma (mai da committare)
+python generate_license.py generate --to "Archivio di prova" \
+    --type standard --seats 1 --expiry 2027-12-31 --out foliarium.license
 ```
 
 ### 6. Avvia l'applicazione
@@ -189,11 +198,14 @@ python setup_database.py
 python gui_main.py
 ```
 
-Per la modalità demo (PostgreSQL portabile, autologin):
+Per la modalità demo (salta la validazione della licenza, autologin):
 
 ```bash
 python gui_main.py --demo
 ```
+
+Guida completa passo passo, verifica e troubleshooting:
+[docs/installazione.md](docs/installazione.md).
 
 ---
 
@@ -239,7 +251,7 @@ pytest
 
 ## Documentazione
 
-- [Guida all'installazione](docs/installazione.md) *(se presente)*
+- [Guida all'installazione](docs/installazione.md)
 - Documentazione completa: `mkdocs serve` o vedi cartella `docs/`
 
 ---

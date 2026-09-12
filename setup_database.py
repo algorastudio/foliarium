@@ -872,7 +872,7 @@ def setup(
     print()
     log("Credenziali amministratore applicativo:")
     log("  Utente:   admin")
-    log("  Password: admin123")
+    log(f"  Password: {admin_password}")
     log("  IMPORTANTE: cambiare la password al primo accesso!")
     print(f"{'='*60}\n")
 
@@ -943,7 +943,8 @@ def main() -> None:
                         help="Password per il database (default: generata casualmente)")
     parser.add_argument("--admin-password", default=None,
                         help="Password per l'utente admin applicativo "
-                             "(default: 'admin123' — CAMBIARLA al primo accesso)")
+                             "(default: generata casualmente e stampata nel "
+                             "riepilogo finale — CAMBIARLA al primo accesso)")
     parser.add_argument("--skip-service", action="store_true",
                         help="Non registrare come servizio di sistema")
     parser.add_argument("--uninstall", action="store_true",
