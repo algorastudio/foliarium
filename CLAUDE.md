@@ -539,7 +539,17 @@ sul codice li porta a presidiati. Il documento dichiara inoltre che la
 **9241-210** (progettazione centrata sull'utente) non è applicata: è una
 norma di processo e servirebbero le evidenze del ciclo, che non esistono.
 
-Vale per entrambi i documenti: la denominazione dei principi va allineata
+`docs/qualita/contesto-uso.md` — contesto d'uso secondo **ISO 9241-11**:
+utenti, obiettivi, compiti, risorse, ambiente. È **deliberatamente
+incompleto** e marca ogni voce come ▣ derivata dal codice o ◻ ipotesi non
+rilevata. Le ◻ non vanno cancellate per far sembrare il documento
+completo: sono l'elenco esatto di ciò che non si sa, e il §7 contiene la
+traccia di intervista che le converte. Colmare questa lacuna sblocca gli
+altri documenti: senza contesto d'uso rilevato, due principi della
+9241-110 non possono superare `◐`, la 9241-210 non è applicabile e la
+descrizione del prodotto per la 25051 non è verificabile.
+
+Vale per tutti e tre i documenti: la denominazione dei principi va allineata
 al testo della norma acquistata prima di qualsiasi uso formale, e i
 conteggi vanno rimisurati con i pattern dichiarati. Alla stesura del
 documento 9241 tre numeri del 25010 (classi `QThread`, usi di `SAVEPOINT`,

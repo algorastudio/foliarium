@@ -46,6 +46,7 @@ nav:
       - Integrazione Claude (MCP, dettagli): admin/mcp.md
   - Qualità del prodotto:
       - "Autovalutazione ISO/IEC 25010": qualita/iso25010.md
+      - "Contesto d'uso (ISO 9241-11)": qualita/contesto-uso.md
       - "Autovalutazione ISO 9241-110": qualita/iso9241-110.md
   - Riferimento:
       - FAQ: riferimento/faq.md
