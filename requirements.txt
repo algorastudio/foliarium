@@ -26,7 +26,11 @@ psycopg2-binary==2.9.10
 fastapi>=0.115.0
 uvicorn[standard]>=0.30.0
 # MCP server (mcp_server/) per Claude Desktop e altri client MCP
-mcp>=1.0.0
+# Tetto a 2.0: nell'SDK 2.x FastMCP e' stato rinominato MCPServer e
+# mcp.server.fastmcp non esiste piu', quindi mcp_server/server.py smette di
+# importare. Il vincolo va rimosso insieme alla migrazione del server all'API
+# 2.x, non prima.
+mcp>=1.0.0,<2
 httpx>=0.27.0
 # PyWebView launcher (webview_main.py)
 pywebview>=4.2.0
