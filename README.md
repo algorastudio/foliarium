@@ -111,6 +111,8 @@ foliarium/
 ├── .devcontainer/                # Dev container per VS Code / Codespaces
 ├── .github/workflows/            # CI/CD GitHub Actions
 ├── foliarium.spec                # PyInstaller spec (build produzione)
+├── setup_db.spec                 # PyInstaller spec (setup_db.exe per l'installer)
+├── Foliarium_Installer.iss       # Installer Inno Setup (PostgreSQL incluso)
 ├── setup_database.bat / .py      # Inizializzazione DB
 ├── generate_license.py           # CLI per generare/ispezionare file .license
 ├── generate_key.py               # CLI per generare la chiave HMAC di firma licenze
@@ -136,7 +138,12 @@ foliarium/
 
 ## Installazione rapida
 
+> **Utenti finali (Windows):** scarica `Foliarium_<versione>_Setup.exe` dalla pagina Releases. PostgreSQL è incluso e il database viene creato durante l'installazione — non serve installare né configurare nulla. Vedi la [guida all'installazione](docs/installazione.md).
+>
 > **Per provare Foliarium senza installare nulla:** scarica la versione demo embedded (PostgreSQL portabile incluso) dalla pagina Releases ed esegui `Foliarium.exe --demo`.
+
+Quanto segue riguarda l'esecuzione **dai sorgenti** (sviluppo, Linux/macOS,
+server di archivio).
 
 ### 1. Clona il repository
 

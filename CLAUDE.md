@@ -110,6 +110,8 @@ foliarium/
 ├── .devcontainer/                # Dev container config (VS Code / Codespaces)
 ├── .github/workflows/            # CI/CD pipeline
 ├── foliarium.spec                # PyInstaller build spec (produzione)
+├── setup_db.spec                 # PyInstaller build spec (setup_db.exe)
+├── Foliarium_Installer.iss       # Installer Inno Setup (PostgreSQL incluso)
 ├── setup_database.bat / .py      # Init DB Windows / cross-platform
 └── generate_license.py           # CLI: genera/ispeziona file .license
 ```
@@ -458,6 +460,54 @@ Pipeline: `.github/workflows/pipeline_foliarium.yml`
 | `push` di un tag `*.*.*` | test + build + create-release |
 | `pull_request` verso `main`/`master` | solo test (build skippati via `if: github.event_name != 'pull_request'`) |
 | `workflow_dispatch` | tutti i job |
+
+---
+
+## Installer Windows (PostgreSQL incluso)
+
+`Foliarium_Installer.iss` produce un installer che **crea il database
+durante l'installazione**: nessun passaggio manuale, nessun PostgreSQL da
+installare a parte. Tre ingredienti, preparati dalla pipeline in
+`dist/Foliarium/` prima di invocare `iscc`:
+
+| Ingrediente | Da dove |
+|---|---|
+| `Foliarium.exe` + `_internal/` | `pyinstaller foliarium.spec` |
+| `setup_db.exe` | `pyinstaller setup_db.spec` |
+| `pgsql/` (~120 MB) | binari EnterpriseDB, scaricati e potati dalla CI |
+
+- **Versione di PostgreSQL:** `PG_BUNDLE_VERSION` nel workflow, unico punto.
+  Lo ZIP EnterpriseDB pesa 822 MB estratti, di cui 673 di solo pgAdmin 4:
+  lo step scarta `pgAdmin 4`, `doc`, `include`, `StackBuilder` e `symbols`,
+  poi verifica che i sette eseguibili usati dal codice e le estensioni
+  `pg_trgm`, `pgcrypto`, `uuid-ossp` ci siano. (`system_stats` **non** c'è:
+  gli script di schema la creano dentro un `DO` block che la salta.)
+- **Perché `setup_db.exe` è separato:** l'installer non può assumere Python
+  sulla macchina del cliente. Usa solo la libreria standard, pesa 7 MB.
+  Gli script SQL **non** vi sono impacchettati: restano risorsa del bundle
+  principale (`_internal/sql_scripts`), e `resolve_sql_dir()` li cerca lì.
+- **`[Code]` dell'installer:** esegue `setup_db.exe`, distingue i casi in
+  cui non può riuscire (componente assente, `pgsql/` assente, porte 5432-34
+  occupate) e rimanda a `setup_database.log`. **Nessuna `[UninstallRun]`:**
+  i suoi parametri vengono fissati durante l'*installazione*, quindi un
+  `{code:...}` che dipende dalla risposta alla disinstallazione verrebbe
+  valutato troppo presto. La rimozione sta in `CurUninstallStepChanged`.
+- **Disinstallazione:** il servizio `FoliariumDB` va rimosso sempre
+  (altrimenti resta registrato puntando a eseguibili cancellati); i dati
+  solo se l'utente risponde «Sì» alla domanda, che ha «No» preselezionato.
+  `setup_database.py --uninstall --keep-data` è il caso conservativo.
+- **Credenziali:** la password di `admin` è generata a caso e in DB resta
+  solo l'hash bcrypt. `--credentials-out` la scrive in `PRIMO-ACCESSO.txt`,
+  che l'installer apre a fine installazione.
+- **Log:** `log()` scrive anche su file (`--log-file`, default
+  `setup_database.log` nella cartella di installazione) perché l'installer
+  esegue il setup con la console nascosta. Le password passate a
+  `register_secret()` vi compaiono come `***`: il file resta sul disco del
+  cliente e la documentazione invita ad allegarlo alle segnalazioni.
+- **Validazione:** il job `valida-installer` compila l'installer contro un
+  `dist/` fittizio e gira **anche sulle pull request**, dove il build vero è
+  escluso. Senza, un errore di sintassi nell'installer si scoprirebbe solo
+  dopo il merge su `main`.
 
 ---
 

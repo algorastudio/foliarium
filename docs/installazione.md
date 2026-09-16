@@ -41,28 +41,45 @@ Scegli il percorso adatto al tuo caso:
 
 **Server:**
 
+Con il percorso A non serve nulla di tutto questo: l'installer Windows
+include PostgreSQL 16.10 e lo configura da sé. Quanto segue vale per i
+percorsi B e C, o quando si punta a un server di archivio già esistente.
+
 - PostgreSQL 14 o superiore (consigliato PostgreSQL 16+)
 - Estensioni PostgreSQL: `uuid-ossp`, `pg_trgm`, `pgcrypto`
   (tutte incluse in `postgresql-contrib`)
 - Sistema operativo: qualsiasi sistema supportato da PostgreSQL
 
+!!! note "L'estensione `system_stats`"
+    Gli script di schema provano a installarla ma non è un requisito: non è
+    inclusa nei binari PostgreSQL standard e, se manca, viene saltata senza
+    conseguenze per l'archivio.
+
 ---
 
 ## Percorso A — Installer Windows (utente finale)
 
-1. Scarica `Foliarium_Setup_x.y.z.exe` dalla pagina Releases.
-2. Esegui l'installer **come amministratore**: copia i file, esegue
-   `setup_database.bat` (che a sua volta chiama `setup_database.py`) e registra
-   il servizio Windows `FoliariumDB`.
-3. Al termine l'installer mostra le credenziali generate: annotale.
-   Il file `config.ini` viene scritto accanto a `Foliarium.exe`.
+Non richiede nulla di preinstallato: PostgreSQL 16.10 è incluso
+nell'installer e il database viene creato durante l'installazione.
+
+1. Scarica `Foliarium_<versione>_Setup.exe` dalla pagina Releases.
+2. Esegui l'installer **come amministratore**: copia i file, crea il cluster
+   PostgreSQL, esegue gli script di schema e registra il servizio Windows
+   `FoliariumDB`. La fase di configurazione del database richiede 30–60
+   secondi.
+3. Al termine si apre `PRIMO-ACCESSO.txt` con la password generata per
+   l'utente `admin`. Il file `config.ini`, con le credenziali del database,
+   viene scritto accanto a `Foliarium.exe`.
 4. Copia il file di licenza `foliarium.license` ricevuto da Algora Studio nella
    cartella di installazione, accanto a `Foliarium.exe`.
-5. Avvia **Foliarium.exe** e accedi con l'utente `admin` e la password mostrata
-   dall'installer. **Cambiala subito** da *Gestione Utenti*.
+5. Avvia **Foliarium.exe**: si connette da sola leggendo `config.ini`. Accedi
+   con l'utente `admin` e la password del punto 3, **cambiala subito** da
+   *Gestione Utenti → Resetta Password*, poi elimina `PRIMO-ACCESSO.txt`.
 
 I dati del cluster PostgreSQL finiscono in `%ProgramData%\Foliarium\pg_data`
-(non in `Program Files`: `initdb` non può scrivere lì).
+(non in `Program Files`: `initdb` lascia cadere i privilegi e non può
+scrivere lì). Restano lì anche dopo una disinstallazione, a meno di
+rispondere «Sì» alla domanda esplicita dell'uninstaller.
 
 Dettagli su percorsi, porte e disinstallazione nella
 [guida amministratore](admin/installazione.md).
