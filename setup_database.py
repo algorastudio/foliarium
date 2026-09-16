@@ -60,7 +60,10 @@ from pathlib import Path
 # ============================================================================
 # Costanti
 # ============================================================================
-DB_NAME = "foliarium"
+# Nome del database. Deve restare allineato a setup_database.bat, a
+# config.example.ini, al default di config.ENV_DB_NAME e alla pipeline CI:
+# documentazione e script di backup assumono tutti "catasto_storico".
+DB_NAME = "catasto_storico"
 DB_USER = "foliarium"
 SERVICE_NAME = "FoliariumDB"
 DEFAULT_PORT = 5432
@@ -578,6 +581,8 @@ def setup(
     logfile: Path | None = None,
     admin_password: str | None = None,
     config_file: Path | None = None,
+    db_name: str = DB_NAME,
+    db_user: str = DB_USER,
 ) -> bool:
     """
     Esegue l'intera sequenza di setup del database.
@@ -716,7 +721,7 @@ def setup(
         time.sleep(1)
 
         # --- 5/6. Creazione ruolo e database ---
-        print(f"\n[5/8] Creazione ruolo '{DB_USER}' e database '{DB_NAME}'...")
+        print(f"\n[5/8] Creazione ruolo '{db_user}' e database '{db_name}'...")
 
         env = os.environ.copy()
         env["PGPASSWORD"] = db_password
@@ -726,8 +731,8 @@ def setup(
         # richiedono privilegi DDL/ownership che un ruolo limitato non ha.
         run_psql(pg_bin, port,
                  f"DO $$ BEGIN "
-                 f"IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname='{DB_USER}') THEN "
-                 f"CREATE ROLE {DB_USER} LOGIN SUPERUSER PASSWORD '{db_password}'; "
+                 f"IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname='{db_user}') THEN "
+                 f"CREATE ROLE {db_user} LOGIN SUPERUSER PASSWORD '{db_password}'; "
                  f"END IF; END $$;",
                  password=db_password)
 
@@ -735,17 +740,17 @@ def setup(
         r = run_quiet([exe(pg_bin, "psql"),
                        "-h", "127.0.0.1", "-p", str(port),
                        "-U", "postgres", "-d", "postgres",
-                       "-tc", f"SELECT 1 FROM pg_database WHERE datname='{DB_NAME}'"],
+                       "-tc", f"SELECT 1 FROM pg_database WHERE datname='{db_name}'"],
                       env=env)
 
         if "1" not in r.stdout:
             run_psql(pg_bin, port,
-                     f"CREATE DATABASE {DB_NAME} OWNER postgres ENCODING 'UTF8';",
+                     f"CREATE DATABASE {db_name} OWNER postgres ENCODING 'UTF8';",
                      password=db_password)
 
         run_psql(pg_bin, port,
-                 f"GRANT CONNECT ON DATABASE {DB_NAME} TO {DB_USER};",
-                 dbname=DB_NAME, password=db_password)
+                 f"GRANT CONNECT ON DATABASE {db_name} TO {db_user};",
+                 dbname=db_name, password=db_password)
 
         # --- 7. Script SQL ---
         print("\n[6/8] Esecuzione script SQL (schema, funzioni, feature)...")
@@ -754,7 +759,7 @@ def setup(
             if sql_file.exists():
                 log(f"→ {script_name}")
                 run_psql_file(pg_bin, port, sql_file,
-                              dbname=DB_NAME, password=db_password)
+                              dbname=db_name, password=db_password)
             else:
                 log(f"ATTENZIONE: {script_name} non trovato, saltato.")
 
@@ -765,7 +770,7 @@ def setup(
             log(f"→ {BOOTSTRAP_ADMIN_SCRIPT} (password admin dinamica)")
             run_psql_file(
                 pg_bin, port, bootstrap_file,
-                dbname=DB_NAME, password=db_password,
+                dbname=db_name, password=db_password,
                 variables={
                     "admin_password": admin_password,
                     "admin_email": "admin@archivio.local",
@@ -776,25 +781,25 @@ def setup(
 
         # Grant permessi su tutte le tabelle create
         run_psql(pg_bin, port,
-                 f"GRANT USAGE ON SCHEMA catasto TO {DB_USER}; "
-                 f"GRANT USAGE ON SCHEMA public TO {DB_USER}; "
-                 f"GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA catasto TO {DB_USER}; "
-                 f"GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA public TO {DB_USER}; "
-                 f"GRANT USAGE, SELECT, UPDATE ON ALL SEQUENCES IN SCHEMA catasto TO {DB_USER}; "
-                 f"GRANT USAGE, SELECT, UPDATE ON ALL SEQUENCES IN SCHEMA public TO {DB_USER}; "
+                 f"GRANT USAGE ON SCHEMA catasto TO {db_user}; "
+                 f"GRANT USAGE ON SCHEMA public TO {db_user}; "
+                 f"GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA catasto TO {db_user}; "
+                 f"GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA public TO {db_user}; "
+                 f"GRANT USAGE, SELECT, UPDATE ON ALL SEQUENCES IN SCHEMA catasto TO {db_user}; "
+                 f"GRANT USAGE, SELECT, UPDATE ON ALL SEQUENCES IN SCHEMA public TO {db_user}; "
                  f"ALTER DEFAULT PRIVILEGES IN SCHEMA catasto "
-                 f"GRANT SELECT, INSERT, UPDATE, DELETE ON TABLES TO {DB_USER}; "
+                 f"GRANT SELECT, INSERT, UPDATE, DELETE ON TABLES TO {db_user}; "
                  f"ALTER DEFAULT PRIVILEGES IN SCHEMA public "
-                 f"GRANT SELECT, INSERT, UPDATE, DELETE ON TABLES TO {DB_USER}; "
+                 f"GRANT SELECT, INSERT, UPDATE, DELETE ON TABLES TO {db_user}; "
                  f"ALTER DEFAULT PRIVILEGES IN SCHEMA catasto "
-                 f"GRANT USAGE, SELECT, UPDATE ON SEQUENCES TO {DB_USER}; "
+                 f"GRANT USAGE, SELECT, UPDATE ON SEQUENCES TO {db_user}; "
                  f"ALTER DEFAULT PRIVILEGES IN SCHEMA public "
-                 f"GRANT USAGE, SELECT, UPDATE ON SEQUENCES TO {DB_USER}; "
+                 f"GRANT USAGE, SELECT, UPDATE ON SEQUENCES TO {db_user}; "
                  f"ALTER DEFAULT PRIVILEGES FOR ROLE postgres IN SCHEMA catasto "
-                 f"GRANT SELECT, INSERT, UPDATE, DELETE ON TABLES TO {DB_USER}; "
+                 f"GRANT SELECT, INSERT, UPDATE, DELETE ON TABLES TO {db_user}; "
                  f"ALTER DEFAULT PRIVILEGES FOR ROLE postgres IN SCHEMA catasto "
-                 f"GRANT USAGE, SELECT, UPDATE ON SEQUENCES TO {DB_USER};",
-                 dbname=DB_NAME, password=db_password)
+                 f"GRANT USAGE, SELECT, UPDATE ON SEQUENCES TO {db_user};",
+                 dbname=db_name, password=db_password)
 
         # Le materialized view ereditano postgres come owner; il REFRESH
         # richiede l'ownership, quindi le trasferiamo all'utente applicativo.
@@ -802,8 +807,8 @@ def setup(
                  "DO $$ DECLARE r RECORD; BEGIN "
                  "FOR r IN (SELECT matviewname FROM pg_matviews WHERE schemaname = 'catasto') "
                  "LOOP EXECUTE 'ALTER MATERIALIZED VIEW catasto.' || quote_ident(r.matviewname) "
-                 f"|| ' OWNER TO {DB_USER}'; END LOOP; END $$;",
-                 dbname=DB_NAME, password=db_password)
+                 f"|| ' OWNER TO {db_user}'; END LOOP; END $$;",
+                 dbname=db_name, password=db_password)
 
     finally:
         # Ferma il server temporaneo
@@ -840,8 +845,8 @@ def setup(
     config["database"] = {
         "host": "127.0.0.1",
         "port": str(port),
-        "dbname": DB_NAME,
-        "user": DB_USER,
+        "dbname": db_name,
+        "user": db_user,
         "password": db_password,
     }
     config["service"] = {
@@ -865,8 +870,8 @@ def setup(
     print(f"{'='*60}")
     log(f"Piattaforma:  {SYSTEM}")
     log(f"Porta:        {port}")
-    log(f"Database:     {DB_NAME}")
-    log(f"Utente DB:    {DB_USER}")
+    log(f"Database:     {db_name}")
+    log(f"Utente DB:    {db_user}")
     log(f"Servizio:     {SERVICE_NAME}")
     log(f"Config:       {config_file}")
     print()
@@ -1018,7 +1023,8 @@ def main() -> None:
     # Modalità bundle: pgsql/ incluso nell'installer
     ok = setup(install_dir, args.db_password, args.skip_service,
                admin_password=args.admin_password,
-               config_file=Path(args.config_file) if args.config_file else None)
+               config_file=Path(args.config_file) if args.config_file else None,
+               db_name=args.db_name, db_user=args.db_user)
     sys.exit(0 if ok else 1)
 
 
