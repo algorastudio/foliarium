@@ -114,8 +114,61 @@ def find_system_pgbin() -> Path | None:
     return None
 
 
+# File di log, impostato da configure_logfile(). L'installer esegue questo
+# programma con la console nascosta: senza un log su file, una installazione
+# fallita non lascerebbe nulla da leggere all'assistenza.
+_LOG_FILE: Path | None = None
+
+
+def configure_logfile(path: Path | None) -> None:
+    """Apre (troncando) il file di log e ci scrive l'intestazione."""
+    global _LOG_FILE
+    _LOG_FILE = path
+    if path is None:
+        return
+    try:
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(
+            f"Foliarium — log di inizializzazione database\n"
+            f"{time.strftime('%Y-%m-%d %H:%M:%S')} — {SYSTEM}\n"
+            f"{'=' * 60}\n",
+            encoding="utf-8",
+        )
+    except OSError as e:
+        # Il log e' diagnostica: se non e' scrivibile si continua senza.
+        _LOG_FILE = None
+        print(f"  ATTENZIONE: log non scrivibile in {path}: {e}", flush=True)
+
+
+# Password da oscurare nel file di log. La console le mostra (il riepilogo
+# finale serve a chi esegue il setup a mano), ma il file resta sul disco e la
+# documentazione invita a inviarlo all'assistenza: le credenziali del cliente
+# non devono viaggiare in allegato a una segnalazione.
+_SECRETS: list[str] = []
+
+
+def register_secret(value: str | None) -> None:
+    """Registra una password da sostituire con *** nel file di log."""
+    # Le stringhe corte darebbero falsi positivi su parole comuni.
+    if value and len(value) >= 6:
+        _SECRETS.append(value)
+
+
+def redact(msg: str) -> str:
+    """Sostituisce le password registrate con ***."""
+    for secret in _SECRETS:
+        msg = msg.replace(secret, "***")
+    return msg
+
+
 def log(msg: str) -> None:
     print(f"  {msg}", flush=True)
+    if _LOG_FILE is not None:
+        try:
+            with open(_LOG_FILE, "a", encoding="utf-8") as f:
+                f.write(f"{redact(msg)}\n")
+        except OSError:
+            pass  # non vale la pena far fallire il setup per il log
 
 
 def run(cmd: list, **kw) -> subprocess.CompletedProcess:
@@ -405,14 +458,19 @@ def _setup_on_external_pg(
     db_name: str = DB_NAME,
     db_user: str = DB_USER,
     config_file: Path | None = None,
+    credentials_file: Path | None = None,
 ) -> bool:
     """
     Crea il DB su un PostgreSQL già in esecuzione (modalità sviluppo).
     Non esegue initdb, non modifica pg_hba.conf, non registra servizi.
     """
-    sql_dir = install_dir / "sql_scripts"
+    sql_dir = resolve_sql_dir(install_dir)
     if config_file is None:
         config_file = install_dir / "config.ini"
+
+    register_secret(db_password)
+    register_secret(admin_password)
+    register_secret(postgres_password)
 
     print(f"\n{'='*60}")
     print(f" Foliarium — Setup DB su PostgreSQL di sistema ({SYSTEM})")
@@ -559,6 +617,8 @@ def _setup_on_external_pg(
     log(f"Config:          {config_file}")
     log(f"Utente admin:    admin  /  {admin_password}")
     log("IMPORTANTE: cambiare la password admin al primo accesso!")
+    if credentials_file is not None:
+        write_credentials_file(credentials_file, admin_password, db_name, db_user, port)
     print(f"{'='*60}\n")
     return True
 
@@ -574,15 +634,72 @@ def detect_install_dir() -> Path:
     return Path(__file__).parent
 
 
+def resolve_sql_dir(install_dir: Path) -> Path:
+    """
+    Trova la cartella sql_scripts/.
+
+    Nel bundle PyInstaller 'onedir' di Foliarium gli script SQL sono una
+    risorsa, quindi finiscono in `_internal/sql_scripts` e non accanto
+    all'eseguibile: cercarli solo in install_dir/ li mancherebbe, e il setup
+    creerebbe un database vuoto senza segnalare nulla di preciso.
+
+    Ordine: install_dir/ > install_dir/_internal/ > risorse di questo
+    eseguibile (sys._MEIPASS, se un giorno venissero impacchettate qui).
+    Se nessuna esiste ritorna la prima, cosi' l'errore a valle nomina il
+    percorso atteso.
+    """
+    candidates = [install_dir / "sql_scripts", install_dir / "_internal" / "sql_scripts"]
+    meipass = getattr(sys, "_MEIPASS", None)
+    if meipass:
+        candidates.append(Path(meipass) / "sql_scripts")
+
+    for candidate in candidates:
+        if (candidate / BOOTSTRAP_ADMIN_SCRIPT).exists():
+            return candidate
+    return candidates[0]
+
+
+def write_credentials_file(
+    path: Path, admin_password: str, db_name: str, db_user: str, port: int,
+) -> None:
+    """
+    Scrive il promemoria delle credenziali di primo accesso.
+
+    La password dell'utente applicativo `admin` e' generata a caso e non
+    esiste in nessun altro posto leggibile: `config.ini` contiene quella del
+    ruolo PostgreSQL, non questa, e in DB c'e' solo l'hash bcrypt. Se l'utente
+    non la vede qui, l'installazione e' riuscita ma nessuno puo' entrare.
+    """
+    try:
+        path.write_text(
+            "Foliarium — credenziali di primo accesso\n"
+            "========================================\n\n"
+            "Utente:   admin\n"
+            f"Password: {admin_password}\n\n"
+            "CAMBIARE LA PASSWORD AL PRIMO ACCESSO\n"
+            "(Impostazioni -> Gestione Utenti), poi eliminare questo file.\n\n"
+            "--- Dati tecnici (per l'assistenza) ---\n"
+            f"Database: {db_name}\n"
+            f"Utente DB: {db_user}\n"
+            f"Porta:    {port}\n",
+            encoding="utf-8",
+        )
+        log(f"Credenziali di primo accesso scritte in: {path}")
+    except OSError as e:
+        # Non e' un motivo per fallire l'installazione: la password resta
+        # comunque nel riepilogo a schermo e nel log.
+        log(f"ATTENZIONE: impossibile scrivere {path}: {e}")
+
+
 def setup(
     install_dir: Path,
     db_password: str | None = None,
     skip_service: bool = False,
-    logfile: Path | None = None,
     admin_password: str | None = None,
     config_file: Path | None = None,
     db_name: str = DB_NAME,
     db_user: str = DB_USER,
+    credentials_file: Path | None = None,
 ) -> bool:
     """
     Esegue l'intera sequenza di setup del database.
@@ -598,7 +715,7 @@ def setup(
         pg_data = data_root / "pg_data"
     else:
         pg_data = install_dir / "pg_data"
-    sql_dir = install_dir / "sql_scripts"
+    sql_dir = resolve_sql_dir(install_dir)
     if config_file is None:
         config_file = install_dir / "config.ini"
 
@@ -611,6 +728,9 @@ def setup(
         db_password = generate_password(16)
     if admin_password is None:
         admin_password = generate_password(16)
+
+    register_secret(db_password)
+    register_secret(admin_password)
 
     print(f"\n{'='*60}")
     print(f" Foliarium — Inizializzazione Database ({SYSTEM})")
@@ -879,6 +999,8 @@ def setup(
     log("  Utente:   admin")
     log(f"  Password: {admin_password}")
     log("  IMPORTANTE: cambiare la password al primo accesso!")
+    if credentials_file is not None:
+        write_credentials_file(credentials_file, admin_password, db_name, db_user, port)
     print(f"{'='*60}\n")
 
     return True
@@ -888,8 +1010,17 @@ def setup(
 # Disinstallazione
 # ============================================================================
 
-def uninstall(install_dir: Path) -> None:
-    """Rimuove il servizio PostgreSQL e i dati."""
+def uninstall(install_dir: Path, keep_data: bool = False) -> None:
+    """
+    Rimuove il servizio PostgreSQL e, se richiesto, i dati.
+
+    Le due cose sono separate di proposito. Il servizio va rimosso sempre:
+    lasciarlo registrato dopo la disinstallazione significa un servizio
+    Windows che punta a eseguibili non piu' esistenti, che fallisce a ogni
+    avvio della macchina. I dati invece sono l'archivio catastale del
+    cliente: `keep_data=True` li lascia dove sono, e una reinstallazione li
+    ritrova (setup() salta initdb se il cluster esiste gia').
+    """
     pg_bin = install_dir / "pgsql" / "bin"
     # Stessa logica di setup(): su Windows pg_data e' in %ProgramData%
     if IS_WIN:
@@ -906,17 +1037,23 @@ def uninstall(install_dir: Path) -> None:
     log("Arresto e rimozione servizio...")
     unregister_service(pg_bin)
 
-    if pg_data.exists():
-        log(f"Rimozione dati database: {pg_data}")
-        shutil.rmtree(pg_data, ignore_errors=True)
+    if keep_data:
+        log(f"Dati del database conservati in: {pg_data}")
+        log("Per rimuoverli in seguito: eliminare quella cartella a mano.")
+    else:
+        if pg_data.exists():
+            log(f"Rimozione dati database: {pg_data}")
+            shutil.rmtree(pg_data, ignore_errors=True)
 
-    # Rimuovi anche la cartella padre %ProgramData%\Foliarium se vuota
-    if IS_WIN and data_root and data_root.exists():
-        try:
-            data_root.rmdir()  # fallisce se non vuota — e' ok
-        except OSError:
-            pass
+        # Rimuovi anche la cartella padre %ProgramData%\Foliarium se vuota
+        if IS_WIN and data_root and data_root.exists():
+            try:
+                data_root.rmdir()  # fallisce se non vuota — e' ok
+            except OSError:
+                pass
 
+    # config.ini contiene la password del ruolo PostgreSQL: va rimosso anche
+    # conservando i dati, perche' l'eseguibile accanto a cui sta non c'e' piu'.
     config_file = install_dir / "config.ini"
     if config_file.exists():
         config_file.unlink()
@@ -954,6 +1091,12 @@ def main() -> None:
                         help="Non registrare come servizio di sistema")
     parser.add_argument("--uninstall", action="store_true",
                         help="Rimuovi servizio e dati database")
+    parser.add_argument("--keep-data", action="store_true",
+                        help=(
+                            "Con --uninstall: rimuove il servizio ma conserva "
+                            "il cluster PostgreSQL con i dati dell'archivio. "
+                            "Una reinstallazione successiva li ritrova."
+                        ))
     # Modalità sviluppo
     parser.add_argument(
         "--pg-bin", default=None, metavar="PATH|auto",
@@ -984,13 +1127,35 @@ def main() -> None:
         "--config-file", default=None, metavar="FILE",
         help="Percorso del file di configurazione da scrivere (default: config.ini nella directory di installazione)",
     )
+    parser.add_argument(
+        "--log-file", default=None, metavar="FILE",
+        help=(
+            "File di log del setup (default: setup_database.log nella "
+            "directory di installazione). L'installer esegue questo programma "
+            "con la console nascosta, quindi il log e' l'unica diagnostica "
+            "che resta."
+        ),
+    )
+    parser.add_argument(
+        "--credentials-out", default=None, metavar="FILE",
+        help=(
+            "Scrive la password generata dell'utente applicativo 'admin' in "
+            "questo file di testo. L'installer lo usa per mostrarla a fine "
+            "installazione: in DB resta solo l'hash, quindi senza questo file "
+            "(o senza leggere il riepilogo a schermo) la password e' persa."
+        ),
+    )
     args = parser.parse_args()
 
     install_dir = Path(args.install_dir) if args.install_dir else detect_install_dir()
     install_dir = install_dir.resolve()
 
+    configure_logfile(
+        Path(args.log_file) if args.log_file else install_dir / "setup_database.log"
+    )
+
     if args.uninstall:
-        uninstall(install_dir)
+        uninstall(install_dir, keep_data=args.keep_data)
         return
 
     # Modalità sviluppo: --pg-bin fornito
@@ -1017,6 +1182,7 @@ def main() -> None:
             db_name=args.db_name,
             db_user=args.db_user,
             config_file=Path(args.config_file) if args.config_file else None,
+            credentials_file=Path(args.credentials_out) if args.credentials_out else None,
         )
         sys.exit(0 if ok else 1)
 
@@ -1024,7 +1190,8 @@ def main() -> None:
     ok = setup(install_dir, args.db_password, args.skip_service,
                admin_password=args.admin_password,
                config_file=Path(args.config_file) if args.config_file else None,
-               db_name=args.db_name, db_user=args.db_user)
+               db_name=args.db_name, db_user=args.db_user,
+               credentials_file=Path(args.credentials_out) if args.credentials_out else None)
     sys.exit(0 if ok else 1)
 
 

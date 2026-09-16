@@ -16,6 +16,13 @@ on:
 permissions:
   contents: read
 
+env:
+  # Versione dei binari PostgreSQL inclusi nell'installer Windows.
+  # L'applicazione richiede PostgreSQL 14+; il ramo 16 e' quello su cui e'
+  # verificata. Cambiandola qui cambia il bundle: allineare anche
+  # docs/admin/installazione.md, che la cita all'utente.
+  PG_BUNDLE_VERSION: "16.10-1"
+
 jobs:
   # ==========================================
   # FASE 1: TEST (su Linux con PostgreSQL)
@@ -144,6 +151,42 @@ jobs:
         if-no-files-found: ignore
 
   # ==========================================
+  # FASE 1b: VALIDAZIONE INSTALLER
+  # Compila Foliarium_Installer.iss contro un dist/ fittizio, solo per
+  # verificarne la sintassi (sezioni, direttive e soprattutto il Pascal
+  # Script in [Code]). Gira ANCHE sulle pull request, a differenza del
+  # build vero: senza questo job un errore nell'installer si scoprirebbe
+  # solo dopo il merge su main, quando il build completo lo compila.
+  # Dura un paio di minuti e non produce artefatti.
+  # ==========================================
+  valida-installer:
+    runs-on: windows-latest
+
+    steps:
+    - name: Checkout del codice
+      uses: actions/checkout@v4
+
+    - name: Preparazione di un dist/ fittizio
+      # iscc si rifiuta di compilare se una voce [Files] non trova sorgenti.
+      # Servono solo i nomi giusti: il contenuto non viene ispezionato.
+      run: |
+        New-Item -ItemType Directory -Force -Path dist\Foliarium\_internal | Out-Null
+        Set-Content dist\Foliarium\Foliarium.exe "segnaposto"
+        Set-Content dist\Foliarium\setup_db.exe  "segnaposto"
+        Set-Content dist\Foliarium\_internal\segnaposto.txt "segnaposto"
+      shell: pwsh
+
+    - name: Compilazione di prova dell'installer
+      run: iscc /O"installer_prova" Foliarium_Installer.iss
+
+    - name: Esito
+      run: |
+        $exe = Get-ChildItem installer_prova\*.exe | Select-Object -First 1
+        if (-not $exe) { throw "iscc non ha prodotto alcun installer" }
+        Write-Host "Installer di prova compilato: $($exe.Name)"
+      shell: pwsh
+
+  # ==========================================
   # FASE 2: BUILD (su Windows per Inno Setup)
   # ==========================================
   build-windows:
@@ -168,6 +211,58 @@ jobs:
 
     - name: Compilazione Eseguibile con PyInstaller
       run: pyinstaller foliarium.spec
+
+    - name: Compilazione setup_db.exe (inizializzazione database)
+      # Eseguibile separato: l'installer non puo' assumere Python sulla
+      # macchina del cliente. Usa solo la libreria standard, quindi pesa
+      # pochi MB (vedi setup_db.spec).
+      run: |
+        pyinstaller setup_db.spec --distpath dist_setupdb
+        Copy-Item dist_setupdb\setup_db.exe dist\Foliarium\setup_db.exe
+      shell: pwsh
+
+    - name: Download binari PostgreSQL
+      # Binari EnterpriseDB per Windows x64. Lo ZIP contiene una cartella
+      # "pgsql" alla radice, che e' esattamente il layout che
+      # setup_database.py si aspetta in install_dir/pgsql/bin.
+      run: |
+        $url = "https://get.enterprisedb.com/postgresql/postgresql-$env:PG_BUNDLE_VERSION-windows-x64-binaries.zip"
+        Write-Host "Download da $url"
+        Invoke-WebRequest -Uri $url -OutFile pgsql.zip -UseBasicParsing
+        Expand-Archive -Path pgsql.zip -DestinationPath pg_extract -Force
+        Remove-Item pgsql.zip
+
+        # Potatura: lo ZIP pesa 822 MB estratti, di cui 673 solo di pgAdmin 4.
+        # Al database servono bin/, lib/ e share/ — 120 MB in tutto.
+        foreach ($dir in @("pgAdmin 4", "doc", "include", "StackBuilder", "symbols")) {
+            $path = "pg_extract\pgsql\$dir"
+            if (Test-Path $path) {
+                Remove-Item -Recurse -Force $path
+                Write-Host "  rimosso $dir"
+            }
+        }
+
+        Move-Item pg_extract\pgsql dist\Foliarium\pgsql
+        Remove-Item -Recurse -Force pg_extract
+
+        # Verifica che ci sia tutto il necessario: un binario mancante si
+        # manifesterebbe solo durante l'installazione sulla macchina del
+        # cliente, a meta' del setup del database.
+        foreach ($exe in @("initdb", "pg_ctl", "postgres", "psql", "pg_isready", "pg_dump", "pg_restore")) {
+            if (-not (Test-Path "dist\Foliarium\pgsql\bin\$exe.exe")) {
+                throw "Binario PostgreSQL mancante: $exe.exe"
+            }
+        }
+        # pg_trgm, pgcrypto e uuid-ossp sono richieste dagli script di schema.
+        # (system_stats non e' nei binari standard: gli script la saltano.)
+        foreach ($ext in @("pg_trgm", "pgcrypto", "uuid-ossp")) {
+            if (-not (Test-Path "dist\Foliarium\pgsql\share\extension\$ext.control")) {
+                throw "Estensione PostgreSQL mancante: $ext"
+            }
+        }
+        $mb = [math]::Round((Get-ChildItem -Recurse dist\Foliarium\pgsql | Measure-Object -Property Length -Sum).Sum / 1MB, 1)
+        Write-Host "PostgreSQL $env:PG_BUNDLE_VERSION incluso nel bundle: $mb MB"
+      shell: pwsh
 
     - name: Compilazione Installer con Inno Setup
       # Build non firmata (la firma Authenticode è locale al rilascio: vedi

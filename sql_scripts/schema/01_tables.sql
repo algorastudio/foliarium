@@ -17,7 +17,21 @@ SET search_path TO catasto, public; -- Aggiunto public per le estensioni
 -- Estensioni necessarie
 CREATE EXTENSION IF NOT EXISTS "uuid-ossp" WITH SCHEMA public; -- O catasto se preferito
 CREATE EXTENSION IF NOT EXISTS "pg_trgm" WITH SCHEMA public;   -- O catasto se preferito
-CREATE EXTENSION IF NOT EXISTS "system_stats" WITH SCHEMA public; -- O catasto se preferito
+-- system_stats e' un'extension di terze parti: NON e' inclusa nei binari
+-- PostgreSQL standard (ne' in quelli EnterpriseDB usati dall'installer, ne'
+-- nell'immagine Docker del runner CI). Wrappata in un DO block perche' un
+-- errore qui bloccherebbe la creazione dell'intero schema. Le funzionalita'
+-- legate alle statistiche di sistema vengono semplicemente saltate.
+DO $$
+BEGIN
+    CREATE EXTENSION IF NOT EXISTS "system_stats" WITH SCHEMA public;
+EXCEPTION
+    WHEN undefined_file THEN
+        RAISE NOTICE 'Extension "system_stats" non disponibile — skip.';
+    WHEN OTHERS THEN
+        RAISE NOTICE 'Extension "system_stats" non installata (%) — skip.', SQLERRM;
+END
+$$;
 
 
 -- 1. Estensione per la gestione di periodi storici
