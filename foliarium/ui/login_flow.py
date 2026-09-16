@@ -5,7 +5,8 @@ Estratto da gui_main.py (Sprint 3.6 refactor — six-hats).
 
 Espone 3 funzioni per scomporre il flusso di avvio in stadi indipendenti:
 
-    1. try_autoconnect_db()  — tentativo silenzioso con QSettings + keyring
+    1. try_autoconnect_db()  — tentativo silenzioso con QSettings,
+       keyring e config.ini (vedi _resolve_connection_params)
     2. connect_db_with_dialog()  — fallback interattivo (loop con
        DBConfigDialog finche' la connessione riesce o l'utente annulla)
     3. ensure_db_connection() — combina i due: ritorna sempre un
@@ -30,6 +31,7 @@ from typing import Optional, Tuple
 from PyQt6.QtCore import QSettings
 from PyQt6.QtWidgets import QDialog, QMessageBox
 
+import config as cfg
 from catasto_db_manager import CatastoDBManager
 from config import (
     SETTINGS_DB_HOST,
@@ -49,32 +51,96 @@ def _get_password_from_keyring_safe(host: str, user: str) -> Optional[str]:
         return None
 
 
+def _env_port() -> int:
+    """Porta da config.ini/env come intero. Un valore non numerico vale 5432."""
+    try:
+        return int(str(cfg.ENV_DB_PORT).strip())
+    except (TypeError, ValueError):
+        return 5432
+
+
+def _resolve_connection_params(settings: QSettings) -> dict:
+    """
+    Risolve i parametri di connessione con precedenza, chiave per chiave:
+
+        QSettings  >  config.ini / variabili d'ambiente  >  default
+
+    I valori `cfg.ENV_DB_*` incorporano gia' la precedenza
+    config.ini > env var > default (vedi config.py), quindi qui basta
+    usarli come fallback di ogni `settings.value()`.
+
+    Serve perche' al primo avvio dopo l'installazione QSettings e' vuota:
+    senza questo fallback l'archivista dovrebbe ridigitare a mano host,
+    porta, database, utente e password che l'installer ha gia' scritto in
+    config.ini accanto all'eseguibile.
+
+    QSettings resta prioritaria: se l'utente ha configurato la connessione
+    dal dialogo, la sua scelta esplicita non viene scavalcata da config.ini.
+    """
+    return {
+        "host": settings.value(SETTINGS_DB_HOST, cfg.ENV_DB_HOST, type=str),
+        "port": settings.value(SETTINGS_DB_PORT, _env_port(), type=int),
+        "dbname": settings.value(SETTINGS_DB_NAME, cfg.ENV_DB_NAME, type=str),
+        "user": settings.value(SETTINGS_DB_USER, cfg.ENV_DB_USER, type=str),
+    }
+
+
+def _targets_configured_server(params: dict) -> bool:
+    """
+    True se i parametri risolti puntano allo stesso server descritto in
+    config.ini / env var.
+
+    La password di config.ini viene usata come fallback solo in quel caso:
+    con un host o un database diversi (QSettings che punta altrove) sarebbe
+    la credenziale di un altro server, e tentare comunque significherebbe
+    spedire una password a una destinazione che non la attende.
+    """
+    return (
+        params["host"] == cfg.ENV_DB_HOST
+        and params["port"] == _env_port()
+        and params["dbname"] == cfg.ENV_DB_NAME
+        and params["user"] == cfg.ENV_DB_USER
+    )
+
+
+def _resolve_password(settings: QSettings, params: dict) -> Tuple[str, str]:
+    """
+    Risolve la password nell'ordine QSettings > keyring > config.ini/env.
+    Ritorna (password, origine); l'origine serve solo per il log.
+    """
+    password = settings.value(SETTINGS_DB_PASSWORD, "", type=str)
+    if password:
+        return password, "QSettings"
+
+    from_keyring = _get_password_from_keyring_safe(params["host"], params["user"])
+    if from_keyring:
+        return from_keyring, "keyring"
+
+    if cfg.ENV_DB_PASS and _targets_configured_server(params):
+        return cfg.ENV_DB_PASS, "config.ini/env"
+
+    return "", "nessuna"
+
+
 def try_autoconnect_db(
     settings: QSettings,
     logger: logging.Logger,
 ) -> Optional[CatastoDBManager]:
     """
-    Tentativo silenzioso di connessione automatica leggendo QSettings.
-    La password viene cercata prima in QSettings, poi nel keyring.
+    Tentativo silenzioso di connessione automatica.
+
+    I parametri vengono risolti da QSettings con fallback su config.ini /
+    variabili d'ambiente (_resolve_connection_params); la password da
+    QSettings, keyring o config.ini (_resolve_password).
 
     Ritorna un CatastoDBManager con pool inizializzato, oppure None se
     la connessione automatica non e' possibile o fallisce.
     """
     logger.info("Tentativo di connessione automatica con le impostazioni salvate...")
 
-    saved_password = settings.value(SETTINGS_DB_PASSWORD, "", type=str)
-    if not saved_password:
-        host = settings.value(SETTINGS_DB_HOST, "localhost", type=str)
-        user = settings.value(SETTINGS_DB_USER, "postgres", type=str)
-        saved_password = _get_password_from_keyring_safe(host, user)
-
-    saved_config = {
-        "host": settings.value(SETTINGS_DB_HOST, "localhost", type=str),
-        "port": settings.value(SETTINGS_DB_PORT, 5432, type=int),
-        "dbname": settings.value(SETTINGS_DB_NAME, "catasto_storico", type=str),
-        "user": settings.value(SETTINGS_DB_USER, "postgres", type=str),
-        "password": saved_password or "",
-    }
+    saved_config = _resolve_connection_params(settings)
+    saved_password, password_source = _resolve_password(settings, saved_config)
+    saved_config["password"] = saved_password
 
     if not (saved_config["dbname"] and saved_config["user"] and saved_config["password"]):
         logger.info(
@@ -82,6 +148,12 @@ def try_autoconnect_db(
             "essenziali). Skip connessione automatica."
         )
         return None
+
+    logger.info(
+        "Parametri di connessione: %s@%s:%s/%s (password da %s)",
+        saved_config["user"], saved_config["host"],
+        saved_config["port"], saved_config["dbname"], password_source,
+    )
 
     try:
         db = CatastoDBManager(**saved_config)
@@ -97,11 +169,16 @@ def try_autoconnect_db(
 def connect_db_with_dialog(
     logger: logging.Logger,
     license_mgr=None,
+    settings: Optional[QSettings] = None,
 ) -> CatastoDBManager:
     """
     Fallback interattivo: apre DBConfigDialog in loop finche' la
     connessione riesce. Se l'utente annulla, chiama sys.exit(0) dopo
     aver rilasciato l'eventuale seat di licenza.
+
+    Il dialogo viene precompilato con i parametri risolti da QSettings e
+    config.ini: senza, mostrerebbe i propri default hardcoded e l'utente
+    si troverebbe a correggere a mano valori che il sistema gia' conosce.
     """
     # Import locale per evitare ciclo con dialogs.py
     from dialogs import DBConfigDialog
@@ -112,8 +189,10 @@ def connect_db_with_dialog(
         "Impossibile connettersi con le impostazioni salvate. Apriamo la configurazione.",
     )
 
+    initial_config = _resolve_connection_params(settings if settings is not None else QSettings())
+
     while True:
-        config_dialog = DBConfigDialog(parent=None)
+        config_dialog = DBConfigDialog(parent=None, initial_config=initial_config)
         if config_dialog.exec() != QDialog.DialogCode.Accepted:
             logger.info("Configurazione manuale annullata. Uscita.")
             if license_mgr is not None:
@@ -172,7 +251,7 @@ def ensure_db_connection(
     """
     db = try_autoconnect_db(settings, logger)
     if db is None or not db.pool:
-        db = connect_db_with_dialog(logger, license_mgr=license_mgr)
+        db = connect_db_with_dialog(logger, license_mgr=license_mgr, settings=settings)
 
     main_window.db_manager = db
     main_window.pool_initialized_successful = True
@@ -210,6 +289,8 @@ def perform_user_login(
 
 
 __all__ = [
+    "_resolve_connection_params",
+    "_resolve_password",
     "try_autoconnect_db",
     "connect_db_with_dialog",
     "ensure_db_connection",

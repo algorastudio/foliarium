@@ -110,6 +110,8 @@ foliarium/
 ├── .devcontainer/                # Dev container config (VS Code / Codespaces)
 ├── .github/workflows/            # CI/CD pipeline
 ├── foliarium.spec                # PyInstaller build spec (produzione)
+├── setup_db.spec                 # PyInstaller build spec (setup_db.exe)
+├── Foliarium_Installer.iss       # Installer Inno Setup (PostgreSQL incluso)
 ├── setup_database.bat / .py      # Init DB Windows / cross-platform
 └── generate_license.py           # CLI: genera/ispeziona file .license
 ```
@@ -218,6 +220,7 @@ export QT_QPA_PLATFORM=offscreen
   - `foliarium/ui/widgets/reporting.py` — `RicercaDocumentiWidget`, `EsportazioniWidget`, `ReportisticaWidget`, `StatisticheWidget`
 - **Reporting:** classi PDF in `foliarium/reporting/pdf.py` (estratte da `app_utils.py` nello Sprint 3.1). Wrapper GUI di export in `foliarium/ui/export/{partita,possessore}.py`.
 - **Themes:** QSS stylesheets in `styles/`. Funzioni pure in `foliarium/ui/theme.py`: `apply_stylesheet`, `apply_auto_theme`, `apply_initial_theme_from_settings`, `is_win11_style_available`, `is_dark_theme`. Quest'ultima serve ai contenuti HTML renderizzati dentro l'app (il manuale nel `QTextBrowser`), che il QSS di Qt non raggiunge: senza, il manuale resterebbe bianco anche in tema scuro.
+- **Credenziali di connessione:** `foliarium/ui/login_flow.py` le risolve chiave per chiave con precedenza **QSettings > `config.ini` / env var > default**. `config.ENV_DB_*` incorpora gia' la precedenza `config.ini` > env > default (`config.py`), quindi in `login_flow` serve solo come fallback di ogni `settings.value()`. Senza questo fallback, al primo avvio dopo l'installazione QSettings e' vuota e l'archivista dovrebbe ridigitare a mano credenziali che l'installer ha gia' scritto in `config.ini` accanto all'eseguibile. La password segue l'ordine QSettings > keyring > `config.ini`, ma quella di `config.ini` viene usata **solo se host, porta, database e utente risolti coincidono con quelli configurati** (`_targets_configured_server`): con QSettings che punta altrove sarebbe la credenziale di un altro server. Il `DBConfigDialog` di fallback riceve gli stessi parametri risolti come `initial_config`.
 - **Sessione utente:** il logout **non chiude l'applicazione** — `handle_logout()` azzera la sessione (`_clear_session_state()`) e riapre `LoginDialog` riusando il pool DB. Di conseguenza `perform_initial_setup()` può essere eseguito più volte nella stessa sessione: scorciatoie, segnale `colorSchemeChanged` e timer del seat di licenza sono registrati una sola volta (guardie esplicite). Se il login viene annullato, allora l'applicazione si chiude.
 - **Supporto/diagnostica:** menu **Help → Esporta log per supporto (.zip)...** invoca `gui_main.MainWindow._esporta_log_zip` che delega a `app_utils.create_logs_archive(destination_path) -> (n_file, size_bytes)`. La helper scopre le cartelle di log via `app_utils._discover_log_directories()` (cumulativa di `QStandardPaths.AppLocalDataLocation`, della sua sotto-cartella `logs/` e della legacy `app_paths.LOG_DIR`) e comprime in uno zip `ZIP_DEFLATED` tutti i file `*.log` / `*.log.N` (rotazioni). Dedup per path canonico, solleva `FileNotFoundError` se nessun file di log esiste. Il path reale su Windows (con `OrganizationName="AlgoraStudio"` + `ApplicationName="Foliarium"`) è `%LOCALAPPDATA%\AlgoraStudio\Foliarium\` (root: `foliarium_session.log`; sotto-cartella `logs/`: `foliarium_gui.log` + rotazioni).
 
@@ -457,6 +460,54 @@ Pipeline: `.github/workflows/pipeline_foliarium.yml`
 | `push` di un tag `*.*.*` | test + build + create-release |
 | `pull_request` verso `main`/`master` | solo test (build skippati via `if: github.event_name != 'pull_request'`) |
 | `workflow_dispatch` | tutti i job |
+
+---
+
+## Installer Windows (PostgreSQL incluso)
+
+`Foliarium_Installer.iss` produce un installer che **crea il database
+durante l'installazione**: nessun passaggio manuale, nessun PostgreSQL da
+installare a parte. Tre ingredienti, preparati dalla pipeline in
+`dist/Foliarium/` prima di invocare `iscc`:
+
+| Ingrediente | Da dove |
+|---|---|
+| `Foliarium.exe` + `_internal/` | `pyinstaller foliarium.spec` |
+| `setup_db.exe` | `pyinstaller setup_db.spec` |
+| `pgsql/` (~120 MB) | binari EnterpriseDB, scaricati e potati dalla CI |
+
+- **Versione di PostgreSQL:** `PG_BUNDLE_VERSION` nel workflow, unico punto.
+  Lo ZIP EnterpriseDB pesa 822 MB estratti, di cui 673 di solo pgAdmin 4:
+  lo step scarta `pgAdmin 4`, `doc`, `include`, `StackBuilder` e `symbols`,
+  poi verifica che i sette eseguibili usati dal codice e le estensioni
+  `pg_trgm`, `pgcrypto`, `uuid-ossp` ci siano. (`system_stats` **non** c'è:
+  gli script di schema la creano dentro un `DO` block che la salta.)
+- **Perché `setup_db.exe` è separato:** l'installer non può assumere Python
+  sulla macchina del cliente. Usa solo la libreria standard, pesa 7 MB.
+  Gli script SQL **non** vi sono impacchettati: restano risorsa del bundle
+  principale (`_internal/sql_scripts`), e `resolve_sql_dir()` li cerca lì.
+- **`[Code]` dell'installer:** esegue `setup_db.exe`, distingue i casi in
+  cui non può riuscire (componente assente, `pgsql/` assente, porte 5432-34
+  occupate) e rimanda a `setup_database.log`. **Nessuna `[UninstallRun]`:**
+  i suoi parametri vengono fissati durante l'*installazione*, quindi un
+  `{code:...}` che dipende dalla risposta alla disinstallazione verrebbe
+  valutato troppo presto. La rimozione sta in `CurUninstallStepChanged`.
+- **Disinstallazione:** il servizio `FoliariumDB` va rimosso sempre
+  (altrimenti resta registrato puntando a eseguibili cancellati); i dati
+  solo se l'utente risponde «Sì» alla domanda, che ha «No» preselezionato.
+  `setup_database.py --uninstall --keep-data` è il caso conservativo.
+- **Credenziali:** la password di `admin` è generata a caso e in DB resta
+  solo l'hash bcrypt. `--credentials-out` la scrive in `PRIMO-ACCESSO.txt`,
+  che l'installer apre a fine installazione.
+- **Log:** `log()` scrive anche su file (`--log-file`, default
+  `setup_database.log` nella cartella di installazione) perché l'installer
+  esegue il setup con la console nascosta. Le password passate a
+  `register_secret()` vi compaiono come `***`: il file resta sul disco del
+  cliente e la documentazione invita ad allegarlo alle segnalazioni.
+- **Validazione:** il job `valida-installer` compila l'installer contro un
+  `dist/` fittizio e gira **anche sulle pull request**, dove il build vero è
+  escluso. Senza, un errore di sintassi nell'installer si scoprirebbe solo
+  dopo il merge su `main`.
 
 ---
 

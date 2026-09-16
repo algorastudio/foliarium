@@ -1,5 +1,29 @@
 # Changelog
 
+## (non rilasciato) — Installazione senza intervento manuale
+
+- **L'installer Windows crea il database.** `Foliarium_<versione>_Setup.exe`
+  include PostgreSQL 16.10 e, durante l'installazione, crea il cluster,
+  applica schema e funzioni, registra il servizio `FoliariumDB` e scrive
+  `config.ini`. Non serve più installare PostgreSQL né eseguire script a
+  mano. L'installer cresce di circa 120 MB (binari potati di pgAdmin,
+  documentazione e header).
+- **Password di primo accesso in chiaro una volta sola.** La password
+  generata per l'utente `admin` finisce in `PRIMO-ACCESSO.txt`, che
+  l'installer apre al termine. Da cambiare al primo accesso ed eliminare.
+- **L'applicazione legge `config.ini` all'avvio.** Prima lo consultavano
+  solo l'API REST e la modalità web: la finestra desktop ripartiva da
+  QSettings e, al primo avvio, chiedeva le credenziali che l'installer
+  aveva appena scritto. Ora la connessione è automatica; una
+  configurazione salvata a mano dall'utente mantiene la precedenza.
+- **La disinstallazione non cancella più l'archivio senza chiedere.**
+  L'uninstaller rimuove sempre il servizio, ma domanda se eliminare i dati
+  con «No» preselezionato: rispondendo No il database resta in
+  `C:\ProgramData\Foliarium\pg_data` e una reinstallazione lo ritrova.
+- **Diagnostica dell'installazione.** Il setup del database scrive
+  `setup_database.log` nella cartella di installazione, con le password
+  oscurate: può essere allegato a una segnalazione di assistenza.
+
 ## (non rilasciato) — Ampliamento operazioni MCP
 
 - **MCP server da 8 a 23 tool.** Il server MCP ora espone, oltre alla

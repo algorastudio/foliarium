@@ -4,9 +4,21 @@
 
 ### Non riesco ad accedere — compare "Database non raggiungibile"
 
-Verificare che:
-1. Il server PostgreSQL sia avviato (Servizi Windows → `postgresql-x64-14`)
-2. Le variabili d'ambiente `DB_HOST`, `DB_PORT` siano corrette
+**Con l'installer Windows** il database è un servizio locale creato durante
+l'installazione. Verificare che:
+
+1. Il servizio `FoliariumDB` sia avviato (Servizi Windows)
+2. Il file `config.ini` accanto a `Foliarium.exe` esista e riporti la porta
+   giusta (il setup usa 5432, o 5433/5434 se occupate)
+3. `setup_database.log`, nella cartella di installazione, non segnali errori
+   dell'inizializzazione
+
+**Con un PostgreSQL proprio** (installazione da sorgente o server di
+archivio) verificare che:
+
+1. Il server PostgreSQL sia avviato
+2. Le variabili d'ambiente `DB_HOST`, `DB_PORT` siano corrette — oppure la
+   sezione `[database]` di `config.ini`, che ha la precedenza su di esse
 3. Non ci siano firewall che bloccano la porta 5432
 4. Le credenziali `DB_USER` e `DB_PASS` siano corrette
 
@@ -162,10 +174,11 @@ Poi clicca **Riprova** nell'errore.
 
 ### Dopo l'installazione l'app non trova `config.ini` o `foliarium.license`
 
-Dalla versione 1.6.0 l'app cerca questi file **accanto a `Foliarium.exe`**
-(es. `C:\Program Files (x86)\Foliarium\`). Se stai usando una versione
-precedente puoi copiarli manualmente nella sottocartella `_internal\`
-come workaround, oppure aggiornare all'ultima versione.
+L'app cerca questi file **accanto a `Foliarium.exe`**, cioè in
+`C:\Program Files\Foliarium\`. Con l'installer `config.ini` viene scritto
+lì automaticamente; `foliarium.license` va copiato a mano nella stessa
+cartella. Su versioni molto vecchie potevano servire nella sottocartella
+`_internal\`: in quel caso, aggiornare all'ultima versione.
 
 ---
 

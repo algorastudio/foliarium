@@ -58,7 +58,47 @@ def isolated_settings(tmp_path, monkeypatch):
         QSettings.Scope.UserScope,
         str(tmp_path),
     )
-    return QSettings("FoliariumTest", "LoginFlowTest")
+    settings = QSettings("FoliariumTest", "LoginFlowTest")
+    # Qt tiene una cache interna per (organizzazione, applicazione) che
+    # sopravvive al cambio di path: senza clear() un test riceverebbe i
+    # valori scritti da quello precedente, e i test che verificano il
+    # comportamento con QSettings vuota passerebbero o fallirebbero a
+    # seconda dell'ordine di esecuzione.
+    settings.clear()
+    settings.sync()
+    return settings
+
+
+@pytest.fixture
+def no_ini_config(monkeypatch):
+    """
+    Azzera le credenziali che arrivano da config.ini / variabili d'ambiente.
+
+    Serve nei test che verificano il comportamento con QSettings come unica
+    sorgente: in CI le env var DB_* sono valorizzate, quindi senza questa
+    fixture config.ENV_DB_PASS non sarebbe mai vuota.
+    """
+    import config
+
+    monkeypatch.setattr(config, "ENV_DB_HOST", "localhost", raising=False)
+    monkeypatch.setattr(config, "ENV_DB_PORT", "5432", raising=False)
+    monkeypatch.setattr(config, "ENV_DB_NAME", "catasto_storico", raising=False)
+    monkeypatch.setattr(config, "ENV_DB_USER", "postgres", raising=False)
+    monkeypatch.setattr(config, "ENV_DB_PASS", "", raising=False)
+    return config
+
+
+@pytest.fixture
+def ini_config(monkeypatch):
+    """Simula un config.ini scritto dall'installer, con credenziali complete."""
+    import config
+
+    monkeypatch.setattr(config, "ENV_DB_HOST", "127.0.0.1", raising=False)
+    monkeypatch.setattr(config, "ENV_DB_PORT", "5433", raising=False)
+    monkeypatch.setattr(config, "ENV_DB_NAME", "catasto_storico", raising=False)
+    monkeypatch.setattr(config, "ENV_DB_USER", "foliarium", raising=False)
+    monkeypatch.setattr(config, "ENV_DB_PASS", "pwd-da-installer", raising=False)
+    return config
 
 
 def _populate_settings(settings, *, password="pwd", dbname="db", user="u"):
@@ -79,9 +119,12 @@ def _populate_settings(settings, *, password="pwd", dbname="db", user="u"):
 
 class TestTryAutoconnectDb:
 
-    def test_returns_none_when_settings_incomplete(self, isolated_settings, logger):
+    def test_returns_none_when_no_source_has_a_password(
+        self, isolated_settings, no_ini_config, logger,
+    ):
+        """QSettings vuote, keyring vuoto e nessuna password in config.ini:
+        non c'e' nulla con cui connettersi, quindi niente tentativo."""
         from foliarium.ui import login_flow
-        # Settings vuote → password mancante → None senza tentare connessione
         with patch.object(login_flow, "CatastoDBManager") as mock_db, \
              patch.object(login_flow, "_get_password_from_keyring_safe", return_value=None):
             result = login_flow.try_autoconnect_db(isolated_settings, logger)
@@ -134,6 +177,100 @@ class TestTryAutoconnectDb:
         # La password passata a CatastoDBManager deve provenire dal keyring
         _, kwargs = mock_db.call_args
         assert kwargs["password"] == "from-keyring"
+
+
+class TestConfigIniFallback:
+    """
+    Primo avvio dopo l'installazione: QSettings e' vuota e le credenziali
+    esistono solo in config.ini, scritto dall'installer accanto all'eseguibile.
+    Senza il fallback l'utente dovrebbe ridigitarle a mano.
+    """
+
+    def test_uses_config_ini_when_settings_are_empty(
+        self, isolated_settings, ini_config, logger,
+    ):
+        from foliarium.ui import login_flow
+
+        mock_instance = MagicMock()
+        mock_instance.initialize_main_pool.return_value = True
+        with patch.object(login_flow, "CatastoDBManager",
+                          return_value=mock_instance) as mock_db, \
+             patch.object(login_flow, "_get_password_from_keyring_safe",
+                          return_value=None):
+            result = login_flow.try_autoconnect_db(isolated_settings, logger)
+
+        assert result is mock_instance
+        _, kwargs = mock_db.call_args
+        assert kwargs == {
+            "host": "127.0.0.1",
+            "port": 5433,
+            "dbname": "catasto_storico",
+            "user": "foliarium",
+            "password": "pwd-da-installer",
+        }
+
+    def test_qsettings_take_precedence_over_config_ini(
+        self, isolated_settings, ini_config, logger,
+    ):
+        """Una configurazione salvata dall'utente non viene scavalcata."""
+        from foliarium.ui import login_flow
+        _populate_settings(isolated_settings, password="pwd-utente",
+                           dbname="archivio_savona", user="archivista")
+
+        mock_instance = MagicMock()
+        mock_instance.initialize_main_pool.return_value = True
+        with patch.object(login_flow, "CatastoDBManager",
+                          return_value=mock_instance) as mock_db:
+            login_flow.try_autoconnect_db(isolated_settings, logger)
+
+        _, kwargs = mock_db.call_args
+        assert kwargs["dbname"] == "archivio_savona"
+        assert kwargs["user"] == "archivista"
+        assert kwargs["password"] == "pwd-utente"
+
+    def test_ini_password_not_used_for_a_different_server(
+        self, isolated_settings, ini_config, logger,
+    ):
+        """
+        QSettings punta a un altro server e non ha password: quella di
+        config.ini appartiene a un'altra destinazione e non va spedita li'.
+        """
+        from foliarium.ui import login_flow
+        _populate_settings(isolated_settings, password="",
+                           dbname="altro_db", user="altro_utente")
+
+        with patch.object(login_flow, "CatastoDBManager") as mock_db, \
+             patch.object(login_flow, "_get_password_from_keyring_safe",
+                          return_value=None):
+            result = login_flow.try_autoconnect_db(isolated_settings, logger)
+
+        assert result is None
+        mock_db.assert_not_called()
+
+    def test_keyring_takes_precedence_over_config_ini(
+        self, isolated_settings, ini_config, logger,
+    ):
+        from foliarium.ui import login_flow
+
+        mock_instance = MagicMock()
+        mock_instance.initialize_main_pool.return_value = True
+        with patch.object(login_flow, "CatastoDBManager",
+                          return_value=mock_instance) as mock_db, \
+             patch.object(login_flow, "_get_password_from_keyring_safe",
+                          return_value="from-keyring"):
+            login_flow.try_autoconnect_db(isolated_settings, logger)
+
+        _, kwargs = mock_db.call_args
+        assert kwargs["password"] == "from-keyring"
+
+    def test_non_numeric_port_in_ini_falls_back_to_5432(
+        self, isolated_settings, ini_config, logger, monkeypatch,
+    ):
+        from foliarium.ui import login_flow
+        monkeypatch.setattr(ini_config, "ENV_DB_PORT", "non-un-numero", raising=False)
+
+        params = login_flow._resolve_connection_params(isolated_settings)
+        assert params["port"] == 5432
 
 
 class TestGetPasswordFromKeyringSafe:
@@ -189,6 +326,36 @@ class TestConnectDbWithDialog:
              patch.object(login_flow, "CatastoDBManager", return_value=mock_db_inst):
             result = login_flow.connect_db_with_dialog(logger)
         assert result is mock_db_inst
+
+    def test_dialog_is_prefilled_with_resolved_params(
+        self, isolated_settings, ini_config, logger,
+    ):
+        """Il dialogo non deve ripartire dai propri default hardcoded."""
+        from foliarium.ui import login_flow
+
+        mock_dialog_cls = MagicMock()
+        mock_dialog_inst = MagicMock()
+        mock_dialog_inst.exec.return_value = QDialog.DialogCode.Accepted
+        mock_dialog_inst.get_config_values.return_value = {
+            "host": "h", "port": 5432, "dbname": "db", "user": "u", "password": "p",
+        }
+        mock_dialog_cls.return_value = mock_dialog_inst
+
+        mock_db_inst = MagicMock()
+        mock_db_inst.initialize_main_pool.return_value = True
+
+        with patch.dict(sys.modules, {"dialogs": MagicMock(DBConfigDialog=mock_dialog_cls)}), \
+             patch.object(login_flow, "QMessageBox"), \
+             patch.object(login_flow, "CatastoDBManager", return_value=mock_db_inst):
+            login_flow.connect_db_with_dialog(logger, settings=isolated_settings)
+
+        _, kwargs = mock_dialog_cls.call_args
+        assert kwargs["initial_config"] == {
+            "host": "127.0.0.1",
+            "port": 5433,
+            "dbname": "catasto_storico",
+            "user": "foliarium",
+        }
 
     def test_constructor_error_retries_loop(self, logger):
         """Se CatastoDBManager() solleva, il loop deve riprovare; al 2° giro

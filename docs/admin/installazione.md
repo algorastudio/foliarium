@@ -1,64 +1,94 @@
 # Installazione e Configurazione
 
-## Installer unificato (raccomandato) — Windows
+## Installer Windows (raccomandato)
 
-Dalla versione **1.6.0** è disponibile un **installer unificato** che
-include tutto il necessario: applicazione Foliarium, PostgreSQL 14
-embedded, script di inizializzazione database e scorciatoie nel
-menu Start. **Non è più necessario installare PostgreSQL separatamente.**
+L'installer include tutto il necessario — applicazione, PostgreSQL 16.10,
+script di inizializzazione del database e scorciatoie nel menu Start — e
+crea il database durante l'installazione. **Non serve installare PostgreSQL
+separatamente né eseguire script a mano.**
 
 ### Procedura
 
-1. Scaricare `Foliarium_1.6.0_Unified_Setup.exe` dalle Release GitHub
-2. Eseguire come **amministratore** (richiesto per registrare il servizio Windows)
-3. Seguire la procedura guidata (Next → Install)
-4. Attendere la fase "Configurazione database in corso…" (30–60 s)
-5. Al termine viene mostrata la password temporanea dell'utente `admin`,
-   generata casualmente dall'installer: **annotarla subito**
+1. Scaricare `Foliarium_<versione>_Setup.exe` dalle Release GitHub
+2. Eseguire come **amministratore** (serve per registrare il servizio Windows)
+3. Seguire la procedura guidata (Avanti → Installa)
+4. Attendere la fase "Configurazione del database in corso" (30–60 secondi)
+5. Al termine si apre `PRIMO-ACCESSO.txt` con la password generata per
+   l'utente `admin`
 
 Durante l'installazione vengono eseguite automaticamente tutte le fasi:
 
-1. Estrazione dei binari PostgreSQL in `C:\Program Files (x86)\Foliarium\pgsql\`
+1. Copia dell'applicazione e dei binari PostgreSQL in `C:\Program Files\Foliarium\pgsql\`
 2. `initdb` del cluster in `C:\ProgramData\Foliarium\pg_data\`
-3. Generazione password casuale (16 caratteri) per l'utente `foliarium`
-4. Configurazione `pg_hba.conf` con `scram-sha-256`
+3. Generazione di una password casuale (16 caratteri) per il ruolo `foliarium`
+4. Configurazione di `pg_hba.conf` con `scram-sha-256`
 5. Registrazione del servizio Windows `FoliariumDB` (avvio automatico)
-6. Esecuzione degli script SQL di schema, procedure, user management
-7. Creazione utente admin applicativo (`admin` + password generata)
+6. Esecuzione degli script SQL di schema, funzioni e gestione utenti
+7. Creazione dell'utente applicativo `admin` con password generata
 8. Scrittura di `config.ini` accanto a `Foliarium.exe`
 
-!!! warning "Cambia la password admin al primo accesso"
-    La password temporanea è generata dall'installer e mostrata una sola volta.
-    **Deve essere cambiata immediatamente** al primo accesso tramite
-    *Impostazioni → Cambia Password*.
+Al primo avvio l'applicazione legge `config.ini` e si connette da sola: la
+finestra di configurazione della connessione compare solo se qualcosa non
+va.
+
+!!! warning "Cambiare la password di admin al primo accesso"
+    La password è generata a caso e in banca dati resta solo il suo hash:
+    `PRIMO-ACCESSO.txt` è l'unica copia leggibile. Cambiarla da
+    *Gestione Utenti → Resetta Password*, poi **eliminare il file**.
 
 !!! info "Porte di rete"
-    L'installer verifica se la porta 5432 è occupata. Se lo è, prova
-    automaticamente 5433 e poi 5434. La porta effettiva viene salvata
-    in `config.ini` nella cartella di installazione.
+    Il setup verifica se la porta 5432 è occupata; se lo è prova 5433 e poi
+    5434. La porta effettiva finisce in `config.ini`. Se tutte e tre sono
+    occupate — tipicamente per un PostgreSQL già installato — l'installer
+    lo segnala e rimanda al log.
 
 ### Posizione file critici
 
 | File / cartella | Percorso |
 |-----------------|----------|
-| Eseguibile | `C:\Program Files (x86)\Foliarium\Foliarium.exe` |
-| `config.ini` | `C:\Program Files (x86)\Foliarium\config.ini` |
-| `foliarium.license` (da fornire) | `C:\Program Files (x86)\Foliarium\foliarium.license` |
+| Eseguibile | `C:\Program Files\Foliarium\Foliarium.exe` |
+| `config.ini` | `C:\Program Files\Foliarium\config.ini` |
+| `PRIMO-ACCESSO.txt` | `C:\Program Files\Foliarium\PRIMO-ACCESSO.txt` (da eliminare dopo il primo accesso) |
+| `foliarium.license` (da fornire) | `C:\Program Files\Foliarium\foliarium.license` |
+| Binari PostgreSQL | `C:\Program Files\Foliarium\pgsql\` |
+| Inizializzazione DB | `C:\Program Files\Foliarium\setup_db.exe` |
 | Dati DB | `C:\ProgramData\Foliarium\pg_data\` |
 | Log app | `%LOCALAPPDATA%\AlgoraStudio\Foliarium\` (`foliarium_session.log` + `logs\foliarium_gui.log*`, esportabili in ZIP da *Help → Esporta log per supporto*) |
-| Log installer DB | `C:\Program Files (x86)\Foliarium\setup_database.log` |
+| Log installer DB | `C:\Program Files\Foliarium\setup_database.log` |
 | Cache offline | `%LOCALAPPDATA%\Foliarium\cache\` |
+
+I dati del cluster stanno in `ProgramData` e non in `Program Files` perché
+`initdb` lascia cadere i privilegi e non potrebbe scrivere lì.
+
+### Se l'inizializzazione del database fallisce
+
+L'installer mostra il motivo e lascia l'applicazione installata. Il
+dettaglio è in `setup_database.log`, nella cartella di installazione: le
+password vi compaiono oscurate, quindi il file può essere allegato a una
+segnalazione.
+
+Risolto il problema (di solito una porta occupata da un altro PostgreSQL),
+rieseguire il setup senza reinstallare, da un prompt **amministratore**:
+
+```powershell
+cd "C:\Program Files\Foliarium"
+.\setup_db.exe --credentials-out PRIMO-ACCESSO.txt
+```
+
+`setup_db.exe --help` elenca le opzioni: `--port`, `--db-name`, `--db-user`,
+`--config-file`, `--log-file`.
 
 ### Disinstallazione
 
-Usare *Pannello di controllo → Programmi e funzionalità* o lo
-shortcut *Disinstalla Foliarium* nel menu Start. L'uninstaller ferma
-il servizio `FoliariumDB`, lo deregistra e rimuove tutti i file,
-incluso il database (`pg_data/`).
+Usare *Impostazioni → App* di Windows o la voce *Disinstalla Foliarium* nel
+menu Start. L'uninstaller ferma e deregistra il servizio `FoliariumDB`,
+poi chiede se eliminare anche i dati dell'archivio.
 
-!!! warning "Backup prima di disinstallare"
-    La disinstallazione elimina **tutti i dati** del database.
-    Effettuare un backup da *Sistema → Backup* prima di procedere.
+!!! warning "La domanda sui dati"
+    Rispondendo **No** (preselezionato) il database resta in
+    `C:\ProgramData\Foliarium\pg_data` e una reinstallazione successiva lo
+    ritrova con tutti i dati. Rispondendo **Sì** l'archivio è cancellato
+    in modo definitivo: fare prima un backup da *Sistema → Backup*.
 
 ---
 
