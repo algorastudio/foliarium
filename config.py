@@ -13,7 +13,12 @@ from logging.handlers import RotatingFileHandler
 # Ora questo import è sicuro, perché app_paths è autonomo
 from app_paths import BASE_DIR, EXE_DIR
 
-from PyQt6.QtCore import QStandardPaths
+# NB: PyQt6 non e' importato qui di proposito. config.py sta nella catena di
+# import dell'API REST (api/main.py -> catasto_db_manager -> config), che gira
+# anche su un server headless dove Qt non ha ragione di esistere: un import a
+# livello di modulo renderebbe una libreria GUI un requisito del backend web.
+# L'unico uso di Qt, QStandardPaths in setup_global_logging(), e' importato la'
+# dentro con il proprio fallback.
 
 # --- CONFIGURAZIONI AMBIENTE E CI/CD (GITHUB ACTIONS) ---
 # GitHub Actions imposta automaticamente le variabili 'CI' e 'GITHUB_ACTIONS' a 'true'.
@@ -190,8 +195,16 @@ def setup_global_logging(log_level=logging.INFO):
     """
     try:
         # Ottiene il percorso standard per i dati dell'applicazione locale.
-        log_directory = QStandardPaths.writableLocation(QStandardPaths.StandardLocation.AppLocalDataLocation)
-        
+        # Import locale: senza PyQt6 (server headless) si usa il fallback,
+        # che era gia' previsto per il caso di percorso vuoto.
+        try:
+            from PyQt6.QtCore import QStandardPaths
+            log_directory = QStandardPaths.writableLocation(
+                QStandardPaths.StandardLocation.AppLocalDataLocation
+            )
+        except ImportError:
+            log_directory = ""
+
         # Se il percorso non esiste, fallback
         if not log_directory:
             log_directory = os.path.join(os.path.expanduser("~"), "FoliariumAppData")

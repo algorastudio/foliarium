@@ -1,0 +1,20 @@
+# requirements-web.txt — dipendenze del solo backend web (api/).
+#
+# Perche' separato da requirements.txt: quello e' l'elenco dell'applicazione
+# desktop e vi compaiono PyQt6, matplotlib, pandas, mkdocs e pytest. Su un
+# Azure Web App non servono, e pillow — dipendenza di matplotlib — fa fallire
+# l'installazione quando pip deve compilarla da sorgente.
+#
+# Questa lista e' quella minima con cui `api.main:create_app()` si avvia e
+# risponde: verificata in un virtualenv pulito, non dedotta dagli import.
+#
+# Il workflow di deploy copia questo file nell'artefatto come `requirements.txt`,
+# perche' Oryx (il motore di build di App Service) cerca quel nome.
+
+fastapi>=0.115.0
+uvicorn[standard]>=0.30.0
+
+# Driver PostgreSQL e hashing delle password: stesse versioni pinnate
+# di requirements.txt, per non far divergere desktop e web.
+psycopg2-binary==2.9.10
+bcrypt==4.3.0
