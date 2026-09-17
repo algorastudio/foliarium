@@ -10,6 +10,8 @@ __pycache__/
 # Distribution / packaging
 dist/
 build/
+# Cartella composta dal workflow di deploy web (main_foliarium.yml)
+deploy/
 *.egg-info/
 *.egg
 MANIFEST
