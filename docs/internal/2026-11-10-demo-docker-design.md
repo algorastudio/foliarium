@@ -221,11 +221,13 @@ qui non esiste.
 
 ### 7.3 File
 
-- **Esportazioni e report.** Su Linux l'applicazione propone
-  `~/.foliarium/esportazioni` **[V]** (`app_paths.py:57-65`). Quella
-  cartella è pubblicata come pagina di download su
-  `https://<dominio>/<postazione>/file/`, dietro le stesse credenziali.
-  **[P]**
+- **Esportazioni e report.** Le finestre «Salva con nome» propongono
+  `<Documenti>/Esportazioni Foliarium` **[V]** (`app_utils.py:81-91`);
+  `app_paths.ESPORTAZIONI_DIR` punta invece a `~/.foliarium/esportazioni`
+  **[V]** (`app_paths.py:57-65`). La demo pubblica l'intera cartella
+  Documenti come pagina di download su
+  `https://<dominio>/<postazione>/file/`, dietro le stesse credenziali,
+  e fa confluire lì anche la seconda. **[P]**
 - **PDF.** I pulsanti che aprono un PDF mostrano il documento in un
   visualizzatore dentro lo schermo remoto. **[P]**
 - **Import.** Una cartella di file CSV d'esempio, coerenti con i formati
