@@ -1,0 +1,42 @@
+# Contesto di build dell'immagine della demo (docker/demo/Dockerfile).
+#
+# BuildKit usa questo file al posto del .dockerignore in radice, che e'
+# pensato per lo stack web ed esclude docs/ e *.md: il manuale interno
+# dell'applicazione (F1) legge proprio docs/.
+#
+# Si parte da "niente" e si riammette solo cio' che il Dockerfile copia:
+# cosi' un file nuovo in radice non entra nell'immagine per distrazione.
+*
+
+!requirements.txt
+!mkdocs.yml
+!*.py
+!foliarium/
+!db/
+!core/
+!api/
+!utils/
+!styles/
+!resources/
+!sql_scripts/
+!docs/
+!docker/demo/
+
+# --- Esclusioni dentro cio' che e' stato riammesso -------------------------
+**/__pycache__
+**/*.pyc
+
+# Documenti interni: la ricerca del manuale indicizza tutti i .md di docs/,
+# e questi non sono per il cliente.
+docs/internal
+
+# Materiale pesante che il manuale non usa.
+docs/*.pdf
+docs/*.txt
+docs/genera_pdf.py
+docs/index.html
+
+# Dati delle postazioni e configurazione del server: contengono credenziali.
+docker/demo/postazioni
+docker/demo/demo.env
+docker/demo/prova-esito
