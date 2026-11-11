@@ -7,6 +7,12 @@ ARG PG_MAJOR=14
 ARG BASE_IMAGE=postgres:${PG_MAJOR}-bookworm
 FROM ${BASE_IMAGE}
 
+# Fuso orario italiano. initdb lo legge da qui e lo scrive in postgresql.conf.
+# Deve coincidere con quello dell'applicazione: le date che il database
+# registra (accessi, audit) vengono mostrate cosi' come sono, e con il
+# default dell'immagine (UTC) risulterebbero un'ora o due indietro.
+ENV TZ=Europe/Rome
+
 # Localizzazione (gli script Foliarium si aspettano locale italiano per ordinamenti)
 RUN apt-get update \
     && apt-get install -y --no-install-recommends locales \

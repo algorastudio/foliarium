@@ -114,6 +114,8 @@ fi
 if [ -n "${FOLIARIUM_DEMO_PASSWORD:-}" ]; then
     applica "demo/demo_user.sql" -v demo_password="$FOLIARIUM_DEMO_PASSWORD"
     applica "demo/demo_data.sql"
+    # Le viste materializzate nascono a tabelle vuote: vanno ricalcolate.
+    applica "demo/demo_statistiche.sql"
     echo "[foliarium-init] Utente 'demo' creato e archivio dimostrativo caricato."
 fi
 

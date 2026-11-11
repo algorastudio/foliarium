@@ -48,6 +48,7 @@ def test_ogni_script_esiste():
         sdb.BOOTSTRAP_ADMIN_SCRIPT,
         "demo/demo_user.sql",
         "demo/demo_data.sql",
+        "demo/demo_statistiche.sql",
     ]
     for rel in previsti:
         assert (SQL / rel).is_file(), rel
@@ -90,3 +91,19 @@ class TestScriptDaRipetere:
         assert ordine.index("functions/06_audit.sql") < ordine.index("admin/01_users.sql")
         audit = (SQL / "functions" / "06_audit.sql").read_text(encoding="utf-8")
         assert "catasto.utente" in audit
+
+
+def test_dopo_il_dataset_si_aggiornano_le_statistiche():
+    # Le viste materializzate nascono a tabelle vuote: senza un aggiornamento
+    # dopo il caricamento, le pagine di statistica della demo sarebbero vuote
+    # e la barra «dati non aggiornati» partirebbe dal 01/01/2000.
+    testo = INIT.read_text(encoding="utf-8")
+    assert "demo/demo_statistiche.sql" in testo
+    assert testo.index("demo/demo_data.sql") < testo.index("demo/demo_statistiche.sql")
+
+
+def test_il_database_usa_il_fuso_orario_italiano():
+    # Applicazione e database devono vedere la stessa ora: le date che il
+    # database scrive (accessi, audit) vengono mostrate senza conversione.
+    dockerfile = (RADICE / "docker" / "postgres" / "Dockerfile").read_text(encoding="utf-8")
+    assert "TZ=Europe/Rome" in dockerfile
