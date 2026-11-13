@@ -59,6 +59,15 @@ RUN . /etc/os-release \
 COPY requirements.txt /tmp/requirements.txt
 RUN pip install -r /tmp/requirements.txt && rm /tmp/requirements.txt
 
+# Portachiavi. Foliarium conserva nel portachiavi di sistema la chiave dei
+# backup cifrati (che sono l'opzione predefinita) e le password SMTP e del
+# database. In un container un portachiavi non c'e', e il backup dalla GUI
+# fallirebbe. keyrings.alt ne fornisce uno su file, attivato piu' sotto con
+# PYTHON_KEYRING_BACKEND: sta nella cartella personale della postazione e
+# sparisce con «ripristina». Non e' cifrato: va bene per dati dimostrativi,
+# non per un'installazione vera.
+RUN pip install "keyrings.alt>=5,<6"
+
 # Aspetto e file. In uno strato a parte, dopo le dipendenze Python: cambiare
 # questo elenco non deve costringere a reinstallarle.
 # - caratteri liberi al posto di quelli di Windows chiesti dai temi (gli
@@ -126,6 +135,7 @@ ENV LANG=it_IT.UTF-8 \
     QT_QPA_PLATFORM=xcb \
     FOLIARIUM_DEMO=1 \
     DB_SSLMODE=prefer \
+    PYTHON_KEYRING_BACKEND=keyrings.alt.file.PlaintextKeyring \
     XDG_RUNTIME_DIR=/tmp/runtime-foliarium \
     HOME=/home/foliarium
 
