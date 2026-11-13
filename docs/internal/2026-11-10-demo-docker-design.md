@@ -1,6 +1,7 @@
 # Demo di Foliarium in Docker — documento di progetto
 
-Data: 10/11/2026 · Stato: **in attesa di approvazione**
+Data: 10/11/2026 · Stato: **approvato e realizzato** (13/11/2026). Gli esiti delle
+verifiche e gli scostamenti dal progetto sono al §11.
 
 Questo documento descrive che cosa va costruito e perché. Non è un piano di
 lavoro: il piano si scrive dopo l'approvazione.
@@ -334,29 +335,37 @@ una sezione dedicata.
 
 ### 8.1 Da accertare prima di tutto il resto
 
-Sono le ipotesi su cui poggia il progetto e che nessuno ha ancora visto
-funzionare. Se una cade, il progetto va rivisto prima di procedere.
+Erano le ipotesi su cui poggiava il progetto. Esito dopo la realizzazione:
 
-1. **[?]** L'immagine si costruisce e la GUI parte sullo schermo virtuale.
-2. **[?]** L'inizializzazione con l'elenco canonico più il dataset demo va
-   a buon fine su PostgreSQL 14.
-3. **[?]** La connessione WebSocket di noVNC passa attraverso
-   l'autenticazione del proxy **su Safari**. Storicamente Safari non invia
-   le credenziali Basic nelle connessioni WebSocket. Ripiego previsto:
-   l'indirizzo del WebSocket contiene un segreto lungo, consegnato solo
-   dopo l'autenticazione.
-4. **[?]** Lo schermo si ridimensiona con la finestra del browser.
-5. **[?]** Memoria occupata da una postazione, a riposo e in uso: decide
-   quante ne regge il server e i limiti da impostare.
+1. **[V]** L'immagine si costruisce e la GUI parte sullo schermo virtuale:
+   finestra principale 8–15 secondi dopo il database. Servono due cose non
+   previste: `libatomic1` (per QtPdf) e `DB_SSLMODE=prefer`.
+2. **[V]** L'inizializzazione va a buon fine su PostgreSQL 16 (10 comuni,
+   330 partite), ma **non** con l'elenco canonico così com'è: vedi §10.6.
+3. **[?]** Safari non è stato provato, né si può provare in CI. Per non
+   dipendere dal suo comportamento il ripiego è diventato la soluzione: il
+   WebSocket non passa dalle credenziali Basic ma da un segreto nel
+   percorso, consegnato solo dopo l'autenticazione. Con Chromium funziona.
+4. **[V]** Lo schermo segue la finestra del browser, con un minimo: vedi
+   §11.
+5. **[V]** A riposo 245 MB il programma e 50 MB il database; in uso
+   300–420 MB e 50–85 MB. Misure prese su una sola macchina.
 
 ### 8.2 Da controllare funzione per funzione
 
-- **[?]** Backup e ripristino dalla GUI.
-- **[?]** Apertura dei PDF generati.
-- **[?]** Finestre di impostazione che salvano password nel portachiavi di
-  sistema: nel container non c'è un portachiavi.
-- **[?]** Scorciatoie da tastiera: quelle riservate al browser (Ctrl+W,
-  Ctrl+T, Ctrl+N) non arrivano al programma. Vanno elencate nella guida.
+- **[V]** Backup e ripristino: provati nel container con le funzioni del
+  prodotto (`get_backup_command_parts`, `get_restore_command_parts`), non
+  premendo i pulsanti. Backup di 399 kB; dopo il ripristino i conteggi
+  tornano quelli del momento del backup.
+- **[V]** Apertura dei PDF: un PDF prodotto da `PDFPartita` e aperto con
+  `QDesktopServices.openUrl`, come fa il prodotto, compare nell'anteprima.
+- **[V]** Portachiavi: senza, il **backup cifrato**, che è l'opzione
+  predefinita, falliva. L'immagine ne fornisce uno su file.
+- **[V]** Import: `import_comuni_from_rows` sul file d'esempio inserisce
+  otto comuni su otto.
+- **[?]** Scorciatoie da tastiera: F1 arriva al programma e apre il manuale
+  alla sezione giusta. Le altre non sono state provate una per una; quelle
+  riservate al browser sono elencate nella guida.
 
 ### 8.3 Criteri di accettazione
 
@@ -418,3 +427,50 @@ codice.
    esclusioni) **[V]**: i rapporti interni, e questo stesso documento,
    compaiono fra i risultati di F1. L'immagine della demo esclude quella
    cartella; il problema generale resta.
+6. **L'ordine degli script dell'installer ha un errore che passa
+   inosservato.** `functions/06_audit.sql` crea la vista
+   `v_audit_dettagliato` e la chiave esterna `audit_log → utente`, ma la
+   tabella `catasto.utente` nasce in `admin/01_users.sql`, che in
+   `setup_database.SQL_SCRIPTS` viene dopo **[V]**. L'installer esegue psql
+   senza `ON_ERROR_STOP`, quindi le due istruzioni falliscono in silenzio:
+   la vista la ricrea poi l'applicazione all'avvio, la chiave esterna
+   (`ON DELETE SET NULL`) non la crea nessuno. Nella demo `init.sh` ripete
+   lo script a elenco finito, quindi il database della demo ha la chiave
+   esterna che i database installati non hanno.
+7. **La pagina iniziale non regge le finestre basse.** Sotto circa 1000
+   pixel di altezza il riquadro «Azioni Rapide» comprime i pulsanti: a 900
+   sono illeggibili, a 700 spariscono anche le tabelle. Non c'è scorrimento
+   **[V]**, visto su Linux; su Windows non verificato.
+8. **Manuale e programma indicano due formati di data diversi** per
+   l'import dei comuni: `docs/admin/import-massivo.md` dice `AAAA-MM-GG`, il
+   dialogo (`foliarium/ui/dialogs/import_.py:256`) `GG/MM/AAAA` **[V]**.
+9. **Il backup cifrato senza portachiavi fallisce con un errore tecnico.**
+   La casella «Cifra il file di backup» è attiva ogni volta che le librerie
+   sono importabili (`backup_crypto.is_available`), anche se nessun
+   portachiavi è utilizzabile **[V]**. Riguarda qualunque Linux senza
+   ambiente desktop, non solo la demo.
+
+## 11. Esito e scostamenti dal progetto approvato
+
+Realizzato in `docker/demo/`. La prova completa (`docker/demo/prova.sh`)
+passa tredici verifiche su tredici in locale e nella CI di GitHub; la
+pipeline esistente resta verde. Guida operativa: `docker/demo/README.md`.
+
+Dove la realizzazione si scosta dal testo approvato:
+
+| Progetto | Realizzato | Perché |
+|---|---|---|
+| Credenziali Basic su tutto, segreto nel WebSocket come ripiego | Segreto nel WebSocket da subito | Safari non è verificabile |
+| Lo schermo ha la dimensione della finestra del browser | Come sopra, ma mai sotto 1280×960: nelle finestre più piccole viene rimpicciolito | §10.7 |
+| Pagina di noVNC | Pagina propria, con il solo client di noVNC | Il cliente non deve vedere l'interfaccia di un prodotto VNC |
+| Visualizzatore PDF da scegliere | `QPdfView`, già usato dal prodotto | Uno esterno portava 123 pacchetti |
+| PostgreSQL 14 | PostgreSQL 16 | È la versione dell'installer Windows |
+| — | Fuso orario italiano e statistiche ricalcolate nel database | Orari indietro di un'ora; barra «dati non aggiornati da 235.470 ore» |
+| — | Portachiavi su file (`keyrings.alt`) | §10.9 |
+| — | `DB_SSLMODE=prefer` | Fuori da localhost il programma pretende TLS |
+| Frammenti del proxy accanto ai file delle postazioni | In una cartella separata, l'unica montata dal proxy | Il proxy non deve vedere le password in chiaro |
+| Limiti di memoria da definire | 1024 MB e 512 MB | In uso il programma arriva a 420 MB |
+
+Non verificato: Safari; HTTPS con un dominio reale (validata la sola
+configurazione); l'esempio di nginx della guida; invio di posta e import da
+ISTAT; le scorciatoie da tastiera una per una.
