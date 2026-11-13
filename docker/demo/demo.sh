@@ -427,9 +427,66 @@ cmd_elenco() {
     fi
 }
 
-cmd_non_disponibile() {
-    errore "comando «$1» non ancora disponibile."
-    exit 1
+richiedi_esistente() {
+    if ! esiste "$1"; then
+        errore "la postazione «$1» non esiste."
+        exit "$ERR_STATO"
+    fi
+}
+
+# Ferma la postazione ed elimina i suoi volumi (database, impostazioni,
+# esportazioni). Prima la stacca dal proxy: finche' il proxy resta collegato
+# alla rete della postazione, Docker non puo' eliminarla e «down» fallisce.
+ferma_e_svuota() {
+    local nome="$1"
+    docker network disconnect "$(progetto "$nome")_default" "$CONTAINER_PROXY" \
+        >/dev/null 2>&1 || true
+    silenzioso compose_postazione "$nome" down -v
+}
+
+cmd_ripristina() {
+    local nome="${1-}"
+    valida_nome "$nome"
+    richiedi_esistente "$nome"
+    richiedi_docker
+    leggi_configurazione
+    richiedi_immagini
+
+    ferma_e_svuota "$nome"
+    # Stesso file .env: credenziali e token non cambiano, e non cambia
+    # nemmeno il frammento del proxy.
+    silenzioso compose_postazione "$nome" up -d
+    _proxy_su
+    if ! attendi_postazione "$nome"; then
+        errore "la postazione «$nome» e' stata ripristinata ma non risulta ancora pronta:" \
+               "controllare con «demo.sh elenco»."
+    fi
+    echo "Postazione «$nome» ripristinata: archivio dimostrativo iniziale, stesse credenziali."
+}
+
+cmd_rimuovi() {
+    local nome="${1-}" conferma="${2-}" risposta=""
+    valida_nome "$nome"
+    richiedi_esistente "$nome"
+    if [ "$conferma" != "--si" ]; then
+        printf 'Per eliminare la postazione «%s» con tutti i suoi dati, digitarne il nome: ' "$nome" >&2
+        # Standard input chiuso (per esempio da cron): vale come un no.
+        read -r risposta || true
+        if [ "$risposta" != "$nome" ]; then
+            errore "rimozione annullata."
+            exit 1
+        fi
+    fi
+    richiedi_docker
+    leggi_configurazione
+
+    ferma_e_svuota "$nome"
+    rm -f "$POSTAZIONI/$nome.env" "$CARTELLA_PROXY/$nome.caddy"
+    # Il proxy, se c'e', deve dimenticare la postazione.
+    if docker inspect "$CONTAINER_PROXY" >/dev/null 2>&1; then
+        _proxy_su
+    fi
+    echo "Postazione «$nome» rimossa."
 }
 
 # ---------------------------------------------------------------------------
@@ -441,16 +498,24 @@ case "$comando" in
     costruisci) cmd_costruisci ;;
     crea)       cmd_crea "$@" ;;
     elenco)     cmd_elenco ;;
-    ripristina|rimuovi) cmd_non_disponibile "$comando" ;;
+    ripristina) cmd_ripristina "$@" ;;
+    rimuovi)    cmd_rimuovi "$@" ;;
     # Comandi interni, usati dalle prove automatiche.
     _frammento)
         valida_nome "${1-}"
         frammento "$1" "${2-}" "${3-}"
         ;;
     _proxy_su)
+        # Gli argomenti passano a «docker compose up» (es. --force-recreate).
         richiedi_docker
         leggi_configurazione
         _proxy_su "$@"
+        ;;
+    _proxy_giu)
+        # Ferma ed elimina il proxy con i suoi volumi (certificati compresi).
+        richiedi_docker
+        leggi_configurazione
+        silenzioso compose_proxy down -v
         ;;
     *) uso ;;
 esac

@@ -35,13 +35,19 @@ TOKEN = "ab" * 32
 HASH = "$2a$14$abcdefghijklmnopqrstuuABCDEFGHIJKLMNOPQRSTUVWXYZ0123456"
 
 
-def _esegui(*argomenti: str, cartella: Path, ambiente: dict | None = None):
+def _esegui(*argomenti: str, cartella: Path, ambiente: dict | None = None,
+            ingresso: str = ""):
     """Lancia demo.sh con un finto `docker` in testa al PATH."""
     finti = cartella / "finti"
     finti.mkdir(exist_ok=True)
     finto_docker = finti / "docker"
     finto_docker.write_text(
-        '#!/bin/sh\ntouch "$DEMO_CARTELLA_DATI/docker-chiamato"\nexit 0\n',
+        '#!/bin/sh\n'
+        'echo "$*" >> "$DEMO_CARTELLA_DATI/docker-chiamato"\n'
+        # Alle ispezioni risponde «healthy»: i comandi che attendono la
+        # postazione non restano in attesa di un container che non esiste.
+        'case "$*" in *inspect*) echo healthy ;; esac\n'
+        'exit 0\n',
         encoding="utf-8",
     )
     finto_docker.chmod(finto_docker.stat().st_mode | stat.S_IEXEC)
@@ -53,7 +59,7 @@ def _esegui(*argomenti: str, cartella: Path, ambiente: dict | None = None):
     env.update(ambiente or {})
     return subprocess.run(
         ["bash", str(SCRIPT), *argomenti],
-        capture_output=True, text=True, env=env, timeout=60,
+        capture_output=True, text=True, env=env, timeout=60, input=ingresso,
     )
 
 
@@ -61,10 +67,15 @@ def _docker_chiamato(cartella: Path) -> bool:
     return (cartella / "docker-chiamato").exists()
 
 
+def _chiamate_docker(cartella: Path) -> list[str]:
+    registro = cartella / "docker-chiamato"
+    return registro.read_text(encoding="utf-8").splitlines() if registro.exists() else []
+
+
 def _file_creati(cartella: Path) -> list[str]:
     return sorted(
         str(p.relative_to(cartella)) for p in cartella.rglob("*")
-        if p.is_file() and "finti" not in p.parts
+        if p.is_file() and "finti" not in p.parts and p.name != "docker-chiamato"
     )
 
 
@@ -292,3 +303,103 @@ def test_i_dati_delle_postazioni_non_entrano_in_git_ne_nell_immagine():
     for percorso in ("docker/demo/postazioni", "docker/demo/proxy", "docker/demo/demo.env"):
         assert percorso in gitignore, percorso
         assert percorso in dockerignore, percorso
+
+
+# ---------------------------------------------------------------------------
+# ripristina e rimuovi
+# ---------------------------------------------------------------------------
+
+CONTENUTO_ENV = (
+    "DEMO_NOME=cliente-a\nDEMO_PASSWORD=Abc123\nDEMO_DB_PASS=Xyz789\n"
+    "DEMO_WS_TOKEN=" + TOKEN + "\n"
+)
+
+
+@pytest.fixture
+def postazione(tmp_path) -> Path:
+    """Cartella dati con una postazione «cliente-a» gia' registrata."""
+    (tmp_path / "postazioni").mkdir()
+    (tmp_path / "proxy").mkdir()
+    (tmp_path / "postazioni" / "cliente-a.env").write_text(CONTENUTO_ENV, encoding="utf-8")
+    (tmp_path / "proxy" / "cliente-a.caddy").write_text("# frammento\n", encoding="utf-8")
+    return tmp_path
+
+
+@pytest.mark.parametrize("comando", ["ripristina", "rimuovi"])
+def test_postazione_inesistente(comando, tmp_path):
+    esito = _esegui(comando, "mai-creata", "--si", cartella=tmp_path)
+    assert esito.returncode == 3
+    assert "non esiste" in esito.stderr
+    assert not _docker_chiamato(tmp_path)
+
+
+@pytest.mark.parametrize("comando", ["ripristina", "rimuovi"])
+def test_nome_ostile_anche_qui(comando, postazione):
+    esito = _esegui(comando, "../cliente-a", "--si", cartella=postazione)
+    assert esito.returncode == 2
+    assert not _docker_chiamato(postazione)
+    assert (postazione / "postazioni" / "cliente-a.env").exists()
+
+
+def test_ripristina_cancella_i_dati_e_conserva_le_credenziali(postazione):
+    esito = _esegui("ripristina", "cliente-a", cartella=postazione)
+    assert esito.returncode == 0, esito.stderr
+    chiamate = _chiamate_docker(postazione)
+    giu = [i for i, c in enumerate(chiamate) if "foliarium-demo-cliente-a" in c and "down -v" in c]
+    su = [i for i, c in enumerate(chiamate) if "foliarium-demo-cliente-a" in c and "up -d" in c]
+    assert giu and su and giu[0] < su[0], chiamate
+    # Stesso file, byte per byte: credenziali e token non cambiano.
+    assert (postazione / "postazioni" / "cliente-a.env").read_text(encoding="utf-8") == CONTENUTO_ENV
+    assert (postazione / "proxy" / "cliente-a.caddy").exists()
+
+
+def test_prima_di_fermarla_la_stacca_dal_proxy(postazione):
+    # Il proxy sta sulla rete della postazione: finche' vi resta collegato,
+    # Docker non puo' eliminare la rete e «down» fallisce.
+    _esegui("ripristina", "cliente-a", cartella=postazione)
+    chiamate = _chiamate_docker(postazione)
+    stacca = [i for i, c in enumerate(chiamate) if c.startswith("network disconnect")]
+    giu = [i for i, c in enumerate(chiamate) if "down -v" in c]
+    assert stacca and giu and stacca[0] < giu[0], chiamate
+    assert "foliarium-demo-cliente-a_default foliarium-demo-proxy" in chiamate[stacca[0]]
+
+
+def test_rimuovi_senza_conferma_non_tocca_nulla(postazione):
+    esito = _esegui("rimuovi", "cliente-a", cartella=postazione, ingresso="un-altro-nome\n")
+    assert esito.returncode == 1
+    assert "annullata" in esito.stderr
+    assert not _docker_chiamato(postazione)
+    assert (postazione / "postazioni" / "cliente-a.env").exists()
+    assert (postazione / "proxy" / "cliente-a.caddy").exists()
+
+
+def test_rimuovi_senza_risposta_non_tocca_nulla(postazione):
+    # Standard input chiuso (per esempio da cron): vale come un no.
+    esito = _esegui("rimuovi", "cliente-a", cartella=postazione, ingresso="")
+    assert esito.returncode == 1
+    assert (postazione / "postazioni" / "cliente-a.env").exists()
+
+
+def test_rimuovi_confermato_digitando_il_nome(postazione):
+    esito = _esegui("rimuovi", "cliente-a", cartella=postazione, ingresso="cliente-a\n")
+    assert esito.returncode == 0, esito.stderr
+    assert not (postazione / "postazioni" / "cliente-a.env").exists()
+    assert not (postazione / "proxy" / "cliente-a.caddy").exists()
+    assert any("down -v" in c for c in _chiamate_docker(postazione))
+
+
+def test_rimuovi_con_si_non_chiede_conferma(postazione):
+    esito = _esegui("rimuovi", "cliente-a", "--si", cartella=postazione)
+    assert esito.returncode == 0, esito.stderr
+    assert _file_creati(postazione) == []
+
+
+def test_un_prefisso_diverso_non_tocca_l_installazione_predefinita(postazione):
+    # La prova automatica usa un prefisso suo: non deve mai nominare i
+    # progetti dell'installazione vera.
+    esito = _esegui("ripristina", "cliente-a", cartella=postazione,
+                    ambiente={"DEMO_PREFISSO": "foliarium-prova"})
+    assert esito.returncode == 0, esito.stderr
+    chiamate = "\n".join(_chiamate_docker(postazione))
+    assert "foliarium-prova-cliente-a" in chiamate
+    assert "foliarium-demo" not in chiamate.replace("foliarium-demo-app:locale", "").replace("foliarium-demo-db:locale", "")
