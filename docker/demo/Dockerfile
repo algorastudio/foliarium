@@ -59,6 +59,20 @@ RUN . /etc/os-release \
 COPY requirements.txt /tmp/requirements.txt
 RUN pip install -r /tmp/requirements.txt && rm /tmp/requirements.txt
 
+# Aspetto e file. In uno strato a parte, dopo le dipendenze Python: cambiare
+# questo elenco non deve costringere a reinstallarle.
+# - caratteri liberi al posto di quelli di Windows chiesti dai temi (gli
+#   alias stanno in fonts-foliarium.conf) e caratteri per le emoji;
+# - x11-xserver-utils: xsetroot, per il colore di fondo dello schermo;
+# - file: serve a xdg-open per riconoscere il tipo di un file.
+RUN apt-get update && apt-get install -y --no-install-recommends \
+        fontconfig fonts-liberation2 fonts-crosextra-carlito fonts-open-sans \
+        fonts-noto-core fonts-noto-color-emoji \
+        x11-xserver-utils file \
+    && rm -rf /var/lib/apt/lists/*
+COPY docker/demo/fonts-foliarium.conf /etc/fonts/conf.d/45-foliarium.conf
+RUN fc-cache -f
+
 # Utente senza privilegi. La cartella del socket X va creata da root: Xvnc,
 # avviato da utente normale, non puo' darle i permessi che si aspetta.
 RUN useradd --create-home --uid 1000 --shell /bin/bash foliarium \
@@ -85,8 +99,17 @@ COPY docs/        ./docs/
 # --- Strumenti della demo --------------------------------------------------
 COPY docker/demo/avvio.sh docker/demo/controllo-salute.sh \
      docker/demo/file_server.py docker/demo/cattura_schermo.py \
-     docker/demo/openbox-rc.xml /opt/foliarium-demo/
+     docker/demo/visualizza_pdf.py docker/demo/openbox-rc.xml \
+     /opt/foliarium-demo/
 COPY docker/demo/web/ /opt/foliarium-demo/web/
+COPY docker/demo/esempi-import/ /opt/foliarium-demo/esempi-import/
+
+# I PDF che Foliarium apre con «il programma predefinito» (QDesktopServices,
+# cioe' xdg-open) finiscono nell'anteprima della demo. Senza un programma
+# associato il pulsante «Apri» non farebbe nulla.
+COPY docker/demo/foliarium-pdf.desktop /usr/share/applications/foliarium-pdf.desktop
+RUN printf '[Default Applications]\napplication/pdf=foliarium-pdf.desktop\n' \
+        > /usr/share/applications/mimeapps.list
 RUN chmod 755 /opt/foliarium-demo/avvio.sh /opt/foliarium-demo/controllo-salute.sh \
     && ln -s /usr/share/novnc /opt/foliarium-demo/web/novnc \
     && python -m compileall -q /opt/foliarium /opt/foliarium-demo

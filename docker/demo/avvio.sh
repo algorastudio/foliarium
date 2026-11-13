@@ -48,6 +48,12 @@ if [ ! -e "$HOME/.foliarium/esportazioni" ]; then
     ln -s "$ESPORTAZIONI" "$HOME/.foliarium/esportazioni"
 fi
 
+# File d'esempio per provare l'import: il cliente non puo' caricarne di suoi.
+# Si copiano solo se la cartella manca, per non sovrascrivere modifiche.
+if [ ! -e "$DOCUMENTI/Esempi import" ]; then
+    cp -r "$STRUMENTI/esempi-import" "$DOCUMENTI/Esempi import"
+fi
+
 if [ "${DEMO_SALTA_EULA:-}" = "1" ]; then
     # Registra l'EULA come accettata, con le stesse chiavi che scrive
     # l'applicazione (foliarium/ui/startup.py). Le costanti vengono lette da
@@ -88,6 +94,10 @@ if [ ! -S /tmp/.X11-unix/X1 ]; then
     log "ERRORE: lo schermo virtuale non e' partito"
     exit 1
 fi
+
+# Fondo dello schermo: il grigio chiaro dell'applicazione al posto del nero,
+# che attorno alla finestra dell'EULA o di un dialogo sembrerebbe un guasto.
+xsetroot -solid "#eef0f6" || log "avviso: colore di fondo non impostato"
 
 # ---------------------------------------------------------------------------
 # 3. Servizi di contorno

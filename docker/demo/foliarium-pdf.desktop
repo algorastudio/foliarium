@@ -1,0 +1,8 @@
+[Desktop Entry]
+Type=Application
+Name=Anteprima PDF
+Comment=Anteprima dei PDF generati da Foliarium nella demo
+Exec=python3 /opt/foliarium-demo/visualizza_pdf.py %f
+MimeType=application/pdf;
+Terminal=false
+NoDisplay=true
