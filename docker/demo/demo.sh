@@ -213,8 +213,7 @@ _proxy_su() {
     done
     # Rilegge i frammenti. Subito dopo l'avvio l'interfaccia di
     # amministrazione puo' non rispondere ancora: qualche tentativo.
-    local tentativo
-    for tentativo in 1 2 3 4 5 6 7 8 9 10; do
+    for _ in 1 2 3 4 5 6 7 8 9 10; do
         if docker exec "$CONTAINER_PROXY" caddy reload \
                 --config /etc/caddy/Caddyfile >/dev/null 2>&1; then
             return 0
@@ -249,6 +248,8 @@ genera_segreto() {
 hash_password() {
     local esito
     esito="$(printf '%s\n' "$1" | docker run --rm -i "$IMMAGINE_PROXY" caddy hash-password 2>/dev/null | tail -n 1)"
+    # Un hash bcrypt comincia con «$2»: gli apici singoli sono voluti.
+    # shellcheck disable=SC2016
     case "$esito" in
         '$2'*) printf '%s' "$esito" ;;
         *) errore "calcolo dell'hash della password fallito."; exit 1 ;;
