@@ -1,0 +1,7 @@
+# Dietro un web server gia' presente sul server (nginx, Apache...), che
+# termina HTTPS e inoltra qui. Il proxy ascolta solo in locale: dall'esterno
+# non deve essere raggiungibile saltando HTTPS.
+services:
+  proxy:
+    ports:
+      - "127.0.0.1:${DEMO_PORTA_LOCALE:-8080}:8080"

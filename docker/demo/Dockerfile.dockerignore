@@ -38,5 +38,6 @@ docs/index.html
 
 # Dati delle postazioni e configurazione del server: contengono credenziali.
 docker/demo/postazioni
+docker/demo/proxy
 docker/demo/demo.env
 docker/demo/prova-esito

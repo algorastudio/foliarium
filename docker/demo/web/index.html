@@ -1,11 +1,122 @@
 <!DOCTYPE html>
-<html lang="it">
+<html lang="it" data-stato="connessione">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="robots" content="noindex, nofollow">
   <title>Foliarium — Demo</title>
+  <link rel="icon" href="data:,">
+  <style>
+    :root {
+      --blu: #1a237e;
+      --fondo: #eef0f6;
+      --barra: 36px;
+    }
+    * { box-sizing: border-box; }
+    html, body {
+      height: 100%;
+      margin: 0;
+      background: var(--fondo);
+      font-family: "Open Sans", "Segoe UI", system-ui, Arial, sans-serif;
+      font-size: 14px;
+      color: #1f2933;
+      overflow: hidden;
+    }
+    .barra {
+      height: var(--barra);
+      display: flex;
+      align-items: center;
+      gap: 16px;
+      padding: 0 12px;
+      background: var(--blu);
+      color: #fff;
+    }
+    .marchio { font-weight: 700; letter-spacing: .02em; }
+    .marchio .demo {
+      margin-left: 6px;
+      padding: 1px 7px;
+      border-radius: 3px;
+      background: #ffe0b2;
+      color: #b45309;
+      font-size: 11px;
+      text-transform: uppercase;
+    }
+    .stato { font-size: 12px; opacity: .85; display: flex; align-items: center; gap: 6px; }
+    .stato::before {
+      content: "";
+      width: 8px; height: 8px; border-radius: 50%;
+      background: #fbbf24;
+    }
+    [data-stato="connesso"] .stato::before { background: #34d399; }
+    [data-stato="disconnesso"] .stato::before { background: #f87171; }
+    .barra nav { margin-left: auto; display: flex; align-items: center; gap: 8px; }
+    .barra a, .barra button {
+      font: inherit;
+      font-size: 13px;
+      color: #fff;
+      background: transparent;
+      border: 1px solid rgba(255, 255, 255, .45);
+      border-radius: 4px;
+      padding: 3px 10px;
+      text-decoration: none;
+      cursor: pointer;
+    }
+    .barra a:hover, .barra button:hover { background: rgba(255, 255, 255, .15); }
+    .barra a:focus-visible, .barra button:focus-visible { outline: 2px solid #ffe0b2; outline-offset: 1px; }
+    #schermo {
+      height: calc(100% - var(--barra));
+      width: 100%;
+      overflow: hidden;
+    }
+    .avviso {
+      position: fixed;
+      top: 50%; left: 50%;
+      transform: translate(-50%, -50%);
+      min-width: 320px;
+      padding: 24px 28px;
+      background: #fff;
+      border: 1px solid #d9dee4;
+      border-radius: 8px;
+      box-shadow: 0 8px 30px rgba(15, 23, 42, .18);
+      text-align: center;
+    }
+    .avviso[hidden] { display: none; }
+    .avviso p { margin: 0 0 6px; }
+    .avviso p.titolo { font-weight: 700; font-size: 16px; }
+    .avviso p.nota { color: #52606d; font-size: 13px; margin-bottom: 16px; }
+    .avviso button {
+      font: inherit;
+      padding: 7px 18px;
+      border: 0;
+      border-radius: 4px;
+      background: var(--blu);
+      color: #fff;
+      cursor: pointer;
+    }
+  </style>
 </head>
 <body>
-  <p>Foliarium — Demo. Pagina dello schermo non ancora disponibile.</p>
+  <header class="barra">
+    <span class="marchio">Foliarium<span class="demo">Demo</span></span>
+    <span class="stato" id="stato" role="status" aria-live="polite">Collegamento in corso…</span>
+    <nav>
+      <a href="file/" target="_blank" rel="noopener">File esportati</a>
+      <button type="button" id="schermo-intero">Schermo intero</button>
+    </nav>
+  </header>
+
+  <main id="schermo" aria-label="Schermo di Foliarium"></main>
+
+  <div class="avviso" id="avviso" hidden>
+    <p class="titolo" id="avviso-titolo">Collegamento interrotto</p>
+    <p class="nota" id="avviso-nota">Nuovo tentativo fra pochi secondi.</p>
+    <button type="button" id="riconnetti">Riconnetti</button>
+  </div>
+
+  <noscript>
+    <p style="padding:24px">Per usare la demo serve JavaScript attivo nel browser.</p>
+  </noscript>
+
+  <script type="module" src="schermo.js"></script>
 </body>
 </html>

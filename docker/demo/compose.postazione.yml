@@ -1,0 +1,82 @@
+# Una postazione della demo: il programma (app) e il suo database (db).
+#
+# Non si usa direttamente: lo avvia docker/demo/demo.sh, che fornisce il
+# nome del progetto e il file con le credenziali della postazione.
+#
+# Nessun servizio pubblica porte sull'host: alla postazione si arriva solo
+# attraverso il proxy, che demo.sh collega alla rete di questo progetto.
+# Ogni postazione ha una rete propria, quindi nessuna ne vede un'altra.
+
+services:
+
+  db:
+    image: ${DEMO_IMMAGINE_DB:-foliarium-demo-db:locale}
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: catasto_storico
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: ${DEMO_DB_PASS:?manca DEMO_DB_PASS}
+      # Crea l'utente applicativo «demo» con questa password e carica
+      # l'archivio dimostrativo (docker/postgres/init.sh).
+      FOLIARIUM_DEMO_PASSWORD: ${DEMO_PASSWORD:?manca DEMO_PASSWORD}
+    volumes:
+      - dati_db:/var/lib/postgresql/data
+    healthcheck:
+      # Via TCP, non sul socket: mentre applica gli script iniziali postgres
+      # ascolta solo sul socket, e il programma non deve partire prima che
+      # l'inizializzazione sia finita.
+      test: ["CMD-SHELL", "pg_isready -q -h 127.0.0.1 -U postgres -d catasto_storico"]
+      interval: 5s
+      timeout: 5s
+      retries: 30
+      start_period: 20s
+    mem_limit: ${DEMO_MEM_DB:-512m}
+    security_opt:
+      - no-new-privileges:true
+
+  app:
+    image: ${DEMO_IMMAGINE_APP:-foliarium-demo-app:locale}
+    restart: unless-stopped
+    init: true
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      DEMO_DB_HOST: db
+      DEMO_DB_PORT: "5432"
+      DEMO_DB_NAME: catasto_storico
+      # Il programma si collega come proprietario del database: all'avvio
+      # applica da solo le migrazioni dello schema, e il database di una
+      # postazione e' usa e getta.
+      DEMO_DB_USER: postgres
+      DEMO_DB_PASS: ${DEMO_DB_PASS:?manca DEMO_DB_PASS}
+      # Vuota: al primo avvio il cliente accetta l'EULA, come nel prodotto.
+      DEMO_SALTA_EULA: ${DEMO_SALTA_EULA:-}
+    volumes:
+      # Impostazioni del programma e cartella Documenti (esportazioni).
+      - casa:/home/foliarium
+    networks:
+      default:
+        aliases:
+          # Nome con cui il proxy raggiunge questa postazione. Contiene il
+          # nome perche' il proxy sta sulle reti di tutte le postazioni.
+          - app-${DEMO_NOME:?manca DEMO_NOME}
+    healthcheck:
+      test: ["CMD", "/opt/foliarium-demo/controllo-salute.sh"]
+      interval: 15s
+      timeout: 5s
+      retries: 4
+      start_period: 120s
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    pids_limit: 512
+    mem_limit: ${DEMO_MEM_APP:-1024m}
+    # Qt scambia le immagini delle finestre con il server X in memoria
+    # condivisa: i 64 MB predefiniti di Docker sono pochi a schermo intero.
+    shm_size: 256m
+
+volumes:
+  dati_db:
+  casa:

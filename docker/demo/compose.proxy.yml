@@ -1,0 +1,35 @@
+# Proxy della demo: l'unico container raggiungibile dall'esterno.
+#
+# Termina HTTPS, chiede le credenziali e instrada verso le postazioni.
+# Non si usa direttamente: lo avvia docker/demo/demo.sh insieme a uno dei due
+# file che decidono quali porte pubblicare:
+#   compose.proxy.pubblico.yml   dominio dedicato, porte 80 e 443
+#   compose.proxy.locale.yml     dietro un web server gia' presente
+
+services:
+  proxy:
+    image: ${DEMO_IMMAGINE_PROXY:-caddy:2-alpine}
+    container_name: ${DEMO_CONTAINER_PROXY:?manca DEMO_CONTAINER_PROXY}
+    restart: unless-stopped
+    environment:
+      # Il dominio (HTTPS automatico) oppure «http://:8080».
+      DEMO_SITO: ${DEMO_SITO:?manca DEMO_SITO}
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      # Un frammento per postazione, con i soli hash delle password. La
+      # cartella con le password in chiaro qui non viene montata.
+      - ${DEMO_CARTELLA_PROXY:?manca DEMO_CARTELLA_PROXY}:/etc/caddy/postazioni:ro
+      # Certificati e stato di Caddy: devono sopravvivere ai riavvii, o a
+      # ogni ricreazione verrebbe chiesto un certificato nuovo.
+      - caddy_dati:/data
+      - caddy_conf:/config
+    cap_drop:
+      - ALL
+    cap_add:
+      - NET_BIND_SERVICE
+    security_opt:
+      - no-new-privileges:true
+
+volumes:
+  caddy_dati:
+  caddy_conf:
