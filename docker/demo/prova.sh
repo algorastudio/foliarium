@@ -79,7 +79,35 @@ sql() {  # sql <container db> <istruzione>
     docker exec "$1" psql -U postgres -d catasto_storico -Atc "$2" 2>&1
 }
 
-finestra_principale() { docker exec "$1" xwininfo -root -tree 2>/dev/null | grep -qF "$TITOLO"; }
+# contiene <testo> <cercato>
+#
+# Mai `comando | grep -q` in questo script: con pipefail fallisce a caso.
+# grep esce appena trova il testo, il comando a monte riceve SIGPIPE e la
+# pipe risulta fallita anche se il testo c'era.
+contiene() {
+    case "$1" in
+        *"$2"*) return 0 ;;
+    esac
+    return 1
+}
+
+finestra_principale() {
+    local finestre
+    finestre="$(docker exec "$1" xwininfo -root -tree 2>/dev/null)" || return 1
+    contiene "$finestre" "$TITOLO"
+}
+
+# I registri dei container servono a capire un fallimento: vanno salvati
+# finche' i container esistono, cioe' prima della verifica di rimozione.
+registri_salvati=0
+salva_registri() {
+    local nome
+    [ "$registri_salvati" = 1 ] && return 0
+    registri_salvati=1
+    for nome in "$APP_A" "$DB_A" "$APP_B" "$DB_B" "$DEMO_PREFISSO-proxy"; do
+        docker logs "$nome" > "$ESITO/log-$nome.txt" 2>&1 || true
+    done
+}
 
 attendi() {  # attendi <secondi> <comando...>
     local scadenza=$(( $(date +%s) + $1 ))
@@ -93,10 +121,7 @@ attendi() {  # attendi <secondi> <comando...>
 pulizia() {
     local nome
     if [ "$fallite" -gt 0 ]; then
-        # I registri servono a capire: si salvano prima di togliere tutto.
-        for nome in "$APP_A" "$DB_A" "$APP_B" "$DB_B" "$DEMO_PREFISSO-proxy"; do
-            docker logs "$nome" > "$ESITO/log-$nome.txt" 2>&1 || true
-        done
+        salva_registri
     fi
     for nome in prova-a prova-b; do
         if [ -f "$DEMO_CARTELLA_DATI/postazioni/$nome.env" ]; then
@@ -219,11 +244,24 @@ v_file() {
     corpo_fuga="$(curl -s --noproxy '*' --path-as-is -u "demo:$PW_A" "$BASE/prova-a/file/..%2f..%2f..%2fetc/passwd")"
     dettaglio="scaricato «$scaricato»; percorso ostile: $fuga"
     [ "$scaricato" = "contenuto di prova" ] &&
-        printf '%s' "$elenco" | grep -q 'prova.txt' &&
+        contiene "$elenco" 'prova.txt' &&
         [ "$fuga" != 200 ] &&
-        ! printf '%s' "$corpo_fuga" | grep -q 'root:'
+        ! contiene "$corpo_fuga" 'root:'
 }
 verifica "6. un file esportato si scarica dalla pagina dei file; un percorso ostile no" v_file
+
+v_portachiavi() {
+    # Foliarium conserva nel portachiavi di sistema la chiave dei backup
+    # cifrati, che sono l'opzione predefinita. In un container un portachiavi
+    # non c'e': senza quello su file dell'immagine il backup dalla GUI fallisce.
+    dettaglio="$(docker exec -w /opt/foliarium -e QT_QPA_PLATFORM=offscreen "$APP_A" python -c '
+from foliarium.core.services import backup_crypto
+chiave = backup_crypto.get_backup_key(create=True)
+print("chiave di", len(chiave), "byte; riletta uguale:", backup_crypto.get_backup_key(create=False) == chiave)
+' 2>&1 | tail -n 1)"
+    [ "$dettaglio" = "chiave di 32 byte; riletta uguale: True" ]
+}
+verifica "7. il portachiavi della postazione funziona (serve ai backup cifrati)" v_portachiavi
 
 v_porte() {
     local pubblicate proxy
@@ -232,7 +270,7 @@ v_porte() {
     dettaglio="porte pubblicate dalle postazioni: $pubblicate; dal proxy: $proxy"
     [ "$pubblicate" = 0 ] && [ "$proxy" = "127.0.0.1:$PORTA-> " ]
 }
-verifica "7. solo il proxy pubblica porte" v_porte
+verifica "8. solo il proxy pubblica porte" v_porte
 
 v_reti_separate() {
     # Da una postazione l'altra non si raggiunge: non se ne risolve nemmeno
@@ -243,7 +281,7 @@ v_reti_separate() {
     fi
     dettaglio="da A la postazione B non e' raggiungibile"
 }
-verifica "8. una postazione non raggiunge l'altra in rete" v_reti_separate
+verifica "9. una postazione non raggiunge l'altra in rete" v_reti_separate
 
 v_proxy_ricreato() {
     # I collegamenti del proxy alle reti delle postazioni si perdono quando
@@ -256,7 +294,7 @@ v_proxy_ricreato() {
     dettaglio="dopo la ricreazione: A $a, B $b"
     [ "$a" = 200 ] && [ "$b" = 200 ]
 }
-verifica "9. ricreato il proxy, le postazioni restano raggiungibili" v_proxy_ricreato
+verifica "10. ricreato il proxy, le postazioni restano raggiungibili" v_proxy_ricreato
 
 # Un'immagine dello schermo presa dentro il container: c'e' anche quando la
 # prova con il browser non si puo' fare.
@@ -272,11 +310,11 @@ if node -e "require('playwright')" >/dev/null 2>&1; then
         [ "$stato" = 0 ] || sed 's/^/          /' "$ESITO/prova-browser.txt"
         return "$stato"
     }
-    verifica "10. con un browser vero: credenziali, schermo collegato, dimensione che segue la finestra" v_browser
+    verifica "11. con un browser vero: credenziali, schermo collegato, dimensione che segue la finestra" v_browser
 elif [ "${DEMO_PROVA_BROWSER:-}" = "1" ]; then
-    esito FALLITO "10. prova con un browser vero" "richiesta (DEMO_PROVA_BROWSER=1) ma node o playwright non ci sono"
+    esito FALLITO "11. prova con un browser vero" "richiesta (DEMO_PROVA_BROWSER=1) ma node o playwright non ci sono"
 else
-    esito SALTATA "10. prova con un browser vero" "node o playwright non disponibili"
+    esito SALTATA "11. prova con un browser vero" "node o playwright non disponibili"
 fi
 
 v_ripristino() {
@@ -290,7 +328,11 @@ v_ripristino() {
     dettaglio="comune di prova: $comune; partite: $partite; file: $file; accesso con le stesse credenziali: $accesso"
     [ "$comune" = 0 ] && [ "${partite:-0}" -gt 0 ] 2>/dev/null && [ "$file" = 404 ] && [ "$accesso" = 200 ]
 }
-verifica "11. dopo il ripristino: dati e file inseriti spariti, archivio iniziale, stesse credenziali" v_ripristino
+verifica "12. dopo il ripristino: dati e file inseriti spariti, archivio iniziale, stesse credenziali" v_ripristino
+
+if [ "$fallite" -gt 0 ]; then
+    salva_registri
+fi
 
 v_rimozione() {
     demo rimuovi prova-a --si >/dev/null 2>&1 || { dettaglio="rimuovi prova-a e' fallito"; return 1; }
@@ -304,7 +346,7 @@ v_rimozione() {
     dettaglio="container $container, volumi $volumi, reti $reti, file $file; l'indirizzo ora risponde $accesso"
     [ "$container" = 0 ] && [ "$volumi" = 0 ] && [ "$reti" = 0 ] && [ "$file" = 0 ] && [ "$accesso" = 404 ]
 }
-verifica "12. dopo la rimozione non resta nulla delle postazioni" v_rimozione
+verifica "13. dopo la rimozione non resta nulla delle postazioni" v_rimozione
 
 # ---------------------------------------------------------------------------
 totale=$((superate + fallite))

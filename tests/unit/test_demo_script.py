@@ -403,3 +403,24 @@ def test_un_prefisso_diverso_non_tocca_l_installazione_predefinita(postazione):
     chiamate = "\n".join(_chiamate_docker(postazione))
     assert "foliarium-prova-cliente-a" in chiamate
     assert "foliarium-demo" not in chiamate.replace("foliarium-demo-app:locale", "").replace("foliarium-demo-db:locale", "")
+
+
+# ---------------------------------------------------------------------------
+# Regressioni
+# ---------------------------------------------------------------------------
+
+@pytest.mark.parametrize("script", ["demo.sh", "prova.sh", "avvio.sh"])
+def test_niente_grep_q_in_coda_a_una_pipe_con_pipefail(script):
+    # `comando | grep -q testo` con `set -o pipefail` fallisce a caso: grep
+    # esce appena trova il testo, il comando a monte riceve SIGPIPE e la
+    # pipe intera risulta fallita anche se il testo c'era. In CI la verifica
+    # «la finestra principale esiste» falliva cosi' con la finestra a schermo.
+    # Si cattura l'uscita in una variabile e la si confronta con `case`.
+    testo = (DEMO / script).read_text(encoding="utf-8")
+    if "pipefail" not in testo:
+        pytest.skip("lo script non usa pipefail")
+    colpevoli = [
+        riga.strip() for riga in testo.splitlines()
+        if re.search(r"\|\s*grep\s+(-\w*q\w*|--quiet)", riga) and not riga.lstrip().startswith("#")
+    ]
+    assert colpevoli == []
