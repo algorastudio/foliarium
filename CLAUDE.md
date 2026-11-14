@@ -110,6 +110,7 @@ foliarium/
 ├── docker/                       # Container
 │   ├── postgres/                 # Immagine del database (stack web e demo): Dockerfile, init.sh
 │   ├── demo/                     # Demo: il desktop nel browser, a postazioni (vedi sezione dedicata)
+│   ├── prova-web.sh              # Prova dello stack web con container veri (CI: web_docker.yml)
 │   └── README.md                 # Stack web (FastAPI + React), con Dockerfile e docker-compose.yml in radice
 ├── .devcontainer/                # Dev container config (VS Code / Codespaces)
 ├── .github/workflows/            # CI/CD pipeline
@@ -476,6 +477,26 @@ Pipeline: `.github/workflows/pipeline_foliarium.yml`
 | `pull_request` verso `main`/`master` | solo test (build skippati via `if: github.event_name != 'pull_request'`) |
 | `workflow_dispatch` | tutti i job |
 
+### Stack web in Docker
+
+`web_docker.yml` esegue `docker/prova-web.sh` a ogni pull request: build
+dell'immagine, `docker compose up --wait`, frontend su `/`, login di
+`admin`, assenza di PyQt6. Prima nessuna CI costruiva l'immagine, che si era
+rotta in silenzio.
+
+- **L'immagine è il solo backend web:** stessi moduli dell'artefatto Azure
+  (`main_foliarium.yml`) e stesse dipendenze (`requirements-web.txt`).
+  `test_docker_web.py` confronta i due elenchi e verifica che ogni sorgente
+  dei `COPY` esista. Un modulo nuovo nella catena di import di `api.main`
+  va aggiunto in entrambi.
+- **`DB_SSLMODE=prefer`** nel compose: per l'host `db` `_resolve_sslmode`
+  imporrebbe `require`, e il PostgreSQL del container non ha certificati.
+- **Healthcheck di `db` via TCP** (`pg_isready -h 127.0.0.1`), come nella
+  demo: durante gli script di init postgres ascolta solo sul socket.
+- **Nomi fissi nel compose** (`foliarium-db`, `foliarium-app`, volume
+  `foliarium_db_data`): `prova-web.sh` si rifiuta di partire se esistono,
+  perché la pulizia finale cancellerebbe il volume.
+
 ---
 
 ## Installer Windows (PostgreSQL incluso)
@@ -668,6 +689,7 @@ tests/
 │   │                                   # regressioni eventFilter / singleton
 │   ├── test_backup_executables.py      # nomi degli strumenti PostgreSQL per piattaforma
 │   ├── test_docker_db_init.py          # init.sh ↔ setup_database.SQL_SCRIPTS
+│   ├── test_docker_web.py              # Dockerfile in radice ↔ artefatto Azure, prova-web.sh
 │   └── test_demo_*.py                  # demo in Docker: demo.sh e configurazione del proxy,
 │                                       # pagina dei file, anteprima PDF, esempi di import
 └── integration/                   # Integration tests (pytest -m integration)

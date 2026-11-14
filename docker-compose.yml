@@ -6,7 +6,8 @@
 #   docker compose down                    # stop (i dati restano nel volume)
 #   docker compose down -v                 # stop + reset DB (volume eliminato!)
 #
-# Login di default: admin / admin123 (cambia dopo il primo accesso).
+# Login: admin, con la password di ADMIN_PASSWORD (default admin123, adatto
+# solo allo sviluppo). Prova completa dello stack: bash docker/prova-web.sh
 
 services:
   db:
@@ -29,7 +30,10 @@ services:
     volumes:
       - foliarium_db_data:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      # Via TCP, non sul socket: mentre applica gli script iniziali postgres
+      # ascolta solo sul socket, e l'app non deve partire prima che
+      # l'inizializzazione sia finita.
+      test: ["CMD-SHELL", "pg_isready -q -h 127.0.0.1 -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
       interval: 5s
       timeout: 5s
       retries: 20
@@ -54,7 +58,10 @@ services:
       DB_USER: ${DB_USER:-postgres}
       DB_PASS: ${DB_PASS:-postgres}
       FOLIARIUM_DB_SCHEMA: ${DB_SCHEMA:-catasto}
-      QT_QPA_PLATFORM: offscreen
+      # Per un host diverso da localhost l'applicazione impone TLS
+      # (sslmode=require, vedi db/base.py), ma il database qui accanto e' un
+      # container senza certificati: con `require` l'app non si collega.
+      DB_SSLMODE: ${DB_SSLMODE:-prefer}
     ports:
       - "${APP_PORT:-8765}:8765"
 
