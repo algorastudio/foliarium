@@ -224,6 +224,41 @@ def find_free_port(start: int = 5432, attempts: int = 3) -> int:
     return start
 
 
+def avvia_postgres(pg_bin: Path, pg_data: Path, pg_log: Path,
+                   porta: int | None = None) -> bool:
+    """
+    Avvia il server con ``pg_ctl start`` e attende che sia pronto.
+
+    L'output di pg_ctl NON va catturato. Su Windows il server avviato da
+    pg_ctl eredita i canali di uscita di pg_ctl e, restando acceso, non li
+    chiude mai: se l'output è catturato, Python aspetta per sempre la
+    loro chiusura. Era il blocco dell'installer su «Configurazione del
+    database in corso». L'output va quindi su un file, che il server può
+    tenere aperto senza fermare nessuno, e in caso di errore finisce nel log.
+    """
+    cmd = [exe(pg_bin, "pg_ctl"), "start",
+           "-D", str(pg_data), "-l", str(pg_log),
+           "-w", "-t", "30"]
+    if porta is not None:
+        cmd += ["-o", f"-p {porta} -h 127.0.0.1"]
+    uscita_pg_ctl = pg_log.with_name("pg_ctl_avvio.log")
+    log(f"$ {' '.join(cmd)}")
+    with open(uscita_pg_ctl, "w", encoding="utf-8", errors="replace") as uscita:
+        esito = subprocess.run(cmd, stdin=subprocess.DEVNULL,
+                               stdout=uscita, stderr=subprocess.STDOUT)
+    if esito.returncode == 0:
+        return True
+    log(f"ERRORE: pg_ctl start è terminato con codice {esito.returncode}.")
+    try:
+        for riga in uscita_pg_ctl.read_text(encoding="utf-8", errors="replace").splitlines():
+            if riga.strip():
+                log(f"    {riga}")
+    except OSError:
+        pass
+    log(f"Registro del server: {pg_log}")
+    return False
+
+
 def wait_ready(pg_bin: Path, port: int, attempts: int = 30) -> bool:
     """Attende che PostgreSQL sia pronto."""
     pg_isready = exe(pg_bin, "pg_isready")
@@ -890,14 +925,8 @@ def setup(
     hba.write_text(hba_temp, encoding="utf-8")
 
     pg_log = pg_data / "pg_setup.log"
-    try:
-        run([exe(pg_bin, "pg_ctl"), "start",
-             "-D", str(pg_data), "-l", str(pg_log),
-             "-w", "-t", "30",
-             "-o", f"-p {port} -h 127.0.0.1"],
-            capture_output=True)
-    except subprocess.CalledProcessError as e:
-        log(f"ERRORE avvio PostgreSQL: {e}")
+    if not avvia_postgres(pg_bin, pg_data, pg_log, porta=port):
+        log("ERRORE avvio PostgreSQL.")
         return False
 
     if not wait_ready(pg_bin, port):
@@ -1035,16 +1064,12 @@ def setup(
             log("Avvio servizio...")
             if not start_service():
                 log("Avvio servizio fallito, provo avvio diretto...")
-                run_quiet([exe(pg_bin, "pg_ctl"), "start",
-                           "-D", str(pg_data), "-l", str(pg_log),
-                           "-w", "-t", "30"])
+                avvia_postgres(pg_bin, pg_data, pg_log)
         else:
             log("Servizio non registrato. Avvio manuale con:")
             log(f"  {exe(pg_bin, 'pg_ctl')} start -D {pg_data}")
             # Avvia comunque per questa sessione
-            run_quiet([exe(pg_bin, "pg_ctl"), "start",
-                       "-D", str(pg_data), "-l", str(pg_log),
-                       "-w", "-t", "30"])
+            avvia_postgres(pg_bin, pg_data, pg_log)
     else:
         log("Skip registrazione servizio (--skip-service).")
 

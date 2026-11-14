@@ -28,7 +28,7 @@ script di questa cartella su una macchina Windows con SimplySign Desktop.
    ```
 3. Firma l'eseguibile e costruisci l'installer firmato in un colpo solo:
    ```powershell
-   .\signing\build-signed-installer.ps1 -Version 1.1.0
+   .\signing\build-signed-installer.ps1 -Version 1.1.1
    ```
    Lo script:
    - firma `dist\Foliarium\Foliarium.exe` (l'app installata è firmata);
@@ -46,7 +46,7 @@ script di questa cartella su una macchina Windows con SimplySign Desktop.
 ## Verifica
 
 ```powershell
-signtool verify /pa /v .\Installer\Foliarium_1.1.0_Setup.exe
+signtool verify /pa /v .\Installer\Foliarium_1.1.1_Setup.exe
 ```
 La firma deve risultare valida con timestamp; la catena Certum
 (*Code Signing 2021 CA → Trusted Network CA 2*) viene inclusa automaticamente

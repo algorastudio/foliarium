@@ -12,6 +12,7 @@ cliente a installazione gia' avviata.
 from __future__ import annotations
 
 import sys
+import time
 from pathlib import Path
 
 import pytest
@@ -413,3 +414,72 @@ class TestRigoreSecondoLoStatoDelDatabase:
         assert self._setup(tmp_path, pg_bin) is False
         # Un setup fallito non deve lasciare un config.ini che sembra valido.
         assert not (tmp_path / "config.ini").exists()
+
+
+class TestAvvioDelServerNonBloccaIlSetup:
+    """
+    Su Windows l'installazione restava ferma per sempre su «Configurazione
+    del database in corso». ``pg_ctl start`` era lanciato con l'output
+    catturato: Python aspetta che il canale si chiuda, ma su Windows il
+    server avviato da pg_ctl eredita quel canale e, restando acceso, non lo
+    chiude mai.
+
+    Su Linux il vero pg_ctl ridirige l'output del server e il problema non
+    si vede. Qui un finto pg_ctl riproduce il comportamento di Windows:
+    lascia acceso un processo figlio che tiene aperto il canale ereditato.
+    """
+
+    DURATA_FIGLIO = 8
+
+    @pytest.fixture(autouse=True)
+    def _log_isolato(self, monkeypatch):
+        monkeypatch.setattr(sdb, "_LOG_FILE", None)
+        monkeypatch.setattr(sdb, "_SECRETS", [])
+
+    def _finto_pg_ctl(self, tmp_path, uscita: int = 0) -> Path:
+        if sys.platform == "win32":
+            pytest.skip("il finto pg_ctl è uno script di shell")
+        pg_bin = tmp_path / "bin"
+        pg_bin.mkdir()
+        script = pg_bin / f"pg_ctl{sdb.EXE}"
+        script.write_text(
+            "#!/bin/sh\n"
+            # Il «server»: resta acceso con il canale ereditato aperto.
+            f"sleep {self.DURATA_FIGLIO} &\n"
+            "echo 'waiting for server to start.... done'\n"
+            f"exit {uscita}\n",
+            encoding="utf-8",
+        )
+        script.chmod(0o755)
+        return pg_bin
+
+    def test_l_avvio_ritorna_anche_se_il_server_resta_acceso(self, tmp_path):
+        pg_bin = self._finto_pg_ctl(tmp_path)
+        inizio = time.monotonic()
+        esito = sdb.avvia_postgres(pg_bin, tmp_path / "data", tmp_path / "pg.log", porta=5432)
+        durata = time.monotonic() - inizio
+        assert esito is True
+        assert durata < self.DURATA_FIGLIO / 2, f"bloccato per {durata:.1f} s"
+
+    def test_un_avvio_fallito_lo_dice_e_lascia_traccia_nel_log(self, tmp_path, monkeypatch):
+        logfile = tmp_path / "setup.log"
+        monkeypatch.setattr(sdb, "_LOG_FILE", logfile)
+        pg_bin = self._finto_pg_ctl(tmp_path, uscita=1)
+        assert sdb.avvia_postgres(pg_bin, tmp_path / "data", tmp_path / "pg.log") is False
+        testo = logfile.read_text(encoding="utf-8")
+        assert "codice 1" in testo
+        # Il messaggio di pg_ctl non va perso.
+        assert "waiting for server to start" in testo
+
+    def test_ogni_avvio_con_pg_ctl_passa_da_avvia_postgres(self):
+        # «net start», «systemctl start» e «launchctl start» non hanno il
+        # problema: il servizio lo avvia il sistema, non un processo figlio
+        # che erediti i canali. «pg_ctl start» invece compare una volta sola,
+        # dentro avvia_postgres.
+        import re
+        sorgente = Path(sdb.__file__).read_text(encoding="utf-8")
+        avvii = re.findall(r'"pg_ctl"\),\s*"start"', sorgente)
+        assert len(avvii) == 1, avvii
+        funzione = sorgente.split("def avvia_postgres", 1)[1].split("\ndef ", 1)[0]
+        assert re.search(r'"pg_ctl"\),\s*"start"', funzione)
+        assert "capture_output" not in funzione
