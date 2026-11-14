@@ -520,12 +520,11 @@ installare a parte. Tre ingredienti, preparati dalla pipeline in
   il setup a ogni installazione, anche sopra un archivio esistente, e gli
   script non sono idempotenti: riapplicati producono 38 errori innocui,
   quasi tutti «already exists». Renderlo rigoroso sempre impedirebbe di
-  reinstallare. In
-  entrambi i casi gli errori di psql finiscono nel log (prima l'output era
-  catturato e scartato). Il database dei test della pipeline è costruito
-  con i vecchi script numerati, non con questo elenco: lo sorveglia
-  `tests/integration/test_schema_database_nuovo.py`, che lo applica a un
-  database vuoto con la funzione dell'installer.
+  reinstallare. In entrambi i casi gli errori di psql finiscono nel log
+  (prima l'output era catturato e scartato). Il database dei test della
+  pipeline è costruito con i vecchi script numerati, non con questo
+  elenco: lo sorveglia `tests/integration/test_schema_database_nuovo.py`,
+  che lo applica a un database vuoto con la funzione dell'installer.
 - **Validazione:** il job `valida-installer` compila l'installer contro un
   `dist/` fittizio e gira **anche sulle pull request**, dove il build vero è
   escluso. Senza, un errore di sintassi nell'installer si scoprirebbe solo
