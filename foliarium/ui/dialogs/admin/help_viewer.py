@@ -144,6 +144,22 @@ _MKDOCS_YML = "mkdocs.yml"
 #: un risultato punta invece sempre alla radice di docs/.
 _SCHEMA_RISULTATO = "foliarium-doc:"
 
+#: Sottocartelle di docs/ che non fanno parte del manuale. docs/internal/
+#: raccoglie documenti di progetto non destinati ai clienti: foliarium.spec
+#: non li impacchetta, ma quando il programma gira dai sorgenti sono sul
+#: disco, e senza questo filtro la ricerca e l'albero di ripiego li
+#: mostrerebbero all'archivista.
+CARTELLE_ESCLUSE_DAL_MANUALE = frozenset({"internal"})
+
+
+def documenti_del_manuale(docs_dir):
+    """I .md del manuale sotto docs_dir, in ordine, senza le cartelle escluse."""
+    return [
+        percorso for percorso in sorted(docs_dir.rglob("*.md"))
+        if percorso.relative_to(docs_dir).parts[0]
+        not in CARTELLE_ESCLUSE_DAL_MANUALE
+    ]
+
 
 # ---------------------------------------------------------------------------
 # HelpViewerDialog — Manuale utente integrato (Markdown → QTextBrowser)
@@ -325,7 +341,7 @@ class HelpViewerDialog(QDialog):
 
     def _add_nav_fallback(self):
         """Fallback: scansiona docs/ e aggiunge tutti i .md trovati."""
-        for md_file in sorted(self._docs_dir.rglob("*.md")):
+        for md_file in documenti_del_manuale(self._docs_dir):
             rel = md_file.relative_to(self._docs_dir).as_posix()
             label = md_file.stem.replace("-", " ").replace("_", " ").title()
             item = QTreeWidgetItem(self.nav_tree, [label])
@@ -400,7 +416,7 @@ class HelpViewerDialog(QDialog):
         """Cerca query nei .md di docs/. Ritorna (percorso, titolo, estratto)."""
         ago = query.lower()
         trovati = []
-        for percorso in sorted(self._docs_dir.rglob("*.md")):
+        for percorso in documenti_del_manuale(self._docs_dir):
             try:
                 testo = percorso.read_text(encoding="utf-8")
             except Exception:

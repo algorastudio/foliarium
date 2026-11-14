@@ -246,6 +246,39 @@ class TestRicercaNelManuale:
         manuale._on_link_clicked(QUrl("index.md"))
         assert manuale._history[manuale._history_pos] == "admin/index.md"
 
+    # docs/internal/ raccoglie documenti di progetto, non destinati ai
+    # clienti: foliarium.spec non li impacchetta, ma quando il programma
+    # gira dai sorgenti sono sul disco e la ricerca li troverebbe.
+
+    @pytest.fixture
+    def docs_con_internal(self, tmp_path):
+        """docs/ minimo: una pagina del manuale e una di docs/internal/."""
+        docs = tmp_path / "docs"
+        (docs / "internal").mkdir(parents=True)
+        (docs / "guida.md").write_text(
+            "# Guida\n\nTermine segnaposto.\n", encoding="utf-8")
+        (docs / "internal" / "report.md").write_text(
+            "# Report\n\nTermine segnaposto.\n", encoding="utf-8")
+        return docs
+
+    def test_la_ricerca_esclude_docs_internal(self, manuale, docs_con_internal):
+        manuale._docs_dir = docs_con_internal
+        trovati = [rel for rel, _, _ in manuale._raccogli_risultati("segnaposto")]
+        assert trovati == ["guida.md"]
+
+    def test_l_albero_di_ripiego_esclude_docs_internal(self, manuale, docs_con_internal):
+        """Senza mkdocs.yml l'albero elenca i .md trovati: non quelli interni."""
+        from PyQt6.QtCore import Qt
+
+        manuale._docs_dir = docs_con_internal
+        manuale.nav_tree.clear()
+        manuale._add_nav_fallback()
+        voci = [
+            manuale.nav_tree.topLevelItem(i).data(0, Qt.ItemDataRole.UserRole)
+            for i in range(manuale.nav_tree.topLevelItemCount())
+        ]
+        assert voci == ["guida.md"]
+
 
 class TestAccessibilitaModuli:
 

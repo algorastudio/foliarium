@@ -1,7 +1,30 @@
 # -*- mode: python ; coding: utf-8 -*-
 
-# Importa le utility di PyInstaller
-from PyInstaller.utils.hooks import collect_data_files
+from pathlib import Path
+
+# --- Manuale in linea (Aiuto -> Manuale, F1) ---
+# HelpViewerDialog legge i .md da BASE_DIR/docs e la navigazione da
+# BASE_DIR/mkdocs.yml, cioe' da _internal/ nel bundle: senza queste voci il
+# manuale del programma installato si apre vuoto.
+# Solo i .md: il resto di docs/ (PDF di progetto, presentazioni, sorgenti del
+# sito) il visualizzatore non lo usa. docs/internal/ resta fuori: sono
+# documenti di progetto, non destinati ai clienti. La ricerca del manuale
+# applica la stessa esclusione (help_viewer.CARTELLE_ESCLUSE_DAL_MANUALE).
+# tests/unit/test_spec_manuale.py verifica il risultato.
+_DOCS_ESCLUSE = {'internal'}
+
+
+def _datas_manuale():
+    radice = Path(SPECPATH)
+    docs = radice / 'docs'
+    voci = [(str(radice / 'mkdocs.yml'), '.')]
+    for md in sorted(docs.rglob('*.md')):
+        rel = md.relative_to(docs)
+        if rel.parts[0] in _DOCS_ESCLUSE:
+            continue
+        voci.append((str(md), (Path('docs') / rel.parent).as_posix()))
+    return voci
+
 
 # --- Analisi dello script principale ---
 # Qui PyInstaller analizza il codice per trovare tutte le dipendenze.
@@ -13,7 +36,7 @@ a = Analysis(
         ('resources', 'resources'), # Inclusione della cartella 'resources'
         ('styles', 'styles'),       # Inclusione della cartella 'styles'
         ('sql_scripts', 'sql_scripts'),  # Script SQL per inizializzazione DB
-    ],
+    ] + _datas_manuale(),               # Manuale in linea (vedi sopra)
     hiddenimports=[
         # Submodules del package foliarium/ — PyInstaller li trova via Analysis,
         # ma alcuni sono importati lazy in gui_main.py e necessitano enumerazione esplicita.
