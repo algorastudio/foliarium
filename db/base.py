@@ -757,7 +757,29 @@ class DBConnectionBase:
         finally:
             if conn_maint:
                 conn_maint.close()
-# In catasto_db_manager.py, all'interno della classe CatastoDBManager
+
+    def _errore_pool_non_inizializzato(self, contesto: str = "") -> psycopg2.OperationalError:
+        """Registra e restituisce l'errore per il pool mai inizializzato.
+
+        Il pool resta ``None`` quando ``initialize_main_pool`` fallisce:
+        database irraggiungibile, TLS richiesto e non offerto, credenziali
+        errate. Il problema è il collegamento, non il carico, quindi l'errore
+        non passa da ``PoolError``: finirebbe nel ramo «pool esaurito», e
+        ``foliarium.ui.errors`` non lo riconoscerebbe come collegamento
+        interrotto.
+        """
+        messaggio = (
+            "Collegamento al database non stabilito: "
+            "il pool di connessioni non è stato inizializzato."
+        )
+        ultimo = getattr(self, "last_connection_error", None)
+        # Solo il dict scritto da initialize_main_pool. La stringa la scrive
+        # db_handle_errors con str() di questa stessa eccezione: citarla
+        # ripeterebbe il messaggio dentro sé stesso a ogni chiamata.
+        if isinstance(ultimo, dict) and ultimo.get("pgerror"):
+            messaggio += f" Ultimo errore di connessione: {ultimo['pgerror']}"
+        self.logger.error("%s%s", contesto, messaggio)
+        return psycopg2.OperationalError(messaggio)
 
     @contextmanager
     def _get_connection(self):
@@ -768,11 +790,17 @@ class DBConnectionBase:
         Thread-safety: ThreadedConnectionPool.getconn() è thread-safe; ogni chiamante
         riceve una connessione dedicata. NON conservare il conn fuori dal blocco `with`
         né passarlo ad altri thread — le connessioni psycopg2 non sono thread-safe.
+
+        Raises:
+            psycopg2.OperationalError: se il pool non è mai stato inizializzato
+                (collegamento al database non stabilito) o se è esaurito.
         """
+        if self.pool is None:
+            self._pool_metrics["connection_errors"] += 1
+            self._pool_metrics["last_error_time"] = datetime.now()
+            raise self._errore_pool_non_inizializzato()
         conn = None
         try:
-            if not self.pool:
-                raise psycopg2.pool.PoolError("Il pool di connessioni non è inizializzato.")
             conn = self.pool.getconn()
             self._pool_metrics["total_getconn"] += 1
             yield conn
@@ -830,15 +858,15 @@ class DBConnectionBase:
         operazioni correlate in un'unica transazione ACID.
 
         Raises:
-            psycopg2.OperationalError: Se il pool non è inizializzato.
+            psycopg2.OperationalError: se il pool non è mai stato inizializzato
+                (collegamento al database non stabilito) o se non fornisce
+                una connessione.
             Qualunque eccezione sollevata nel blocco provoca il rollback.
         """
+        if self.pool is None:
+            raise self._errore_pool_non_inizializzato("transaction(): ")
         conn = None
         try:
-            if not self.pool:
-                raise psycopg2.pool.PoolError(
-                    "Il pool di connessioni non è inizializzato."
-                )
             conn = self.pool.getconn()
             # Disabilitiamo l'autocommit per gestire la transazione manualmente
             conn.autocommit = False

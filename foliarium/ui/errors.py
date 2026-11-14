@@ -199,9 +199,11 @@ def _find_connection_error(exc: BaseException) -> Optional[BaseException]:
 
     Quando il server non risponde affatto (connessione rifiutata, TLS
     richiesto e non offerto, connessione caduta) psycopg2 solleva
-    ``OperationalError`` con ``pgcode`` vuoto. Fa eccezione il pool esaurito:
-    ``_get_connection`` lo traduce anch'esso in ``OperationalError``, ma il
-    server e' raggiungibile e la causa resta un ``PoolError``.
+    ``OperationalError`` con ``pgcode`` vuoto. Lo stesso fa ``_get_connection``
+    quando il pool non si e' mai inizializzato, senza ``PoolError`` nella
+    catena. Fa eccezione il pool esaurito: ``_get_connection`` lo traduce
+    anch'esso in ``OperationalError``, ma il server e' raggiungibile e la
+    causa resta un ``PoolError``.
     """
     try:
         import psycopg2

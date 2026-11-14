@@ -139,6 +139,41 @@ class TestDescribeError:
         assert "PostgreSQL" in suggerimento
         assert "SSL was required" in dettagli
 
+    def test_pool_mai_inizializzato_e_un_collegamento_interrotto(self, tmp_path):
+        """Il pool resta None se initialize_main_pool fallisce.
+
+        Si usa il vero _get_connection attraverso get_user_credentials: prima
+        il caso passava da PoolError e veniva scambiato per pool esaurito,
+        quindi l'archivista non leggeva che il database non risponde.
+        """
+        import logging
+
+        from catasto_db_manager import CatastoDBManager
+        from catasto_exceptions import DBMError
+        from foliarium.ui.errors import describe_error
+
+        mgr = CatastoDBManager.__new__(CatastoDBManager)
+        mgr.pool = None
+        mgr.schema = "catasto"
+        mgr._cache_dir = tmp_path
+        mgr._pool_metrics = {
+            "total_getconn": 0, "total_putconn": 0, "connection_errors": 0,
+            "peak_active": 0, "last_error_time": None,
+        }
+        mgr.logger = logging.getLogger("test_error_messages")
+        mgr.last_connection_error = {
+            "pgcode": "08001",
+            "pgerror": "server does not support SSL, but SSL was required",
+        }
+
+        with pytest.raises(DBMError) as info:
+            mgr.get_user_credentials("admin")
+
+        messaggio, suggerimento, dettagli = describe_error(info.value)
+        assert messaggio == "Collegamento al database interrotto."
+        assert "PostgreSQL" in suggerimento
+        assert "SSL was required" in dettagli
+
     def test_pool_esaurito_non_e_un_collegamento_interrotto(self):
         """_get_connection traduce PoolError in OperationalError senza pgcode.
 
