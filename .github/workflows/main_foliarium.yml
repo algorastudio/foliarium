@@ -56,6 +56,8 @@ jobs:
         # Solo i moduli nella catena di import di api.main, piu' il frontend
         # compilato. requirements-web.txt diventa requirements.txt perche'
         # Oryx, il motore di build di App Service, cerca quel nome.
+        # Il Dockerfile in radice copia gli stessi moduli: se cambia l'elenco
+        # qui va cambiato anche la' (tests/unit/test_docker_web.py li confronta).
         run: |
           mkdir -p deploy/frontend
           cp -r api db core utils deploy/
