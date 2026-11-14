@@ -12,6 +12,8 @@
 		# La demo non deve comparire nei motori di ricerca.
 		X-Robots-Tag "noindex, nofollow"
 		X-Content-Type-Options nosniff
+		# Nessuna pagina altrui puo' incorniciare la demo.
+		X-Frame-Options DENY
 		Referrer-Policy no-referrer
 		-Server
 	}

@@ -156,7 +156,10 @@ arresta() {
 }
 trap 'arresta 0' TERM INT
 
-# wait -n ritorna appena UNO dei processi elencati termina.
-wait -n "$PID_SCHERMO" "$PID_FINESTRE" "$PID_PONTE" "$PID_FILE" || true
+# wait -n ritorna appena UNO dei processi elencati termina. Fra questi c'e'
+# il ciclo che rilancia il programma: se morisse lui, nessuno farebbe piu'
+# ripartire Foliarium e la postazione resterebbe accesa con la scrivania
+# vuota. Uscendo, Docker riavvia il container.
+wait -n "$PID_SCHERMO" "$PID_FINESTRE" "$PID_PONTE" "$PID_FILE" "$PID_CICLO" || true
 log "ERRORE: un servizio della postazione e' terminato; il container esce"
 arresta 1

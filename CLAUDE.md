@@ -572,7 +572,23 @@ Cose non ovvie, da non «semplificare»:
   Per farlo si sostituisce un metodo interno di noVNC 1.3; se mancasse,
   resta il comportamento originale.
 - **`postazioni/` e `proxy/` sono cartelle distinte:** la prima contiene le
-  password in chiaro, la seconda i soli hash, ed è l'unica che il proxy monta.
+  password in chiaro; la seconda, l'unica che il proxy monta, ne contiene
+  solo gli hash. **Ma contiene in chiaro il token dello schermo**, che per lo
+  schermo vale quanto la password: nessuna delle due è leggibile da altri
+  utenti (700/600 e 750/640). Il proxy gira senza capability e legge i
+  frammenti perché riceve come gruppo quello di chi esegue `demo.sh`
+  (`group_add`): non vanno resi leggibili a tutti per «farlo funzionare».
+- **`ripristina` conserva le credenziali, `ripristina --nuove-credenziali`
+  le cambia.** La seconda forma serve quando la postazione passa a un altro
+  cliente: chi l'ha usata conosce password e token, e rientrerebbe nella
+  sessione di chi viene dopo.
+- **In `cmd_crea` ogni passo è seguito da `|| annulla_creazione`**, e
+  `_proxy_su` esce sempre con `return`. Una `trap ERR` non basta: senza
+  `set -E` non vale dentro le funzioni chiamate, e con `set -E` leggerebbe
+  la variabile locale `nome` di `_proxy_su`, che scorre le altre postazioni.
+- **Limiti di CPU calcolati da `demo.sh`:** Docker rifiuta un limite
+  superiore ai processori presenti, quindi il predefinito non può stare
+  scritto nel file Compose.
 - **`Dockerfile.dockerignore` è una lista di ammissione** e i moduli in
   radice sono copiati per elenco: `generate_key.py` e `generate_license.py`
   non devono entrare in un'immagine pubblica. Un modulo nuovo in radice va
@@ -583,7 +599,7 @@ Cose non ovvie, da non «semplificare»:
   finestra a schermo; un test lo vieta.
 
 **Prova:** `bash docker/demo/prova.sh` crea due postazioni vere, esegue
-tredici verifiche (con un browser vero se c'è Playwright) e toglie tutto. Usa
+sedici verifiche (con un browser vero se c'è Playwright) e toglie tutto. Usa
 `DEMO_PREFISSO=foliarium-prova` e una cartella dati temporanea, quindi non
 tocca postazioni esistenti. Il workflow `demo_docker.yml` la esegue a ogni
 pull request e pubblica le immagini dello schermo come artefatto.

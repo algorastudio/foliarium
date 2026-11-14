@@ -119,4 +119,12 @@ if [ -n "${FOLIARIUM_DEMO_PASSWORD:-}" ]; then
     echo "[foliarium-init] Utente 'demo' creato e archivio dimostrativo caricato."
 fi
 
+# Segnale di inizializzazione conclusa. Se uno script fallisce, il container
+# esce; al riavvio l'immagine trova la cartella dei dati gia' presente, salta
+# l'inizializzazione e il server risponde con uno schema a meta'. Chi deve
+# sapere se il database e' davvero pronto (il controllo di salute della demo,
+# docker/demo/compose.postazione.yml) guarda questo file, che sta nel volume
+# dei dati e nasce solo se si arriva fin qui.
+touch "${PGDATA:?}/foliarium_init_completato"
+
 echo "[foliarium-init] Setup completato."

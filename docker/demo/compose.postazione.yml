@@ -12,6 +12,10 @@ services:
   db:
     image: ${DEMO_IMMAGINE_DB:-foliarium-demo-db:locale}
     restart: unless-stopped
+    # Non da root: l'immagine ufficiale lo consente quando la cartella dei
+    # dati e' un volume nuovo, che nasce gia' di proprieta' di «postgres».
+    # Cosi' al database non serve alcuna capability.
+    user: postgres
     environment:
       POSTGRES_DB: catasto_storico
       POSTGRES_USER: postgres
@@ -25,14 +29,23 @@ services:
       # Via TCP, non sul socket: mentre applica gli script iniziali postgres
       # ascolta solo sul socket, e il programma non deve partire prima che
       # l'inizializzazione sia finita.
-      test: ["CMD-SHELL", "pg_isready -q -h 127.0.0.1 -U postgres -d catasto_storico"]
+      # In piu' pretende il segnale che init.sh lascia in fondo: dopo
+      # un'inizializzazione fallita il server, riavviato, risponderebbe lo
+      # stesso, con uno schema a meta' e senza utente «demo».
+      test: ["CMD-SHELL", "pg_isready -q -h 127.0.0.1 -U postgres -d catasto_storico && test -f \"$$PGDATA/foliarium_init_completato\""]
       interval: 5s
       timeout: 5s
       retries: 30
       start_period: 20s
-    mem_limit: ${DEMO_MEM_DB:-512m}
+    cap_drop:
+      - ALL
     security_opt:
       - no-new-privileges:true
+    pids_limit: 256
+    mem_limit: ${DEMO_MEM_DB:-512m}
+    # In numero di processori. Docker rifiuta un limite superiore ai
+    # processori della macchina: i valori li calcola demo.sh.
+    cpus: ${DEMO_CPU_DB:-1}
 
   app:
     image: ${DEMO_IMMAGINE_APP:-foliarium-demo-app:locale}
@@ -73,6 +86,7 @@ services:
       - no-new-privileges:true
     pids_limit: 512
     mem_limit: ${DEMO_MEM_APP:-1024m}
+    cpus: ${DEMO_CPU_APP:-2}
     # Qt scambia le immagini delle finestre con il server X in memoria
     # condivisa: i 64 MB predefiniti di Docker sono pochi a schermo intero.
     shm_size: 256m

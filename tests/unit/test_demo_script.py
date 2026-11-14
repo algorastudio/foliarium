@@ -36,26 +36,45 @@ HASH = "$2a$14$abcdefghijklmnopqrstuuABCDEFGHIJKLMNOPQRSTUVWXYZ0123456"
 
 
 def _esegui(*argomenti: str, cartella: Path, ambiente: dict | None = None,
-            ingresso: str = ""):
-    """Lancia demo.sh con un finto `docker` in testa al PATH."""
+            ingresso: str = "", processori: int | None = None):
+    """Lancia demo.sh con un finto `docker` in testa al PATH.
+
+    Il finto registra ogni chiamata e le variabili che demo.sh gli passa.
+    Con FINTO_DOCKER_FALLISCE (un modello di `case`) fallisce sulle chiamate
+    che vi corrispondono: serve a provare che cosa resta dopo un guasto.
+    """
     finti = cartella / "finti"
     finti.mkdir(exist_ok=True)
     finto_docker = finti / "docker"
     finto_docker.write_text(
         '#!/bin/sh\n'
         'echo "$*" >> "$DEMO_CARTELLA_DATI/docker-chiamato"\n'
+        'echo "CPU_APP=${DEMO_CPU_APP-} CPU_DB=${DEMO_CPU_DB-} GID=${DEMO_GID_FRAMMENTI-} :: $*"'
+        ' >> "$DEMO_CARTELLA_DATI/docker-ambiente"\n'
+        'if [ -n "${FINTO_DOCKER_FALLISCE-}" ]; then\n'
+        '    case "$*" in $FINTO_DOCKER_FALLISCE) echo "guasto simulato" >&2; exit 1 ;; esac\n'
+        'fi\n'
         # Alle ispezioni risponde «healthy»: i comandi che attendono la
         # postazione non restano in attesa di un container che non esiste.
         'case "$*" in *inspect*) echo healthy ;; esac\n'
+        # «caddy hash-password» legge la password da standard input.
+        "case \"$*\" in *hash-password*) cat > /dev/null; echo '" + HASH + "' ;; esac\n"
         'exit 0\n',
         encoding="utf-8",
     )
     finto_docker.chmod(finto_docker.stat().st_mode | stat.S_IEXEC)
+    if processori is not None:
+        finto_nproc = finti / "nproc"
+        finto_nproc.write_text(f"#!/bin/sh\necho {processori}\n", encoding="utf-8")
+        finto_nproc.chmod(finto_nproc.stat().st_mode | stat.S_IEXEC)
 
     env = dict(os.environ)
     env["PATH"] = f"{finti}{os.pathsep}{env['PATH']}"
     env["DEMO_CARTELLA_DATI"] = str(cartella)
-    env.pop("DEMO_PREFISSO", None)
+    for variabile in ("DEMO_PREFISSO", "DEMO_CARTELLA_PROXY", "DEMO_CPU_APP",
+                      "DEMO_CPU_DB", "DEMO_MEM_APP", "DEMO_MEM_DB",
+                      "DEMO_DOMINIO", "DEMO_INDIRIZZO_PUBBLICO"):
+        env.pop(variabile, None)
     env.update(ambiente or {})
     return subprocess.run(
         ["bash", str(SCRIPT), *argomenti],
@@ -72,11 +91,32 @@ def _chiamate_docker(cartella: Path) -> list[str]:
     return registro.read_text(encoding="utf-8").splitlines() if registro.exists() else []
 
 
+def _ambiente_docker(cartella: Path) -> list[str]:
+    registro = cartella / "docker-ambiente"
+    return registro.read_text(encoding="utf-8").splitlines() if registro.exists() else []
+
+
 def _file_creati(cartella: Path) -> list[str]:
     return sorted(
         str(p.relative_to(cartella)) for p in cartella.rglob("*")
-        if p.is_file() and "finti" not in p.parts and p.name != "docker-chiamato"
+        if p.is_file() and "finti" not in p.parts
+        and p.name not in ("docker-chiamato", "docker-ambiente")
     )
+
+
+def _valori(file_env: Path) -> dict[str, str]:
+    return dict(
+        riga.split("=", 1) for riga in file_env.read_text(encoding="utf-8").splitlines()
+        if "=" in riga and not riga.startswith("#")
+    )
+
+
+def _permessi(percorso: Path) -> int:
+    return stat.S_IMODE(percorso.stat().st_mode)
+
+
+def _indici(chiamate: list[str], *frammenti: str) -> list[int]:
+    return [i for i, c in enumerate(chiamate) if all(f in c for f in frammenti)]
 
 
 # ---------------------------------------------------------------------------
@@ -403,6 +443,279 @@ def test_un_prefisso_diverso_non_tocca_l_installazione_predefinita(postazione):
     chiamate = "\n".join(_chiamate_docker(postazione))
     assert "foliarium-prova-cliente-a" in chiamate
     assert "foliarium-demo" not in chiamate.replace("foliarium-demo-app:locale", "").replace("foliarium-demo-db:locale", "")
+
+
+# ---------------------------------------------------------------------------
+# crea: cio' che scrive, e cio' che resta se fallisce
+# ---------------------------------------------------------------------------
+
+PROXY_NON_PARTE = "*-p foliarium-demo-proxy *up -d*"
+POSTAZIONE_NON_PARTE = "*-p foliarium-demo-cliente-a *up -d*"
+
+
+def test_crea_scrive_credenziali_e_frammento_e_li_stampa(tmp_path):
+    esito = _esegui("crea", "cliente-a", cartella=tmp_path)
+    assert esito.returncode == 0, esito.stderr
+    valori = _valori(tmp_path / "postazioni" / "cliente-a.env")
+    assert valori["DEMO_NOME"] == "cliente-a"
+    assert re.fullmatch(r"[A-Za-z0-9]{20}", valori["DEMO_PASSWORD"])
+    assert re.fullmatch(r"[A-Za-z0-9]{24}", valori["DEMO_DB_PASS"])
+    assert re.fullmatch(r"[a-f0-9]{64}", valori["DEMO_WS_TOKEN"])
+    frammento = (tmp_path / "proxy" / "cliente-a.caddy").read_text(encoding="utf-8")
+    assert f"/cliente-a/ws/{valori['DEMO_WS_TOKEN']}" in frammento
+    assert HASH in frammento
+    # Nel frammento la password non c'e': al proxy basta l'hash.
+    assert valori["DEMO_PASSWORD"] not in frammento
+    assert valori["DEMO_DB_PASS"] not in frammento
+    assert f"Password  : {valori['DEMO_PASSWORD']}" in esito.stdout
+    assert "/cliente-a/" in esito.stdout
+
+
+def test_i_file_con_i_segreti_non_sono_leggibili_da_altri_utenti(tmp_path):
+    # Il file .env contiene le password. Il frammento del proxy contiene il
+    # token dello schermo, che per lo schermo vale quanto la password: chi lo
+    # legge comanda la postazione senza credenziali. Su un server che ospita
+    # altro, nessuno dei due deve essere leggibile da un altro utente.
+    # Cartelle gia' presenti con permessi larghi vengono ristrette.
+    (tmp_path / "postazioni").mkdir(mode=0o755)
+    (tmp_path / "proxy").mkdir(mode=0o755)
+    esito = _esegui("crea", "cliente-a", cartella=tmp_path)
+    assert esito.returncode == 0, esito.stderr
+    assert _permessi(tmp_path / "postazioni") == 0o700
+    assert _permessi(tmp_path / "postazioni" / "cliente-a.env") == 0o600
+    # Gruppo in lettura: e' da li' che il proxy legge (vedi il test seguente).
+    assert _permessi(tmp_path / "proxy") == 0o750
+    assert _permessi(tmp_path / "proxy" / "cliente-a.caddy") == 0o640
+
+
+def test_il_proxy_legge_i_frammenti_tramite_il_gruppo(tmp_path):
+    # Il proxy gira senza capability: non puo' scavalcare i permessi dei
+    # file. Legge i frammenti perche' riceve come gruppo supplementare quello
+    # di chi esegue demo.sh, non perche' i frammenti siano leggibili da tutti.
+    proxy = _yaml("compose.proxy.yml")["services"]["proxy"]
+    assert proxy["cap_drop"] == ["ALL"]
+    assert proxy["cap_add"] == ["NET_BIND_SERVICE"]
+    assert proxy["group_add"] == ["${DEMO_GID_FRAMMENTI:?manca DEMO_GID_FRAMMENTI}"]
+
+    _esegui("crea", "cliente-a", cartella=tmp_path)
+    avvii = [r for r in _ambiente_docker(tmp_path)
+             if "-p foliarium-demo-proxy " in r and "up -d" in r]
+    assert avvii, _ambiente_docker(tmp_path)
+    assert all(f" GID={os.getgid()} " in r for r in avvii), avvii
+
+
+@pytest.mark.parametrize("guasto", [PROXY_NON_PARTE, POSTAZIONE_NON_PARTE])
+def test_crea_fallita_non_lascia_nulla(guasto, tmp_path):
+    # Il proxy che non parte e' il guasto piu' probabile al primo «crea»: le
+    # porte 80 e 443 gia' occupate da un altro web server. Una postazione a
+    # meta' non si potrebbe ne' usare ne' ricreare con lo stesso nome.
+    esito = _esegui("crea", "cliente-a", cartella=tmp_path,
+                    ambiente={"FINTO_DOCKER_FALLISCE": guasto})
+    assert esito.returncode == 1
+    assert "creazione di «cliente-a» fallita" in esito.stderr
+    assert "guasto simulato" in esito.stderr      # la causa resta visibile
+    assert "Password" not in esito.stdout
+    assert _file_creati(tmp_path) == []
+    chiamate = _chiamate_docker(tmp_path)
+    giu = _indici(chiamate, "-p foliarium-demo-cliente-a ", "down -v")
+    assert giu, chiamate
+    # Prima va staccata dal proxy, o Docker non puo' eliminarne la rete.
+    stacca = _indici(chiamate, "network disconnect foliarium-demo-cliente-a_default")
+    assert stacca and stacca[0] < giu[0], chiamate
+    # Il nome si puo' riusare subito.
+    assert _esegui("crea", "cliente-a", cartella=tmp_path).returncode == 0
+
+
+def test_crea_fallita_non_tocca_le_altre_postazioni(postazione, tmp_path):
+    # «postazione» contiene gia' cliente-a: il guasto durante la creazione di
+    # un'altra non deve costarle nulla.
+    esito = _esegui("crea", "cliente-b", cartella=postazione,
+                    ambiente={"FINTO_DOCKER_FALLISCE": PROXY_NON_PARTE})
+    assert esito.returncode == 1
+    assert _file_creati(postazione) == ["postazioni/cliente-a.env", "proxy/cliente-a.caddy"]
+    assert (postazione / "postazioni" / "cliente-a.env").read_text(encoding="utf-8") == CONTENUTO_ENV
+    assert not _indici(_chiamate_docker(postazione), "-p foliarium-demo-cliente-a ", "down")
+
+
+# ---------------------------------------------------------------------------
+# ripristina --nuove-credenziali: il passaggio a un altro cliente
+# ---------------------------------------------------------------------------
+
+def test_ripristina_con_nuove_credenziali_cambia_password_e_token(postazione):
+    # Chi ha usato la postazione conosce password e indirizzo dello schermo.
+    # Prima di darla a un altro cliente vanno cambiati entrambi, o il primo
+    # rientra nella sessione del secondo.
+    esito = _esegui("ripristina", "cliente-a", "--nuove-credenziali", cartella=postazione)
+    assert esito.returncode == 0, esito.stderr
+    valori = _valori(postazione / "postazioni" / "cliente-a.env")
+    assert valori["DEMO_NOME"] == "cliente-a"
+    assert re.fullmatch(r"[A-Za-z0-9]{20}", valori["DEMO_PASSWORD"])
+    assert valori["DEMO_PASSWORD"] != "Abc123"
+    assert valori["DEMO_DB_PASS"] != "Xyz789"
+    assert re.fullmatch(r"[a-f0-9]{64}", valori["DEMO_WS_TOKEN"])
+    assert valori["DEMO_WS_TOKEN"] != TOKEN
+    frammento = (postazione / "proxy" / "cliente-a.caddy").read_text(encoding="utf-8")
+    assert f"/cliente-a/ws/{valori['DEMO_WS_TOKEN']}" in frammento
+    assert TOKEN not in frammento
+    assert HASH in frammento
+    assert f"Password  : {valori['DEMO_PASSWORD']}" in esito.stdout
+    assert _permessi(postazione / "postazioni" / "cliente-a.env") == 0o600
+    assert _permessi(postazione / "proxy" / "cliente-a.caddy") == 0o640
+
+    chiamate = _chiamate_docker(postazione)
+    giu = _indici(chiamate, "-p foliarium-demo-cliente-a ", "down -v")
+    su = _indici(chiamate, "-p foliarium-demo-cliente-a ", "up -d")
+    ricarica = _indici(chiamate, "caddy reload")
+    # Dati cancellati, poi ripartenza; e il proxy rilegge la configurazione,
+    # altrimenti continuerebbe ad accettare la password di prima.
+    assert giu and su and ricarica and giu[0] < su[0] < ricarica[-1], chiamate
+
+
+def test_ripristina_rifiuta_un_opzione_sconosciuta(postazione):
+    esito = _esegui("ripristina", "cliente-a", "--nuove-credenzial", cartella=postazione)
+    assert esito.returncode == 2
+    assert not _docker_chiamato(postazione)
+    assert (postazione / "postazioni" / "cliente-a.env").read_text(encoding="utf-8") == CONTENUTO_ENV
+
+
+def test_nuove_credenziali_non_riuscite_lasciano_quelle_di_prima(postazione):
+    # Se l'hash della nuova password non si puo' calcolare, la postazione
+    # deve restare com'era: non spenta, e non con credenziali a meta'.
+    esito = _esegui("ripristina", "cliente-a", "--nuove-credenziali", cartella=postazione,
+                    ambiente={"FINTO_DOCKER_FALLISCE": "*hash-password*"})
+    assert esito.returncode == 1
+    assert (postazione / "postazioni" / "cliente-a.env").read_text(encoding="utf-8") == CONTENUTO_ENV
+    assert (postazione / "proxy" / "cliente-a.caddy").read_text(encoding="utf-8") == "# frammento\n"
+    assert not _indici(_chiamate_docker(postazione), "down -v")
+
+
+def test_la_guida_non_prescrive_di_riusare_le_credenziali_fra_clienti():
+    guida = (DEMO / "README.md").read_text(encoding="utf-8")
+    assert "--nuove-credenziali" in guida
+    assert "fra un cliente e l'altro" not in guida.split("--nuove-credenziali")[0]
+
+
+# ---------------------------------------------------------------------------
+# Limiti di risorse
+# ---------------------------------------------------------------------------
+
+def test_ogni_container_di_una_postazione_ha_limiti_di_memoria_cpu_e_processi():
+    # Le postazioni condividono una macchina: nessuna deve poterla occupare
+    # tutta a danno delle altre, ne' di cio' che il server ospita gia'.
+    servizi = _yaml("compose.postazione.yml")["services"]
+    for nome, servizio in servizi.items():
+        assert "mem_limit" in servizio, nome
+        assert "cpus" in servizio, nome
+        assert isinstance(servizio.get("pids_limit"), int), nome
+        assert servizio["cap_drop"] == ["ALL"], nome
+        assert "no-new-privileges:true" in servizio["security_opt"], nome
+    assert servizi["app"]["cpus"] == "${DEMO_CPU_APP:-2}"
+    assert servizi["db"]["cpus"] == "${DEMO_CPU_DB:-1}"
+
+
+def test_il_database_non_gira_da_root():
+    db = _yaml("compose.postazione.yml")["services"]["db"]
+    assert db["user"] == "postgres"
+
+
+def test_il_proxy_ha_un_limite_di_memoria():
+    assert "mem_limit" in _yaml("compose.proxy.yml")["services"]["proxy"]
+
+
+@pytest.mark.parametrize("processori, atteso_app, atteso_db", [
+    (1, "1", "1"),
+    (2, "2", "1"),
+    (16, "2", "1"),
+])
+def test_il_limite_di_cpu_non_supera_i_processori_della_macchina(
+        processori, atteso_app, atteso_db, postazione):
+    # Docker rifiuta di avviare un container con un limite di CPU superiore
+    # ai processori presenti: su un server piccolo «crea» fallirebbe.
+    esito = _esegui("ripristina", "cliente-a", cartella=postazione, processori=processori)
+    assert esito.returncode == 0, esito.stderr
+    avvii = [r for r in _ambiente_docker(postazione)
+             if "-p foliarium-demo-cliente-a " in r and "up -d" in r]
+    assert avvii and all(
+        r.startswith(f"CPU_APP={atteso_app} CPU_DB={atteso_db} ") for r in avvii), avvii
+
+
+def test_i_limiti_di_cpu_si_cambiano_in_demo_env(postazione):
+    (postazione / "demo.env").write_text("DEMO_CPU_APP=0.5\nDEMO_CPU_DB=0.25\n", encoding="utf-8")
+    esito = _esegui("ripristina", "cliente-a", cartella=postazione, processori=8)
+    assert esito.returncode == 0, esito.stderr
+    avvii = [r for r in _ambiente_docker(postazione)
+             if "-p foliarium-demo-cliente-a " in r and "up -d" in r]
+    assert avvii and all(r.startswith("CPU_APP=0.5 CPU_DB=0.25 ") for r in avvii), avvii
+    esempio = (DEMO / "demo.env.example").read_text(encoding="utf-8")
+    assert "DEMO_CPU_APP" in esempio and "DEMO_CPU_DB" in esempio
+
+
+# ---------------------------------------------------------------------------
+# Guasti che non devono passare inosservati
+# ---------------------------------------------------------------------------
+
+SEGNALE_INIT = "foliarium_init_completato"
+
+
+def test_il_database_e_sano_solo_a_inizializzazione_conclusa():
+    # Se uno script iniziale fallisce, il container del database esce e
+    # viene riavviato; al secondo avvio l'immagine trova la cartella dei dati
+    # gia' presente, salta l'inizializzazione e risponde, con uno schema a
+    # meta' e senza utente «demo». Solo init.sh sa di essere arrivato in
+    # fondo: lascia un segnale, e il controllo di salute lo pretende.
+    db = _yaml("compose.postazione.yml")["services"]["db"]
+    controllo = " ".join(db["healthcheck"]["test"])
+    assert "pg_isready" in controllo
+    assert f'test -f "$$PGDATA/{SEGNALE_INIT}"' in controllo
+    init = (RADICE / "docker" / "postgres" / "init.sh").read_text(encoding="utf-8")
+    righe = [r.strip() for r in init.splitlines() if r.strip() and not r.strip().startswith("#")]
+    # Il segnale si lascia dopo l'ultimo script applicato, non prima.
+    ultima_applicazione = max(i for i, r in enumerate(righe) if r.startswith(("applica ", "applica_tollerante ")))
+    segnale = [i for i, r in enumerate(righe) if SEGNALE_INIT in r and r.startswith("touch ")]
+    assert segnale and segnale[0] > ultima_applicazione, righe[-6:]
+
+
+def test_se_il_ciclo_che_rilancia_il_programma_muore_il_container_esce():
+    # Con il ciclo morto nessuno rilancerebbe piu' Foliarium: la postazione
+    # resterebbe accesa con la scrivania vuota. Uscendo, Docker la riavvia.
+    avvio = (DEMO / "avvio.sh").read_text(encoding="utf-8")
+    attese = [r for r in avvio.splitlines() if r.strip().startswith("wait -n")]
+    assert len(attese) == 1, attese
+    for processo in ("PID_SCHERMO", "PID_FINESTRE", "PID_PONTE", "PID_FILE", "PID_CICLO"):
+        assert f'"${processo}"' in attese[0], processo
+
+
+def test_la_pagina_dello_schermo_non_si_puo_incorniciare():
+    # Una pagina altrui che incornicia la demo potrebbe far cliccare il
+    # cliente, gia' autenticato, su un programma che non vede.
+    caddyfile = (DEMO / "Caddyfile").read_text(encoding="utf-8")
+    assert re.search(r"^\s*X-Frame-Options\s+DENY\s*$", caddyfile, re.M)
+
+
+# Moduli in radice che nell'immagine NON devono esserci, e perche'.
+MODULI_FUORI_DALL_IMMAGINE = {
+    "generate_key.py", "generate_license.py",       # firmano le licenze
+    "setup_database.py", "setup_db.py",             # installazione su Windows
+    "migrate_database.py", "_leggi_config.py",      # manutenzione
+    "run_api.py", "webview_main.py",                # interfaccia web
+}
+
+
+def test_ogni_modulo_in_radice_e_copiato_nell_immagine_o_escluso_di_proposito():
+    # I moduli in radice entrano nell'immagine per elenco. Uno nuovo,
+    # dimenticato, non farebbe fallire la build: mancherebbe al momento
+    # dell'import, magari al clic di un cliente. Chi ne aggiunge uno deve
+    # decidere qui da che parte sta.
+    dockerfile = (DEMO / "Dockerfile").read_text(encoding="utf-8")
+    blocco = re.search(r"WORKDIR /opt/foliarium\nCOPY (.*?) \./\n", dockerfile, re.S)
+    assert blocco, "elenco dei moduli in radice non trovato nel Dockerfile"
+    copiati = set(re.findall(r"[\w]+\.py", blocco.group(1)))
+    in_radice = {p.name for p in RADICE.glob("*.py")}
+    assert copiati & MODULI_FUORI_DALL_IMMAGINE == set()
+    assert in_radice == copiati | MODULI_FUORI_DALL_IMMAGINE, (
+        f"non classificati: {sorted(in_radice - copiati - MODULI_FUORI_DALL_IMMAGINE)}; "
+        f"elencati ma assenti: {sorted((copiati | MODULI_FUORI_DALL_IMMAGINE) - in_radice)}"
+    )
 
 
 # ---------------------------------------------------------------------------

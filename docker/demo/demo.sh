@@ -9,6 +9,10 @@
 #   demo.sh costruisci          costruisce le immagini dai sorgenti
 #   demo.sh crea <nome>         crea una postazione e ne stampa le credenziali
 #   demo.sh ripristina <nome>   la riporta allo stato iniziale
+#   demo.sh ripristina <nome> --nuove-credenziali
+#                               come sopra, ma cambia password e indirizzo
+#                               dello schermo: da usare quando la postazione
+#                               passa a un altro cliente
 #   demo.sh rimuovi <nome>      la elimina con tutti i suoi dati
 #   demo.sh elenco              postazioni esistenti e loro stato
 #
@@ -27,8 +31,11 @@ RADICE_REPO="$(cd "$QUI/../.." && pwd)"
 DATI="${DEMO_CARTELLA_DATI:-$QUI}"
 FILE_CONF="$DATI/demo.env"
 POSTAZIONI="$DATI/postazioni"          # <nome>.env, con le password in chiaro
-# Frammenti di configurazione del proxy: solo hash, mai password. Stanno in
-# una cartella a parte perche' e' l'unica che il container del proxy monta.
+# Frammenti di configurazione del proxy. Stanno in una cartella a parte
+# perche' e' l'unica che il container del proxy monta: delle password
+# contengono solo l'hash. Contengono pero' in chiaro il token dello schermo,
+# che per lo schermo vale quanto la password: nemmeno questa cartella deve
+# essere leggibile da altri utenti della macchina (vedi «prepara_cartelle»).
 CARTELLA_PROXY="${DEMO_CARTELLA_PROXY:-$DATI/proxy}"
 
 # Prefisso dei nomi di progetto e container. Cambiandolo si puo' tenere una
@@ -57,6 +64,9 @@ Uso: demo.sh <comando> [nome]
   costruisci          costruisce le immagini dai sorgenti presenti sul server
   crea <nome>         crea una postazione e ne stampa indirizzo e credenziali
   ripristina <nome>   riporta una postazione allo stato iniziale
+  ripristina <nome> --nuove-credenziali
+                      come sopra, e cambia le credenziali: da usare quando
+                      la postazione passa a un altro cliente
   rimuovi <nome>      elimina una postazione con tutti i suoi dati
   elenco              postazioni esistenti e loro stato
 
@@ -73,11 +83,11 @@ EOF
 # Legge demo.env riga per riga, senza eseguirlo. Una variabile gia' presente
 # nell'ambiente ha la precedenza sul file.
 leggi_configurazione() {
-    local chiave valore
+    local chiave valore processori
     if [ -f "$FILE_CONF" ]; then
         while IFS='=' read -r chiave valore; do
             case "$chiave" in
-                DEMO_DOMINIO|DEMO_PORTA_LOCALE|DEMO_INDIRIZZO_PUBBLICO|PG_MAJOR|DEMO_MEM_APP|DEMO_MEM_DB)
+                DEMO_DOMINIO|DEMO_PORTA_LOCALE|DEMO_INDIRIZZO_PUBBLICO|PG_MAJOR|DEMO_MEM_APP|DEMO_MEM_DB|DEMO_CPU_APP|DEMO_CPU_DB)
                     if [ -z "${!chiave+impostata}" ]; then
                         valore="${valore%$'\r'}"
                         printf -v "$chiave" '%s' "$valore"
@@ -95,6 +105,19 @@ leggi_configurazione() {
     # stretto: un programma ucciso a meta' demo costa piu' della memoria.
     DEMO_MEM_APP="${DEMO_MEM_APP:-1024m}"
     DEMO_MEM_DB="${DEMO_MEM_DB:-512m}"
+    # Limiti di CPU, in numero di processori: una postazione non deve poter
+    # occupare l'intera macchina a danno delle altre e di cio' che il server
+    # ospita gia'. Docker rifiuta di avviare un container con un limite
+    # superiore ai processori presenti: su una macchina con un solo
+    # processore il predefinito del programma scende a 1.
+    processori="$(nproc 2>/dev/null || true)"
+    case "$processori" in
+        ''|*[!0-9]*) processori=1 ;;
+    esac
+    if [ -z "${DEMO_CPU_APP:-}" ]; then
+        if [ "$processori" -ge 2 ]; then DEMO_CPU_APP=2; else DEMO_CPU_APP=1; fi
+    fi
+    DEMO_CPU_DB="${DEMO_CPU_DB:-1}"
 }
 
 # Indirizzo che il cliente digita nel browser, senza barra finale.
@@ -170,6 +193,7 @@ compose_postazione() {
     shift
     DEMO_IMMAGINE_APP="$IMMAGINE_APP" DEMO_IMMAGINE_DB="$IMMAGINE_DB" \
     DEMO_MEM_APP="$DEMO_MEM_APP" DEMO_MEM_DB="$DEMO_MEM_DB" \
+    DEMO_CPU_APP="$DEMO_CPU_APP" DEMO_CPU_DB="$DEMO_CPU_DB" \
     DEMO_SALTA_EULA="${DEMO_SALTA_EULA:-}" \
         docker compose -p "$(progetto "$nome")" \
             --env-file "$POSTAZIONI/$nome.env" \
@@ -187,9 +211,24 @@ compose_proxy() {
     fi
     DEMO_SITO="$sito" DEMO_CONTAINER_PROXY="$CONTAINER_PROXY" \
     DEMO_CARTELLA_PROXY="$CARTELLA_PROXY" DEMO_PORTA_LOCALE="$DEMO_PORTA_LOCALE" \
-    DEMO_IMMAGINE_PROXY="$IMMAGINE_PROXY" \
+    DEMO_IMMAGINE_PROXY="$IMMAGINE_PROXY" DEMO_GID_FRAMMENTI="$(id -g)" \
         docker compose -p "$PREFISSO-proxy" \
             -f "$QUI/compose.proxy.yml" -f "$modalita" "$@"
+}
+
+# Crea le due cartelle dei dati e ne restringe i permessi, anche se
+# esistevano gia' con permessi piu' larghi.
+#
+#   postazioni/  solo chi gestisce la demo: contiene le password.
+#   proxy/       anche il gruppo, in sola lettura: e' da li' che legge il
+#                proxy, che gira senza capability e quindi non puo'
+#                scavalcare i permessi dei file. Riceve come gruppo
+#                supplementare quello di chi esegue questo script
+#                (DEMO_GID_FRAMMENTI, in compose.proxy.yml).
+prepara_cartelle() {
+    mkdir -p "$POSTAZIONI" "$CARTELLA_PROXY" || return 1
+    chmod 700 "$POSTAZIONI" || return 1
+    chmod 750 "$CARTELLA_PROXY" || return 1
 }
 
 # Avvia il proxy (se non c'e') e lo collega alla rete di OGNI postazione.
@@ -199,10 +238,13 @@ compose_proxy() {
 # con «docker network connect» si perdono quando il container viene
 # ricreato: per questo si rifanno qui ogni volta, per tutte, e non solo per
 # la postazione appena creata.
+#
+# Ogni guasto esce con «return», mai lasciando terminare lo script da
+# «set -e»: chi chiama deve poter rimediare (vedi cmd_crea).
 _proxy_su() {
     local file nome rete
-    mkdir -p "$CARTELLA_PROXY"
-    silenzioso compose_proxy up -d "$@"
+    prepara_cartelle || return 1
+    silenzioso compose_proxy up -d "$@" || return 1
     for file in "$POSTAZIONI"/*.env; do
         [ -e "$file" ] || continue
         nome="$(basename "$file" .env)"
@@ -339,8 +381,64 @@ attendi_postazione() {
     return 1
 }
 
+# Genera le credenziali di una postazione nelle variabili CRED_*. Non
+# scrive nulla: se il calcolo dell'hash fallisce lo script termina qui, e
+# cio' che esisteva resta com'era.
+prepara_credenziali() {
+    CRED_PASSWORD="$(genera_segreto 20 'A-Za-z0-9')"
+    CRED_PASSWORD_DB="$(genera_segreto 24 'A-Za-z0-9')"
+    CRED_TOKEN="$(genera_segreto 64 'a-f0-9')"
+    CRED_HASH="$(hash_password "$CRED_PASSWORD")"
+}
+
+# scrivi_postazione <nome>: il file .env (password in chiaro) e il frammento
+# del proxy, dalle variabili CRED_*.
+#
+# Si scrive su file provvisori e poi si rinomina: un file gia' esistente
+# conserverebbe i suoi permessi, uno nuovo prende quelli voluti. I nomi
+# provvisori non corrispondono ne' a «*.env» ne' a «*.caddy».
+scrivi_postazione() {
+    local nome="$1" env_nuovo frammento_nuovo
+    prepara_cartelle || return 1
+    env_nuovo="$POSTAZIONI/.$nome.env.nuovo"
+    frammento_nuovo="$CARTELLA_PROXY/.$nome.caddy.nuovo"
+    if ! (
+        umask 077
+        cat > "$env_nuovo" <<EOF
+# Postazione «$nome» — generato da demo.sh. Contiene password in chiaro.
+DEMO_NOME=$nome
+DEMO_PASSWORD=$CRED_PASSWORD
+DEMO_DB_PASS=$CRED_PASSWORD_DB
+DEMO_WS_TOKEN=$CRED_TOKEN
+EOF
+    ) || ! (
+        # Lettura al gruppo, nulla agli altri: vedi «prepara_cartelle».
+        umask 027
+        frammento "$nome" "$CRED_HASH" "$CRED_TOKEN" > "$frammento_nuovo"
+    ) || ! mv -f "$env_nuovo" "$POSTAZIONI/$nome.env" \
+      || ! mv -f "$frammento_nuovo" "$CARTELLA_PROXY/$nome.caddy"; then
+        rm -f "$env_nuovo" "$frammento_nuovo"
+        return 1
+    fi
+}
+
+# stampa_credenziali <nome> <intestazione>
+stampa_credenziali() {
+    cat <<EOF
+
+$2
+
+  Indirizzo : $(indirizzo_base)/$1/
+  Utente    : demo
+  Password  : $CRED_PASSWORD
+
+Le stesse credenziali valgono nel login di Foliarium.
+File esportati: $(indirizzo_base)/$1/file/
+EOF
+}
+
 cmd_crea() {
-    local nome="${1-}" password password_db token hash
+    local nome="${1-}"
     valida_nome "$nome"
     if esiste "$nome"; then
         errore "la postazione «$nome» esiste gia'."
@@ -349,54 +447,31 @@ cmd_crea() {
     richiedi_docker
     leggi_configurazione
     richiedi_immagini
+    prepara_credenziali
 
-    password="$(genera_segreto 20 'A-Za-z0-9')"
-    password_db="$(genera_segreto 24 'A-Za-z0-9')"
-    token="$(genera_segreto 64 'a-f0-9')"
-    hash="$(hash_password "$password")"
-
-    mkdir -p "$POSTAZIONI" "$CARTELLA_PROXY"
     # Se qualcosa va storto si toglie tutto: una postazione a meta' non si
-    # potrebbe ne' usare ne' ricreare con lo stesso nome.
-    trap 'annulla_creazione "$nome"' ERR
-    (
-        umask 077
-        cat > "$POSTAZIONI/$nome.env" <<EOF
-# Postazione «$nome» — generato da demo.sh. Contiene password in chiaro.
-DEMO_NOME=$nome
-DEMO_PASSWORD=$password
-DEMO_DB_PASS=$password_db
-DEMO_WS_TOKEN=$token
-EOF
-    )
-    frammento "$nome" "$hash" "$token" > "$CARTELLA_PROXY/$nome.caddy"
-
-    silenzioso compose_postazione "$nome" up -d
-    _proxy_su
-    trap - ERR
+    # potrebbe ne' usare ne' ricreare con lo stesso nome. Ogni passo e'
+    # controllato qui, uno per uno: una «trap ERR» non scatterebbe per un
+    # guasto dentro una funzione chiamata (senza «set -E» non vi e'
+    # ereditata), e il proxy che non parte perche' le porte sono occupate e'
+    # proprio il guasto piu' probabile al primo avvio.
+    scrivi_postazione "$nome" || annulla_creazione "$nome"
+    silenzioso compose_postazione "$nome" up -d || annulla_creazione "$nome"
+    _proxy_su || annulla_creazione "$nome"
 
     if ! attendi_postazione "$nome"; then
         errore "la postazione «$nome» e' stata creata ma non risulta ancora pronta:" \
                "controllare con «demo.sh elenco» e «docker logs $(progetto "$nome")-app-1»."
     fi
-
-    cat <<EOF
-
-Postazione «$nome» creata.
-
-  Indirizzo : $(indirizzo_base)/$nome/
-  Utente    : demo
-  Password  : $password
-
-Le stesse credenziali valgono nel login di Foliarium.
-File esportati: $(indirizzo_base)/$nome/file/
-EOF
+    stampa_credenziali "$nome" "Postazione «$nome» creata."
 }
 
 annulla_creazione() {
     local nome="$1"
-    trap - ERR
     errore "creazione di «$nome» fallita: tolgo cio' che era stato preparato."
+    # Come in «ferma_e_svuota»: staccata dal proxy, o la rete non si elimina.
+    docker network disconnect "$(progetto "$nome")_default" "$CONTAINER_PROXY" \
+        >/dev/null 2>&1 || true
     compose_postazione "$nome" down -v >/dev/null 2>&1 || true
     rm -f "$POSTAZIONI/$nome.env" "$CARTELLA_PROXY/$nome.caddy"
     exit 1
@@ -446,23 +521,55 @@ ferma_e_svuota() {
 }
 
 cmd_ripristina() {
-    local nome="${1-}"
+    local nome="${1-}" opzione="${2-}" nuove=0
     valida_nome "$nome"
     richiedi_esistente "$nome"
+    case "$opzione" in
+        "") ;;
+        --nuove-credenziali) nuove=1 ;;
+        *)
+            errore "opzione non riconosciuta: «$opzione»." \
+                   "L'unica ammessa e' --nuove-credenziali."
+            exit "$ERR_USO"
+            ;;
+    esac
     richiedi_docker
     leggi_configurazione
     richiedi_immagini
 
+    # Le credenziali nuove si preparano PRIMA di fermare la postazione: se
+    # il calcolo dell'hash fallisce, resta tutto com'era.
+    if [ "$nuove" = 1 ]; then
+        prepara_credenziali
+    fi
+
     ferma_e_svuota "$nome"
-    # Stesso file .env: credenziali e token non cambiano, e non cambia
-    # nemmeno il frammento del proxy.
+    if [ "$nuove" = 1 ]; then
+        # Password e token nuovi. Chi ha usato la postazione li conosce
+        # entrambi, e il token da solo basta per lo schermo: senza cambiarli,
+        # rientrerebbe nella sessione di chi viene dopo.
+        if ! scrivi_postazione "$nome"; then
+            errore "impossibile scrivere le nuove credenziali di «$nome»:" \
+                   "la postazione e' ferma. Ripetere il comando."
+            exit 1
+        fi
+    fi
+    # Senza l'opzione il file .env e il frammento del proxy restano quelli:
+    # credenziali e token non cambiano.
     silenzioso compose_postazione "$nome" up -d
+    # Il proxy rilegge i frammenti: e' qui che smette di accettare le
+    # credenziali di prima.
     _proxy_su
     if ! attendi_postazione "$nome"; then
         errore "la postazione «$nome» e' stata ripristinata ma non risulta ancora pronta:" \
                "controllare con «demo.sh elenco»."
     fi
-    echo "Postazione «$nome» ripristinata: archivio dimostrativo iniziale, stesse credenziali."
+    if [ "$nuove" = 1 ]; then
+        stampa_credenziali "$nome" \
+            "Postazione «$nome» ripristinata con credenziali nuove: quelle di prima non valgono piu'."
+    else
+        echo "Postazione «$nome» ripristinata: archivio dimostrativo iniziale, stesse credenziali."
+    fi
 }
 
 cmd_rimuovi() {
