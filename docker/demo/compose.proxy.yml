@@ -1,0 +1,45 @@
+# Proxy della demo: l'unico container raggiungibile dall'esterno.
+#
+# Termina HTTPS, chiede le credenziali e instrada verso le postazioni.
+# Non si usa direttamente: lo avvia docker/demo/demo.sh insieme a uno dei due
+# file che decidono quali porte pubblicare:
+#   compose.proxy.pubblico.yml   dominio dedicato, porte 80 e 443
+#   compose.proxy.locale.yml     dietro un web server gia' presente
+
+services:
+  proxy:
+    image: ${DEMO_IMMAGINE_PROXY:-caddy:2-alpine}
+    container_name: ${DEMO_CONTAINER_PROXY:?manca DEMO_CONTAINER_PROXY}
+    restart: unless-stopped
+    environment:
+      # Il dominio (HTTPS automatico) oppure «http://:8080».
+      DEMO_SITO: ${DEMO_SITO:?manca DEMO_SITO}
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      # Un frammento per postazione. Delle password contiene solo l'hash
+      # (la cartella con le password in chiaro qui non viene montata), ma
+      # contiene in chiaro il token dello schermo: sull'host non e'
+      # leggibile da tutti, e il proxy la legge grazie a «group_add».
+      - ${DEMO_CARTELLA_PROXY:?manca DEMO_CARTELLA_PROXY}:/etc/caddy/postazioni:ro
+      # Certificati e stato di Caddy: devono sopravvivere ai riavvii, o a
+      # ogni ricreazione verrebbe chiesto un certificato nuovo.
+      - caddy_dati:/data
+      - caddy_conf:/config
+    cap_drop:
+      - ALL
+    cap_add:
+      - NET_BIND_SERVICE
+    # Senza capability il proxy, pur essendo root nel container, non puo'
+    # scavalcare i permessi dei file. I frammenti sono leggibili solo dal
+    # proprietario e dal suo gruppo: il proxy riceve quel gruppo. Lo fornisce
+    # demo.sh («id -g» di chi lo esegue).
+    group_add:
+      - "${DEMO_GID_FRAMMENTI:?manca DEMO_GID_FRAMMENTI}"
+    security_opt:
+      - no-new-privileges:true
+    # A riposo occupa una quindicina di MB: il limite e' un argine.
+    mem_limit: 512m
+
+volumes:
+  caddy_dati:
+  caddy_conf:

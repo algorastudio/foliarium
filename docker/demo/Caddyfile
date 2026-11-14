@@ -1,0 +1,26 @@
+# Proxy della demo di Foliarium.
+#
+# DEMO_SITO e' il dominio (Caddy ottiene da solo il certificato) oppure
+# «http://:8080» quando HTTPS lo termina un web server gia' presente.
+#
+# Le regole di ogni postazione stanno in un frammento generato da demo.sh
+# (vedi la funzione «frammento»). Cio' che non appartiene a una postazione
+# riceve 404.
+
+{$DEMO_SITO} {
+	header {
+		# La demo non deve comparire nei motori di ricerca.
+		X-Robots-Tag "noindex, nofollow"
+		X-Content-Type-Options nosniff
+		# Nessuna pagina altrui puo' incorniciare la demo.
+		X-Frame-Options DENY
+		Referrer-Policy no-referrer
+		-Server
+	}
+
+	import /etc/caddy/postazioni/*.caddy
+
+	handle {
+		respond "Pagina non trovata." 404
+	}
+}

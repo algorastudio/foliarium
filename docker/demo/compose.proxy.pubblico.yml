@@ -1,0 +1,8 @@
+# Dominio dedicato: il proxy ottiene e rinnova da solo i certificati.
+# Servono le porte 80 e 443 libere e un nome DNS che punti al server.
+services:
+  proxy:
+    ports:
+      - "80:80"
+      - "443:443"
+      - "443:443/udp"
