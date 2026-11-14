@@ -671,6 +671,8 @@ tests/
 │                                       # pagina dei file, anteprima PDF, esempi di import
 └── integration/                   # Integration tests (pytest -m integration)
     ├── test_e2e.py                     # E2E DB layer (richiede Postgres live)
+    ├── test_funzioni_civico.py         # funzioni SQL che leggono il civico dell'immobile,
+    │                                   # su un DB creato dagli script dell'installer; migrazione 24
     ├── test_gui_smoke.py               # smoke widget GUI via pytest-qt
     ├── test_gui_widgets.py
     ├── test_schema_database_nuovo.py   # SQL_SCRIPTS su un database vuoto, con la

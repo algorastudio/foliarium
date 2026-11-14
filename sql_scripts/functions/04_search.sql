@@ -779,8 +779,10 @@ BEGIN
         p.numero_partita,
         c.nome AS comune_nome,
         l.nome AS localita_nome,
-        l.civico AS civico,
-        tl.nome AS localita_tipo,
+        -- Dalla v1.7.0 il civico sta in immobile e il tipo di localita' in
+        -- localita.tipologia_stradale (le colonne civico e tipo_id non esistono).
+        i.numero_civico AS civico,
+        l.tipologia_stradale AS localita_tipo,
         i.natura,
         i.classificazione,
         i.consistenza,
@@ -798,8 +800,6 @@ BEGIN
         catasto.comune c ON p.comune_id = c.id
     JOIN
         catasto.localita l ON i.localita_id = l.id
-    LEFT JOIN
-        catasto.tipo_localita tl ON l.tipo_id = tl.id
     LEFT JOIN
         catasto.partita_possessore pp_filter ON p.id = pp_filter.partita_id AND p_nome_possessore_search IS NOT NULL
     LEFT JOIN

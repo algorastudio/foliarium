@@ -562,11 +562,13 @@ BEGIN
         ORDER BY pos.nome_completo
     ) AS poss_data;
 
-    -- Immobili
+    -- Immobili. Dalla v1.7.0 il civico sta in immobile.numero_civico, non in
+    -- localita: la chiave del JSON resta «civico».
     SELECT jsonb_agg(to_jsonb(imm_data))
     INTO v_immobili
     FROM (
-        SELECT i.id, i.natura, l.nome as localita_nome, i.classificazione, i.consistenza, l.civico
+        SELECT i.id, i.natura, l.nome as localita_nome, i.classificazione, i.consistenza,
+               i.numero_civico AS civico
         FROM catasto.immobile i
         JOIN catasto.localita l ON i.localita_id = l.id
         WHERE i.partita_id = p_partita_id

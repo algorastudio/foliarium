@@ -94,6 +94,7 @@ Script da applicare **solo su DB già popolati** che aggiornano da versioni prec
 | `migrations/06_migrate_civico_to_nome.sql` | Concatena `civico` nel `nome` di `localita` | DB v ≤ 1.6.0 |
 | `migrations/10_migrate_drop_tipo_id.sql` | Rimuove `tipo_id` da `localita` | DB v ≤ 1.6.0 |
 | `migrations/11_migrate_civico_to_immobile.sql` | Sposta civico da `localita.nome` a `immobile.numero_civico` | DB v ≤ 1.6.9 |
+| `migrations/24_fix_funzioni_civico.sql` | Sostituisce `esporta_partita_json`, `genera_report_proprieta` e `ricerca_avanzata_immobili`, che leggevano `localita.civico` e `localita.tipo_id` e fallivano a ogni chiamata. Per il report supera la 20 | Ogni DB creato prima della correzione, con qualunque script. Quelli dell'installer Windows si riparano anche reinstallando |
 | `migrations/add_soft_delete.sql` | Aggiunge colonne soft-delete | DB ante v1.0.0 |
 | `migrations/add_tipo_possesso.sql` | Crea lookup `tipo_possesso` | DB ante v1.0.0 |
 | `migrations/add_sessioni_accesso.sql` | Crea tabella `sessioni_accesso` | DB ante v1.0.0 |
