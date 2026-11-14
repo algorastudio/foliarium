@@ -250,19 +250,97 @@ def run_psql(pg_bin: Path, port: int, sql: str,
 
 def run_psql_file(pg_bin: Path, port: int, sql_file: Path,
                   dbname: str = "postgres", password: str = "",
-                  variables: dict | None = None) -> None:
-    """Esegue un file SQL tramite psql, opzionalmente con variabili -v."""
+                  variables: dict | None = None, strict: bool = True) -> int:
+    """
+    Esegue un file SQL tramite psql, opzionalmente con variabili -v.
+
+    strict=True   psql si ferma al primo errore (ON_ERROR_STOP) e viene
+                  sollevata CalledProcessError. E' il modo giusto su un
+                  database nuovo, dove qualunque errore e' un difetto.
+    strict=False  psql prosegue oltre gli errori. Serve quando gli script
+                  vengono riapplicati a un database che esiste gia'.
+
+    In entrambi i casi i messaggi di errore finiscono nel log. Prima
+    l'output di psql veniva catturato e scartato: un'istruzione fallita non
+    lasciava traccia, ed e' cosi' che per anni la chiave esterna
+    audit_log -> utente non e' stata creata senza che nessuno lo sapesse.
+
+    Ritorna il numero di errori incontrati (sempre 0 se strict).
+    """
     env = os.environ.copy()
     env["PGPASSWORD"] = password
+    # Su stderr devono arrivare i soli errori: NOTICE e WARNING lo
+    # riempirebbero di «already exists, skipping». Cosi' inoltre gli errori
+    # si contano senza interpretarne il testo, che cambia con la lingua del
+    # server (ERROR, ERRORE, ...). Le opzioni gia' impostate restano.
+    env["PGOPTIONS"] = f"{env.get('PGOPTIONS', '')} -c client_min_messages=error".strip()
+
     cmd = [exe(pg_bin, "psql"), "-h", "127.0.0.1", "-p", str(port),
            "-U", "postgres", "-d", dbname]
+    if strict:
+        cmd += ["-v", "ON_ERROR_STOP=1"]
     for k, v in (variables or {}).items():
         # psql -v admin_password=valore  → variabile letterale "valore",
         # poi :'admin_password' nel file aggiunge le virgolette per il SQL.
         # NB: NON usare repr() qui, altrimenti la quotatura diventa doppia.
         cmd += ["-v", f"{k}={v}"]
     cmd += ["-f", str(sql_file)]
-    run(cmd, env=env, capture_output=True)
+
+    log(f"$ {' '.join(str(c) for c in cmd)}")
+    r = subprocess.run(cmd, env=env, capture_output=True, text=True,
+                       encoding="utf-8", errors="replace")
+
+    righe = [riga for riga in (r.stderr or "").splitlines() if riga.strip()]
+    for riga in righe:
+        # log() oscura le password registrate: un errore puo' riportare
+        # l'istruzione fallita, e con essa il valore di una variabile.
+        log(f"    {riga}")
+
+    if r.returncode != 0:
+        raise subprocess.CalledProcessError(r.returncode, cmd, r.stdout, r.stderr)
+
+    # Con -f ogni messaggio comincia con «psql:<file>:<riga>:»; le righe di
+    # contesto che lo seguono (LINE, DETAIL, HINT) no.
+    return sum(1 for riga in righe if riga.startswith("psql:"))
+
+
+def apply_sql_scripts(pg_bin: Path, port: int, sql_dir: Path,
+                      dbname: str, password: str, database_nuovo: bool) -> None:
+    """
+    Applica SQL_SCRIPTS, in ordine, al database indicato.
+
+    Database appena creato: modalita' rigorosa. L'elenco deve applicarsi
+    senza errori (lo verifica tests/integration/test_schema_database_nuovo.py)
+    e un errore significa schema incompleto: meglio un setup fallito con la
+    causa nel log che un archivio a cui manca un vincolo.
+
+    Database gia' esistente: e' una reinstallazione, o un aggiornamento,
+    sopra l'archivio del cliente. Gli script non sono idempotenti (CREATE
+    TABLE, CREATE INDEX e CREATE TRIGGER senza IF NOT EXISTS) e producono
+    decine di «already exists» innocui: fermarsi al primo renderebbe
+    impossibile reinstallare. Li' si prosegue, ma gli errori vengono
+    scritti nel log e contati.
+
+    Nota: se un setup rigoroso fallisce a meta', il database resta. Un
+    secondo tentativo lo trova e lo tratta come esistente.
+    """
+    if not database_nuovo:
+        log("Database gia' esistente: gli script vengono riapplicati sopra lo")
+        log("schema presente. Gli errori «already exists» sono attesi e non")
+        log("fermano il setup; sono riportati qui sotto, script per script.")
+
+    tollerati = 0
+    for script_name in SQL_SCRIPTS:
+        sql_file = sql_dir / script_name
+        if sql_file.exists():
+            log(f"→ {script_name}")
+            tollerati += run_psql_file(pg_bin, port, sql_file, dbname=dbname,
+                                       password=password, strict=database_nuovo)
+        else:
+            log(f"ATTENZIONE: {script_name} non trovato, saltato.")
+
+    if tollerati:
+        log(f"Errori SQL non bloccanti durante la riapplicazione: {tollerati}.")
 
 
 # ============================================================================
@@ -517,7 +595,8 @@ def _setup_on_external_pg(
                        "-U", "postgres", "-d", "postgres",
                        "-tc", f"SELECT 1 FROM pg_database WHERE datname='{db_name}'"],
                       env=env)
-        if "1" not in r.stdout:
+        database_nuovo = "1" not in r.stdout
+        if database_nuovo:
             run_psql(pg_bin, port,
                      f"CREATE DATABASE {db_name} OWNER postgres ENCODING 'UTF8';",
                      password=postgres_password)
@@ -536,14 +615,8 @@ def _setup_on_external_pg(
 
     print("\n[2/4] Esecuzione script SQL...")
     try:
-        for script_name in SQL_SCRIPTS:
-            sql_file = sql_dir / script_name
-            if sql_file.exists():
-                log(f"→ {script_name}")
-                run_psql_file(pg_bin, port, sql_file,
-                              dbname=db_name, password=postgres_password)
-            else:
-                log(f"ATTENZIONE: {script_name} non trovato, saltato.")
+        apply_sql_scripts(pg_bin, port, sql_dir, db_name, postgres_password,
+                          database_nuovo=database_nuovo)
 
         bootstrap_file = sql_dir / BOOTSTRAP_ADMIN_SCRIPT
         if bootstrap_file.exists():
@@ -589,6 +662,7 @@ def _setup_on_external_pg(
 
     except subprocess.CalledProcessError as e:
         log(f"ERRORE nell'esecuzione degli script SQL: {e}")
+        log("Il messaggio di PostgreSQL e' riportato qui sopra.")
         return False
 
     print("\n[3/4] Scrittura config.ini...")
@@ -872,10 +946,14 @@ def setup(
                        "-tc", f"SELECT 1 FROM pg_database WHERE datname='{db_name}'"],
                       env=env)
 
-        if "1" not in r.stdout:
+        database_nuovo = "1" not in r.stdout
+        if database_nuovo:
             run_psql(pg_bin, port,
                      f"CREATE DATABASE {db_name} OWNER postgres ENCODING 'UTF8';",
                      password=db_password)
+            log(f"Database '{db_name}' creato.")
+        else:
+            log(f"Database '{db_name}' già esistente.")
 
         run_psql(pg_bin, port,
                  f"GRANT CONNECT ON DATABASE {db_name} TO {db_user};",
@@ -883,14 +961,8 @@ def setup(
 
         # --- 7. Script SQL ---
         print("\n[6/8] Esecuzione script SQL (schema, funzioni, feature)...")
-        for script_name in SQL_SCRIPTS:
-            sql_file = sql_dir / script_name
-            if sql_file.exists():
-                log(f"→ {script_name}")
-                run_psql_file(pg_bin, port, sql_file,
-                              dbname=db_name, password=db_password)
-            else:
-                log(f"ATTENZIONE: {script_name} non trovato, saltato.")
+        apply_sql_scripts(pg_bin, port, sql_dir, db_name, db_password,
+                          database_nuovo=database_nuovo)
 
         # Bootstrap admin: passa admin_password come variabile psql.
         # CRITICO per fresh install: senza questo non si puo' accedere al primo avvio.
@@ -938,6 +1010,14 @@ def setup(
                  "LOOP EXECUTE 'ALTER MATERIALIZED VIEW catasto.' || quote_ident(r.matviewname) "
                  f"|| ' OWNER TO {db_user}'; END LOOP; END $$;",
                  dbname=db_name, password=db_password)
+
+    except subprocess.CalledProcessError as e:
+        # Senza questo ramo l'eccezione arrivava a main() come traceback su
+        # una console che l'installer tiene nascosta, e nel log non restava
+        # nulla dopo l'ultimo comando.
+        log(f"ERRORE nella creazione del database: {e}")
+        log("Il messaggio di PostgreSQL, se presente, e' riportato qui sopra.")
+        return False
 
     finally:
         # Ferma il server temporaneo
