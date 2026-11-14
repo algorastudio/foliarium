@@ -21,6 +21,8 @@ from typing import List, Optional
 import psycopg2
 import psycopg2.extras
 
+from catasto_exceptions import DBMError
+
 
 _logger = logging.getLogger("CatastoGUI.db.api_keys")
 
@@ -131,6 +133,12 @@ class DBApiKeysMixin:
             None se la chiave è invalida, scaduta o revocata. Altrimenti:
             ``{id, name, prefix, scopes, created_by, created_by_username,
                rate_limit_per_min}``.
+
+        Raises:
+            DBMError: se la connessione o la query falliscono, con l'errore
+                psycopg2 incatenato come ``__cause__``. Non si restituisce
+                ``None`` in questo caso: l'API lo tradurrebbe in 401 e il
+                client MCP inviterebbe a rigenerare una chiave valida.
         """
         if not plaintext or not plaintext.startswith(_KEY_PREFIX):
             return None
@@ -177,8 +185,8 @@ class DBApiKeysMixin:
                 "rate_limit_per_min": row["rate_limit_per_min"],
             }
         except psycopg2.Error as e:
-            _logger.warning("validate_api_key: errore DB (%s)", e)
-            return None
+            _logger.error("validate_api_key: errore DB (%s)", e)
+            raise DBMError(f"Verifica della chiave API non riuscita: {e}") from e
 
 
 __all__ = ["DBApiKeysMixin"]

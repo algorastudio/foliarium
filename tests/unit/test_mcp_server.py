@@ -98,6 +98,20 @@ class TestClientErrorMapping:
                 client._get("/api/v1/partite/9999")
             assert ei.value.status == 404
 
+    def test_503_punta_al_database_non_alla_chiave(self, client):
+        from mcp_server.client import FoliariumApiError
+        with patch.object(client._client, "get",
+                          return_value=self._resp(
+                              503, {"detail": "Database non disponibile"})):
+            with pytest.raises(FoliariumApiError) as ei:
+                client._get("/api/v1/comuni")
+        msg = str(ei.value)
+        assert ei.value.status == 503
+        assert "database" in msg.lower()
+        # La chiave è valida: niente invito a rigenerarla.
+        assert "Gestione Chiavi API" not in msg
+        assert "non valida" not in msg
+
     def test_500_includes_log_hint(self, client):
         from mcp_server.client import FoliariumApiError
         with patch.object(client._client, "get",

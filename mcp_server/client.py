@@ -314,6 +314,18 @@ def _decode(response: httpx.Response, *, path: str) -> Any:
             f"in Impostazioni → Gestione Chiavi API… di Foliarium.",
             status=429, detail=_safe_detail(response),
         )
+    if response.status_code == 503:
+        # L'API risponde 503 solo quando il database non è raggiungibile:
+        # la chiave può essere valida, quindi niente invito a rigenerarla.
+        raise FoliariumApiError(
+            "Il database di Foliarium non è raggiungibile (503): la "
+            "richiesta non è stata eseguita. La chiave API non c'entra e non "
+            "va rigenerata. Verificare che il server PostgreSQL sia in "
+            "esecuzione e raggiungibile dal PC dove gira Foliarium, poi "
+            "riprovare. Se il problema persiste, esportare i log dell'app "
+            "desktop (Help → Esporta log per supporto).",
+            status=503, detail=_safe_detail(response),
+        )
     if response.status_code >= 500:
         raise FoliariumApiError(
             f"Errore server Foliarium ({response.status_code}) su {path}. "

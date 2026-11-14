@@ -415,7 +415,7 @@ Always use the full three-part path `Module.EnumClass.Value`.
   - `get_current_session` (storica) accetta entrambi i metodi. Per scope-check granulare: `Depends(require_scope("read:partite"))`.
 - **Gestione chiavi API** (mixin `db/api_keys.py`):
   - `create_api_key(name, scopes, created_by, expires_at=None, rate_limit_per_min=60) -> (id, plaintext)` — il plaintext (`flr_<32 hex>`) è restituito una sola volta; in DB si memorizza solo lo SHA-256 + prefix.
-  - `validate_api_key(plaintext) -> Optional[dict]` — verifica hash, scadenza, revoca; aggiorna `last_used_at`.
+  - `validate_api_key(plaintext) -> Optional[dict]` — verifica hash, scadenza, revoca; aggiorna `last_used_at`. `None` **solo** per chiave inesistente, revocata o scaduta (→ 401); un errore di connessione o di query si propaga come `DBMError` (causa psycopg2 incatenata) e `get_current_session` risponde **503** `api.deps.DB_NON_DISPONIBILE`. Con un 401 il client MCP inviterebbe a rigenerare una chiave valida. `_principal_from_api_key` passa da `get_db()` perché le route risolvono la sessione prima del database.
   - `list_api_keys(include_revoked=False)`, `revoke_api_key(id)`.
 - **Admin UI** (`foliarium/ui/dialogs/admin/api_keys.py`): voce **Impostazioni → Gestione Chiavi API…** (solo admin) apre `ApiKeysDialog` (tabella chiavi con stati Attiva/Revocata/Scaduta), `CreateApiKeyDialog` (form con scope checkbox + scadenza opzionale), `NewKeyResultDialog` (mostra il plaintext una sola volta con bottone "Copia"). Slot in `gui_main.MainWindow._apri_gestione_api_keys` con guard ruolo admin.
 
