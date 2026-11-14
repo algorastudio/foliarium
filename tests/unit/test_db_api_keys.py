@@ -195,6 +195,85 @@ class TestValidateApiKey:
         )
 
 
+class TestValidateApiKeyErroriDatabase:
+    """Un errore del database non è una chiave non valida.
+
+    ``None`` significa "chiave inesistente, revocata o scaduta" e l'API lo
+    traduce in 401. Se anche un database irraggiungibile restituisse None,
+    ogni integrazione riceverebbe 401 e il client MCP suggerirebbe di
+    rigenerare una chiave che è valida.
+    """
+
+    _CHIAVE = "flr_" + "a" * 32
+
+    def test_connessione_fallita_solleva_dbmerror_con_causa(self, mgr):
+        import psycopg2
+        from catasto_exceptions import DBMError
+
+        causa = psycopg2.OperationalError(
+            "server does not support SSL, but SSL was required"
+        )
+        with patch.object(mgr, "_get_connection", side_effect=causa):
+            with pytest.raises(DBMError) as ei:
+                mgr.validate_api_key(self._CHIAVE)
+        assert ei.value.__cause__ is causa
+
+    def test_query_fallita_solleva_dbmerror_con_causa(self, mgr):
+        import psycopg2
+        from catasto_exceptions import DBMError
+
+        conn_cm, cur = _make_conn()
+        causa = psycopg2.ProgrammingError(
+            'relation "catasto.api_keys" does not exist'
+        )
+        cur.execute.side_effect = causa
+        with patch.object(mgr, "_get_connection", return_value=conn_cm):
+            with pytest.raises(DBMError) as ei:
+                mgr.validate_api_key(self._CHIAVE)
+        assert ei.value.__cause__ is causa
+
+    def test_pool_non_inizializzato_solleva_dbmerror(self, mgr):
+        """Percorso reale di _get_connection, senza patch: api/main.py
+        registra il manager anche quando il pool non è partito."""
+        import psycopg2
+        from catasto_exceptions import DBMError
+
+        mgr.pool = None
+        mgr._pool_metrics = {
+            "total_getconn": 0, "total_putconn": 0, "connection_errors": 0,
+            "peak_active": 0, "last_error_time": None,
+        }
+        with pytest.raises(DBMError) as ei:
+            mgr.validate_api_key(self._CHIAVE)
+        assert isinstance(ei.value.__cause__, psycopg2.OperationalError)
+
+    def test_connessione_persa_a_meta_solleva_dbmerror(self, mgr):
+        """Il server chiude la connessione: _get_connection chiude il pool.
+        È la prima richiesta dopo la caduta del database."""
+        import psycopg2
+        from catasto_exceptions import DBMError
+
+        conn_cm, cur = _make_conn()
+        conn = conn_cm.__enter__.return_value
+        cur.execute.side_effect = psycopg2.OperationalError(
+            "SSL connection has been closed unexpectedly"
+        )
+        conn.rollback.side_effect = psycopg2.InterfaceError(
+            "connection already closed"
+        )
+        pool = MagicMock()
+        pool.getconn.return_value = conn
+        mgr.pool = pool
+        mgr.application_name = "test"
+        mgr._pool_metrics = {
+            "total_getconn": 0, "total_putconn": 0, "connection_errors": 0,
+            "peak_active": 0, "last_error_time": None,
+        }
+        with pytest.raises(DBMError) as ei:
+            mgr.validate_api_key(self._CHIAVE)
+        assert isinstance(ei.value.__cause__, psycopg2.OperationalError)
+
+
 # ─────────────────────────────────────────────────────────────────────
 # revoke_api_key
 # ─────────────────────────────────────────────────────────────────────

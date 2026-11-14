@@ -905,10 +905,13 @@ class DBConnectionBase:
             self.logger.error(f"Errore durante l'uso della connessione: {e}", exc_info=True)
             raise
         finally:
-            if conn:
+            # close_pool() nel ramo d'errore azzera self.pool, e closeall()
+            # ha già chiuso anche questa connessione: un putconn su None
+            # solleverebbe AttributeError al posto dell'errore psycopg2.
+            if conn and self.pool is not None:
                 self._pool_metrics["total_putconn"] += 1
                 self.pool.putconn(conn)
-    
+
     # ------------------------------------------------------------------ #
     #  Transaction manager ad alto livello                                 #
     # ------------------------------------------------------------------ #

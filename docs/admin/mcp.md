@@ -268,6 +268,18 @@ deve contenere la sotto-cartella `mcp_server/`.)
 - La chiave è stata revocata o scaduta. Generane una nuova e aggiorna
   il `claude_desktop_config.json`.
 
+### "Il database di Foliarium non è raggiungibile"
+
+- La chiave è valida: **non** rigenerarla. L'app Foliarium è in
+  esecuzione ma non riesce a parlare con PostgreSQL, quindi non può
+  nemmeno verificare la chiave (l'API risponde `503`).
+- Controlla che il server PostgreSQL sia acceso e raggiungibile dal PC
+  dove gira Foliarium. Se il database è su un altro computer, verifica
+  anche le impostazioni TLS (`sslmode`): per un host remoto Foliarium
+  richiede una connessione cifrata.
+- Se il problema persiste, esporta i log da *Help → Esporta log per
+  supporto*.
+
 ### "Impossibile contattare http://localhost:…"
 
 - L'app Foliarium non è in esecuzione (il server API parte solo dopo

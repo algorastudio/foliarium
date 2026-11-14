@@ -27,6 +27,7 @@ from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 
 from api.auth import get_session
 from api.rate_limit import check_and_increment
+from catasto_exceptions import DBMError
 
 logger = logging.getLogger("FoliariumAPI")
 
@@ -88,10 +89,27 @@ def get_db():
 
 
 def _principal_from_api_key(plaintext: str) -> Optional[dict]:
-    """Valida una API key contro il DB. Restituisce dict-session-like o None."""
-    if _db_manager is None:
-        return None
-    info = _db_manager.validate_api_key(plaintext)
+    """Valida una API key contro il DB. Restituisce dict-session-like o None.
+
+    ``None`` vuol dire solo "chiave inesistente, scaduta o revocata" (401).
+    Se il database non risponde la chiave non si può verificare, e non è
+    per questo non valida: 503, così il client non invita a rigenerarla.
+
+    Raises:
+        HTTPException: 503 se il database non è disponibile.
+    """
+    # Da get_db e non da _db_manager: le route risolvono la sessione prima
+    # del database, quindi per le richieste con chiave API questo è il primo
+    # punto in cui il database viene interrogato.
+    db = get_db()
+    try:
+        info = db.validate_api_key(plaintext)
+    except DBMError:
+        # Il dettaglio tecnico è già nel log del layer DB.
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail=DB_NON_DISPONIBILE,
+        )
     if info is None:
         return None
     return {
