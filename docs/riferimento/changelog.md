@@ -1,5 +1,19 @@
 # Changelog
 
+## (non rilasciato) — Esportazione e report di una partita
+
+- **Corretto: l'esportazione di una partita falliva sempre.** JSON, CSV e
+  PDF si fermavano con «column l.civico does not exist», così come il
+  report della pagina Reportistica. Tre funzioni del database leggevano il
+  civico e il tipo di località da colonne di `localita` che dalla v1.7.0
+  non esistono più: il civico sta nell'immobile. Ora lo leggono da lì, e il
+  report lo mostra accanto alla località («Roma, 17/A (Via)»).
+- **Come applicare la correzione a un archivio esistente.** Con l'installer
+  Windows basta installare la nuova versione: il setup riapplica le
+  funzioni. Negli altri casi (database creati a mano, con
+  `setup_database.bat` o in Docker) va eseguita una volta
+  `sql_scripts/migrations/24_fix_funzioni_civico.sql`.
+
 ## (non rilasciato) — Installazione senza intervento manuale
 
 - **L'installer Windows crea il database.** `Foliarium_<versione>_Setup.exe`
