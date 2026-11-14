@@ -641,6 +641,13 @@ Cose non ovvie, da non «semplificare»:
   radice sono copiati per elenco: `generate_key.py` e `generate_license.py`
   non devono entrare in un'immagine pubblica. Un modulo nuovo in radice va
   aggiunto al `COPY`.
+- **`.gitattributes` impone gli a capo Linux** a tutti i `.sh` e a tutto
+  `docker/`. Git per Windows con `core.autocrlf=true` li convertiva in CRLF
+  e `init.sh`, con `#!/bin/bash\r`, non partiva nel container
+  («cannot execute: required file not found»): da Git Bash `demo.sh crea`
+  falliva con «container db is unhealthy». Su Windows la demo va provata
+  dal terminale di WSL (`docker/demo/README.md`, «Provarla su Windows»);
+  `tests/unit/test_a_capo_linux.py` sorveglia gli attributi.
 - **Negli script con `pipefail` mai `comando | grep -q`:** grep esce al
   primo riscontro, il comando a monte riceve SIGPIPE e la pipe risulta
   fallita anche se il testo c'era. In CI una verifica falliva così con la
@@ -690,6 +697,7 @@ tests/
 │   ├── test_backup_executables.py      # nomi degli strumenti PostgreSQL per piattaforma
 │   ├── test_docker_db_init.py          # init.sh ↔ setup_database.SQL_SCRIPTS
 │   ├── test_docker_web.py              # Dockerfile in radice ↔ artefatto Azure, prova-web.sh
+│   ├── test_a_capo_linux.py            # .gitattributes: a capo LF per .sh e docker/
 │   └── test_demo_*.py                  # demo in Docker: demo.sh e configurazione del proxy,
 │                                       # pagina dei file, anteprima PDF, esempi di import
 └── integration/                   # Integration tests (pytest -m integration)
