@@ -78,6 +78,15 @@ EXE = ".exe" if IS_WIN else ""
 # a parte perche' richiede la variabile psql admin_password (vedi codice).
 # Da v1.0.0: lookup tipo_possesso/tipo_localita, soft-delete e tabella sessioni
 # sono integrati in 02 e 07_user-management (vedi sql_scripts/README.md).
+#
+# admin/01_users.sql sta in mezzo alle funzioni di proposito: crea
+# catasto.utente, su cui functions/06_audit.sql costruisce una vista e una
+# chiave esterna, e a sua volta usa update_modified_column() di
+# functions/01_core.sql. Dopo 06_audit.sql, come stava prima, quelle due
+# istruzioni fallivano e la chiave esterna non veniva mai creata.
+#
+# docker/postgres/init.sh applica lo stesso elenco: vanno cambiati insieme
+# (li confronta tests/unit/test_docker_db_init.py).
 SQL_SCRIPTS = [
     "schema/01_tables.sql",
     "functions/01_core.sql",
@@ -85,9 +94,9 @@ SQL_SCRIPTS = [
     "functions/03_workflow.sql",
     "functions/04_search.sql",
     "functions/05_reporting.sql",
+    "admin/01_users.sql",
     "functions/06_audit.sql",
     "functions/07_features.sql",
-    "admin/01_users.sql",
     "admin/02_backup.sql",
     "admin/03_performance.sql",
     "schema/02_trigram_indexes.sql",  # CONCURRENTLY: deve stare fuori transazione

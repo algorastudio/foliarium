@@ -323,9 +323,9 @@ Gli script vengono applicati in quest'ordine su un database fresco:
 | 4 | `functions/03_workflow.sql` | Workflow: registrazione proprietà, passaggi, frazionamenti |
 | 5 | `functions/04_search.sql` | Ricerca fuzzy trigram + ricerca avanzata |
 | 6 | `functions/05_reporting.sql` | Viste materializzate + funzioni di report |
-| 7 | `functions/06_audit.sql` | Trigger di audit su tutte le tabelle |
-| 8 | `functions/07_features.sql` | Genealogia, documenti storici, statistiche |
-| 9 | `admin/01_users.sql` | Utenti applicativi, permessi, sessioni |
+| 7 | `admin/01_users.sql` | Utenti applicativi, permessi, sessioni |
+| 8 | `functions/06_audit.sql` | Trigger di audit su tutte le tabelle, collegamento audit → utenti |
+| 9 | `functions/07_features.sql` | Genealogia, documenti storici, statistiche |
 | 10 | `admin/02_backup.sql` | Registro backup e procedure |
 | 11 | `admin/03_performance.sql` | Procedure VACUUM/REINDEX |
 | 12 | `schema/02_trigram_indexes.sql` | Indici GIN `CONCURRENTLY` (fuori transazione) |
