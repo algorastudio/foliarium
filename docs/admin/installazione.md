@@ -78,6 +78,20 @@ cd "C:\Program Files\Foliarium"
 `setup_db.exe --help` elenca le opzioni: `--port`, `--db-name`, `--db-user`,
 `--config-file`, `--log-file`.
 
+#### Come leggere `setup_database.log`
+
+Su un database **appena creato** gli script SQL vengono applicati in modo
+rigoroso: al primo errore il setup si ferma e il log riporta il messaggio
+di PostgreSQL, con il file e la riga. È un difetto da segnalare.
+
+Quando il database **esiste già** — reinstallazione o aggiornamento sopra
+un archivio conservato, oppure un secondo tentativo dopo un setup
+interrotto — gli script vengono riapplicati sopra lo schema presente. Il
+log elenca allora alcune decine di errori `already exists` (tabelle,
+indici e trigger che ci sono già) e si chiude con il loro conteggio: sono
+attesi e non indicano un problema. Un errore di altro tipo, in quell'elenco,
+va invece guardato.
+
 ### Disinstallazione
 
 Usare *Impostazioni → App* di Windows o la voce *Disinstalla Foliarium* nel

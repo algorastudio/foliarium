@@ -68,29 +68,50 @@ def test_utente_demo_riceve_la_password():
     assert "demo_password=" in testo
 
 
-class TestScriptDaRipetere:
+class TestOrdineDegliScript:
     """
     `functions/06_audit.sql` crea una vista e una chiave esterna su
-    `catasto.utente`, tabella che nasce in `admin/01_users.sql`: nell'elenco
-    canonico viene DOPO. L'installer esegue psql senza ON_ERROR_STOP, quindi
-    quelle due istruzioni falliscono in silenzio. `init.sh` e' rigoroso:
-    applica lo script al suo posto tollerando l'errore, poi lo ripete alla
-    fine, quando la tabella esiste.
+    `catasto.utente`, tabella che nasce in `admin/01_users.sql`: quest'ultimo
+    deve precederlo. Per un periodo l'elenco li aveva nell'ordine inverso:
+    l'installer, che eseguiva psql senza ON_ERROR_STOP, non creava ne' la
+    vista ne' la chiave esterna e non lo segnalava; `init.sh` aggirava il
+    difetto applicando lo script due volte.
+
+    Questi test sorvegliano l'ordine sulla carta. La prova vera, su un
+    PostgreSQL reale, e' tests/integration/test_schema_database_nuovo.py.
     """
 
-    def test_sono_dichiarati(self):
-        assert _array("DA_RIPETERE") == ["functions/06_audit.sql"]
-
-    def test_appartengono_all_elenco_canonico(self):
-        assert set(_array("DA_RIPETERE")) <= set(sdb.SQL_SCRIPTS)
-
-    def test_la_ripetizione_serve_ancora(self):
-        # Se un giorno l'ordine dell'installer viene corretto, questo test
-        # fallisce: e' il segnale per togliere DA_RIPETERE da init.sh.
+    def test_gli_utenti_precedono_l_audit(self):
         ordine = sdb.SQL_SCRIPTS
-        assert ordine.index("functions/06_audit.sql") < ordine.index("admin/01_users.sql")
         audit = (SQL / "functions" / "06_audit.sql").read_text(encoding="utf-8")
+        # Se un giorno l'audit non dipendesse piu' da `utente`, l'ordine
+        # tornerebbe libero e questo test andrebbe tolto, non aggirato.
         assert "catasto.utente" in audit
+        assert ordine.index("admin/01_users.sql") < ordine.index("functions/06_audit.sql")
+
+    def test_gli_utenti_seguono_le_funzioni_di_base(self):
+        # 01_users.sql aggancia a `utente` il trigger che usa
+        # update_modified_column(), definita in functions/01_core.sql.
+        ordine = sdb.SQL_SCRIPTS
+        utenti = (SQL / "admin" / "01_users.sql").read_text(encoding="utf-8")
+        assert "update_modified_column()" in utenti
+        assert ordine.index("functions/01_core.sql") < ordine.index("admin/01_users.sql")
+
+    def test_nessuno_script_viene_applicato_due_volte(self):
+        assert len(set(sdb.SQL_SCRIPTS)) == len(sdb.SQL_SCRIPTS)
+        testo = INIT.read_text(encoding="utf-8")
+        assert "DA_RIPETERE" not in testo
+
+    def test_init_non_tollera_errori(self):
+        # Ogni invocazione di psql deve fermarsi al primo errore: e' cio'
+        # che fa emergere subito uno script fuori posto.
+        righe = [
+            riga for riga in INIT.read_text(encoding="utf-8").splitlines()
+            if re.search(r"\bpsql\b", riga) and not riga.lstrip().startswith("#")
+        ]
+        assert righe, "init.sh non invoca piu' psql?"
+        for riga in righe:
+            assert "ON_ERROR_STOP=1" in riga, riga
 
 
 def test_dopo_il_dataset_si_aggiornano_le_statistiche():

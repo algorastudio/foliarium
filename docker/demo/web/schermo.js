@@ -52,8 +52,11 @@ function dimensioneRichiesta() {
 // noVNC sa chiedere al server solo la dimensione esatta del riquadro. Per
 // imporre un minimo si sostituisce, su questa sola connessione, il metodo che
 // invia la richiesta. Usa nomi interni di noVNC 1.3 (quello del pacchetto
-// Debian nell'immagine): se in una versione diversa non ci fossero, resta il
-// comportamento originale, cioe' schermo grande quanto il riquadro.
+// Debian nell'immagine): se in una versione diversa i due metodi non ci
+// fossero, resta il comportamento originale, cioe' schermo grande quanto il
+// riquadro. La guardia controlla solo che i metodi esistano: se cambiassero
+// i campi interni usati qui sotto, la richiesta non partirebbe e lo schermo
+// resterebbe alla dimensione iniziale, rimpicciolito nel riquadro.
 function imponiDimensioneMinima(connessione) {
     const messaggi = RFB.messages;
     if (typeof connessione._requestRemoteResize !== 'function' ||

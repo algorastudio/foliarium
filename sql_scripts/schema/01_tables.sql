@@ -5,8 +5,19 @@
 
 -- File: 02_creazione-schema-tabelle.sql (Versione CORRETTA Definitiva)
 
--- Dopo la creazione del database, utilizzare un comando ALTER
-ALTER DATABASE catasto_storico SET search_path TO catasto, public; -- Aggiunto public
+-- search_path predefinito del database: vale per le sessioni aperte da qui
+-- in poi, quindi per tutti gli script successivi. Alcuni (admin/03, il
+-- bootstrap dell'admin) creano oggetti senza qualificarli e senza un SET
+-- proprio: senza questo default finirebbero in `public`.
+--
+-- Il nome si ricava dalla connessione. Scritto per esteso (`catasto_storico`)
+-- l'istruzione falliva su un database con un altro nome (`--db-name`,
+-- POSTGRES_DB), oppure ne modificava un altro se quello esisteva.
+DO $$
+BEGIN
+    EXECUTE format('ALTER DATABASE %I SET search_path TO catasto, public',
+                   current_database());
+END $$;
 
 -- Creazione dello schema
 CREATE SCHEMA IF NOT EXISTS catasto;

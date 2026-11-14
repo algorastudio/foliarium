@@ -453,8 +453,9 @@ codice.
 ## 11. Esito e scostamenti dal progetto approvato
 
 Realizzato in `docker/demo/`. La prova completa (`docker/demo/prova.sh`)
-passa tredici verifiche su tredici in locale e nella CI di GitHub; la
-pipeline esistente resta verde. Guida operativa: `docker/demo/README.md`.
+passa sedici verifiche su sedici in locale; la CI di GitHub la esegue a ogni
+pull request, insieme alla pipeline esistente. Guida operativa:
+`docker/demo/README.md`.
 
 Dove la realizzazione si scosta dal testo approvato:
 
@@ -470,7 +471,20 @@ Dove la realizzazione si scosta dal testo approvato:
 | — | `DB_SSLMODE=prefer` | Fuori da localhost il programma pretende TLS |
 | Frammenti del proxy accanto ai file delle postazioni | In una cartella separata, l'unica montata dal proxy | Il proxy non deve vedere le password in chiaro |
 | Limiti di memoria da definire | 1024 MB e 512 MB | In uso il programma arriva a 420 MB |
+| Limiti di CPU e processi (§7.6) | Programma: 2 processori, 512 processi. Database: 1 processore, 256 processi, utente `postgres`, nessuna capability. Proxy: 512 MB | Aggiunti dopo la revisione: la prima stesura aveva solo la memoria |
+| `ripristina`: stesse credenziali (§7.5) | Come da progetto, più `ripristina --nuove-credenziali` | Chi ha usato una postazione ne conosce password e token: riassegnata a un altro cliente senza cambiarli, rientrerebbe nella sua sessione |
+| «Nel proxy resta solo l'hash» (§7.5) | Vero per le password. La cartella del proxy contiene però in chiaro il token dello schermo: non è leggibile da altri utenti (750/640) e il proxy la legge tramite il gruppo di chi esegue `demo.sh` | Conseguenza del segreto nel WebSocket |
+| `crea` annulla tutto se fallisce | Ogni passo controllato esplicitamente | Una `trap ERR` non scattava per un guasto dentro una funzione: il proxy che non parte lasciava la postazione a metà |
+
+Le ultime quattro righe vengono dalla revisione indipendente dell'intero
+ramo, che ha trovato un difetto critico (la guida prescriveva di usare
+`ripristina` «fra un cliente e l'altro», lasciando valide le credenziali del
+primo) e tre importanti. Sono stati corretti con test che prima fallivano e
+riprovati con i container veri.
 
 Non verificato: Safari; HTTPS con un dominio reale (validata la sola
 configurazione); l'esempio di nginx della guida; invio di posta e import da
-ISTAT; le scorciatoie da tastiera una per una.
+ISTAT; le scorciatoie da tastiera una per una; Docker «rootless» o con
+`userns-remap`, dove l'utente e i gruppi del container non coincidono con
+quelli della macchina e la lettura dei frammenti da parte del proxy va
+riprovata.

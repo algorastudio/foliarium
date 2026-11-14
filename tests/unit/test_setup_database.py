@@ -192,3 +192,224 @@ class TestCostanti:
     def test_lo_script_di_bootstrap_e_fuori_dalla_lista_ordinata(self):
         """Va eseguito a parte: richiede la variabile psql admin_password."""
         assert sdb.BOOTSTRAP_ADMIN_SCRIPT not in sdb.SQL_SCRIPTS
+
+
+class _EsitoPsql:
+    """Controfigura di subprocess.CompletedProcess per le chiamate a psql."""
+
+    def __init__(self, returncode: int = 0, stdout: str = "", stderr: str = ""):
+        self.returncode = returncode
+        self.stdout = stdout
+        self.stderr = stderr
+
+
+class TestRunPsqlFile:
+    """
+    Per anni gli script SQL sono stati eseguiti senza ON_ERROR_STOP e con
+    l'output di psql catturato e poi scartato: un'istruzione fallita non
+    lasciava traccia da nessuna parte. E' cosi' che la chiave esterna
+    audit_log -> utente non e' mai stata creata dall'installer.
+    """
+
+    @pytest.fixture(autouse=True)
+    def _log_isolato(self, monkeypatch, tmp_path):
+        monkeypatch.setattr(sdb, "_SECRETS", [])
+        self.logfile = tmp_path / "setup_database.log"
+        sdb.configure_logfile(self.logfile)
+        yield
+        sdb.configure_logfile(None)
+
+    @pytest.fixture
+    def psql(self, monkeypatch):
+        """Sostituisce subprocess.run e registra comando e ambiente."""
+        chiamate: list[dict] = []
+        esito = _EsitoPsql()
+
+        def finto_run(cmd, **kw):
+            chiamate.append({"cmd": [str(c) for c in cmd], "env": kw.get("env") or {}})
+            return esito
+
+        monkeypatch.setattr(sdb.subprocess, "run", finto_run)
+        return chiamate, esito
+
+    def _esegui(self, **kw):
+        return sdb.run_psql_file(
+            Path("/pg/bin"), 5432, Path("/sql/schema/01_tables.sql"),
+            dbname="catasto_storico", password="Segreta-123456", **kw,
+        )
+
+    def test_modalita_rigorosa_ferma_psql_al_primo_errore(self, psql):
+        chiamate, _ = psql
+        self._esegui(strict=True)
+
+        cmd = chiamate[0]["cmd"]
+        assert cmd[cmd.index("ON_ERROR_STOP=1") - 1] == "-v"
+        # Le variabili vanno dichiarate prima del file che le usa.
+        assert cmd.index("ON_ERROR_STOP=1") < cmd.index("-f")
+
+    def test_modalita_tollerante_non_ferma_psql(self, psql):
+        chiamate, _ = psql
+        self._esegui(strict=False)
+        assert "ON_ERROR_STOP=1" not in chiamate[0]["cmd"]
+
+    def test_le_variabili_arrivano_a_psql(self, psql):
+        chiamate, _ = psql
+        self._esegui(strict=True, variables={"admin_password": "Abc-123456"})
+        cmd = chiamate[0]["cmd"]
+        assert cmd[cmd.index("admin_password=Abc-123456") - 1] == "-v"
+
+    def test_solo_gli_errori_arrivano_da_psql(self, psql, monkeypatch):
+        """
+        Con client_min_messages=error su stderr restano i soli errori: si
+        possono contare senza interpretarne il testo, che dipende dalla
+        lingua del server (ERROR, ERRORE, FEHLER...).
+        """
+        monkeypatch.setenv("PGOPTIONS", "-c statement_timeout=0")
+        chiamate, _ = psql
+        self._esegui(strict=True)
+
+        env = chiamate[0]["env"]
+        assert "client_min_messages=error" in env["PGOPTIONS"]
+        # Le opzioni gia' presenti nell'ambiente non vanno perse.
+        assert "statement_timeout=0" in env["PGOPTIONS"]
+        assert env["PGPASSWORD"] == "Segreta-123456"
+
+    def test_un_errore_in_modalita_rigorosa_interrompe_e_finisce_nel_log(self, psql):
+        _, esito = psql
+        esito.returncode = 3
+        esito.stderr = (
+            'psql:/sql/functions/06_audit.sql:244: ERROR:  relation '
+            '"catasto.utente" does not exist\n'
+            "LINE 19:     catasto.utente u ON al.app_user_id = u.id;\n"
+        )
+
+        with pytest.raises(sdb.subprocess.CalledProcessError):
+            self._esegui(strict=True)
+
+        testo = self.logfile.read_text(encoding="utf-8")
+        assert 'relation "catasto.utente" does not exist' in testo
+        assert "LINE 19:" in testo
+
+    def test_gli_errori_tollerati_vengono_contati_e_scritti_nel_log(self, psql):
+        _, esito = psql
+        esito.returncode = 0
+        esito.stderr = (
+            'psql:/sql/schema/01_tables.sql:84: ERROR:  relation "comune" already exists\n'
+            'psql:/sql/schema/01_tables.sql:443: ERRORE:  un valore chiave duplicato '
+            'viola il vincolo univoco "app_metadata_pkey"\n'
+            "DETAIL:  Key (key)=(schema_version) already exists.\n"
+        )
+
+        assert self._esegui(strict=False) == 2
+
+        testo = self.logfile.read_text(encoding="utf-8")
+        assert 'relation "comune" already exists' in testo
+        assert "app_metadata_pkey" in testo
+
+    def test_senza_errori_il_conteggio_e_zero(self, psql):
+        assert self._esegui(strict=False) == 0
+        assert self._esegui(strict=True) == 0
+
+    def test_psql_che_non_parte_interrompe_anche_in_modalita_tollerante(self, psql):
+        # Codice 2: connessione fallita. Non e' un errore di uno script.
+        _, esito = psql
+        esito.returncode = 2
+        esito.stderr = "psql: error: connection to server failed\n"
+        with pytest.raises(sdb.subprocess.CalledProcessError):
+            self._esegui(strict=False)
+
+    def test_le_password_negli_errori_non_finiscono_nel_log(self, psql):
+        _, esito = psql
+        sdb.register_secret("Abc-123456")
+        esito.returncode = 3
+        esito.stderr = (
+            "psql:/sql/admin/04_bootstrap_admin.sql:48: ERROR:  qualcosa non va\n"
+            "LINE 5:     crypt('Abc-123456', gen_salt('bf', 12)),\n"
+        )
+
+        with pytest.raises(sdb.subprocess.CalledProcessError):
+            self._esegui(strict=True, variables={"admin_password": "Abc-123456"})
+
+        testo = self.logfile.read_text(encoding="utf-8")
+        assert "Abc-123456" not in testo
+        assert "qualcosa non va" in testo
+
+
+class TestRigoreSecondoLoStatoDelDatabase:
+    """
+    Su un database appena creato ogni errore e' un difetto degli script e
+    deve fermare il setup. Su un database che esiste gia' (reinstallazione
+    o aggiornamento sopra l'archivio del cliente) gli stessi script
+    producono decine di «already exists» innocui: li' si prosegue, ma gli
+    errori vengono comunque scritti nel log.
+    """
+
+    @pytest.fixture(autouse=True)
+    def _log_isolato(self, monkeypatch):
+        monkeypatch.setattr(sdb, "_LOG_FILE", None)
+        monkeypatch.setattr(sdb, "_SECRETS", [])
+
+    def _prepara(self, tmp_path, monkeypatch, *, database_esistente: bool):
+        pg_bin = tmp_path / "bin"
+        pg_bin.mkdir()
+        (pg_bin / f"psql{sdb.EXE}").write_text("", encoding="utf-8")
+
+        sql_dir = tmp_path / "sql_scripts"
+        for rel in sdb.SQL_SCRIPTS + [sdb.BOOTSTRAP_ADMIN_SCRIPT]:
+            (sql_dir / rel).parent.mkdir(parents=True, exist_ok=True)
+            (sql_dir / rel).write_text("-- vuoto", encoding="utf-8")
+
+        applicati: list[tuple[str, bool]] = []
+
+        def finto_run_psql_file(pg_bin, port, sql_file, dbname="postgres",
+                                password="", variables=None, strict=True):
+            applicati.append((Path(sql_file).relative_to(sql_dir).as_posix(), strict))
+            return 0
+
+        monkeypatch.setattr(sdb, "wait_ready", lambda *a, **kw: True)
+        monkeypatch.setattr(sdb, "run_psql", lambda *a, **kw: None)
+        monkeypatch.setattr(sdb, "run_psql_file", finto_run_psql_file)
+        monkeypatch.setattr(
+            sdb, "run_quiet",
+            lambda *a, **kw: _EsitoPsql(stdout=" 1\n" if database_esistente else "\n"),
+        )
+        return pg_bin, applicati
+
+    def _setup(self, tmp_path, pg_bin):
+        return sdb._setup_on_external_pg(
+            install_dir=tmp_path, pg_bin=pg_bin,
+            db_password="PasswordDb-123456", admin_password="PasswordAdmin-123456",
+            postgres_password="", port=5432,
+            config_file=tmp_path / "config.ini",
+        )
+
+    def test_database_nuovo_script_applicati_in_modo_rigoroso(self, tmp_path, monkeypatch):
+        pg_bin, applicati = self._prepara(tmp_path, monkeypatch, database_esistente=False)
+
+        assert self._setup(tmp_path, pg_bin) is True
+
+        assert [nome for nome, _ in applicati] == sdb.SQL_SCRIPTS + [sdb.BOOTSTRAP_ADMIN_SCRIPT]
+        assert all(rigoroso for _, rigoroso in applicati)
+
+    def test_database_esistente_script_riapplicati_tollerando_gli_errori(self, tmp_path, monkeypatch):
+        pg_bin, applicati = self._prepara(tmp_path, monkeypatch, database_esistente=True)
+
+        assert self._setup(tmp_path, pg_bin) is True
+
+        per_nome = dict(applicati)
+        assert not any(per_nome[nome] for nome in sdb.SQL_SCRIPTS)
+        # Il bootstrap dell'admin e' idempotente e resta rigoroso: se
+        # fallisce, nessuno puo' entrare nell'applicazione.
+        assert per_nome[sdb.BOOTSTRAP_ADMIN_SCRIPT] is True
+
+    def test_un_errore_su_database_nuovo_fa_fallire_il_setup(self, tmp_path, monkeypatch):
+        pg_bin, _ = self._prepara(tmp_path, monkeypatch, database_esistente=False)
+
+        def fallisce(*a, **kw):
+            raise sdb.subprocess.CalledProcessError(3, ["psql"])
+
+        monkeypatch.setattr(sdb, "run_psql_file", fallisce)
+
+        assert self._setup(tmp_path, pg_bin) is False
+        # Un setup fallito non deve lasciare un config.ini che sembra valido.
+        assert not (tmp_path / "config.ini").exists()

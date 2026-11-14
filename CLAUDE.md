@@ -371,6 +371,15 @@ risultato porta la chiave `interrotto` e la UI lo dichiara all'utente
   `HelpViewerDialog` ha una ricerca su tutti i `.md`; i link dei risultati
   usano lo schema `foliarium-doc:` perché puntano alla radice di `docs/` e
   non al documento che li contiene.
+- **Manuale nel pacchetto:** `HelpViewerDialog` legge `BASE_DIR/docs` e
+  `BASE_DIR/mkdocs.yml`, cioè `_internal/` nel bundle. `foliarium.spec` li
+  aggiunge a `datas` con `_datas_manuale()` (solo i `.md`); senza, il
+  manuale del programma installato si apre vuoto. `docs/internal/`
+  (documenti di progetto) è escluso sia dal pacchetto sia dalla ricerca e
+  dall'albero di ripiego (`documenti_del_manuale()` in `help_viewer.py`).
+  `tests/unit/test_spec_manuale.py` esegue lo spec con `Analysis` finta e
+  verifica il risultato: lo spec non deve importare PyInstaller, perché il
+  job di test della CI non lo installa.
 
 ---
 
@@ -404,7 +413,8 @@ Always use the full three-part path `Module.EnumClass.Value`.
 - Passwords are **not** stored in QSettings — keyring is used for secure storage.
 - Init SQL scripts are in `sql_scripts/`; run in order for a fresh DB.
 - Upgrade scripts for existing DBs are in `sql_scripts/migrations/`.
-- **Auto-apply migrazioni idempotenti:** `db/base.py::_apply_pending_schema_migrations()` viene invocata a ogni init pool e applica silenziosamente migrazioni sicure (es. schema v1.6.1, indici UNIQUE sulle MV, vista `v_audit_dettagliato` — equivalente di `migrations/19_create_v_audit_dettagliato.sql`, tabella `partita_draft` — equivalente di `migrations/21_create_partita_draft.sql`, tabella `api_keys` — equivalente di `migrations/22_create_api_keys.sql`). Best-effort, non bloccante.
+- **Auto-apply migrazioni idempotenti:** `db/base.py::_apply_pending_schema_migrations()` viene invocata a ogni init pool e applica silenziosamente migrazioni sicure (es. schema v1.6.1, indici UNIQUE sulle MV, vista `v_audit_dettagliato` — equivalente di `migrations/19_create_v_audit_dettagliato.sql`, tabella `partita_draft` — equivalente di `migrations/21_create_partita_draft.sql`, tabella `api_keys` — equivalente di `migrations/22_create_api_keys.sql`, chiave esterna `audit_log.app_user_id → utente.id` — equivalente di `migrations/23_add_fk_audit_log_utente.sql`). Best-effort, non bloccante.
+- **La sanatoria della chiave esterna di audit non riscrive il registro.** `_ensure_audit_user_fk()` crea il vincolo `NOT VALID` e poi tenta la convalida: se esistono righe di utenti già eliminati (l'applicazione permette di eliminarli) la convalida fallisce, il vincolo resta e quelle righe conservano l'identificativo. Non «semplificare» azzerandole con un `UPDATE`: è una decisione sullo storico che spetta a una persona, e la migrazione 23 spiega come. `lock_timeout` di 5 secondi perché `ALTER TABLE` attende chi sta scrivendo su `audit_log`.
 
 ## REST API & integrazioni esterne
 
@@ -529,6 +539,22 @@ installare a parte. Tre ingredienti, preparati dalla pipeline in
   esegue il setup con la console nascosta. Le password passate a
   `register_secret()` vi compaiono come `***`: il file resta sul disco del
   cliente e la documentazione invita ad allegarlo alle segnalazioni.
+- **Ordine degli script:** `setup_database.SQL_SCRIPTS` è l'elenco, e
+  **non segue le cartelle**: `admin/01_users.sql` sta prima di
+  `functions/06_audit.sql`, che costruisce una vista e una chiave esterna
+  su `catasto.utente`. Fino alla v1.0.2 erano invertiti e la chiave esterna
+  non veniva creata, senza alcun avviso. `docker/postgres/init.sh` ne tiene
+  una copia identica.
+- **Rigore di psql:** `apply_sql_scripts()` usa `ON_ERROR_STOP` **solo se
+  il database è stato creato in questa esecuzione**. L'installer riesegue
+  il setup a ogni installazione, anche sopra un archivio esistente, e gli
+  script non sono idempotenti: riapplicati producono 38 errori innocui,
+  quasi tutti «already exists». Renderlo rigoroso sempre impedirebbe di
+  reinstallare. In entrambi i casi gli errori di psql finiscono nel log
+  (prima l'output era catturato e scartato). Il database dei test della
+  pipeline è costruito con i vecchi script numerati, non con questo
+  elenco: lo sorveglia `tests/integration/test_schema_database_nuovo.py`,
+  che lo applica a un database vuoto con la funzione dell'installer.
 - **Validazione:** il job `valida-installer` compila l'installer contro un
   `dist/` fittizio e gira **anche sulle pull request**, dove il build vero è
   escluso. Senza, un errore di sintassi nell'installer si scoprirebbe solo
@@ -564,11 +590,11 @@ Cose non ovvie, da non «semplificare»:
 
 - **`docker/postgres/init.sh`** applica gli stessi script di
   `setup_database.SQL_SCRIPTS`, nello stesso ordine: l'elenco è duplicato e
-  `test_docker_db_init.py` fallisce se i due divergono. `DA_RIPETERE` esiste
-  perché `functions/06_audit.sql` usa `catasto.utente`, creata più avanti da
-  `admin/01_users.sql`: l'installer non se ne accorge (esegue psql senza
-  `ON_ERROR_STOP`), `init.sh` sì. Variabili: `FOLIARIUM_ADMIN_PASSWORD` crea
-  l'utente admin, `FOLIARIUM_DEMO_PASSWORD` crea `demo` e carica l'archivio.
+  `test_docker_db_init.py` fallisce se i due divergono. Ogni script è
+  applicato una volta sola e il primo errore ferma l'inizializzazione: è
+  ciò che fa emergere subito uno script fuori posto. Variabili:
+  `FOLIARIUM_ADMIN_PASSWORD` crea l'utente admin, `FOLIARIUM_DEMO_PASSWORD`
+  crea `demo` e carica l'archivio.
 - **`avvio.sh` attende il database prima di ogni lancio.** In demo, se la
   connessione fallisce, l'applicazione mostra un errore modale e aspetta un
   clic che su un server nessuno darà. Il programma viene rilanciato quando
@@ -593,7 +619,23 @@ Cose non ovvie, da non «semplificare»:
   Per farlo si sostituisce un metodo interno di noVNC 1.3; se mancasse,
   resta il comportamento originale.
 - **`postazioni/` e `proxy/` sono cartelle distinte:** la prima contiene le
-  password in chiaro, la seconda i soli hash, ed è l'unica che il proxy monta.
+  password in chiaro; la seconda, l'unica che il proxy monta, ne contiene
+  solo gli hash. **Ma contiene in chiaro il token dello schermo**, che per lo
+  schermo vale quanto la password: nessuna delle due è leggibile da altri
+  utenti (700/600 e 750/640). Il proxy gira senza capability e legge i
+  frammenti perché riceve come gruppo quello di chi esegue `demo.sh`
+  (`group_add`): non vanno resi leggibili a tutti per «farlo funzionare».
+- **`ripristina` conserva le credenziali, `ripristina --nuove-credenziali`
+  le cambia.** La seconda forma serve quando la postazione passa a un altro
+  cliente: chi l'ha usata conosce password e token, e rientrerebbe nella
+  sessione di chi viene dopo.
+- **In `cmd_crea` ogni passo è seguito da `|| annulla_creazione`**, e
+  `_proxy_su` esce sempre con `return`. Una `trap ERR` non basta: senza
+  `set -E` non vale dentro le funzioni chiamate, e con `set -E` leggerebbe
+  la variabile locale `nome` di `_proxy_su`, che scorre le altre postazioni.
+- **Limiti di CPU calcolati da `demo.sh`:** Docker rifiuta un limite
+  superiore ai processori presenti, quindi il predefinito non può stare
+  scritto nel file Compose.
 - **`Dockerfile.dockerignore` è una lista di ammissione** e i moduli in
   radice sono copiati per elenco: `generate_key.py` e `generate_license.py`
   non devono entrare in un'immagine pubblica. Un modulo nuovo in radice va
@@ -604,7 +646,7 @@ Cose non ovvie, da non «semplificare»:
   finestra a schermo; un test lo vieta.
 
 **Prova:** `bash docker/demo/prova.sh` crea due postazioni vere, esegue
-tredici verifiche (con un browser vero se c'è Playwright) e toglie tutto. Usa
+sedici verifiche (con un browser vero se c'è Playwright) e toglie tutto. Usa
 `DEMO_PREFISSO=foliarium-prova` e una cartella dati temporanea, quindi non
 tocca postazioni esistenti. Il workflow `demo_docker.yml` la esegue a ogni
 pull request e pubblica le immagini dello schermo come artefatto.
@@ -626,6 +668,8 @@ tests/
 │   ├── test_validators_exceptions.py   # 474 LOC, validators centralizzati
 │   ├── test_db_*.py                    # mixin DB (comuni, partite, possessori, ricerca)
 │   ├── test_db_base_audit_view.py      # _ensure_audit_view (auto-apply vista)
+│   ├── test_db_base_audit_fk.py        # _ensure_audit_user_fk (chiave esterna audit → utente)
+│   ├── test_setup_database.py          # helper dell'installer: log, psql rigoroso/tollerante
 │   ├── test_license_manager.py         # LicenseManager + HMAC
 │   ├── test_theme.py                   # foliarium/ui/theme.py (post-Sprint 3.5)
 │   ├── test_login_flow.py              # foliarium/ui/login_flow.py (post-Sprint 3.6)
@@ -635,6 +679,8 @@ tests/
 │   ├── test_ui_feedback.py             # campi obbligatori, tooltip sidebar,
 │   │                                   # formati data, aiuto contestuale,
 │   │                                   # ricerca manuale, accessibilità (Sprint 4)
+│   ├── test_spec_manuale.py            # foliarium.spec impacchetta docs/*.md +
+│   │                                   # mkdocs.yml, senza docs/internal/
 │   ├── test_error_messages.py          # traduzione SQLSTATE → italiano (Sprint 4)
 │   ├── test_unsaved_and_shortcuts.py   # UnsavedFormMixin, scorciatoie,
 │   │                                   # cronologia Alt+←, import con Annulla
@@ -649,6 +695,9 @@ tests/
     ├── test_e2e.py                     # E2E DB layer (richiede Postgres live)
     ├── test_gui_smoke.py               # smoke widget GUI via pytest-qt
     ├── test_gui_widgets.py
+    ├── test_schema_database_nuovo.py   # SQL_SCRIPTS su un database vuoto, con la
+    │                                   # funzione dell'installer e ON_ERROR_STOP;
+    │                                   # sanatoria della chiave esterna di audit
     └── test_golden_path.py             # E2E headless del flusso critico
                                         # comune → possessore → partita →
                                         # variazione → export PDF (Sprint 2)
