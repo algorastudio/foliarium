@@ -1,0 +1,46 @@
+# Prova dello stack web in Docker (Dockerfile e docker-compose.yml in radice).
+#
+# Costruisce le immagini, avvia database e API e verifica con
+# docker/prova-web.sh che il frontend sia servito e che il login di admin
+# funzioni contro il database del compose.
+#
+# Prima di questo workflow nessuna CI costruiva l'immagine, e il Dockerfile e'
+# rimasto rotto in silenzio quando alcuni moduli copiati per nome sono stati
+# spostati nel package foliarium/.
+#
+# Gira su ogni pull request, senza filtro per percorso: l'immagine dipende da
+# api/, db/, config.py, dal frontend, dagli script SQL e da
+# requirements-web.txt, e un elenco di percorsi prima o poi ne dimenticherebbe
+# uno.
+
+name: Stack web Docker
+
+on:
+  pull_request:
+    branches: [ "main", "master" ]
+  push:
+    branches: [ "main" ]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: web-docker-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  prova-stack-web:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Controllo dello script (shellcheck)
+        run: shellcheck docker/prova-web.sh
+
+      - name: Build, avvio e verifiche
+        # In caso di fallimento lo script stampa i registri dei container
+        # prima di togliere lo stack.
+        run: bash docker/prova-web.sh
