@@ -230,7 +230,13 @@ Il flusso completo è:
    Copiare la bozza in `docs/riferimento/changelog.md`, editare e
    accorpare.
 
-2. **Bump versione** — aggiornare `APP_VERSION` in `config.py`.
+2. **Bump versione** — lo stesso numero in cinque punti:
+   `APP_VERSION` in `config.py`, `MyAppVersion` in
+   `Foliarium_Installer.iss` (nome e versione dell'installer),
+   `filevers`/`prodvers`/`FileVersion`/`ProductVersion` in `version.txt`
+   (proprietà di `Foliarium.exe`), `site_name` in `mkdocs.yml` (titolo
+   del manuale) e la sezione `## vX.Y.Z — …` del changelog.
+   `tests/unit/test_versione_coerente.py` fallisce se uno resta indietro.
 
 3. **Commit** delle modifiche al changelog + config.py
    (es. `git commit -am "release: v1.0.2"`).
