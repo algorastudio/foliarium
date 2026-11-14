@@ -170,19 +170,51 @@ _TABLE_LABELS: dict[str, str] = {
 # Analisi dell'eccezione
 # ---------------------------------------------------------------------------
 
+def _catena(exc: BaseException) -> list:
+    """L'eccezione e le sue cause (``__cause__`` o ``__context__``), in ordine."""
+    anelli = []
+    seen = set()
+    corrente: Optional[BaseException] = exc
+    while corrente is not None and id(corrente) not in seen:
+        seen.add(id(corrente))
+        anelli.append(corrente)
+        corrente = corrente.__cause__ or corrente.__context__
+    return anelli
+
+
 def _find_db_cause(exc: BaseException) -> Optional[BaseException]:
     """Risale la catena __cause__ fino all'errore psycopg2 originale.
 
     Il decoratore db_handle_errors rilancia con ``raise ... from e``, quindi
     il codice SQLSTATE resta disponibile qualche anello piu' in basso.
     """
-    seen = set()
-    corrente: Optional[BaseException] = exc
-    while corrente is not None and id(corrente) not in seen:
-        seen.add(id(corrente))
-        if getattr(corrente, "pgcode", None):
-            return corrente
-        corrente = corrente.__cause__ or corrente.__context__
+    for anello in _catena(exc):
+        if getattr(anello, "pgcode", None):
+            return anello
+    return None
+
+
+def _find_connection_error(exc: BaseException) -> Optional[BaseException]:
+    """Errore di connessione di libpq, che non porta un codice SQLSTATE.
+
+    Quando il server non risponde affatto (connessione rifiutata, TLS
+    richiesto e non offerto, connessione caduta) psycopg2 solleva
+    ``OperationalError`` con ``pgcode`` vuoto. Fa eccezione il pool esaurito:
+    ``_get_connection`` lo traduce anch'esso in ``OperationalError``, ma il
+    server e' raggiungibile e la causa resta un ``PoolError``.
+    """
+    try:
+        import psycopg2
+        import psycopg2.pool
+    except ImportError:
+        return None
+    anelli = _catena(exc)
+    if any(isinstance(a, psycopg2.pool.PoolError) for a in anelli):
+        return None
+    for anello in anelli:
+        if (isinstance(anello, psycopg2.OperationalError)
+                and not getattr(anello, "pgcode", None)):
+            return anello
     return None
 
 
@@ -252,6 +284,14 @@ def describe_error(exc: BaseException) -> Tuple[str, str, str]:
 
         if messaggio and not suggerimento:
             suggerimento = _SQLSTATE_MESSAGES.get(pgcode, ("", ""))[1]
+    else:
+        conn_exc = _find_connection_error(exc)
+        if conn_exc is not None:
+            if conn_exc is not exc:
+                dettagli_righe.append(
+                    f"Causa: {type(conn_exc).__name__}: {conn_exc}".strip()
+                )
+            messaggio, suggerimento = _SQLSTATE_CLASSES["08"]
 
     if not messaggio:
         # Nessun codice riconosciuto: si mostra comunque una frase neutra,

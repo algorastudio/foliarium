@@ -14,6 +14,7 @@ from PyQt6.QtWidgets import (QDialog,
 from app_paths import get_resource_path, get_resource_path as resource_path, get_doc_path  # noqa: F401
 from catasto_db_manager import CatastoDBManager
 from catasto_exceptions import DBMError, DBUniqueConstraintError, DBNotFoundError, DBDataError  # noqa: F401
+from foliarium.ui.errors import show_user_error
 from foliarium.ui.widgets.custom import QPasswordLineEdit
 
 try:
@@ -190,7 +191,13 @@ class LoginDialog(QDialog):
             QMessageBox.warning(self, "Login Fallito", "Username e password sono obbligatori.")
             return
 
-        credentials = self.db_manager.get_user_credentials(username)
+        try:
+            credentials = self.db_manager.get_user_credentials(username)
+        except DBMError as e:
+            # Database irraggiungibile o query fallita: non dire all'archivista
+            # che ha sbagliato la password.
+            show_user_error(self, "Accesso", e, logger=logging.getLogger("CatastoGUI"))
+            return
         login_success = False
         user_id_app = None
 
