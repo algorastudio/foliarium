@@ -240,18 +240,20 @@ class TestFunzioniSQL:
         assert righe[imm["Magazzino"]] == ("Roma", None, "Via")
 
 
+@pytest.fixture(scope="module")
+def gestore(server, archivio):
+    """Il gestore del database che usa l'applicazione, collegato all'archivio di prova."""
+    m = CatastoDBManager(
+        host=server["host"], port=server["port"], user=server["user"],
+        password=server["password"], dbname=archivio["dbname"],
+    )
+    assert m.initialize_main_pool()
+    yield m
+    m.close_pool()
+
+
 class TestPercorsoDellApplicazione:
     """Le stesse funzioni chiamate come le chiama la GUI."""
-
-    @pytest.fixture(scope="class")
-    def gestore(self, server, archivio):
-        m = CatastoDBManager(
-            host=server["host"], port=server["port"], user=server["user"],
-            password=server["password"], dbname=archivio["dbname"],
-        )
-        assert m.initialize_main_pool()
-        yield m
-        m.close_pool()
 
     def test_i_dati_per_le_esportazioni_della_partita(self, gestore, archivio):
         # Ne dipendono le esportazioni JSON, CSV e PDF (foliarium/ui/export/partita.py).
