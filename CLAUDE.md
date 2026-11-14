@@ -366,6 +366,15 @@ risultato porta la chiave `interrotto` e la UI lo dichiara all'utente
   `HelpViewerDialog` ha una ricerca su tutti i `.md`; i link dei risultati
   usano lo schema `foliarium-doc:` perché puntano alla radice di `docs/` e
   non al documento che li contiene.
+- **Manuale nel pacchetto:** `HelpViewerDialog` legge `BASE_DIR/docs` e
+  `BASE_DIR/mkdocs.yml`, cioè `_internal/` nel bundle. `foliarium.spec` li
+  aggiunge a `datas` con `_datas_manuale()` (solo i `.md`); senza, il
+  manuale del programma installato si apre vuoto. `docs/internal/`
+  (documenti di progetto) è escluso sia dal pacchetto sia dalla ricerca e
+  dall'albero di ripiego (`documenti_del_manuale()` in `help_viewer.py`).
+  `tests/unit/test_spec_manuale.py` esegue lo spec con `Analysis` finta e
+  verifica il risultato: lo spec non deve importare PyInstaller, perché il
+  job di test della CI non lo installa.
 
 ---
 
@@ -530,6 +539,8 @@ tests/
 │   ├── test_ui_feedback.py             # campi obbligatori, tooltip sidebar,
 │   │                                   # formati data, aiuto contestuale,
 │   │                                   # ricerca manuale, accessibilità (Sprint 4)
+│   ├── test_spec_manuale.py            # foliarium.spec impacchetta docs/*.md +
+│   │                                   # mkdocs.yml, senza docs/internal/
 │   ├── test_error_messages.py          # traduzione SQLSTATE → italiano (Sprint 4)
 │   ├── test_unsaved_and_shortcuts.py   # UnsavedFormMixin, scorciatoie,
 │   │                                   # cronologia Alt+←, import con Annulla

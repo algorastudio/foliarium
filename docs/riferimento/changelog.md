@@ -1,5 +1,16 @@
 # Changelog
 
+## (non rilasciato) — Manuale in linea nel programma installato
+
+- **Aiuto → Manuale e F1 non si aprono più vuoti.** Il pacchetto
+  PyInstaller non conteneva né i documenti del manuale né `mkdocs.yml`:
+  dai sorgenti il manuale funzionava, nel programma installato l'albero e
+  la pagina restavano vuoti. `foliarium.spec` ora include i `.md` di
+  `docs/` e `mkdocs.yml` (circa 300 KB).
+- **I documenti di progetto restano fuori dal manuale.** `docs/internal/`
+  non entra nel pacchetto e non compare più fra i risultati della ricerca
+  nel manuale, nemmeno quando il programma gira dai sorgenti.
+
 ## (non rilasciato) — Installazione senza intervento manuale
 
 - **L'installer Windows crea il database.** `Foliarium_<versione>_Setup.exe`
