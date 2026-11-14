@@ -15,6 +15,7 @@ loro. Un solo proxy, comune a tutte, gestisce HTTPS e l'accesso.
 
 - Linux con Docker Engine e il plugin Compose (`docker compose`). Provato
   con Docker 29 e Compose 5.
+  Per una prova su un PC Windows: vedi [Provarla su Windows](#provarla-su-windows).
 - Una copia di questo repository.
 - **Disco:** circa 3 GB per le due immagini (2,3 GB il programma, 0,6 GB il
   database), più i dati delle postazioni.
@@ -35,11 +36,57 @@ cp demo.env.example demo.env      # poi aprirlo e indicare il dominio
 `demo.env` contiene la configurazione del server e non va in git. Con
 `DEMO_DOMINIO` valorizzato il proxy ottiene e rinnova da solo i certificati.
 
-Se si cambia `demo.env` a demo già avviata: per dominio e porta va ricreato
-il proxy con `./demo.sh _proxy_su --force-recreate` (la ricreazione, con le
-postazioni che restano raggiungibili, è coperta dalla prova; il cambio di
-dominio o di porta in sé non è stato provato). I limiti di memoria e CPU
-valgono per le postazioni create o ripristinate da quel momento.
+**Per una prova sul proprio PC `DEMO_DOMINIO` va lasciato vuoto** (la riga
+diventa `DEMO_DOMINIO=`). Con il valore d'esempio il proxy parte in modalità
+pubblica, occupa le porte 80 e 443 e risponde solo a `demo.example.it`:
+`crea` stampa quell'indirizzo e da `127.0.0.1` non si arriva a nulla. Vuoto,
+il proxy ascolta su `http://127.0.0.1:8080`.
+
+Se si cambia `demo.env` a demo già avviata, dominio e porta valgono dopo
+aver fermato e riavviato il proxy. Le postazioni e i loro dati non vengono
+toccati, e le credenziali restano le stesse:
+
+```bash
+./demo.sh _proxy_giu
+./demo.sh _proxy_su
+```
+
+`_proxy_giu` cancella anche i certificati: con un dominio vero il proxy ne
+chiede uno nuovo. Il passaggio dalla modalità pubblica a quella locale è
+stato provato su Windows. I limiti di memoria e CPU valgono per le
+postazioni create o ripristinate da quel momento.
+
+## Provarla su Windows
+
+Su un PC Windows con Docker Desktop la demo funziona, purché i comandi
+partano dal **terminale Linux di WSL** e non da Git Bash o da PowerShell.
+Provato con Docker Desktop e Ubuntu in WSL2.
+
+1. In PowerShell, `wsl -l -v` mostra le distribuzioni Linux installate. Se
+   non ce n'è nessuna: `wsl --install -d Ubuntu`.
+2. In Docker Desktop: **Settings → Resources → WSL integration**, attivare
+   la distribuzione.
+3. Aprire il terminale **Ubuntu** dal menu Start e scaricare il repository
+   nella cartella personale di Linux, non in `C:\` (`/mnt/c/...`): lì i
+   permessi che proteggono password e token non vengono applicati.
+
+   ```bash
+   cd ~ && git clone https://github.com/algorastudio/foliarium.git
+   cd ~/foliarium/docker/demo
+   cp demo.env.example demo.env      # poi lasciare vuoto DEMO_DOMINIO
+   ./demo.sh costruisci
+   ./demo.sh crea prova-1
+   ```
+
+4. Nel browser di Windows: `http://127.0.0.1:8080/prova-1/`, con le
+   credenziali stampate da `crea`.
+
+Da **Git Bash** la creazione fallisce con «container db is unhealthy». Il
+motivo erano gli a capo: git per Windows, con l'impostazione più comune,
+scarica gli script con gli a capo di Windows, e dentro il container
+`init.sh` non parte. Il repository ora impone gli a capo Linux a script e
+file della demo (`.gitattributes`), ma Git Bash resta sconsigliato per i
+permessi dei file: va usato WSL.
 
 ## Le postazioni
 

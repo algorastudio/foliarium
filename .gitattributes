@@ -1,0 +1,16 @@
+# A capo Unix (LF) per ciò che gira su Linux, qualunque sia l'impostazione
+# di git di chi scarica il repository.
+#
+# Git per Windows, con l'impostazione più comune (core.autocrlf=true),
+# converte gli a capo in CRLF. Uno script così, copiato in un container, non
+# parte: «#!/bin/bash\r» cerca un interprete che non esiste. Con la demo in
+# Docker il database restava a metà e «demo.sh crea» falliva con «container
+# db is unhealthy». Verifica: tests/unit/test_a_capo_linux.py.
+
+# Script della shell, ovunque si trovino.
+*.sh text eol=lf
+
+# Tutto ciò che finisce nei container o viene letto da Docker: Dockerfile,
+# Caddyfile, compose, configurazioni, file .desktop. «text=auto» lascia
+# intatti gli eventuali file binari.
+docker/** text=auto eol=lf
