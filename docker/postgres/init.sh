@@ -23,6 +23,9 @@ CARTELLA_SQL="/opt/foliarium-sql"
 # usato dall'installer. La duplicazione e' voluta (estrarre l'elenco in un
 # file comune toccherebbe il percorso dell'installer Windows) ed e'
 # sorvegliata da tests/unit/test_docker_db_init.py.
+#
+# admin/01_users.sql precede functions/06_audit.sql perche' crea
+# catasto.utente, su cui l'audit costruisce una vista e una chiave esterna.
 SCRIPTS=(
     "schema/01_tables.sql"
     "functions/01_core.sql"
@@ -30,26 +33,12 @@ SCRIPTS=(
     "functions/03_workflow.sql"
     "functions/04_search.sql"
     "functions/05_reporting.sql"
+    "admin/01_users.sql"
     "functions/06_audit.sql"
     "functions/07_features.sql"
-    "admin/01_users.sql"
     "admin/02_backup.sql"
     "admin/03_performance.sql"
     "schema/02_trigram_indexes.sql"
-)
-
-# Script da applicare due volte.
-#
-# functions/06_audit.sql crea una vista e una chiave esterna su
-# catasto.utente, che nasce in admin/01_users.sql: nell'elenco viene dopo.
-# L'installer esegue psql senza ON_ERROR_STOP, quindi li' quelle due
-# istruzioni falliscono in silenzio (la vista la ricrea poi l'applicazione
-# all'avvio, la chiave esterna non la crea nessuno). Qui ogni errore ferma
-# l'inizializzazione, percio': al suo posto lo script viene applicato
-# tollerando l'errore, come fa l'installer; a elenco finito viene ripetuto
-# in modo rigoroso, quando la tabella esiste. Lo script e' rieseguibile.
-DA_RIPETERE=(
-    "functions/06_audit.sql"
 )
 
 # percorso_di <script>: stampa il percorso completo, o fallisce.
@@ -74,33 +63,9 @@ applica() {
         || { echo "[foliarium-init] ERRORE in $script" >&2; exit 1; }
 }
 
-# applica_tollerante <script>: prosegue oltre gli errori (vedi DA_RIPETERE).
-applica_tollerante() {
-    local script="$1" percorso
-    percorso="$(percorso_di "$script")"
-    echo "[foliarium-init] -> $script (primo passaggio, verra' ripetuto)"
-    psql --quiet -U "$UTENTE_PG" -d "$DB" -f "$percorso" >/dev/null 2>&1 || true
-}
-
-da_ripetere() {
-    local candidato
-    for candidato in "${DA_RIPETERE[@]}"; do
-        [ "$candidato" = "$1" ] && return 0
-    done
-    return 1
-}
-
 echo "[foliarium-init] Applico gli script SQL al database '$DB'..."
 
 for script in "${SCRIPTS[@]}"; do
-    if da_ripetere "$script"; then
-        applica_tollerante "$script"
-    else
-        applica "$script"
-    fi
-done
-
-for script in "${DA_RIPETERE[@]}"; do
     applica "$script"
 done
 

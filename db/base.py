@@ -267,6 +267,12 @@ class DBConnectionBase:
         # audit log lancia UndefinedTable. CREATE OR REPLACE = idempotente.
         self._ensure_audit_view()
 
+        # Chiave esterna audit_log.app_user_id → utente.id — assente in
+        # tutti i DB creati da setup_database.py fino alla v1.0.2 (06_audit
+        # era applicato prima che la tabella utente esistesse). Idempotente:
+        # no-op se il vincolo c'è già.
+        self._ensure_audit_user_fk()
+
         # Tabella partita_draft — bozze del wizard Nuova Partita.
         # Idempotente: CREATE TABLE IF NOT EXISTS.
         self._ensure_partita_draft_table()
@@ -540,6 +546,105 @@ class DBConnectionBase:
                         )
         except Exception as e:
             self.logger.debug(f"_ensure_audit_view: {e}")
+
+    def _ensure_audit_user_fk(self):
+        """Crea la chiave esterna audit_log.app_user_id → utente.id se manca.
+
+        Equivale alla migrazione `migrations/23_add_fk_audit_log_utente.sql`
+        ma applicata automaticamente all'avvio. Best-effort: non blocca
+        l'avvio.
+
+        Il vincolo (`ON DELETE SET NULL`) manca in tutti i database creati
+        da `setup_database.py` fino alla v1.0.2: lo script che lo crea era
+        applicato prima di quello che crea `utente`, e l'errore passava
+        inosservato. Senza, eliminando un utente le sue righe di audit
+        restano con un `app_user_id` che non corrisponde più a nessuno.
+
+        **Il registro di audit non viene riscritto.** Il vincolo nasce
+        `NOT VALID`, poi si tenta la convalida: riesce se non esistono righe
+        di utenti già eliminati. Se esistono, restano come sono — conservano
+        l'identificativo di chi non c'è più — e il vincolo resta non
+        convalidato: vale comunque per le righe nuove e per le eliminazioni
+        future. Azzerarle è una decisione sullo storico che spetta a una
+        persona; la migrazione 23 spiega come.
+
+        `lock_timeout`: `ALTER TABLE` deve attendere le transazioni che
+        stanno scrivendo su `audit_log` (ogni modifica all'archivio). Con
+        un collega a metà di un'operazione lunga l'avvio resterebbe fermo:
+        meglio rinunciare e riprovare all'avvio successivo.
+        """
+        nome = "fk_audit_log_app_user_id_utente"
+        try:
+            with self._get_connection() as conn:
+                with conn.cursor() as cur:
+                    cur.execute(
+                        "SELECT 1 FROM pg_constraint c "
+                        "JOIN pg_class t ON t.oid = c.conrelid "
+                        "JOIN pg_namespace n ON n.oid = t.relnamespace "
+                        "WHERE c.conname = %s AND t.relname = 'audit_log' "
+                        "  AND n.nspname = %s",
+                        (nome, self.schema)
+                    )
+                    if cur.fetchone():
+                        return  # vincolo già presente
+                    cur.execute(
+                        "SELECT 1 FROM information_schema.tables "
+                        "WHERE table_schema = %s "
+                        "  AND table_name IN ('audit_log', 'utente')",
+                        (self.schema,)
+                    )
+                    # Devono esistere entrambe le tabelle
+                    if cur.rowcount < 2:
+                        return
+                    try:
+                        cur.execute("SET LOCAL lock_timeout = '5s'")
+                        cur.execute(
+                            f"ALTER TABLE {self.schema}.audit_log "
+                            f"ADD CONSTRAINT {nome} "
+                            f"FOREIGN KEY (app_user_id) "
+                            f"REFERENCES {self.schema}.utente(id) "
+                            f"ON DELETE SET NULL NOT VALID"
+                        )
+                    except psycopg2.Error as e:
+                        # Tipicamente 42501 (il ruolo non è proprietario
+                        # della tabella) o 55P03 (lock_timeout scaduto).
+                        conn.rollback()
+                        self.logger.warning(
+                            "Impossibile creare la chiave esterna %s.audit_log "
+                            "→ utente (%s). Verrà ritentato al prossimo avvio; "
+                            "se il ruolo del database non può modificare le "
+                            "tabelle, applicare come superuser "
+                            "sql_scripts/migrations/23_add_fk_audit_log_utente.sql.",
+                            self.schema, e
+                        )
+                        return
+
+                    # Convalida in un savepoint: se fallisce, il vincolo
+                    # appena creato resta.
+                    cur.execute("SAVEPOINT convalida_fk_audit")
+                    try:
+                        cur.execute(
+                            f"ALTER TABLE {self.schema}.audit_log "
+                            f"VALIDATE CONSTRAINT {nome}"
+                        )
+                        cur.execute("RELEASE SAVEPOINT convalida_fk_audit")
+                        self.logger.info(
+                            "Chiave esterna %s.audit_log → utente creata "
+                            "automaticamente all'avvio.", self.schema
+                        )
+                    except psycopg2.Error as e:
+                        cur.execute("ROLLBACK TO SAVEPOINT convalida_fk_audit")
+                        self.logger.warning(
+                            "Chiave esterna %s.audit_log → utente creata senza "
+                            "convalida (%s): il registro contiene righe di "
+                            "utenti già eliminati, che non sono state "
+                            "modificate. Il vincolo vale per le righe nuove e "
+                            "per le eliminazioni future. Vedi "
+                            "sql_scripts/migrations/23_add_fk_audit_log_utente.sql.",
+                            self.schema, str(e).strip().splitlines()[0]
+                        )
+        except Exception as e:
+            self.logger.debug(f"_ensure_audit_user_fk: {e}")
 
     def _ensure_mv_ownership(self):
         """Allinea all'utente connesso l'ownership delle viste materializzate.
