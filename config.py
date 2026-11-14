@@ -1,6 +1,6 @@
 # config.py
 
-APP_VERSION = "1.1.0"
+APP_VERSION = "1.1.1"
 APP_NAME    = "Foliarium"
 APP_SUBTITLE = "Archivio Catastale Storico"
 
