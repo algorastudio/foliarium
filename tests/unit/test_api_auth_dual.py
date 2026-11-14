@@ -194,7 +194,7 @@ class TestApiKeyCatenaReale:
         from fastapi.testclient import TestClient
         import api.deps as deps
 
-        deps._db_manager = manager
+        deps.set_db_manager(manager)
         app = FastAPI()
 
         @app.get("/protected")
@@ -202,7 +202,7 @@ class TestApiKeyCatenaReale:
             return s
 
         yield TestClient(app)
-        deps._db_manager = None
+        deps.set_db_manager(None)
 
     @staticmethod
     def _connessione_con_riga(riga):
@@ -218,8 +218,12 @@ class TestApiKeyCatenaReale:
         conn_cm.__exit__ = MagicMock(return_value=False)
         return conn_cm
 
-    def test_pool_non_inizializzato_risponde_503(self, client):
-        r = client.get("/protected", headers={"X-Foliarium-Api-Key": _CHIAVE})
+    def test_pool_non_inizializzato_risponde_503(self, client, manager):
+        from unittest.mock import patch
+        # Se get_db ritenta l'inizializzazione, il database è ancora giù.
+        with patch.object(manager, "initialize_main_pool", return_value=False):
+            r = client.get("/protected",
+                           headers={"X-Foliarium-Api-Key": _CHIAVE})
         assert r.status_code == 503
         assert r.json()["detail"] == "Database non disponibile"
 
@@ -265,6 +269,7 @@ class TestApiKeyCatenaReale:
                 "revoked_at": adesso if revocata else None,
                 "rate_limit_per_min": 60,
             }
+        manager.pool = MagicMock()  # database raggiungibile
         with patch.object(manager, "_get_connection",
                           return_value=self._connessione_con_riga(riga)):
             r = client.get("/protected",
