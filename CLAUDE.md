@@ -107,6 +107,10 @@ foliarium/
 │   └── integration/              # Integration test (E2E, golden_path, DB live, GUI)
 ├── docs/                         # MkDocs documentation source
 ├── esportazioni/                 # Output directory (PDF, CSV)
+├── docker/                       # Container
+│   ├── postgres/                 # Immagine del database (stack web e demo): Dockerfile, init.sh
+│   ├── demo/                     # Demo: il desktop nel browser, a postazioni (vedi sezione dedicata)
+│   └── README.md                 # Stack web (FastAPI + React), con Dockerfile e docker-compose.yml in radice
 ├── .devcontainer/                # Dev container config (VS Code / Codespaces)
 ├── .github/workflows/            # CI/CD pipeline
 ├── foliarium.spec                # PyInstaller build spec (produzione)
@@ -366,6 +370,15 @@ risultato porta la chiave `interrotto` e la UI lo dichiara all'utente
   `HelpViewerDialog` ha una ricerca su tutti i `.md`; i link dei risultati
   usano lo schema `foliarium-doc:` perché puntano alla radice di `docs/` e
   non al documento che li contiene.
+- **Manuale nel pacchetto:** `HelpViewerDialog` legge `BASE_DIR/docs` e
+  `BASE_DIR/mkdocs.yml`, cioè `_internal/` nel bundle. `foliarium.spec` li
+  aggiunge a `datas` con `_datas_manuale()` (solo i `.md`); senza, il
+  manuale del programma installato si apre vuoto. `docs/internal/`
+  (documenti di progetto) è escluso sia dal pacchetto sia dalla ricerca e
+  dall'albero di ripiego (`documenti_del_manuale()` in `help_viewer.py`).
+  `tests/unit/test_spec_manuale.py` esegue lo spec con `Analysis` finta e
+  verifica il risultato: lo spec non deve importare PyInstaller, perché il
+  job di test della CI non lo installa.
 
 ---
 
@@ -399,7 +412,8 @@ Always use the full three-part path `Module.EnumClass.Value`.
 - Passwords are **not** stored in QSettings — keyring is used for secure storage.
 - Init SQL scripts are in `sql_scripts/`; run in order for a fresh DB.
 - Upgrade scripts for existing DBs are in `sql_scripts/migrations/`.
-- **Auto-apply migrazioni idempotenti:** `db/base.py::_apply_pending_schema_migrations()` viene invocata a ogni init pool e applica silenziosamente migrazioni sicure (es. schema v1.6.1, indici UNIQUE sulle MV, vista `v_audit_dettagliato` — equivalente di `migrations/19_create_v_audit_dettagliato.sql`, tabella `partita_draft` — equivalente di `migrations/21_create_partita_draft.sql`, tabella `api_keys` — equivalente di `migrations/22_create_api_keys.sql`). Best-effort, non bloccante.
+- **Auto-apply migrazioni idempotenti:** `db/base.py::_apply_pending_schema_migrations()` viene invocata a ogni init pool e applica silenziosamente migrazioni sicure (es. schema v1.6.1, indici UNIQUE sulle MV, vista `v_audit_dettagliato` — equivalente di `migrations/19_create_v_audit_dettagliato.sql`, tabella `partita_draft` — equivalente di `migrations/21_create_partita_draft.sql`, tabella `api_keys` — equivalente di `migrations/22_create_api_keys.sql`, chiave esterna `audit_log.app_user_id → utente.id` — equivalente di `migrations/23_add_fk_audit_log_utente.sql`). Best-effort, non bloccante.
+- **La sanatoria della chiave esterna di audit non riscrive il registro.** `_ensure_audit_user_fk()` crea il vincolo `NOT VALID` e poi tenta la convalida: se esistono righe di utenti già eliminati (l'applicazione permette di eliminarli) la convalida fallisce, il vincolo resta e quelle righe conservano l'identificativo. Non «semplificare» azzerandole con un `UPDATE`: è una decisione sullo storico che spetta a una persona, e la migrazione 23 spiega come. `lock_timeout` di 5 secondi perché `ALTER TABLE` attende chi sta scrivendo su `audit_log`.
 
 ## REST API & integrazioni esterne
 
@@ -504,10 +518,122 @@ installare a parte. Tre ingredienti, preparati dalla pipeline in
   esegue il setup con la console nascosta. Le password passate a
   `register_secret()` vi compaiono come `***`: il file resta sul disco del
   cliente e la documentazione invita ad allegarlo alle segnalazioni.
+- **Ordine degli script:** `setup_database.SQL_SCRIPTS` è l'elenco, e
+  **non segue le cartelle**: `admin/01_users.sql` sta prima di
+  `functions/06_audit.sql`, che costruisce una vista e una chiave esterna
+  su `catasto.utente`. Fino alla v1.0.2 erano invertiti e la chiave esterna
+  non veniva creata, senza alcun avviso. `docker/postgres/init.sh` ne tiene
+  una copia identica.
+- **Rigore di psql:** `apply_sql_scripts()` usa `ON_ERROR_STOP` **solo se
+  il database è stato creato in questa esecuzione**. L'installer riesegue
+  il setup a ogni installazione, anche sopra un archivio esistente, e gli
+  script non sono idempotenti: riapplicati producono 38 errori innocui,
+  quasi tutti «already exists». Renderlo rigoroso sempre impedirebbe di
+  reinstallare. In entrambi i casi gli errori di psql finiscono nel log
+  (prima l'output era catturato e scartato). Il database dei test della
+  pipeline è costruito con i vecchi script numerati, non con questo
+  elenco: lo sorveglia `tests/integration/test_schema_database_nuovo.py`,
+  che lo applica a un database vuoto con la funzione dell'installer.
 - **Validazione:** il job `valida-installer` compila l'installer contro un
   `dist/` fittizio e gira **anche sulle pull request**, dove il build vero è
   escluso. Senza, un errore di sintassi nell'installer si scoprirebbe solo
   dopo il merge su `main`.
+
+---
+
+## Demo in Docker (desktop nel browser)
+
+`docker/demo/` ospita su un server una demo che i clienti provano dal
+browser, con credenziali distribuite da chi la gestisce. Guida operativa:
+`docker/demo/README.md`. Progetto e scelte, con ciò che è stato verificato e
+ciò che no: `docs/internal/2026-11-10-demo-docker-design.md`.
+
+- **Perché il desktop e non il web:** la demo deve mostrare il prodotto che
+  il cliente installerà. L'interfaccia web non copre gestione utenti, backup,
+  import di massa e report PDF. Quindi l'applicazione PyQt6 gira nel
+  container su uno schermo virtuale (Xvnc) e arriva al browser via WebSocket.
+- **Postazioni:** una postazione è un progetto Compose con due container
+  (`app`, `db`) su una rete propria; ogni cliente ne riceve una. Un solo
+  proxy Caddy pubblica porte, chiede le credenziali e instrada per percorso
+  (`/<nome>/`). `demo.sh` le crea, ripristina e rimuove.
+- **Riuso della modalità demo:** con `FOLIARIUM_DEMO=1` l'applicazione si
+  collega al database indicato da `DEMO_DB_*` ed entra da sola come utente
+  `demo` (`config.py`, blocco «MODALITÀ DEMO» di `gui_main.py`). L'utente lo
+  crea `sql_scripts/demo/demo_user.sql`; la password è la stessa
+  dell'ingresso dal browser.
+- **Unica modifica al codice del prodotto:** `db/backup._pg_tool_name`. I
+  nomi degli strumenti PostgreSQL erano scritti con `.exe`, che fuori da
+  Windows non esiste.
+
+Cose non ovvie, da non «semplificare»:
+
+- **`docker/postgres/init.sh`** applica gli stessi script di
+  `setup_database.SQL_SCRIPTS`, nello stesso ordine: l'elenco è duplicato e
+  `test_docker_db_init.py` fallisce se i due divergono. Ogni script è
+  applicato una volta sola e il primo errore ferma l'inizializzazione: è
+  ciò che fa emergere subito uno script fuori posto. Variabili:
+  `FOLIARIUM_ADMIN_PASSWORD` crea l'utente admin, `FOLIARIUM_DEMO_PASSWORD`
+  crea `demo` e carica l'archivio.
+- **`avvio.sh` attende il database prima di ogni lancio.** In demo, se la
+  connessione fallisce, l'applicazione mostra un errore modale e aspetta un
+  clic che su un server nessuno darà. Il programma viene rilanciato quando
+  termina; `controllo-salute.sh` considera non sana anche una postazione il
+  cui processo esiste ma mostra un errore «Demo — …».
+- **`DB_SSLMODE=prefer`** nell'immagine: per un host diverso da localhost
+  `_resolve_sslmode` impone `require`, ma il database della postazione è un
+  container sulla stessa macchina, senza certificati.
+- **Portachiavi su file** (`keyrings.alt`): il backup cifrato è l'opzione
+  predefinita e tiene la chiave nel portachiavi di sistema, che in un
+  container non c'è.
+- **Il WebSocket dello schermo non chiede le credenziali Basic**: Safari
+  storicamente non le invia in quella connessione. Lo protegge un token nel
+  percorso, che la pagina riceve da `sessione.json` solo dopo essersi
+  autenticata (funzione `frammento` in `demo.sh`).
+- **Configurazione del proxy con soli blocchi `handle`:** Caddy ordina le
+  direttive per tipo prima che per percorso, e mescolarle a `handle_path`
+  farebbe vincere una regola generica su una specifica.
+- **Schermo remoto minimo 1280×960** (`web/schermo.js`): sotto i 960 pixel
+  di altezza la pagina iniziale comprime i pulsanti fino a renderli
+  illeggibili. In una finestra più piccola lo schermo viene rimpicciolito.
+  Per farlo si sostituisce un metodo interno di noVNC 1.3; se mancasse,
+  resta il comportamento originale.
+- **`postazioni/` e `proxy/` sono cartelle distinte:** la prima contiene le
+  password in chiaro; la seconda, l'unica che il proxy monta, ne contiene
+  solo gli hash. **Ma contiene in chiaro il token dello schermo**, che per lo
+  schermo vale quanto la password: nessuna delle due è leggibile da altri
+  utenti (700/600 e 750/640). Il proxy gira senza capability e legge i
+  frammenti perché riceve come gruppo quello di chi esegue `demo.sh`
+  (`group_add`): non vanno resi leggibili a tutti per «farlo funzionare».
+- **`ripristina` conserva le credenziali, `ripristina --nuove-credenziali`
+  le cambia.** La seconda forma serve quando la postazione passa a un altro
+  cliente: chi l'ha usata conosce password e token, e rientrerebbe nella
+  sessione di chi viene dopo.
+- **In `cmd_crea` ogni passo è seguito da `|| annulla_creazione`**, e
+  `_proxy_su` esce sempre con `return`. Una `trap ERR` non basta: senza
+  `set -E` non vale dentro le funzioni chiamate, e con `set -E` leggerebbe
+  la variabile locale `nome` di `_proxy_su`, che scorre le altre postazioni.
+- **Limiti di CPU calcolati da `demo.sh`:** Docker rifiuta un limite
+  superiore ai processori presenti, quindi il predefinito non può stare
+  scritto nel file Compose.
+- **`Dockerfile.dockerignore` è una lista di ammissione** e i moduli in
+  radice sono copiati per elenco: `generate_key.py` e `generate_license.py`
+  non devono entrare in un'immagine pubblica. Un modulo nuovo in radice va
+  aggiunto al `COPY`.
+- **Negli script con `pipefail` mai `comando | grep -q`:** grep esce al
+  primo riscontro, il comando a monte riceve SIGPIPE e la pipe risulta
+  fallita anche se il testo c'era. In CI una verifica falliva così con la
+  finestra a schermo; un test lo vieta.
+
+**Prova:** `bash docker/demo/prova.sh` crea due postazioni vere, esegue
+sedici verifiche (con un browser vero se c'è Playwright) e toglie tutto. Usa
+`DEMO_PREFISSO=foliarium-prova` e una cartella dati temporanea, quindi non
+tocca postazioni esistenti. Il workflow `demo_docker.yml` la esegue a ogni
+pull request e pubblica le immagini dello schermo come artefatto.
+
+**Build dietro un proxy in uscita** (sessioni cloud): entrambi i Dockerfile
+accettano `BASE_IMAGE`, e `demo.sh costruisci` aggiunge alle build
+`DEMO_BUILD_OPZIONI_DB` / `DEMO_BUILD_OPZIONI_APP`. Nulla di questo va
+scritto nei file versionati.
 
 ---
 
@@ -521,6 +647,8 @@ tests/
 │   ├── test_validators_exceptions.py   # 474 LOC, validators centralizzati
 │   ├── test_db_*.py                    # mixin DB (comuni, partite, possessori, ricerca)
 │   ├── test_db_base_audit_view.py      # _ensure_audit_view (auto-apply vista)
+│   ├── test_db_base_audit_fk.py        # _ensure_audit_user_fk (chiave esterna audit → utente)
+│   ├── test_setup_database.py          # helper dell'installer: log, psql rigoroso/tollerante
 │   ├── test_license_manager.py         # LicenseManager + HMAC
 │   ├── test_theme.py                   # foliarium/ui/theme.py (post-Sprint 3.5)
 │   ├── test_login_flow.py              # foliarium/ui/login_flow.py (post-Sprint 3.6)
@@ -530,17 +658,26 @@ tests/
 │   ├── test_ui_feedback.py             # campi obbligatori, tooltip sidebar,
 │   │                                   # formati data, aiuto contestuale,
 │   │                                   # ricerca manuale, accessibilità (Sprint 4)
+│   ├── test_spec_manuale.py            # foliarium.spec impacchetta docs/*.md +
+│   │                                   # mkdocs.yml, senza docs/internal/
 │   ├── test_error_messages.py          # traduzione SQLSTATE → italiano (Sprint 4)
 │   ├── test_unsaved_and_shortcuts.py   # UnsavedFormMixin, scorciatoie,
 │   │                                   # cronologia Alt+←, import con Annulla
-│   └── test_undo_and_drafts.py         # annullamento, bozze dei moduli,
-│                                       # regressioni eventFilter / singleton
+│   ├── test_undo_and_drafts.py         # annullamento, bozze dei moduli,
+│   │                                   # regressioni eventFilter / singleton
+│   ├── test_backup_executables.py      # nomi degli strumenti PostgreSQL per piattaforma
+│   ├── test_docker_db_init.py          # init.sh ↔ setup_database.SQL_SCRIPTS
+│   └── test_demo_*.py                  # demo in Docker: demo.sh e configurazione del proxy,
+│                                       # pagina dei file, anteprima PDF, esempi di import
 └── integration/                   # Integration tests (pytest -m integration)
     ├── test_e2e.py                     # E2E DB layer (richiede Postgres live)
     ├── test_funzioni_civico.py         # funzioni SQL che leggono il civico dell'immobile,
     │                                   # su un DB creato dagli script dell'installer; migrazione 24
     ├── test_gui_smoke.py               # smoke widget GUI via pytest-qt
     ├── test_gui_widgets.py
+    ├── test_schema_database_nuovo.py   # SQL_SCRIPTS su un database vuoto, con la
+    │                                   # funzione dell'installer e ON_ERROR_STOP;
+    │                                   # sanatoria della chiave esterna di audit
     └── test_golden_path.py             # E2E headless del flusso critico
                                         # comune → possessore → partita →
                                         # variazione → export PDF (Sprint 2)

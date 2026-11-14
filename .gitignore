@@ -154,3 +154,9 @@ frontend/node_modules/
 # Export artifacts
 *.pdf
 esportazioni/
+
+# Demo in Docker — dati del server, con credenziali: mai in git
+docker/demo/demo.env
+docker/demo/postazioni/
+docker/demo/proxy/
+docker/demo/prova-esito/

@@ -1,0 +1,74 @@
+# Prova della demo in Docker (docker/demo/).
+#
+# Costruisce le due immagini, crea due postazioni vere e verifica i criteri
+# di accettazione del progetto con docker/demo/prova.sh: accesso, dati e reti
+# separati, riavvio del programma, download dei file, ripristino, rimozione,
+# e un browser vero che si collega allo schermo.
+#
+# Gira su ogni pull request, senza filtro per percorso: una modifica alla GUI
+# puo' impedire l'avvio del programma nel container quanto una al Dockerfile.
+#
+# I test unitari degli script della demo stanno in tests/unit/ e li esegue
+# gia' la pipeline principale: qui non si ripetono.
+
+name: Demo Docker
+
+on:
+  pull_request:
+    branches: [ "main", "master" ]
+  push:
+    branches: [ "main" ]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: demo-docker-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  prova-demo:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Controllo degli script (shellcheck)
+        run: |
+          shellcheck docker/demo/demo.sh docker/demo/prova.sh \
+                     docker/demo/avvio.sh docker/demo/controllo-salute.sh \
+                     docker/postgres/init.sh
+
+      - name: Node per la prova con il browser
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Playwright e Chromium
+        # Installato fuori dal repository e reso visibile con NODE_PATH: la
+        # prova non deve lasciare un node_modules fra i sorgenti.
+        run: |
+          npm install --prefix "$RUNNER_TEMP/playwright" --no-audit --no-fund playwright@1.63.0
+          echo "NODE_PATH=$RUNNER_TEMP/playwright/node_modules" >> "$GITHUB_ENV"
+          "$RUNNER_TEMP/playwright/node_modules/.bin/playwright" install --with-deps chromium
+
+      - name: Prova completa della demo
+        env:
+          # Senza browser la verifica piu' importante verrebbe saltata in
+          # silenzio: qui e' obbligatoria.
+          DEMO_PROVA_BROWSER: "1"
+        run: bash docker/demo/prova.sh
+
+      - name: Esiti e immagini dello schermo
+        # Sempre, anche se la prova e' riuscita: schermo-prova-a.png mostra
+        # come appare il programma su una macchina diversa da quella di
+        # sviluppo. In caso di fallimento la cartella contiene anche i
+        # registri dei container.
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: Demo-Docker-Esito
+          path: docker/demo/prova-esito/
+          if-no-files-found: warn

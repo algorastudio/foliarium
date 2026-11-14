@@ -13,6 +13,20 @@ import psycopg2
 from psycopg2.extras import DictCursor
 
 
+def _pg_tool_name(base: str, *, windows: Optional[bool] = None) -> str:
+    """
+    Nome dell'eseguibile di uno strumento PostgreSQL sulla piattaforma corrente.
+
+    Su Windows gli strumenti si chiamano `pg_dump.exe`, `psql.exe` e cosi' via;
+    altrove non hanno suffisso, e `shutil.which("pg_dump.exe")` non troverebbe
+    mai nulla. `windows` esiste per i test: sostituire `os.name` a runtime
+    rompe `pathlib`.
+    """
+    if windows is None:
+        windows = os.name == "nt"
+    return f"{base}.exe" if windows else base
+
+
 class DBBackupMixin:
     """Mixin per backup, restore e script PostgreSQL."""
 
@@ -77,7 +91,7 @@ class DBBackupMixin:
     ) -> Optional[List[str]]:
 
         actual_pg_dump_path = self._resolve_executable_path(
-            pg_dump_executable_path_ui, "pg_dump.exe"
+            pg_dump_executable_path_ui, _pg_tool_name("pg_dump")
         )
         if not actual_pg_dump_path:
             return None
@@ -136,7 +150,7 @@ class DBBackupMixin:
 
         if file_extension in [".dump", ".backup", ".custom"]:
             actual_pg_tool_path = self._resolve_executable_path(
-                pg_tool_executable_path_ui, "pg_restore.exe"
+                pg_tool_executable_path_ui, _pg_tool_name("pg_restore")
             )
             if not actual_pg_tool_path:
                 return None
@@ -157,7 +171,7 @@ class DBBackupMixin:
             command.append(backup_file_path)
         elif file_extension == ".sql":
             actual_pg_tool_path = self._resolve_executable_path(
-                pg_tool_executable_path_ui, "psql.exe"
+                pg_tool_executable_path_ui, _pg_tool_name("psql")
             )
             if not actual_pg_tool_path:
                 return None
@@ -280,9 +294,9 @@ class DBBackupMixin:
         db_name = self._main_db_conn_params.get("dbname")
 
         # Trova i percorsi degli eseguibili
-        dropdb_path = self._resolve_executable_path(None, "dropdb.exe")
-        createdb_path = self._resolve_executable_path(None, "createdb.exe")
-        pg_restore_path = self._resolve_executable_path(None, "pg_restore.exe")
+        dropdb_path = self._resolve_executable_path(None, _pg_tool_name("dropdb"))
+        createdb_path = self._resolve_executable_path(None, _pg_tool_name("createdb"))
+        pg_restore_path = self._resolve_executable_path(None, _pg_tool_name("pg_restore"))
 
         if not all([dropdb_path, createdb_path, pg_restore_path]):
             msg = "Impossibile trovare gli eseguibili di PostgreSQL (dropdb, createdb, pg_restore) nel PATH di sistema."

@@ -1,0 +1,8 @@
+File d'esempio per provare l'importazione di massa.
+
+comuni.csv  otto comuni liguri che l'archivio dimostrativo non contiene.
+            Dal menu: File -> Importa Comuni da CSV/ISTAT... -> scheda
+            "Da file CSV" -> Sfoglia, e scegliere questo file.
+
+Dalla stessa finestra, "Scarica Template CSV" produce un file vuoto con le
+intestazioni corrette, da compilare con dati propri.

@@ -3,6 +3,10 @@
 Stack completo (PostgreSQL 14 + FastAPI + React) in due container orchestrati
 da `docker compose`.
 
+> Questa pagina riguarda l'interfaccia **web**. La demo che mostra ai clienti
+> l'applicazione desktop dentro il browser è un'altra cosa e sta in
+> [`docker/demo/`](demo/README.md).
+
 ## Quick start
 
 Dalla root del repository:
@@ -17,8 +21,8 @@ docker compose logs -f app
 # 3. Apri il browser su:
 #    http://localhost:8765/
 #
-#    Login default: admin / admin123
-#    *** Cambia subito questa password dall'app! ***
+#    Login: admin, con la password indicata in ADMIN_PASSWORD
+#    (se non la imposti vale `admin123`, adatta solo allo sviluppo).
 ```
 
 ## Comandi utili
@@ -53,6 +57,7 @@ DB_NAME=catasto_storico
 DB_USER=postgres
 DB_PASS=cambiami_in_produzione
 DB_SCHEMA=catasto
+ADMIN_PASSWORD=cambiami_in_produzione   # password dell'utente applicativo `admin`
 DB_HOST_PORT=5433     # porta esposta sull'host per accesso esterno al DB
 APP_PORT=8765         # porta esposta sull'host per la web app
 ```
@@ -82,9 +87,11 @@ docker compose exec -T db psql -U postgres catasto_storico < backup.sql
   - Aggiunge il locale `it_IT.UTF-8`.
   - Copia `sql_scripts/` in `/opt/foliarium-sql/` e `init.sh` in
     `/docker-entrypoint-initdb.d/00-init.sh`.
-  - Al primo avvio applica in ordine: schema → funzioni → user mgmt →
-    bootstrap admin → reporting/backup/performance/CRUD/workflow/audit/search/
-    indici trigram.
+  - Al primo avvio applica gli stessi script dell'installer, nello stesso
+    ordine (`SQL_SCRIPTS` in `setup_database.py`); un test impedisce ai due
+    elenchi di divergere.
+  - Crea l'utente applicativo `admin` solo se riceve
+    `FOLIARIUM_ADMIN_PASSWORD` (il compose la valorizza da `ADMIN_PASSWORD`).
 
 ## Troubleshooting
 
@@ -98,9 +105,8 @@ Devi vedere `[foliarium-init] Setup completato.` e l'utente `admin` creato.
 **L'app risponde 503?** Il pool DB non si è ancora connesso. L'app fa retry
 per 60s; se fallisce verifica i log: `docker compose logs app | grep "Pool DB"`.
 
-**Voglio caricare dati di test?** Esegui manualmente i dataset di esempio
-(non inclusi nell'init automatico):
-```bash
-docker compose exec -T db psql -U postgres catasto_storico \
-  < sql_scripts/04_dati-esempio_modificato.sql
-```
+**Voglio caricare dati di test?** L'archivio dimostrativo
+(`sql_scripts/demo/demo_data.sql`) viene caricato all'inizializzazione, insieme
+all'utente `demo`, se il servizio `db` riceve `FOLIARIUM_DEMO_PASSWORD`.
+L'inizializzazione gira solo su un volume vuoto: su un database già creato
+serve prima `docker compose down -v`, che **cancella i dati**.

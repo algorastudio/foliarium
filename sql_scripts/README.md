@@ -33,7 +33,10 @@ sql_scripts/
 
 ## Flusso fresh install
 
-Eseguito automaticamente da `setup_database.py` e `prepare_demo_db.py`.
+Eseguito automaticamente da `setup_database.py` (installer) e da
+`docker/postgres/init.sh` (container). L'elenco vive in
+`setup_database.SQL_SCRIPTS`; `init.sh` ne tiene una copia, e
+`tests/unit/test_docker_db_init.py` fallisce se le due divergono.
 
 | # | File | Cosa fa |
 |---|------|---------|
@@ -43,16 +46,32 @@ Eseguito automaticamente da `setup_database.py` e `prepare_demo_db.py`.
 | 4 | `functions/03_workflow.sql` | Workflow complessi: registrazione proprietà, passaggi, frazionamenti |
 | 5 | `functions/04_search.sql` | Ricerca fuzzy trigram + ricerca avanzata possessori e immobili |
 | 6 | `functions/05_reporting.sql` | Materialized views statistiche + funzioni report testuali |
-| 7 | `functions/06_audit.sql` | Trigger audit su tutte le tabelle + FK audit_log→utente |
-| 8 | `functions/07_features.sql` | Feature avanzate: genealogia, documenti storici, statistiche periodo |
-| 9 | `admin/01_users.sql` | Tabelle utente/permesso/sessioni + funzioni autenticazione app |
+| 7 | `admin/01_users.sql` | Tabelle utente/permesso/sessioni + funzioni autenticazione app |
+| 8 | `functions/06_audit.sql` | Trigger audit su tutte le tabelle, vista `v_audit_dettagliato`, FK audit_log→utente |
+| 9 | `functions/07_features.sql` | Feature avanzate: genealogia, documenti storici, statistiche periodo |
 | 10 | `admin/02_backup.sql` | Tabella backup_registro + procedure |
 | 11 | `admin/03_performance.sql` | Procedure VACUUM/REINDEX |
 | 12 | `schema/02_trigram_indexes.sql` | **Indici GIN CONCURRENTLY** — deve stare fuori transazione |
 | — | `admin/04_bootstrap_admin.sql` | **Separato**: crea utente admin (richiede `-v admin_password`) |
 
-Per il setup demo (`prepare_demo_db.py`) viene applicato anche
-`demo/demo_data.sql` come ultimo passo.
+**L'ordine non segue le cartelle, e non per caso.** `admin/01_users.sql` sta
+fra le funzioni perché crea `catasto.utente`: `functions/06_audit.sql` ci
+costruisce sopra la vista `v_audit_dettagliato` e la chiave esterna
+`fk_audit_log_app_user_id_utente`, quindi deve venire dopo. A sua volta
+`01_users.sql` usa `update_modified_column()`, definita in
+`functions/01_core.sql`. Fino alla v1.0.2 i due script erano invertiti e il
+setup, senza alcun avviso, non creava né la vista (che l'applicazione
+ricreava poi all'avvio) né la chiave esterna (vedi
+`migrations/23_add_fk_audit_log_utente.sql`).
+
+Su un database nuovo l'elenco si applica senza errori con
+`psql -v ON_ERROR_STOP=1`: è il modo in cui lo eseguono sia `init.sh` sia
+`setup_database.py`, ed è verificato da
+`tests/integration/test_schema_database_nuovo.py`.
+
+Nei container, con `FOLIARIUM_DEMO_PASSWORD` impostata, `init.sh` applica
+anche `demo/demo_user.sql`, `demo/demo_data.sql` e
+`demo/demo_statistiche.sql`.
 
 ## Variabili psql per `admin/04_bootstrap_admin.sql`
 
@@ -80,6 +99,7 @@ Script da applicare **solo su DB già popolati** che aggiornano da versioni prec
 | `migrations/add_tipo_possesso.sql` | Crea lookup `tipo_possesso` | DB ante v1.0.0 |
 | `migrations/add_sessioni_accesso.sql` | Crea tabella `sessioni_accesso` | DB ante v1.0.0 |
 | `migrations/add_tipo_localita.sql` | Crea lookup `tipo_localita` | DB ante v1.0.0 |
+| `migrations/23_add_fk_audit_log_utente.sql` | Crea la chiave esterna `audit_log.app_user_id → utente.id` (`ON DELETE SET NULL`) senza riscrivere il registro | DB creati da `setup_database.py` fino alla v1.0.2. L'applicazione la applica da sola all'avvio: a mano serve solo se il ruolo del database non può modificare le tabelle |
 
 Per applicarne una: `psql -d catasto_storico -f migrations/<file>.sql`.
 

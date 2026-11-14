@@ -20,6 +20,10 @@ services:
       POSTGRES_DB:       ${DB_NAME:-catasto_storico}
       POSTGRES_USER:     ${DB_USER:-postgres}
       POSTGRES_PASSWORD: ${DB_PASS:-postgres}
+      # Utente applicativo `admin`: senza questa variabile l'inizializzazione
+      # non lo crea (vedi docker/postgres/init.sh). Il default vale solo per
+      # lo sviluppo: in produzione impostare ADMIN_PASSWORD nel file .env.
+      FOLIARIUM_ADMIN_PASSWORD: ${ADMIN_PASSWORD:-admin123}
       LANG:    it_IT.UTF-8
       LC_ALL:  it_IT.UTF-8
     volumes:

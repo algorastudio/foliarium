@@ -1,0 +1,464 @@
+#!/usr/bin/env bash
+# prova.sh — prova completa della demo, con container veri.
+#
+# Crea due postazioni, verifica i criteri di accettazione del progetto
+# (docs/internal/2026-11-10-demo-docker-design.md, §8.3) e alla fine toglie
+# tutto. E' la prova che la CI esegue a ogni pull request, e si puo' lanciare
+# a mano su un server per accertare che l'installazione funzioni.
+#
+# NON tocca un'installazione gia' presente sulla stessa macchina: usa un
+# prefisso proprio per progetti e container (foliarium-prova), una cartella
+# dati temporanea e una porta locale diversa.
+#
+#   bash docker/demo/prova.sh
+#
+# Variabili:
+#   DEMO_PROVA_SENZA_BUILD=1   non ricostruisce le immagini
+#   DEMO_PROVA_BROWSER=1       pretende la prova con il browser (Playwright);
+#                              senza, la esegue solo se e' disponibile
+#   DEMO_PROVA_PORTA           porta locale del proxy di prova (default 18080)
+#   DEMO_PROVA_ESITO           dove scrivere esiti e immagini
+#                              (default docker/demo/prova-esito)
+#
+# Esce con 0 solo se tutte le verifiche passano.
+
+set -uo pipefail
+export LC_ALL=C
+
+QUI="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+ESITO="${DEMO_PROVA_ESITO:-$QUI/prova-esito}"
+PORTA="${DEMO_PROVA_PORTA:-18080}"
+BASE="http://127.0.0.1:$PORTA"
+
+export DEMO_PREFISSO="foliarium-prova"
+# Senza cartella temporanea demo.sh ripiegherebbe su quella vera: meglio
+# fermarsi che toccare un'installazione esistente.
+if ! DEMO_CARTELLA_DATI="$(mktemp -d)" || [ -z "$DEMO_CARTELLA_DATI" ]; then
+    echo "prova.sh: impossibile creare una cartella temporanea." >&2
+    exit 1
+fi
+export DEMO_CARTELLA_DATI
+export DEMO_DOMINIO="" DEMO_INDIRIZZO_PUBBLICO="" DEMO_PORTA_LOCALE="$PORTA"
+export DEMO_SALTA_EULA=1
+unset DEMO_CARTELLA_PROXY
+
+APP_A="$DEMO_PREFISSO-prova-a-app-1"
+APP_B="$DEMO_PREFISSO-prova-b-app-1"
+DB_A="$DEMO_PREFISSO-prova-a-db-1"
+DB_B="$DEMO_PREFISSO-prova-b-db-1"
+TITOLO='Foliarium — Archivio Catastale Storico'
+
+superate=0
+fallite=0
+saltate=0
+
+demo() { bash "$QUI/demo.sh" "$@"; }
+
+esito() {  # esito <OK|FALLITO|SALTATA> <descrizione> [dettaglio]
+    printf '%-8s %s%s\n' "$1" "$2" "${3:+ — $3}"
+    case "$1" in
+        OK) superate=$((superate + 1)) ;;
+        FALLITO) fallite=$((fallite + 1)) ;;
+        *) saltate=$((saltate + 1)) ;;
+    esac
+}
+
+# verifica <descrizione> <funzione>: la funzione riesce o fallisce, e puo'
+# lasciare una spiegazione nella variabile «dettaglio».
+verifica() {
+    local descrizione="$1"
+    shift
+    dettaglio=""
+    if "$@"; then
+        esito OK "$descrizione" "$dettaglio"
+    else
+        esito FALLITO "$descrizione" "$dettaglio"
+    fi
+}
+
+codice() { curl -s -o /dev/null -w '%{http_code}' --noproxy '*' --max-time 15 "$@"; }
+
+password_di() { grep '^DEMO_PASSWORD=' "$DEMO_CARTELLA_DATI/postazioni/$1.env" | cut -d= -f2; }
+token_di() { grep '^DEMO_WS_TOKEN=' "$DEMO_CARTELLA_DATI/postazioni/$1.env" | cut -d= -f2; }
+
+# codice_ws <percorso>: risposta a una richiesta di apertura di WebSocket.
+# 101 significa che lo schermo si e' collegato; in quel caso curl resta in
+# attesa fino allo scadere del tempo, ed e' normale.
+codice_ws() {
+    curl -s -o /dev/null -w '%{http_code}' --noproxy '*' --http1.1 --max-time 4 \
+        -H 'Connection: Upgrade' -H 'Upgrade: websocket' \
+        -H 'Sec-WebSocket-Version: 13' -H 'Sec-WebSocket-Key: dGhlIHNhbXBsZSBub25jZQ==' \
+        "$BASE$1"
+}
+
+# password_nel_login <container app> <password>: la password vale nel login
+# di Foliarium, che la verifica con bcrypt di Python sull'hash scritto dal
+# database? Stampa «giusta: True sbagliata: False» se si'.
+password_nel_login() {
+    docker exec -e PW="$2" "$1" python -c '
+import os, bcrypt, psycopg2
+c = psycopg2.connect(host=os.environ["DEMO_DB_HOST"], port=os.environ["DEMO_DB_PORT"],
+                     dbname=os.environ["DEMO_DB_NAME"], user=os.environ["DEMO_DB_USER"],
+                     password=os.environ["DEMO_DB_PASS"])
+cur = c.cursor()
+cur.execute("SELECT password_hash FROM catasto.utente WHERE username = %s", ("demo",))
+h = cur.fetchone()[0].encode()
+print("giusta:", bcrypt.checkpw(os.environ["PW"].encode(), h),
+      "sbagliata:", bcrypt.checkpw(b"un-altra-password", h))
+' 2>&1 | tail -n 1
+}
+
+risponde_200() { [ "$(codice "$@")" = 200 ]; }
+
+sql() {  # sql <container db> <istruzione>
+    docker exec "$1" psql -U postgres -d catasto_storico -Atc "$2" 2>&1
+}
+
+# contiene <testo> <cercato>
+#
+# Mai `comando | grep -q` in questo script: con pipefail fallisce a caso.
+# grep esce appena trova il testo, il comando a monte riceve SIGPIPE e la
+# pipe risulta fallita anche se il testo c'era.
+contiene() {
+    case "$1" in
+        *"$2"*) return 0 ;;
+    esac
+    return 1
+}
+
+finestra_principale() {
+    local finestre
+    finestre="$(docker exec "$1" xwininfo -root -tree 2>/dev/null)" || return 1
+    contiene "$finestre" "$TITOLO"
+}
+
+# I registri dei container servono a capire un fallimento: vanno salvati
+# finche' i container esistono, cioe' prima della verifica di rimozione.
+registri_salvati=0
+salva_registri() {
+    local nome
+    [ "$registri_salvati" = 1 ] && return 0
+    registri_salvati=1
+    for nome in "$APP_A" "$DB_A" "$APP_B" "$DB_B" "$DEMO_PREFISSO-proxy"; do
+        docker logs "$nome" > "$ESITO/log-$nome.txt" 2>&1 || true
+    done
+}
+
+attendi() {  # attendi <secondi> <comando...>
+    local scadenza=$(( $(date +%s) + $1 ))
+    shift
+    until "$@"; do
+        [ "$(date +%s)" -ge "$scadenza" ] && return 1
+        sleep 2
+    done
+}
+
+pulizia() {
+    local nome
+    if [ "$fallite" -gt 0 ]; then
+        salva_registri
+    fi
+    for nome in prova-a prova-b; do
+        if [ -f "$DEMO_CARTELLA_DATI/postazioni/$nome.env" ]; then
+            demo rimuovi "$nome" --si >/dev/null 2>&1 || true
+        fi
+    done
+    demo _proxy_giu >/dev/null 2>&1 || true
+    rm -rf "$DEMO_CARTELLA_DATI"
+}
+trap pulizia EXIT
+
+mkdir -p "$ESITO"
+rm -f "$ESITO"/*.png "$ESITO"/*.txt "$ESITO"/*.log 2>/dev/null
+
+# ---------------------------------------------------------------------------
+# Preparazione
+# ---------------------------------------------------------------------------
+if [ "${DEMO_PROVA_SENZA_BUILD:-}" != "1" ]; then
+    echo "Costruzione delle immagini (registro: $ESITO/costruisci.log)..."
+    if ! demo costruisci > "$ESITO/costruisci.log" 2>&1; then
+        tail -n 30 "$ESITO/costruisci.log"
+        esito FALLITO "costruzione delle immagini"
+        exit 1
+    fi
+fi
+
+echo "Creazione di due postazioni di prova..."
+for nome in prova-a prova-b; do
+    if ! demo crea "$nome" > "$ESITO/crea-$nome.log" 2>&1; then
+        cat "$ESITO/crea-$nome.log"
+        esito FALLITO "creazione della postazione $nome"
+        exit 1
+    fi
+done
+# I registri della creazione contengono le password: non si conservano.
+rm -f "$ESITO"/crea-*.log
+PW_A="$(password_di prova-a)"
+PW_B="$(password_di prova-b)"
+
+# ---------------------------------------------------------------------------
+# Verifiche
+# ---------------------------------------------------------------------------
+
+v_accesso() {
+    local senza con altrui
+    senza="$(codice "$BASE/prova-a/")"
+    con="$(codice -u "demo:$PW_A" "$BASE/prova-a/")"
+    altrui="$(codice -u "demo:$PW_B" "$BASE/prova-a/")"
+    dettaglio="senza $senza, con $con, con quelle dell'altra $altrui"
+    [ "$senza" = 401 ] && [ "$con" = 200 ] && [ "$altrui" = 401 ]
+}
+verifica "1. accesso: 401 senza credenziali, 200 con le proprie, 401 con quelle di un'altra postazione" v_accesso
+
+v_database() {
+    local utente comuni partite
+    utente="$(sql "$DB_A" "SELECT ruolo || '|' || attivo FROM catasto.utente WHERE username='demo'")"
+    comuni="$(sql "$DB_A" "SELECT count(*) FROM catasto.comune")"
+    partite="$(sql "$DB_A" "SELECT count(*) FROM catasto.partita")"
+    dettaglio="utente demo: $utente; comuni $comuni; partite $partite"
+    [ "$utente" = "admin|true" ] && [ "${comuni:-0}" -gt 0 ] 2>/dev/null && [ "${partite:-0}" -gt 0 ] 2>/dev/null
+}
+verifica "2. database: utente demo attivo con ruolo admin, archivio dimostrativo caricato" v_database
+
+v_stessa_password() {
+    dettaglio="$(password_nel_login "$APP_A" "$PW_A")"
+    [ "$dettaglio" = "giusta: True sbagliata: False" ]
+}
+verifica "3. la password dell'ingresso vale anche nel login di Foliarium" v_stessa_password
+
+v_riparte() {
+    if ! attendi 60 finestra_principale "$APP_A"; then
+        dettaglio="la finestra principale non e' comparsa"
+        return 1
+    fi
+    docker exec "$APP_A" pkill -f '/opt/foliarium/gui_main.py' || true
+    sleep 1
+    if finestra_principale "$APP_A"; then
+        dettaglio="il programma non si e' chiuso"
+        return 1
+    fi
+    local inizio
+    inizio="$(date +%s)"
+    if attendi 30 finestra_principale "$APP_A"; then
+        dettaglio="tornato dopo $(( $(date +%s) - inizio )) s"
+        return 0
+    fi
+    dettaglio="non e' tornato entro 30 s"
+    return 1
+}
+verifica "4. il programma entra da solo e, chiuso, riparte" v_riparte
+
+v_dati_separati() {
+    local inserito in_a in_b
+    inserito="$(sql "$DB_A" "INSERT INTO catasto.comune (nome, provincia, regione) VALUES ('Comune di Prova', 'XX', 'Prova') RETURNING 'fatto'" | head -n 1)"
+    in_a="$(sql "$DB_A" "SELECT count(*) FROM catasto.comune WHERE nome='Comune di Prova'")"
+    in_b="$(sql "$DB_B" "SELECT count(*) FROM catasto.comune WHERE nome='Comune di Prova'")"
+    dettaglio="inserimento: $inserito; in A $in_a, in B $in_b"
+    [ "$in_a" = 1 ] && [ "$in_b" = 0 ]
+}
+verifica "5. un dato inserito in una postazione non compare nell'altra" v_dati_separati
+
+v_file() {
+    local scaricato elenco fuga corpo_fuga
+    docker exec "$APP_A" sh -c 'printf "contenuto di prova" > "$HOME/Documenti/Esportazioni Foliarium/prova.txt"'
+    scaricato="$(curl -s --noproxy '*' -u "demo:$PW_A" "$BASE/prova-a/file/Esportazioni%20Foliarium/prova.txt")"
+    elenco="$(curl -s --noproxy '*' -u "demo:$PW_A" "$BASE/prova-a/file/Esportazioni%20Foliarium/")"
+    fuga="$(codice --path-as-is -u "demo:$PW_A" "$BASE/prova-a/file/..%2f..%2f..%2fetc/passwd")"
+    corpo_fuga="$(curl -s --noproxy '*' --path-as-is -u "demo:$PW_A" "$BASE/prova-a/file/..%2f..%2f..%2fetc/passwd")"
+    dettaglio="scaricato «$scaricato»; percorso ostile: $fuga"
+    [ "$scaricato" = "contenuto di prova" ] &&
+        contiene "$elenco" 'prova.txt' &&
+        [ "$fuga" != 200 ] &&
+        ! contiene "$corpo_fuga" 'root:'
+}
+verifica "6. un file esportato si scarica dalla pagina dei file; un percorso ostile no" v_file
+
+v_portachiavi() {
+    # Foliarium conserva nel portachiavi di sistema la chiave dei backup
+    # cifrati, che sono l'opzione predefinita. In un container un portachiavi
+    # non c'e': senza quello su file dell'immagine il backup dalla GUI fallisce.
+    # Poi le stesse due funzioni che usa la pagina dei backup: cifratura
+    # del file prodotto, decifratura prima del ripristino.
+    dettaglio="$(docker exec -w /opt/foliarium -e QT_QPA_PLATFORM=offscreen "$APP_A" python -c '
+import os, tempfile
+from foliarium.core.services import backup_crypto
+chiave = backup_crypto.get_backup_key(create=True)
+riletta = backup_crypto.get_backup_key(create=False) == chiave
+dati = os.urandom(200000)
+chiaro = os.path.join(tempfile.mkdtemp(), "prova.backup")
+with open(chiaro, "wb") as f:
+    f.write(dati)
+cifrato = backup_crypto.encrypt_backup(chiaro)
+solo_cifrato = backup_crypto.is_encrypted_file(cifrato) and not os.path.exists(chiaro)
+with open(backup_crypto.decrypt_backup_to_temp(cifrato), "rb") as f:
+    decifrato_uguale = f.read() == dati
+print("chiave di", len(chiave), "byte; riletta uguale:", riletta,
+      "; resta solo il file cifrato:", solo_cifrato, "; decifrato uguale:", decifrato_uguale)
+' 2>&1 | tail -n 1)"
+    [ "$dettaglio" = "chiave di 32 byte; riletta uguale: True ; resta solo il file cifrato: True ; decifrato uguale: True" ]
+}
+verifica "7. portachiavi della postazione: un file cifrato come fa il backup si decifra uguale" v_portachiavi
+
+v_porte() {
+    local pubblicate proxy
+    pubblicate="$(docker ps --format '{{.Names}} {{.Ports}}' | grep "^$DEMO_PREFISSO-" | grep -v "^$DEMO_PREFISSO-proxy " | grep -c -- '->')"
+    proxy="$(docker ps --format '{{.Names}} {{.Ports}}' | grep "^$DEMO_PREFISSO-proxy " | grep -o '[0-9.:]*->' | tr '\n' ' ')"
+    dettaglio="porte pubblicate dalle postazioni: $pubblicate; dal proxy: $proxy"
+    [ "$pubblicate" = 0 ] && [ "$proxy" = "127.0.0.1:$PORTA-> " ]
+}
+verifica "8. solo il proxy pubblica porte" v_porte
+
+v_reti_separate() {
+    # Da una postazione l'altra non si raggiunge: non se ne risolve nemmeno
+    # il nome.
+    if docker exec "$APP_A" curl -s -o /dev/null --max-time 4 "http://app-prova-b:6080/"; then
+        dettaglio="da A la postazione B risponde"
+        return 1
+    fi
+    dettaglio="da A la postazione B non e' raggiungibile"
+}
+verifica "9. una postazione non raggiunge l'altra in rete" v_reti_separate
+
+v_proxy_ricreato() {
+    # I collegamenti del proxy alle reti delle postazioni si perdono quando
+    # il container viene ricreato: demo.sh deve rifarli tutti.
+    demo _proxy_su --force-recreate >/dev/null 2>&1 || { dettaglio="ricreazione del proxy fallita"; return 1; }
+    local a b
+    attendi 30 risponde_200 -u "demo:$PW_A" "$BASE/prova-a/" || true
+    a="$(codice -u "demo:$PW_A" "$BASE/prova-a/")"
+    b="$(codice -u "demo:$PW_B" "$BASE/prova-b/")"
+    dettaglio="dopo la ricreazione: A $a, B $b"
+    [ "$a" = 200 ] && [ "$b" = 200 ]
+}
+verifica "10. ricreato il proxy, le postazioni restano raggiungibili" v_proxy_ricreato
+
+# Un'immagine dello schermo presa dentro il container: c'e' anche quando la
+# prova con il browser non si puo' fare.
+docker exec "$APP_A" python /opt/foliarium-demo/cattura_schermo.py /tmp/schermo.png >/dev/null 2>&1 &&
+    docker cp "$APP_A:/tmp/schermo.png" "$ESITO/schermo-nel-container.png" >/dev/null 2>&1
+
+if node -e "require('playwright')" >/dev/null 2>&1; then
+    v_browser() {
+        NO_PROXY='*' no_proxy='*' node "$QUI/prova_browser.cjs" "$BASE" prova-a "$PW_A" "$ESITO" \
+            > "$ESITO/prova-browser.txt" 2>&1
+        local stato=$?
+        dettaglio="$(tail -n 1 "$ESITO/prova-browser.txt")"
+        [ "$stato" = 0 ] || sed 's/^/          /' "$ESITO/prova-browser.txt"
+        return "$stato"
+    }
+    verifica "11. con un browser vero: credenziali, schermo collegato, dimensione che segue la finestra" v_browser
+elif [ "${DEMO_PROVA_BROWSER:-}" = "1" ]; then
+    esito FALLITO "11. prova con un browser vero" "richiesta (DEMO_PROVA_BROWSER=1) ma node o playwright non ci sono"
+else
+    esito SALTATA "11. prova con un browser vero" "node o playwright non disponibili"
+fi
+
+v_ripristino() {
+    demo ripristina prova-a >/dev/null 2>&1 || { dettaglio="il comando ripristina e' fallito"; return 1; }
+    local comune file accesso partite
+    comune="$(sql "$DB_A" "SELECT count(*) FROM catasto.comune WHERE nome='Comune di Prova'")"
+    partite="$(sql "$DB_A" "SELECT count(*) FROM catasto.partita")"
+    file="$(codice -u "demo:$PW_A" "$BASE/prova-a/file/Esportazioni%20Foliarium/prova.txt")"
+    accesso="$(codice -u "demo:$PW_A" "$BASE/prova-a/")"
+    attendi 90 finestra_principale "$APP_A" || { dettaglio="dopo il ripristino il programma non e' ripartito"; return 1; }
+    dettaglio="comune di prova: $comune; partite: $partite; file: $file; accesso con le stesse credenziali: $accesso"
+    [ "$comune" = 0 ] && [ "${partite:-0}" -gt 0 ] 2>/dev/null && [ "$file" = 404 ] && [ "$accesso" = 200 ]
+}
+verifica "12. dopo il ripristino: dati e file inseriti spariti, archivio iniziale, stesse credenziali" v_ripristino
+
+v_limiti() {
+    # Le postazioni condividono la macchina: ogni container deve avere un
+    # tetto di CPU, memoria e processi, e nessuna capability.
+    local c cpu mem pids cap utente mem_proxy
+    for c in "$APP_A" "$DB_A"; do
+        cpu="$(docker inspect -f '{{.HostConfig.NanoCpus}}' "$c" 2>/dev/null)"
+        mem="$(docker inspect -f '{{.HostConfig.Memory}}' "$c" 2>/dev/null)"
+        pids="$(docker inspect -f '{{.HostConfig.PidsLimit}}' "$c" 2>/dev/null)"
+        cap="$(docker inspect -f '{{.HostConfig.CapDrop}}' "$c" 2>/dev/null)"
+        dettaglio="$dettaglio${c##*-prova-a-}: CPU $(( ${cpu:-0} / 10000000 ))%, memoria $(( ${mem:-0} / 1048576 )) MB, processi ${pids:-?}, capability tolte ${cap:-?}; "
+        [ "${cpu:-0}" -gt 0 ] 2>/dev/null && [ "${mem:-0}" -gt 0 ] 2>/dev/null &&
+            [ "${pids:-0}" -gt 0 ] 2>/dev/null && [ "$cap" = "[ALL]" ] || return 1
+    done
+    utente="$(docker exec "$DB_A" id -un 2>&1)"
+    mem_proxy="$(docker inspect -f '{{.HostConfig.Memory}}' "$DEMO_PREFISSO-proxy" 2>/dev/null)"
+    dettaglio="${dettaglio}il database gira come «$utente»; proxy: memoria $(( ${mem_proxy:-0} / 1048576 )) MB"
+    [ "$utente" = postgres ] && [ "${mem_proxy:-0}" -gt 0 ] 2>/dev/null
+}
+verifica "13. ogni container ha limiti di CPU, memoria e processi; il database non gira da root" v_limiti
+
+v_permessi() {
+    # Il file .env contiene le password; il frammento del proxy il token
+    # dello schermo, che per lo schermo vale quanto la password. Il proxy
+    # continua a leggere il suo (le verifiche precedenti sono passate da li')
+    # grazie al gruppo, non perche' il file sia leggibile da tutti.
+    local p_post p_env p_proxy p_fr
+    p_post="$(stat -c %a "$DEMO_CARTELLA_DATI/postazioni")"
+    p_env="$(stat -c %a "$DEMO_CARTELLA_DATI/postazioni/prova-a.env")"
+    p_proxy="$(stat -c %a "$DEMO_CARTELLA_DATI/proxy")"
+    p_fr="$(stat -c %a "$DEMO_CARTELLA_DATI/proxy/prova-a.caddy")"
+    dettaglio="postazioni/ $p_post, .env $p_env, proxy/ $p_proxy, frammento $p_fr (eseguito come uid $(id -u), gruppo $(id -g))"
+    [ "$p_post" = 700 ] && [ "$p_env" = 600 ] && [ "$p_proxy" = 750 ] && [ "$p_fr" = 640 ]
+}
+verifica "14. i file con password e token non sono leggibili da altri utenti" v_permessi
+
+v_cambio_cliente() {
+    # Quando una postazione passa a un altro cliente, chi l'ha usata prima
+    # non deve poter rientrare: ne' con la password, ne' con l'indirizzo
+    # dello schermo, che da solo basterebbe.
+    local pw_prima token_prima pw_dopo token_dopo stampata
+    local con_vecchia con_nuova ws_vecchio ws_nuovo ws_altrui login
+    pw_prima="$PW_B"
+    token_prima="$(token_di prova-b)"
+    if ! demo ripristina prova-b --nuove-credenziali > "$ESITO/nuove-credenziali.log" 2>&1; then
+        dettaglio="il comando e' fallito: $(tail -n 2 "$ESITO/nuove-credenziali.log" | tr '\n' ' ')"
+        rm -f "$ESITO/nuove-credenziali.log"
+        return 1
+    fi
+    pw_dopo="$(password_di prova-b)"
+    token_dopo="$(token_di prova-b)"
+    stampata=no
+    contiene "$(cat "$ESITO/nuove-credenziali.log")" "Password  : $pw_dopo" && stampata=si
+    # Il registro contiene la password: non si conserva.
+    rm -f "$ESITO/nuove-credenziali.log"
+    if [ -z "$pw_dopo" ] || [ "$pw_dopo" = "$pw_prima" ] || [ "$token_dopo" = "$token_prima" ]; then
+        dettaglio="password o token non sono cambiati"
+        return 1
+    fi
+    PW_B="$pw_dopo"
+    attendi 90 finestra_principale "$APP_B" || { dettaglio="il programma non e' ripartito"; return 1; }
+    con_vecchia="$(codice -u "demo:$pw_prima" "$BASE/prova-b/")"
+    con_nuova="$(codice -u "demo:$pw_dopo" "$BASE/prova-b/")"
+    ws_vecchio="$(codice_ws "/prova-b/ws/$token_prima")"
+    ws_nuovo="$(codice_ws "/prova-b/ws/$token_dopo")"
+    ws_altrui="$(codice_ws "/prova-b/ws/$(token_di prova-a)")"
+    login="$(password_nel_login "$APP_B" "$pw_dopo")"
+    dettaglio="password di prima $con_vecchia, nuova $con_nuova (stampata: $stampata); schermo con il token di prima $ws_vecchio, nuovo $ws_nuovo, di un'altra postazione $ws_altrui; login di Foliarium: $login"
+    [ "$con_vecchia" = 401 ] && [ "$con_nuova" = 200 ] && [ "$stampata" = si ] &&
+        [ "$ws_vecchio" = 401 ] && [ "$ws_nuovo" = 101 ] && [ "$ws_altrui" = 401 ] &&
+        [ "$login" = "giusta: True sbagliata: False" ]
+}
+verifica "15. cambio di cliente: con le credenziali nuove quelle di prima non aprono piu' ne' la pagina ne' lo schermo" v_cambio_cliente
+
+if [ "$fallite" -gt 0 ]; then
+    salva_registri
+fi
+
+v_rimozione() {
+    demo rimuovi prova-a --si >/dev/null 2>&1 || { dettaglio="rimuovi prova-a e' fallito"; return 1; }
+    demo rimuovi prova-b --si >/dev/null 2>&1 || { dettaglio="rimuovi prova-b e' fallito"; return 1; }
+    local container volumi reti file accesso
+    container="$(docker ps -a --format '{{.Names}}' | grep -c "^$DEMO_PREFISSO-prova-")"
+    volumi="$(docker volume ls -q | grep -c "^$DEMO_PREFISSO-prova-")"
+    reti="$(docker network ls --format '{{.Name}}' | grep -c "^$DEMO_PREFISSO-prova-")"
+    file="$(find "$DEMO_CARTELLA_DATI/postazioni" "$DEMO_CARTELLA_DATI/proxy" -type f 2>/dev/null | wc -l | tr -d ' ')"
+    accesso="$(codice -u "demo:$PW_A" "$BASE/prova-a/")"
+    dettaglio="container $container, volumi $volumi, reti $reti, file $file; l'indirizzo ora risponde $accesso"
+    [ "$container" = 0 ] && [ "$volumi" = 0 ] && [ "$reti" = 0 ] && [ "$file" = 0 ] && [ "$accesso" = 404 ]
+}
+verifica "16. dopo la rimozione non resta nulla delle postazioni" v_rimozione
+
+# ---------------------------------------------------------------------------
+totale=$((superate + fallite))
+echo
+echo "$superate/$totale verifiche superate$( [ "$saltate" -gt 0 ] && echo " ($saltate saltate)" )"
+[ "$fallite" = 0 ]

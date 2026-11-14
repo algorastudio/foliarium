@@ -13,6 +13,16 @@
   funzioni. Negli altri casi (database creati a mano, con
   `setup_database.bat` o in Docker) va eseguita una volta
   `sql_scripts/migrations/24_fix_funzioni_civico.sql`.
+## (non rilasciato) — Manuale in linea nel programma installato
+
+- **Aiuto → Manuale e F1 non si aprono più vuoti.** Il pacchetto
+  PyInstaller non conteneva né i documenti del manuale né `mkdocs.yml`:
+  dai sorgenti il manuale funzionava, nel programma installato l'albero e
+  la pagina restavano vuoti. `foliarium.spec` ora include i `.md` di
+  `docs/` e `mkdocs.yml` (circa 300 KB).
+- **I documenti di progetto restano fuori dal manuale.** `docs/internal/`
+  non entra nel pacchetto e non compare più fra i risultati della ricerca
+  nel manuale, nemmeno quando il programma gira dai sorgenti.
 
 ## (non rilasciato) — Installazione senza intervento manuale
 
@@ -37,6 +47,26 @@
 - **Diagnostica dell'installazione.** Il setup del database scrive
   `setup_database.log` nella cartella di installazione, con le password
   oscurate: può essere allegato a una segnalazione di assistenza.
+- **Corretto: eliminando un utente, il registro di audit restava a puntare
+  nel vuoto.** I database creati da `setup_database.py` non avevano la
+  chiave esterna fra `audit_log` e `utente`: gli script venivano applicati
+  in un ordine in cui la tabella degli utenti non esisteva ancora, e
+  l'errore non veniva segnalato. L'ordine è corretto. Sui database già
+  installati l'applicazione crea il vincolo da sola al primo avvio, senza
+  modificare le righe di audit esistenti: quelle di utenti già eliminati
+  conservano il loro identificativo. Dove il ruolo del database non può
+  modificare le tabelle va applicata a mano
+  `sql_scripts/migrations/23_add_fk_audit_log_utente.sql`.
+- **Il setup si ferma al primo errore su un database nuovo.** Prima gli
+  errori degli script SQL venivano ignorati e non lasciavano traccia. Ora,
+  su un database appena creato, il setup fallisce e il log riporta il
+  messaggio di PostgreSQL. Su un database già esistente (reinstallazione,
+  aggiornamento) gli script vengono riapplicati come prima, ma gli errori
+  — quasi tutti «already exists», attesi — sono elencati nel log.
+- **Corretto: `--db-name` con un nome diverso da `catasto_storico`.** Il
+  `search_path` veniva impostato su un database dal nome fisso: con un
+  altro nome alcune funzioni di manutenzione finivano nello schema
+  `public` invece che in `catasto`.
 
 ## (non rilasciato) — Ampliamento operazioni MCP
 
