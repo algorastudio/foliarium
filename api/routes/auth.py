@@ -4,7 +4,8 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel
 
 from api.auth import create_session, delete_session
-from api.deps import get_db, get_current_session
+from api.deps import DB_NON_DISPONIBILE, get_db, get_current_session
+from catasto_exceptions import DBMError
 
 router = APIRouter(prefix="/auth", tags=["auth"])
 
@@ -24,7 +25,15 @@ class LoginResponse(BaseModel):
 
 @router.post("/login", response_model=LoginResponse)
 def login(req: LoginRequest, db=Depends(get_db)):
-    creds = db.get_user_credentials(req.username)
+    try:
+        creds = db.get_user_credentials(req.username)
+    except DBMError:
+        # Database giu' o query fallita: non e' un problema di credenziali.
+        # Il dettaglio tecnico e' gia' nel log del layer DB.
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail=DB_NON_DISPONIBILE,
+        )
     if creds is None:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Credenziali non valide")
 

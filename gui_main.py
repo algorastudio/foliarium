@@ -2422,7 +2422,16 @@ def run_gui_app():
             main_window_instance.pool_initialized_successful = True
 
             # Auto-login come utente demo (deve esistere nel DB demo)
-            _demo_creds = db_manager_gui.get_user_credentials(DEMO_LOGIN_USER)
+            try:
+                _demo_creds = db_manager_gui.get_user_credentials(DEMO_LOGIN_USER)
+            except DBMError as e_creds:
+                # Database caduto subito dopo l'apertura del pool: come per gli
+                # altri errori DB della demo, si avvisa e si esce. Il login
+                # manuale fallirebbe allo stesso modo.
+                show_user_error(None, "Demo — Accesso automatico", e_creds,
+                                logger=gui_logger)
+                _license_mgr.release_seat()
+                sys.exit(1)
             if _demo_creds and _demo_creds.get('attivo'):
                 _demo_uid = _demo_creds['id']
                 _demo_session = db_manager_gui.register_access(

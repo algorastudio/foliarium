@@ -409,6 +409,7 @@ Always use the full three-part path `Module.EnumClass.Value`.
   - `Authorization: Bearer <token>` → sessione utente in-memory (TTL 120 min, `api/auth.py`). Implicitamente ha scope `*:*`.
   - `X-Foliarium-Api-Key: flr_<32 hex>` → chiave API persistente in `catasto.api_keys`. Scope granulari (es. `read:partite`, `write:partite`, wildcard `read:*` / `*:*`).
   - `get_current_session` (storica) accetta entrambi i metodi. Per scope-check granulare: `Depends(require_scope("read:partite"))`.
+- **Database non disponibile ≠ credenziali errate:** `get_user_credentials` restituisce `None` solo per l'utente inesistente; un errore di connessione o di query si propaga come `DBMError` (causa psycopg2 incatenata). `POST /auth/login` lo traduce in **503** `api.deps.DB_NON_DISPONIBILE`, la GUI (`LoginDialog`) in `show_user_error`. `get_db` risponde 503 anche quando il manager esiste ma il pool non si è inizializzato, e ritenta l'inizializzazione al più ogni `_POOL_RETRY_INTERVAL_S` secondi, così l'API si riprende quando il database risale.
 - **Gestione chiavi API** (mixin `db/api_keys.py`):
   - `create_api_key(name, scopes, created_by, expires_at=None, rate_limit_per_min=60) -> (id, plaintext)` — il plaintext (`flr_<32 hex>`) è restituito una sola volta; in DB si memorizza solo lo SHA-256 + prefix.
   - `validate_api_key(plaintext) -> Optional[dict]` — verifica hash, scadenza, revoca; aggiorna `last_used_at`.

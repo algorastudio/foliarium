@@ -17,6 +17,9 @@ restituisce un dict con la stessa shape di prima, con in più i campi
 route che vogliono fare scope-check usare ``require_scope("read:partite")``.
 """
 
+import logging
+import threading
+import time
 from typing import Optional
 
 from fastapi import Depends, HTTPException, Request, status
@@ -25,22 +28,62 @@ from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from api.auth import get_session
 from api.rate_limit import check_and_increment
 
+logger = logging.getLogger("FoliariumAPI")
+
 _bearer = HTTPBearer(auto_error=False)
 
 API_KEY_HEADER = "X-Foliarium-Api-Key"
 
+DB_NON_DISPONIBILE = "Database non disponibile"
+
 # DB manager è un singleton impostato da api/main.py all'avvio
 _db_manager = None
 
+# Se il pool non si è inizializzato all'avvio (api/main.py rinuncia dopo 60 s
+# e registra comunque il manager), get_db ritenta al più una volta ogni
+# _POOL_RETRY_INTERVAL_S secondi: l'API torna a rispondere quando il database
+# risale, senza tentare una connessione a ogni richiesta.
+_POOL_RETRY_INTERVAL_S = 10.0
+_pool_lock = threading.Lock()
+_ultimo_tentativo_pool: Optional[float] = None
+
 
 def set_db_manager(mgr) -> None:
-    global _db_manager
+    global _db_manager, _ultimo_tentativo_pool
     _db_manager = mgr
+    _ultimo_tentativo_pool = None
+
+
+def _pool_pronto(mgr) -> bool:
+    """True se il manager ha un pool, eventualmente dopo un nuovo tentativo."""
+    global _ultimo_tentativo_pool
+    if getattr(mgr, "pool", None) is not None:
+        return True
+    # Un solo tentativo alla volta, senza attesa: una connessione verso un
+    # host che non risponde può durare quanto il timeout TCP, e le altre
+    # richieste devono ricevere 503 subito invece di accodarsi.
+    if not _pool_lock.acquire(blocking=False):
+        return False
+    try:
+        if getattr(mgr, "pool", None) is not None:
+            return True
+        adesso = time.monotonic()
+        if (_ultimo_tentativo_pool is not None
+                and adesso - _ultimo_tentativo_pool < _POOL_RETRY_INTERVAL_S):
+            return False
+        _ultimo_tentativo_pool = adesso
+        logger.warning("Pool DB non inizializzato: nuovo tentativo di connessione.")
+        return bool(mgr.initialize_main_pool())
+    finally:
+        _pool_lock.release()
 
 
 def get_db():
-    if _db_manager is None:
-        raise HTTPException(status_code=503, detail="Database non disponibile")
+    if _db_manager is None or not _pool_pronto(_db_manager):
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail=DB_NON_DISPONIBILE,
+        )
     return _db_manager
 
 

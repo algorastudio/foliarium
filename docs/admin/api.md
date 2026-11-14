@@ -126,7 +126,7 @@ curl -H "X-Foliarium-Api-Key: $KEY" "$API/genealogia/42"
 | `401` | Chiave API mancante, non valida, scaduta o revocata |
 | `403` | Chiave API valida ma senza lo scope richiesto |
 | `404` | Risorsa inesistente (es. partita_id non trovato) |
-| `503` | Database temporaneamente non disponibile (vedi log app) |
+| `503` | Database temporaneamente non disponibile, anche durante il login (vedi log app). Se il collegamento non si è stabilito all'avvio, l'API lo ritenta al più ogni 10 secondi |
 | `5xx` | Errore interno — esporta i log da *Help → Esporta log per supporto* |
 
 ## Audit

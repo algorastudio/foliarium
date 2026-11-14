@@ -78,33 +78,39 @@ class DBUtentiMixin:
     def get_user_credentials(self, username: str) -> Optional[Dict]:
         """
         Recupera le credenziali e le informazioni di base dell'utente dal database.
-        Utilizza il pattern 'with' per una gestione sicura della connessione.
+
+        Returns:
+            Il dict dell'utente, oppure ``None`` se l'utente non esiste.
+
+        Raises:
+            DBMError: se la connessione o la query falliscono, con l'errore
+                psycopg2 incatenato come ``__cause__``. Non si restituisce
+                ``None`` in questo caso: per i chiamanti vorrebbe dire
+                "utente inesistente", e l'archivista leggerebbe «credenziali
+                non valide» con il database irraggiungibile.
         """
         if not username:
             return None
 
-        # Adattato per usare il context manager _get_connection
         sql = f"""
             SELECT id, username, password_hash, nome_completo, ruolo, attivo
             FROM {self.schema}.utente
             WHERE username = %s;
         """
         try:
-            # --- CORREZIONE CRUCIALE: Uso del 'with' statement ---
             with self._get_connection() as conn:
-                # Uso del DictCursor per ottenere risultati come dizionari
                 with conn.cursor(cursor_factory=psycopg2.extras.DictCursor) as cur:
                     cur.execute(sql, (username,))
                     user_data = cur.fetchone()
-                    if user_data:
-                        return dict(user_data)
-            return None
         except Exception as e:
             self.logger.error(
                 f"Errore durante il recupero delle credenziali per l'utente '{username}': {e}",
                 exc_info=True,
             )
-            return None
+            raise DBMError(
+                f"Lettura delle credenziali di '{username}' non riuscita: {e}"
+            ) from e
+        return dict(user_data) if user_data else None
 
     def register_access(
         self,

@@ -116,6 +116,49 @@ class TestDescribeError:
         assert "Collegamento al database interrotto." == messaggio
         assert "PostgreSQL" in suggerimento
 
+    def test_connessione_fallita_senza_sqlstate(self):
+        """Un errore di connessione lato client non ha pgcode, ma resta tale.
+
+        libpq solleva OperationalError senza SQLSTATE quando il server non
+        risponde affatto (rifiuto, TLS richiesto e non offerto, pool mai
+        inizializzato): e' proprio il caso in cui all'archivista serve
+        sapere che il problema e' il collegamento, non i dati inseriti.
+        """
+        import psycopg2
+        from catasto_exceptions import DBMError
+        from foliarium.ui.errors import describe_error
+
+        causa = psycopg2.OperationalError(
+            "connection to server failed: server does not support SSL, "
+            "but SSL was required"
+        )
+        messaggio, suggerimento, dettagli = describe_error(
+            _incatena(DBMError("Database non raggiungibile"), causa)
+        )
+        assert messaggio == "Collegamento al database interrotto."
+        assert "PostgreSQL" in suggerimento
+        assert "SSL was required" in dettagli
+
+    def test_pool_esaurito_non_e_un_collegamento_interrotto(self):
+        """_get_connection traduce PoolError in OperationalError senza pgcode.
+
+        Il server e' raggiungibile, sono finite le connessioni del pool:
+        consigliare di verificare che PostgreSQL sia acceso sarebbe fuorviante.
+        """
+        import psycopg2
+        import psycopg2.pool
+        from catasto_exceptions import DBMError
+        from foliarium.ui.errors import describe_error
+
+        operativo = _incatena(
+            psycopg2.OperationalError(
+                "Il database è al massimo delle connessioni attive."
+            ),
+            psycopg2.pool.PoolError("connection pool exhausted"),
+        )
+        messaggio, _, _ = describe_error(_incatena(DBMError("x"), operativo))
+        assert messaggio != "Collegamento al database interrotto."
+
     def test_errore_non_db_resta_comprensibile(self):
         from foliarium.ui.errors import describe_error
 
