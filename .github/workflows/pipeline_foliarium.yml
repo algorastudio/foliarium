@@ -105,6 +105,11 @@ jobs:
         # Migrazioni post-init: aggiornano funzioni/viste allo schema v1.6.1+
         psql -h localhost -U postgres -d catasto_storico \
           -f sql_scripts/migrations/20_fix_report_function_civico.sql
+        # Funzioni che leggevano localita.civico / localita.tipo_id: gli script
+        # numerati qui sopra le creano ancora rotte. ON_ERROR_STOP perche' e'
+        # anche la prova che la migrazione si applica a un DB di questo tipo.
+        psql -h localhost -U postgres -d catasto_storico -v ON_ERROR_STOP=1 \
+          -f sql_scripts/migrations/24_fix_funzioni_civico.sql
 
     - name: Esecuzione Test Automatici (Pytest + Coverage)
       env:

@@ -402,13 +402,13 @@ BEGIN
     END LOOP;
     v_report := v_report || E'\n';
 
-    -- Immobili (invariato)
+    -- Immobili. Dalla v1.7.0 il civico sta in immobile.numero_civico, non in localita.
     v_report := v_report || '-------------------- IMMOBILI --------------------' || E'\n';
-    FOR v_immobile IN SELECT i.id, i.natura, i.numero_piani, i.numero_vani, i.consistenza, i.classificazione, l.tipologia_stradale AS tipo_localita, l.nome AS nome_localita, l.civico FROM immobile i JOIN localita l ON i.localita_id = l.id WHERE i.partita_id = p_partita_id ORDER BY l.nome, i.natura LOOP
+    FOR v_immobile IN SELECT i.id, i.natura, i.numero_piani, i.numero_vani, i.consistenza, i.classificazione, l.tipologia_stradale AS tipo_localita, l.nome AS nome_localita, i.numero_civico AS civico FROM immobile i JOIN localita l ON i.localita_id = l.id WHERE i.partita_id = p_partita_id ORDER BY l.nome, i.natura LOOP
         v_report := v_report || 'Immobile ID: ' || v_immobile.id || E'\n';
         v_report := v_report || '  Natura: ' || COALESCE(v_immobile.natura, 'N/D') || E'\n';
         v_report := v_report || '  Localita: ' || COALESCE(v_immobile.nome_localita, 'N/D');
-        IF v_immobile.civico IS NOT NULL THEN v_report := v_report || ', ' || v_immobile.civico; END IF;
+        IF v_immobile.civico IS NOT NULL AND v_immobile.civico <> '' THEN v_report := v_report || ', ' || v_immobile.civico; END IF;
         v_report := v_report || ' (' || COALESCE(v_immobile.tipo_localita, 'N/D') || ')' || E'\n';
         IF v_immobile.numero_piani IS NOT NULL THEN v_report := v_report || '  Piani: ' || v_immobile.numero_piani || E'\n'; END IF;
         IF v_immobile.numero_vani IS NOT NULL THEN v_report := v_report || '  Vani: ' || v_immobile.numero_vani || E'\n'; END IF;
