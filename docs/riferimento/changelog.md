@@ -1,6 +1,111 @@
 # Changelog
 
-## (non rilasciato) — Esportazione e report di una partita
+## v1.1.0 — 2026-11-14 — Installazione automatica, sicurezza, usabilità
+
+Prima release pubblicata dopo la v1.0.0. Le versioni 1.0.1 e 1.0.2 non sono
+mai uscite come release: le loro novità, descritte nelle sezioni omonime più
+sotto, arrivano agli utenti con questa versione.
+
+### Da sapere prima di aggiornare
+
+- **Database su un altro computer: ora la connessione è cifrata.** Per un
+  server PostgreSQL che non è sulla stessa macchina Foliarium pretende TLS
+  (`sslmode=require`). Se quel server non ha TLS la connessione fallisce:
+  attivare TLS sul server oppure, consapevolmente, impostare `sslmode` nella
+  sezione `[database]` di `config.ini`. In locale non cambia nulla.
+- **I backup sono cifrati per impostazione predefinita** (AES-256-GCM). La
+  chiave sta nel portachiavi di Windows: senza, un backup cifrato non si
+  ripristina. Subito dopo l'aggiornamento conviene usare **Esporta
+  chiave...** nella pagina Backup e conservare il file in un luogo sicuro.
+- **Password più robuste**: almeno 10 caratteri, con minuscole, maiuscole e
+  cifre, e un elenco di password banali rifiutate. Vale per le password
+  nuove o cambiate; quelle esistenti continuano a funzionare.
+- **Il logout non chiude più il programma**: riapre la finestra di accesso.
+- **Aggiornamento sopra un'installazione esistente:** l'installer riapplica
+  gli script del database all'archivio esistente (è così che arrivano le
+  correzioni alle funzioni SQL). Gli errori attesi, quasi tutti «already
+  exists», finiscono in `setup_database.log` e non fermano l'installazione.
+
+### Lavoro sulle partite
+
+- **Timeline delle variazioni** nei dettagli della partita, con le
+  variazioni in ordine cronologico e i dettagli del contratto.
+- **Grafo genealogico interattivo**: partite come nodi, variazioni come
+  archi, predecessori sopra e successori sotto.
+- **Visualizzatore dei documenti** allegati (PDF e immagini) dentro il
+  dettaglio della partita, con zoom, senza programmi esterni.
+- **Operazioni massive**: procedura guidata per trasferire più immobili da
+  una partita a una nuova (successione, passaggio di proprietà), con quote
+  verificate.
+- **Bozze**: i wizard Nuova Partita e Registrazione Proprietà e i moduli di
+  inserimento si possono salvare in bozza e riprendere, anche da un'altra
+  postazione.
+- **Ricerca Partite**: vista a schede in alternativa alla tabella, e
+  modifica della partita direttamente dai risultati.
+
+### Usabilità
+
+Correzioni emerse da una valutazione dell'interfaccia rispetto alle
+euristiche di Nielsen (documentata in `docs/qualita/iso9241-110.md`):
+
+- **Errori comprensibili**: al posto dei messaggi tecnici di PostgreSQL, una
+  frase in italiano con un suggerimento; il testo tecnico resta nei
+  dettagli.
+- **Modifiche non salvate**: lasciando una pagina con dati inseriti il
+  programma chiede se salvarli in bozza, uscire senza salvare o continuare
+  a compilare.
+- **Annullamento dell'ultima operazione** (`Ctrl+Z`) per archiviazione e
+  ripristino di comuni e partite, entro due minuti.
+- **Campi obbligatori**: segnalati ed elencati, con il cursore sul primo
+  mancante, invece di un salvataggio che falliva senza dire perché.
+- **Scorciatoie da tastiera** (`Ctrl+S`, `Ctrl+F`, `Alt+←`, `F1` e altre),
+  con l'elenco in **Help → Scorciatoie** (`Ctrl+/`).
+- **Import CSV/Excel** con avanzamento e pulsante Annulla.
+- **Manuale**: ricerca su tutte le pagine, aiuto contestuale con `F1`,
+  leggibile anche in tema scuro.
+- Date sempre nel formato gg/mm/aaaa; suggerimenti su tutte le voci del
+  menu laterale; meno richieste di conferma superflue; nomi accessibili per
+  i lettori di schermo.
+
+### Sicurezza e privacy
+
+- **Anonimizzazione GDPR di un possessore** (diritto alla cancellazione):
+  i dati personali vengono sostituiti mantenendo partite e collegamenti
+  storici. Pulsante **Anonimizza (GDPR)** in Modifica Possessore.
+- **Conservazione del registro delle modifiche** configurabile in giorni;
+  se attivata, la pulizia avviene a ogni avvio.
+- **Esportazione e importazione della chiave dei backup**, protetta da
+  passphrase.
+- **API per integrazioni**: le chiavi API rispettano davvero i permessi di
+  sola lettura o scrittura e hanno un limite di richieste al minuto.
+- Modelli di documenti GDPR (informativa, registro dei trattamenti, DPIA,
+  misure di sicurezza) in `docs/compliance/`: bozze da far validare.
+
+### Correzioni
+
+- **Esportazione di una partita** (JSON, CSV, PDF) e report della partita:
+  fallivano sempre. Dettagli più sotto.
+- **Eliminazione di un immobile**: non funzionava.
+- **Wizard Nuova Partita**: possessori e immobili non venivano salvati.
+- **Albero genealogico** da Ricerca Partite: si chiudeva con un errore.
+- **Ruolo consultatore**: non riceveva nessun permesso, nemmeno di
+  consultazione.
+- **Registro delle modifiche**: non si apriva sui database senza la vista
+  dedicata.
+- Logo nella finestra di accesso, icone mancanti nel menu laterale, data con
+  lettere accentate illeggibile nella pagina iniziale.
+
+### Altro
+
+- **Demo in Docker**: il programma desktop, ospitato su un server, si prova
+  dal browser con credenziali dedicate (`docker/demo/README.md`). Non
+  riguarda le installazioni dei clienti.
+- **Documenti sulla qualità**: autovalutazioni ISO/IEC 25010 e ISO 9241-110,
+  contesto d'uso ISO 9241-11 (`docs/qualita/`).
+- L'installer può essere firmato digitalmente al momento del rilascio
+  (`signing/README.md`); quello prodotto dalla pipeline non è firmato.
+
+### Esportazione e report di una partita
 
 - **Corretto: l'esportazione di una partita falliva sempre.** JSON, CSV e
   PDF si fermavano con «column l.civico does not exist», così come il
@@ -13,7 +118,8 @@
   funzioni. Negli altri casi (database creati a mano, con
   `setup_database.bat` o in Docker) va eseguita una volta
   `sql_scripts/migrations/24_fix_funzioni_civico.sql`.
-## (non rilasciato) — Manuale in linea nel programma installato
+
+### Manuale in linea nel programma installato
 
 - **Aiuto → Manuale e F1 non si aprono più vuoti.** Il pacchetto
   PyInstaller non conteneva né i documenti del manuale né `mkdocs.yml`:
@@ -24,7 +130,7 @@
   non entra nel pacchetto e non compare più fra i risultati della ricerca
   nel manuale, nemmeno quando il programma gira dai sorgenti.
 
-## (non rilasciato) — Installazione senza intervento manuale
+### Installazione senza intervento manuale
 
 - **L'installer Windows crea il database.** `Foliarium_<versione>_Setup.exe`
   include PostgreSQL 16.10 e, durante l'installazione, crea il cluster,
@@ -68,7 +174,7 @@
   altro nome alcune funzioni di manutenzione finivano nello schema
   `public` invece che in `catasto`.
 
-## (non rilasciato) — Ampliamento operazioni MCP
+### Ampliamento operazioni MCP
 
 - **MCP server da 8 a 23 tool.** Il server MCP ora espone, oltre alla
   consultazione esistente, anche statistiche, audit e — per la prima volta —
