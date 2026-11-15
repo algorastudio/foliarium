@@ -259,6 +259,40 @@ def avvia_postgres(pg_bin: Path, pg_data: Path, pg_log: Path,
     return False
 
 
+def ferma_server_esistente(pg_bin: Path, pg_data: Path) -> bool:
+    """
+    Ferma il PostgreSQL che sta già usando la cartella dei dati.
+
+    Aggiornando sopra un'installazione funzionante, il servizio FoliariumDB
+    ha già acceso il server su questa cartella; dopo un'installazione
+    interrotta può esserci un server rimasto acceso. Senza fermarlo, il
+    setup sceglieva un'altra porta e avviava un secondo server sulla stessa
+    cartella, che non può partire («un altro server potrebbe essere in
+    esecuzione»). Il servizio viene registrato e riavviato a fine setup.
+
+    Ritorna False se il server resta acceso: il setup non può proseguire.
+    """
+    if not (pg_data / "postmaster.pid").exists():
+        return True
+    if IS_WIN and run_quiet(["sc", "query", SERVICE_NAME]).returncode == 0:
+        log(f"Fermo il servizio {SERVICE_NAME} per aggiornare il database...")
+        run_quiet(["net", "stop", SERVICE_NAME])
+    pg_ctl = exe(pg_bin, "pg_ctl")
+    if run_quiet([pg_ctl, "status", "-D", str(pg_data)]).returncode != 0:
+        return True   # postmaster.pid rimasto da un server già spento
+    log("Un server PostgreSQL usa già la cartella dei dati (installazione "
+        "precedente o interrotta): lo fermo.")
+    esito = run_quiet([pg_ctl, "stop", "-D", str(pg_data), "-m", "fast",
+                       "-w", "-t", "60"])
+    if esito.returncode == 0:
+        return True
+    log(f"ERRORE: impossibile fermare il server (codice {esito.returncode}).")
+    for riga in f"{esito.stdout or ''}\n{esito.stderr or ''}".splitlines():
+        if riga.strip():
+            log(f"    {riga}")
+    return False
+
+
 def wait_ready(pg_bin: Path, port: int, attempts: int = 30) -> bool:
     """Attende che PostgreSQL sia pronto."""
     pg_isready = exe(pg_bin, "pg_isready")
@@ -653,6 +687,7 @@ def _setup_on_external_pg(
         apply_sql_scripts(pg_bin, port, sql_dir, db_name, postgres_password,
                           database_nuovo=database_nuovo)
 
+        admin_esistente = admin_esiste(pg_bin, port, db_name, postgres_password)
         bootstrap_file = sql_dir / BOOTSTRAP_ADMIN_SCRIPT
         if bootstrap_file.exists():
             log(f"→ {BOOTSTRAP_ADMIN_SCRIPT}")
@@ -733,10 +768,14 @@ def _setup_on_external_pg(
     log(f"Porta:    {port}  |  Database: {db_name}")
     log(f"Utente DB app:   {db_user}")
     log(f"Config:          {config_file}")
-    log(f"Utente admin:    admin  /  {admin_password}")
-    log("IMPORTANTE: cambiare la password admin al primo accesso!")
+    if admin_esistente:
+        log("Utente admin:    già esistente, password invariata.")
+    else:
+        log(f"Utente admin:    admin  /  {admin_password}")
+        log("IMPORTANTE: cambiare la password admin al primo accesso!")
     if credentials_file is not None:
-        write_credentials_file(credentials_file, admin_password, db_name, db_user, port)
+        write_credentials_file(credentials_file, admin_password, db_name, db_user, port,
+                               admin_esistente=admin_esistente)
     print(f"{'='*60}\n")
     return True
 
@@ -777,8 +816,25 @@ def resolve_sql_dir(install_dir: Path) -> Path:
     return candidates[0]
 
 
+def admin_esiste(pg_bin: Path, port: int, db_name: str, password: str) -> bool:
+    """
+    L'utente applicativo admin c'è già? Su un archivio esistente lo script di
+    bootstrap non lo tocca, quindi la password generata in questa esecuzione
+    non vale. Se la domanda fallisce si risponde no: è il caso dell'archivio
+    nuovo, in cui la password generata è quella giusta.
+    """
+    env = os.environ.copy()
+    env["PGPASSWORD"] = password
+    r = run_quiet([exe(pg_bin, "psql"), "-h", "127.0.0.1", "-p", str(port),
+                   "-U", "postgres", "-d", db_name,
+                   "-tc", "SELECT 1 FROM catasto.utente WHERE username = 'admin'"],
+                  env=env)
+    return r.returncode == 0 and "1" in (r.stdout or "")
+
+
 def write_credentials_file(
     path: Path, admin_password: str, db_name: str, db_user: str, port: int,
+    admin_esistente: bool = False,
 ) -> None:
     """
     Scrive il promemoria delle credenziali di primo accesso.
@@ -788,15 +844,30 @@ def write_credentials_file(
     ruolo PostgreSQL, non questa, e in DB c'e' solo l'hash bcrypt. Se l'utente
     non la vede qui, l'installazione e' riuscita ma nessuno puo' entrare.
     """
-    try:
-        path.write_text(
+    if admin_esistente:
+        # L'installer apre questo file alla fine: una password nuova, che non
+        # vale, manderebbe l'utente fuori strada. Riscriverlo serve anche a
+        # togliere un'eventuale copia vecchia con la password in chiaro.
+        intestazione = (
+            "Foliarium — credenziali di accesso\n"
+            "==================================\n\n"
+            "Aggiornamento di un archivio esistente.\n\n"
+            "L'utente admin esisteva già: la sua password non è cambiata.\n"
+            "Accedere con le credenziali usate finora.\n\n"
+        )
+    else:
+        intestazione = (
             "Foliarium — credenziali di primo accesso\n"
             "========================================\n\n"
             "Utente:   admin\n"
             f"Password: {admin_password}\n\n"
             "CAMBIARE LA PASSWORD AL PRIMO ACCESSO\n"
             "(Impostazioni -> Gestione Utenti), poi eliminare questo file.\n\n"
-            "--- Dati tecnici (per l'assistenza) ---\n"
+        )
+    try:
+        path.write_text(
+            intestazione
+            + "--- Dati tecnici (per l'assistenza) ---\n"
             f"Database: {db_name}\n"
             f"Utente DB: {db_user}\n"
             f"Porta:    {port}\n",
@@ -856,6 +927,16 @@ def setup(
     log(f"Directory installazione: {install_dir}")
     log(f"PostgreSQL bin:          {pg_bin}")
     log(f"Data directory:          {pg_data}")
+
+    # --- 0. Server già acceso sulla stessa cartella dei dati ---
+    # Prima di cercare la porta: quella del server da fermare risulterebbe
+    # occupata, e il setup ripiegherebbe su un'altra.
+    if (pg_data / "PG_VERSION").exists() and not ferma_server_esistente(pg_bin, pg_data):
+        log("ERRORE: un altro PostgreSQL usa la cartella dei dati e non si ferma.")
+        log(f"Fermarlo a mano ({SERVICE_NAME} nei Servizi di Windows, oppure")
+        log(f"  {exe(pg_bin, 'pg_ctl')} stop -D {pg_data})")
+        log("e ripetere l'installazione.")
+        return False
 
     # --- 1. Trova porta libera ---
     print("\n[1/8] Ricerca porta libera...")
@@ -995,6 +1076,7 @@ def setup(
 
         # Bootstrap admin: passa admin_password come variabile psql.
         # CRITICO per fresh install: senza questo non si puo' accedere al primo avvio.
+        admin_esistente = admin_esiste(pg_bin, port, db_name, db_password)
         bootstrap_file = sql_dir / BOOTSTRAP_ADMIN_SCRIPT
         if bootstrap_file.exists():
             log(f"→ {BOOTSTRAP_ADMIN_SCRIPT} (password admin dinamica)")
@@ -1111,10 +1193,14 @@ def setup(
     print()
     log("Credenziali amministratore applicativo:")
     log("  Utente:   admin")
-    log(f"  Password: {admin_password}")
-    log("  IMPORTANTE: cambiare la password al primo accesso!")
+    if admin_esistente:
+        log("  Password: invariata (l'utente admin esisteva già)")
+    else:
+        log(f"  Password: {admin_password}")
+        log("  IMPORTANTE: cambiare la password al primo accesso!")
     if credentials_file is not None:
-        write_credentials_file(credentials_file, admin_password, db_name, db_user, port)
+        write_credentials_file(credentials_file, admin_password, db_name, db_user, port,
+                               admin_esistente=admin_esistente)
     print(f"{'='*60}\n")
 
     return True

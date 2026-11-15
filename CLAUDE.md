@@ -4,7 +4,7 @@
 
 **Foliarium** is a desktop application for managing historical Italian cadastral records (archivio catastale storico). It allows archivists to search, insert, and export property records (partite catastali) and owners (possessori).
 
-- **Current version:** 1.1.1
+- **Current version:** 1.1.2
 - **Author:** Marco Santoro / Algora Studio
 - **Primary platform:** Windows 10+
 - **Code/UI language:** Italian
@@ -564,6 +564,19 @@ installare a parte. Tre ingredienti, preparati dalla pipeline in
   propri canali: il test usa un finto pg_ctl che lascia acceso un figlio.
   Ogni `pg_ctl start` deve passare da `avvia_postgres()`, e un test lo
   verifica.
+- **Server già acceso sulla cartella dei dati** (`ferma_server_esistente()`):
+  aggiornando sopra un'installazione funzionante il servizio `FoliariumDB`
+  ha già acceso PostgreSQL, e dopo un'installazione interrotta può esserci
+  un server rimasto acceso. Il setup li ferma **prima** di scegliere la
+  porta: altrimenti quella porta risulta occupata, il setup ripiega su
+  un'altra e avvia un secondo server sulla stessa cartella, che non parte
+  («un altro server potrebbe essere in esecuzione»). Il servizio viene
+  registrato e riavviato a fine setup.
+- **`PRIMO-ACCESSO.txt` solo se la password vale:** lo script di bootstrap
+  crea `admin` solo se manca, quindi su un archivio esistente la password
+  generata non serve a nulla. `admin_esiste()` lo controlla prima del
+  bootstrap e il file, che l'installer apre a fine installazione, dice che
+  la password è invariata.
 - **Validazione:** il job `valida-installer` compila l'installer contro un
   `dist/` fittizio e gira **anche sulle pull request**, dove il build vero è
   escluso. Senza, un errore di sintassi nell'installer si scoprirebbe solo

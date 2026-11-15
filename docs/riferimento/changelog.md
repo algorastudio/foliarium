@@ -1,5 +1,23 @@
 # Changelog
 
+## v1.1.2 — 2026-11-15 — Aggiornamento sopra un'installazione esistente
+
+Sostituisce la v1.1.1. Comprende le novità della v1.1.0 e la correzione
+della v1.1.1: vedere il
+[changelog completo](https://github.com/algorastudio/foliarium/blob/main/docs/riferimento/changelog.md).
+
+- **L'installazione falliva se PostgreSQL era già acceso sulla cartella dei
+  dati**, con «un altro server potrebbe essere in esecuzione» in
+  `setup_database.log`. Succedeva aggiornando sopra un Foliarium
+  funzionante, dove il servizio `FoliariumDB` è attivo, e dopo
+  un'installazione della v1.1.0 rimasta bloccata. Ora il setup ferma il
+  servizio e qualunque server rimasto acceso su quella cartella, prosegue
+  sulla stessa porta e a fine installazione riavvia il servizio.
+- **`PRIMO-ACCESSO.txt` non mostra più una password che non vale.** Su un
+  archivio esistente l'utente admin non viene toccato, ma il file riceveva
+  comunque una password nuova. Ora dice che la password è invariata e va
+  usata quella di sempre.
+
 ## v1.1.1 — 2026-11-14 — Correzione dell'installer
 
 Sostituisce la v1.1.0, da non usare. Comprende tutte le sue novità e le note

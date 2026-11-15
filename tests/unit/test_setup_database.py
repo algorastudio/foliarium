@@ -483,3 +483,154 @@ class TestAvvioDelServerNonBloccaIlSetup:
         funzione = sorgente.split("def avvia_postgres", 1)[1].split("\ndef ", 1)[0]
         assert re.search(r'"pg_ctl"\),\s*"start"', funzione)
         assert "capture_output" not in funzione
+
+
+class TestServerGiaAccesoSullaCartellaDeiDati:
+    """
+    Aggiornando sopra un'installazione funzionante, il servizio FoliariumDB
+    ha già acceso PostgreSQL sulla cartella dei dati; dopo un'installazione
+    interrotta può esserci un server rimasto acceso. Il setup sceglieva
+    un'altra porta e ne avviava un secondo sulla stessa cartella, che non
+    può partire: «un altro server potrebbe essere in esecuzione».
+    """
+
+    @pytest.fixture(autouse=True)
+    def _log_isolato(self, monkeypatch):
+        monkeypatch.setattr(sdb, "_LOG_FILE", None)
+        monkeypatch.setattr(sdb, "_SECRETS", [])
+
+    def _registra(self, monkeypatch, *, acceso: bool, arresto_ok: bool = True,
+                  servizio: bool = False):
+        chiamate: list[list[str]] = []
+
+        def finto_run_quiet(cmd, **kw):
+            chiamate.append([str(c) for c in cmd])
+            nome = Path(str(cmd[0])).name
+            if nome == "sc":
+                return _EsitoPsql(returncode=0 if servizio else 1060)
+            if "status" in cmd:
+                return _EsitoPsql(returncode=0 if acceso else 3)
+            if "stop" in cmd and nome.startswith("pg_ctl"):
+                return _EsitoPsql(returncode=0 if arresto_ok else 1,
+                                  stdout="", stderr="pg_ctl: impossibile fermare")
+            return _EsitoPsql(returncode=0)
+
+        monkeypatch.setattr(sdb, "run_quiet", finto_run_quiet)
+        return chiamate
+
+    def _cartella_dati(self, tmp_path, *, con_pid: bool = True) -> Path:
+        pg_data = tmp_path / "pg_data"
+        pg_data.mkdir()
+        (pg_data / "PG_VERSION").write_text("16", encoding="utf-8")
+        if con_pid:
+            (pg_data / "postmaster.pid").write_text("1234\n", encoding="utf-8")
+        return pg_data
+
+    def test_senza_server_acceso_non_ferma_nulla(self, tmp_path, monkeypatch):
+        chiamate = self._registra(monkeypatch, acceso=False)
+        pg_data = self._cartella_dati(tmp_path, con_pid=False)
+        assert sdb.ferma_server_esistente(tmp_path / "bin", pg_data) is True
+        assert not any("stop" in c for c in chiamate)
+
+    def test_un_server_acceso_viene_fermato(self, tmp_path, monkeypatch):
+        monkeypatch.setattr(sdb, "IS_WIN", False)
+        chiamate = self._registra(monkeypatch, acceso=True)
+        pg_data = self._cartella_dati(tmp_path)
+        assert sdb.ferma_server_esistente(tmp_path / "bin", pg_data) is True
+        arresti = [c for c in chiamate if "stop" in c and "-D" in c]
+        assert arresti and arresti[0][arresti[0].index("-D") + 1] == str(pg_data)
+
+    def test_su_windows_ferma_prima_il_servizio(self, tmp_path, monkeypatch):
+        monkeypatch.setattr(sdb, "IS_WIN", True)
+        chiamate = self._registra(monkeypatch, acceso=True, servizio=True)
+        sdb.ferma_server_esistente(tmp_path / "bin", self._cartella_dati(tmp_path))
+        servizio = [i for i, c in enumerate(chiamate) if c[:2] == ["net", "stop"]]
+        pg_ctl = [i for i, c in enumerate(chiamate) if "status" in c]
+        assert servizio and pg_ctl and servizio[0] < pg_ctl[0], chiamate
+        assert chiamate[servizio[0]][2] == sdb.SERVICE_NAME
+
+    def test_se_non_si_ferma_il_setup_lo_dice(self, tmp_path, monkeypatch):
+        logfile = tmp_path / "setup.log"
+        monkeypatch.setattr(sdb, "_LOG_FILE", logfile)
+        monkeypatch.setattr(sdb, "IS_WIN", False)
+        self._registra(monkeypatch, acceso=True, arresto_ok=False)
+        assert sdb.ferma_server_esistente(tmp_path / "bin", self._cartella_dati(tmp_path)) is False
+        assert "impossibile fermare" in logfile.read_text(encoding="utf-8")
+
+    def test_il_setup_ferma_il_server_prima_di_scegliere_la_porta(self, tmp_path, monkeypatch):
+        # Altrimenti la porta del server da fermare risulta occupata e il
+        # setup ripiega su un'altra, che poi resterebbe in config.ini.
+        ordine: list[str] = []
+        install_dir = tmp_path / "Foliarium"
+        (install_dir / "pgsql" / "bin").mkdir(parents=True)
+        pg_data = install_dir / "pg_data"
+        pg_data.mkdir()
+        (pg_data / "PG_VERSION").write_text("16", encoding="utf-8")
+        monkeypatch.setattr(sdb, "IS_WIN", False)
+        monkeypatch.setattr(sdb, "ferma_server_esistente",
+                            lambda *a, **kw: ordine.append("ferma") or True)
+        monkeypatch.setattr(sdb, "find_free_port",
+                            lambda *a, **kw: ordine.append("porta") or 5432)
+        monkeypatch.setattr(sdb, "avvia_postgres",
+                            lambda *a, **kw: ordine.append("avvio") or False)
+        assert sdb.setup(install_dir, skip_service=True) is False
+        assert ordine == ["ferma", "porta", "avvio"], ordine
+
+
+class TestCredenzialiQuandoAdminEsisteGia:
+    """
+    Aggiornando sopra un archivio esistente, lo script di bootstrap non
+    tocca l'utente admin (lo crea solo se manca). Ma PRIMO-ACCESSO.txt, che
+    l'installer apre alla fine, riceveva comunque una password nuova: una
+    password che non funziona. Ora dice che quella di sempre è invariata.
+    """
+
+    @pytest.fixture(autouse=True)
+    def _log_isolato(self, monkeypatch):
+        monkeypatch.setattr(sdb, "_LOG_FILE", None)
+        monkeypatch.setattr(sdb, "_SECRETS", [])
+
+    def test_il_file_non_mostra_una_password_che_non_vale(self, tmp_path):
+        file = tmp_path / "PRIMO-ACCESSO.txt"
+        sdb.write_credentials_file(file, "Nuova-Password-123", "catasto_storico",
+                                   "foliarium", 5432, admin_esistente=True)
+        testo = file.read_text(encoding="utf-8")
+        assert "Nuova-Password-123" not in testo
+        assert "non è cambiata" in testo
+
+    def test_installazione_nuova_mostra_la_password(self, tmp_path):
+        file = tmp_path / "PRIMO-ACCESSO.txt"
+        sdb.write_credentials_file(file, "Nuova-Password-123", "catasto_storico",
+                                   "foliarium", 5432)
+        assert "Password: Nuova-Password-123" in file.read_text(encoding="utf-8")
+
+    @pytest.mark.parametrize("admin_presente", [True, False])
+    def test_il_setup_controlla_se_admin_esiste(self, tmp_path, monkeypatch, admin_presente):
+        pg_bin = tmp_path / "bin"
+        pg_bin.mkdir()
+        (pg_bin / f"psql{sdb.EXE}").write_text("", encoding="utf-8")
+        sql_dir = tmp_path / "sql_scripts"
+        for rel in sdb.SQL_SCRIPTS + [sdb.BOOTSTRAP_ADMIN_SCRIPT]:
+            (sql_dir / rel).parent.mkdir(parents=True, exist_ok=True)
+            (sql_dir / rel).write_text("-- vuoto", encoding="utf-8")
+
+        def finto_run_quiet(cmd, **kw):
+            testo = " ".join(str(c) for c in cmd)
+            if "catasto.utente" in testo:
+                return _EsitoPsql(stdout=" 1\n" if admin_presente else "\n")
+            return _EsitoPsql(stdout=" 1\n")      # il database esiste già
+
+        monkeypatch.setattr(sdb, "wait_ready", lambda *a, **kw: True)
+        monkeypatch.setattr(sdb, "run_psql", lambda *a, **kw: None)
+        monkeypatch.setattr(sdb, "run_psql_file", lambda *a, **kw: 0)
+        monkeypatch.setattr(sdb, "run_quiet", finto_run_quiet)
+
+        credenziali = tmp_path / "PRIMO-ACCESSO.txt"
+        assert sdb._setup_on_external_pg(
+            install_dir=tmp_path, pg_bin=pg_bin,
+            db_password="PasswordDb-123456", admin_password="PasswordAdmin-123456",
+            postgres_password="", port=5432,
+            config_file=tmp_path / "config.ini", credentials_file=credenziali,
+        ) is True
+        testo = credenziali.read_text(encoding="utf-8")
+        assert ("PasswordAdmin-123456" in testo) is (not admin_presente)
