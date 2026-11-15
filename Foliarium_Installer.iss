@@ -18,7 +18,7 @@
 ; ============================================================================
 
 #ifndef MyAppVersion
-  #define MyAppVersion "1.1.1"
+  #define MyAppVersion "1.1.2"
 #endif
 #define MyAppName "Foliarium"
 #define MyAppPublisher "Marco Santoro / Algora Studio"
