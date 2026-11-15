@@ -1,5 +1,24 @@
 # Changelog
 
+## v1.1.1 — 2026-11-14 — Correzione dell'installer
+
+Sostituisce la v1.1.0, da non usare. Comprende tutte le sue novità e le note
+per chi aggiorna: vedere la sezione v1.1.0 del
+[changelog completo](https://github.com/algorastudio/foliarium/blob/main/docs/riferimento/changelog.md).
+
+- **L'installazione si fermava per sempre su «Configurazione del database
+  in corso».** Il setup del database avviava PostgreSQL catturandone
+  l'output; su Windows il server appena avviato eredita quel canale e non
+  lo chiude mai, e il setup restava ad aspettare. Ora l'output di
+  `pg_ctl` va su un file (`pg_ctl_avvio.log` accanto al registro del
+  server) e, se l'avvio fallisce, il suo messaggio finisce in
+  `setup_database.log` invece di andare perso.
+- **Se un'installazione della v1.1.0 è rimasta bloccata:** chiudere da
+  Gestione attività i processi `setup_db.exe`, `pg_ctl.exe` e
+  `postgres.exe` (oppure riavviare il computer), poi installare la v1.1.1.
+  Il setup riparte dalla cartella dei dati già creata in
+  `C:\ProgramData\Foliarium\pg_data`.
+
 ## v1.1.0 — 2026-11-14 — Installazione automatica, sicurezza, usabilità
 
 Prima release pubblicata dopo la v1.0.0. Le versioni 1.0.1 e 1.0.2 non sono

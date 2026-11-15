@@ -4,7 +4,7 @@
 
 **Foliarium** is a desktop application for managing historical Italian cadastral records (archivio catastale storico). It allows archivists to search, insert, and export property records (partite catastali) and owners (possessori).
 
-- **Current version:** 1.1.0
+- **Current version:** 1.1.1
 - **Author:** Marco Santoro / Algora Studio
 - **Primary platform:** Windows 10+
 - **Code/UI language:** Italian
@@ -556,6 +556,14 @@ installare a parte. Tre ingredienti, preparati dalla pipeline in
   pipeline è costruito con i vecchi script numerati, non con questo
   elenco: lo sorveglia `tests/integration/test_schema_database_nuovo.py`,
   che lo applica a un database vuoto con la funzione dell'installer.
+- **`pg_ctl start` senza catturare l'output** (`avvia_postgres()`): su
+  Windows il server avviato eredita i canali di uscita di pg_ctl e non li
+  chiude mai, e con `capture_output=True` il setup aspettava per sempre.
+  Così l'installer della v1.1.0 restava fermo su «Configurazione del
+  database in corso». Su Linux non si vede, perché il server ridirige i
+  propri canali: il test usa un finto pg_ctl che lascia acceso un figlio.
+  Ogni `pg_ctl start` deve passare da `avvia_postgres()`, e un test lo
+  verifica.
 - **Validazione:** il job `valida-installer` compila l'installer contro un
   `dist/` fittizio e gira **anche sulle pull request**, dove il build vero è
   escluso. Senza, un errore di sintassi nell'installer si scoprirebbe solo
